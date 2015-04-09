@@ -1,0 +1,103 @@
+// file      : web/module -*- C++ -*-
+// copyright : Copyright (c) 2014-2015 Code Synthesis Tools CC
+// license   : MIT; see accompanying LICENSE file
+
+#ifndef WEB_MODULE
+#define WEB_MODULE
+
+#include <string>
+#include <vector>
+#include <iosfwd>
+#include <cstdint>   // uint16_t
+#include <utility>   // move()
+#include <stdexcept> // runtime_error
+
+namespace web
+{
+  // Exception indicating HTTP request/response sequencing error.
+  // For example, trying to change the status code after some
+  // content has already been written.
+  //
+  struct sequence_error: std::runtime_error {};
+
+  // HTTP status code.
+  //
+  using status_code = uint16_t;
+
+  struct name_value
+  {
+    // These should eventually become string_view's.
+    //
+    std::string name;
+    std::string value;
+
+    name_value () {}
+    name_value (std::string n, std::string v)
+        : name (std::move (n)), value (std::move (v)) {}
+  };
+
+  using name_values = std::vector<name_value>;
+
+  class request
+  {
+  public:
+    //@@ Why not pass parameters directly? Lazy parsing?
+    //@@ Why not have something like operator[] for lookup? Probably
+    //   in name_values.
+    //@@ Maybe parameter_list() and parameter_map()?
+    //
+    virtual const name_values&
+    parameters () = 0;
+  };
+
+  class response
+  {
+  public:
+    // Set status code, content type, and get the stream to write
+    // the content to. If the buffer argument is true (default),
+    // then buffer the entire content before sending it as a
+    // response. This allows us to change the status code in
+    // case of an error.
+    //
+    // Specifically, if there is already content in the buffer
+    // and the status code is changed, then the old content is
+    // discarded. If the content was not buffered and the status
+    // is changed, then the sequence_error exception is thrown.
+    // If this exception leaves module::handle(), then the
+    // implementation shall terminate the response in a suitable
+    // but unspecified manner. In particular, there is no guarantee
+    // that the user will be notified of an error or observe the
+    // new status.
+    //
+    virtual std::ostream&
+    content (status_code, const std::string& type, bool buffer = true) = 0;
+
+    // Set status code without writing any content.
+    //
+    virtual void
+    status (status_code) = 0;
+  };
+
+  // A web server logging backend. The module can use it to log
+  // diagnostics that is meant for the web server operator rather
+  // than the user.
+  //
+  // The module can cast this basic interface to the web server's
+  // specific implementation that may provide a richer interface.
+  //
+  class log
+  {
+  public:
+    virtual void
+    write (const char* msg);
+  };
+
+  class module
+  {
+  public:
+    virtual status_code
+    handle (request&, response&, log&) = 0;
+  };
+}
+
+#endif // WEB_MODULE

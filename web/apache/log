@@ -1,0 +1,38 @@
+// file      : web/apache/log -*- C++ -*-
+// copyright : Copyright (c) 2014-2015 Code Synthesis Tools CC
+// license   : MIT; see accompanying LICENSE file
+
+#ifndef WEB_APACHE_LOG
+#define WEB_APACHE_LOG
+
+#include <cstdint> // uint64_t
+
+#include <web/module>
+
+namespace web
+{
+  namespace apache
+  {
+    class log: public web::log
+    {
+    public:
+      // ...
+
+      virtual void
+      write (const char* msg) {write (APLOG_ERR, msg);}
+
+      // Apache-specific interface.
+      //
+      void
+      write (int level, const char* msg) {write (nullptr, 0, level, msg);}
+
+      void
+      write (const char* file, uint64_t line, int level, const char* msg);
+
+    private:
+     // ...
+    };
+  }
+}
+
+#endif // WEB_APACHE_LOG
