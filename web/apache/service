@@ -13,32 +13,31 @@ namespace web
 {
   namespace apache
   {
-    class service_common
-    {
-      //@@ Implementation that calls handle() below goes here.
-      //
-
-      virtual void
-      handle (request&, response&, log&) = 0;
-    };
-
-    template <typename M>
-    class service: public service_common
+    class service
     {
     public:
       // Note that the module exemplar is stored by-reference.
       //
-      service (const std::string& name, const M& exemplar);
+      template <typename M>
+      service (const std::string& name, const M& exemplar)
+          : exemplar_ (exemplar), handle_ (&handle_impl<M>) {}
 
-      virtual void
-      handle (request& rq, response& rs, log& l)
+      //@@ Implementation calls handle_ function pointer below:
+      //
+      // handle_ (rq, rs, l, exemplar_);
+      //
+
+    private:
+      template <typename M>
+      static void
+      handle_impl (request& rq, response& rs, log& l, const module& exemplar)
       {
-        M m (exemplar_);
+        M m (static_cast<const M&> (exemplar));
         m.handle (rq, rs, l);
       }
 
-    private:
       const M& exemplar_;
+      void (*handle_) (request&, response&, log&, const module&);
     };
   }
 }
