@@ -95,7 +95,7 @@ namespace web
   class module
   {
   public:
-    virtual status_code
+    virtual void
     handle (request&, response&, log&) = 0;
   };
 }
