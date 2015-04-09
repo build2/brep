@@ -1,0 +1,43 @@
+// file      : brep/module -*- C++ -*-
+// copyright : Copyright (c) 2014-2015 Code Synthesis Tools CC
+// license   : MIT; see accompanying LICENSE file
+
+#ifndef BREP_MODULE
+#define BREP_MODULE
+
+namespace brep
+{
+  // This exception is used to signal that the request is invalid
+  // (4XX codes) rather than that it could not be processed (5XX).
+  // By default 422 is returned, which means the request was
+  // semantically invalid.
+  //
+  struct invalid_request
+  {
+    web::status_code status {422};
+    std::string description;
+
+    //@@ Maybe optional "try again" link?
+    //
+  };
+
+  // Adaptation of the web::module to our needs.
+  //
+  class module: public web::module
+  {
+  public:
+    virtual void
+    handle (request&, response&) = 0;
+
+    // Implementation details.
+    //
+  protected:
+    virtual void
+    handle (request&, response&, log&);
+
+  protected:
+    log* log_;
+  };
+}
+
+#endif // BREP_MODULE

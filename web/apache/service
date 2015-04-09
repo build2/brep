@@ -1,0 +1,46 @@
+// file      : web/apache/service -*- C++ -*-
+// copyright : Copyright (c) 2014-2015 Code Synthesis Tools CC
+// license   : MIT; see accompanying LICENSE file
+
+#ifndef WEB_APACHE_SERVICE
+#define WEB_APACHE_SERVICE
+
+#include <string>
+
+#include <web/module>
+
+namespace web
+{
+  namespace apache
+  {
+    class service_common
+    {
+      //@@ Implementation that calls handle() below goes here.
+      //
+
+      virtual void
+      handle (request&, response&, log&) = 0;
+    };
+
+    template <typename M>
+    class service: public service_common
+    {
+    public:
+      // Note that the module exemplar is stored by-reference.
+      //
+      service (const std::string& name, const M& exemplar);
+
+      virtual void
+      handle (request& rq, response& rs, log& l)
+      {
+        M m (exemplar_);
+        m.handle (rq, rs, l);
+      }
+
+    private:
+      const M& exemplar_;
+    };
+  }
+}
+
+#endif // WEB_APACHE_SERVICE

@@ -22,6 +22,8 @@ namespace web
 
   // HTTP status code.
   //
+  // @@ Define some commonly used constants?
+  //
   using status_code = uint16_t;
 
   struct name_value
@@ -92,6 +94,17 @@ namespace web
     write (const char* msg);
   };
 
+  // The web server creates a new module instance for each request
+  // by copy-initializing it with the module exemplar. This way we
+  // achieve two things: we can freely use module data members
+  // without worrying about multi-threading issues and we
+  // automatically get started with the initial state for each
+  // request. If you really need to share some rw-data between
+  // all the modules, use static data members with appropriate
+  // locking. See the <service> header in one of the web server
+  // directories (e.g., apache/) if you need to see the code that
+  // does this.
+  //
   class module
   {
   public:
