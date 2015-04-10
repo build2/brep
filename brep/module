@@ -5,6 +5,8 @@
 #ifndef BREP_MODULE
 #define BREP_MODULE
 
+#include <brep/diagnostics>
+
 namespace brep
 {
   // This exception is used to signal that the request is invalid
@@ -21,6 +23,16 @@ namespace brep
     //
   };
 
+  // And this exception indicated a server error (5XX). In particular,
+  // it is thrown by the fail diagnostics stream and is caught by the
+  // module implementation where it is both logged as an error and
+  // returned to the user with the 5XX status code.
+  //
+  struct server_error
+  {
+    diag_data data;
+  };
+
   // Adaptation of the web::module to our needs.
   //
   class module: public web::module
@@ -29,14 +41,52 @@ namespace brep
     virtual void
     handle (request&, response&) = 0;
 
+    // Diagnostics.
+    //
+  protected:
+    const basic_mark error;
+    const basic_mark warn;
+    const basic_mark info;
+    const fail_mark<server_error> fail;
+
+    // Trace verbosity level.
+    //
+    // 0 - tracing disabled.
+    // 1 - @@ TODO: document
+    // 2 - @@ TODO: document
+    //
+    // While uint8 is more than enough, use uint16 for the ease of printing.
+    //
+    std::uint16_t verb_ {0};
+
+    template <class F> static void level1 (const F& f) {if (verb_ >= 1) f ();}
+    template <class F> static void level2 (const F& f) {if (verb_ >= 2) f ();}
+
+    struct trace_mark_base: basic_mark_base
+    {
+      trace_mark_base (const module* this_, const char* name)
+          : basic_mark_base (severity::trace, this_->log_writer_, name) {}
+    };
+    using trace_mark = diag_mark<trace_mark_base>;
+    using tracer = trace_mark;
+
     // Implementation details.
     //
   protected:
+    module ();
+
     virtual void
     handle (request&, response&, log&);
 
-  protected:
-    log* log_;
+    // Diagnostics implementation details.
+    //
+  private:
+    log* log_ {nullptr}; // Diagnostics backend provided by the web server.
+
+    void
+    log_write (diag_data&&) const;
+
+    const diag_epilogue log_writer_;
   };
 }
 

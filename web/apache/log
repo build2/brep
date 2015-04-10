@@ -27,7 +27,7 @@ namespace web
       write (int level, const char* msg) {write (nullptr, 0, level, msg);}
 
       void
-      write (const char* file, uint64_t line, int level, const char* msg);
+      write (const char* file, std::uint64_t line, int level, const char* msg);
 
     private:
      // ...

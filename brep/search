@@ -1,0 +1,20 @@
+// file      : brep/search -*- C++ -*-
+// copyright : Copyright (c) 2014-2015 Code Synthesis Tools CC
+// license   : MIT; see accompanying LICENSE file
+
+#ifndef BREP_SEARCH
+#define BREP_SEARCH
+
+#include <brep/module>
+
+namespace brep
+{
+  class search: public module
+  {
+  public:
+    virtual void
+    handle (request&, response&);
+  };
+}
+
+#endif // BREP_SEARCH

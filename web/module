@@ -24,7 +24,7 @@ namespace web
   //
   // @@ Define some commonly used constants?
   //
-  using status_code = uint16_t;
+  using status_code = std::uint16_t;
 
   struct name_value
   {
