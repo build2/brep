@@ -33,6 +33,29 @@ namespace brep
     diag_data data;
   };
 
+  // Every module member function that needs to produce any diagnostics
+  // shall begin with:
+  //
+  // MODULE_DIAG;
+  //
+  // This will instantiate the fail, error, warn, info, and trace
+  // diagnostics streams with the function's name.
+  //
+#define MODULE_DIAG                                                     \
+  const fail_mark<server_error> fail (__PRETTY_FUNCTION__);             \
+  const basic_mark error (severity::error,                              \
+                          this->log_writer_,                            \
+                          __PRETTY_FUNCTION__);                         \
+  const basic_mark warn (severity::warn,                                \
+                         this->log_writer_,                             \
+                         __PRETTY_FUNCTION__);                          \
+  const basic_mark info (severity::info,                                \
+                         this->log_writer_,                             \
+                         __PRETTY_FUNCTION__);                          \
+  const basic_mark trace (severity::info,                               \
+                          this->log_writer_,                            \
+                          __PRETTY_FUNCTION__)
+
   // Adaptation of the web::module to our needs.
   //
   class module: public web::module
@@ -44,11 +67,6 @@ namespace brep
     // Diagnostics.
     //
   protected:
-    const basic_mark error;
-    const basic_mark warn;
-    const basic_mark info;
-    const fail_mark<server_error> fail;
-
     // Trace verbosity level.
     //
     // 0 - tracing disabled.
@@ -61,14 +79,6 @@ namespace brep
 
     template <class F> static void level1 (const F& f) {if (verb_ >= 1) f ();}
     template <class F> static void level2 (const F& f) {if (verb_ >= 2) f ();}
-
-    struct trace_mark_base: basic_mark_base
-    {
-      trace_mark_base (const module* this_, const char* name)
-          : basic_mark_base (severity::trace, this_->log_writer_, name) {}
-    };
-    using trace_mark = diag_mark<trace_mark_base>;
-    using tracer = trace_mark;
 
     // Implementation details.
     //

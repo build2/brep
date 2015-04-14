@@ -13,12 +13,7 @@ namespace brep
   void search::
   handle (request& rq, response& rs)
   {
-    //@@ Could probably have module name in which case this will
-    //   then become:
-    //
-    //   tracer trace (this, "handle");
-    //
-    tracer trace (this, "search::handle");
+    MODULE_DIAG;
 
     const name_values& ps (rq.parameters ());
 
