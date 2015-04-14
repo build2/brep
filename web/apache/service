@@ -36,7 +36,7 @@ namespace web
         m.handle (rq, rs, l);
       }
 
-      const M& exemplar_;
+      const module& exemplar_;
       void (*handle_) (request&, response&, log&, const module&);
     };
   }

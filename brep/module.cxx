@@ -30,7 +30,7 @@ namespace brep
     {
       // @@ Both log and return as 505.
       //
-      write (move (e.data));
+      log_write (move (e.data));
     }
     catch (const exception& e)
     {
@@ -47,7 +47,7 @@ namespace brep
   }
 
   module::
-  module (): log_writer_ (bind (&module::write, this, _1)) {}
+  module (): log_writer_ (bind (&module::log_write, this, _1)) {}
 
   void module::
   log_write (diag_data&& d) const
