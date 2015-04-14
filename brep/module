@@ -58,6 +58,19 @@ namespace brep
 
   // Adaptation of the web::module to our needs.
   //
+
+  // Bring in commonly used names from the web namespace.
+  //
+  // @@ Maybe doing using namespace is the right way to handle this.
+  //    There will, however, most likely be a conflict between
+  //    web::module and our module. Or maybe not, need to try.
+  //
+  using status_code;
+  using name_value;
+  using name_values;
+  using request;
+  using response;
+
   class module: public web::module
   {
   public:
