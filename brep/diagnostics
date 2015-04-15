@@ -233,7 +233,7 @@ namespace brep
                      const diag_epilogue& e,
                      const char* name = nullptr,
                      const void* data = nullptr)
-        : sev_ (s), epilogue (e), name_ (name), data_ (data) {}
+        : sev_ (s), epilogue_ (e), name_ (name), data_ (data) {}
 
     simple_prologue
     operator() () const
@@ -289,7 +289,7 @@ namespace brep
     operator() (const L& l) const
     {
       return location_prologue (
-        epilogue_, severity::error, name, get_location (l, data_));
+        epilogue_, severity::error, name_, get_location (l, data_));
     }
 
     static void

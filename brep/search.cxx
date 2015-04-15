@@ -21,10 +21,10 @@ namespace brep
       throw invalid_request ("search parameters expected");
 
     if (ps.size () > 100)
-      fail << "too many parameters: " < ps.size () <<
+      fail << "too many parameters: " << ps.size () <<
         info << "are you crazy to specify so many?";
 
-    info << "handling search request from " << rq.client_ip ();
+    info << "handling search request from "; // << rq.client_ip ();
 
     level2 ([&]{trace << "search request with " << ps.size () << " params";});
 

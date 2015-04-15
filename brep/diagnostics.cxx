@@ -9,7 +9,7 @@
 
 using namespace std;
 
-namespace build
+namespace brep
 {
   diag_record::
   ~diag_record () noexcept(false)

@@ -7,6 +7,7 @@
 #include <functional> // bind()
 
 using namespace std;
+using namespace placeholders;
 
 namespace brep
 {
@@ -26,7 +27,7 @@ namespace brep
       //
       rs.content (e.status, "text/html;charset=utf-8") << e.description;
     }
-    catch (const server_error& e)
+    catch (server_error& e)
     {
       // @@ Both log and return as 505.
       //

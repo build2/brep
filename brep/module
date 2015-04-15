@@ -6,6 +6,7 @@
 #define BREP_MODULE
 
 #include <brep/diagnostics>
+#include <web/module>
 
 namespace brep
 {
@@ -21,6 +22,8 @@ namespace brep
 
     //@@ Maybe optional "try again" link?
     //
+    invalid_request (const char* d, web::status_code s = 422)
+        : status (s), description (d) {}
   };
 
   // And this exception indicated a server error (5XX). In particular,
@@ -31,6 +34,8 @@ namespace brep
   struct server_error
   {
     diag_data data;
+
+    server_error (diag_data&& d) : data (std::move (d)) {}
   };
 
   // Every module member function that needs to produce any diagnostics
@@ -46,7 +51,7 @@ namespace brep
   const basic_mark error (severity::error,                              \
                           this->log_writer_,                            \
                           __PRETTY_FUNCTION__);                         \
-  const basic_mark warn (severity::warn,                                \
+  const basic_mark warn (severity::warning,                             \
                          this->log_writer_,                             \
                          __PRETTY_FUNCTION__);                          \
   const basic_mark info (severity::info,                                \
@@ -65,11 +70,13 @@ namespace brep
   //    There will, however, most likely be a conflict between
   //    web::module and our module. Or maybe not, need to try.
   //
-  using status_code;
-  using name_value;
-  using name_values;
-  using request;
-  using response;
+
+  using web::status_code;
+  using web::name_value;
+  using web::name_values;
+  using web::request;
+  using web::response;
+  using web::log;
 
   class module: public web::module
   {
@@ -90,8 +97,8 @@ namespace brep
     //
     std::uint16_t verb_ {0};
 
-    template <class F> static void level1 (const F& f) {if (verb_ >= 1) f ();}
-    template <class F> static void level2 (const F& f) {if (verb_ >= 2) f ();}
+    template <class F> void level1 (const F& f) const {if (verb_ >= 1) f ();}
+    template <class F> void level2 (const F& f) const {if (verb_ >= 2) f ();}
 
     // Implementation details.
     //
@@ -109,6 +116,7 @@ namespace brep
     void
     log_write (diag_data&&) const;
 
+  protected:
     const diag_epilogue log_writer_;
   };
 }
