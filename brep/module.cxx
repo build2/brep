@@ -7,11 +7,10 @@
 #include <functional> // bind()
 
 using namespace std;
-using namespace placeholders;
+using namespace placeholders; // For std::bind's _1, etc.
 
 namespace brep
 {
-
   void module::
   handle (request& rq, response& rs, log& l)
   {
@@ -27,7 +26,7 @@ namespace brep
       //
       rs.content (e.status, "text/html;charset=utf-8") << e.description;
     }
-    catch (server_error& e)
+    catch (server_error& e) // Non-const because of move() below.
     {
       // @@ Both log and return as 505.
       //

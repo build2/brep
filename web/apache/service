@@ -33,7 +33,7 @@ namespace web
       handle_impl (request& rq, response& rs, log& l, const module& exemplar)
       {
         M m (static_cast<const M&> (exemplar));
-        static_cast<module&>(m).handle (rq, rs, l);
+        static_cast<module&> (m).handle (rq, rs, l);
       }
 
       const module& exemplar_;

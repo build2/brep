@@ -5,11 +5,27 @@
 #ifndef BREP_MODULE
 #define BREP_MODULE
 
-#include <brep/diagnostics>
+#include <utility> // move()
+
 #include <web/module>
+
+#include <brep/diagnostics>
 
 namespace brep
 {
+  // Bring in commonly used names from the web namespace.
+  //
+  // @@ Maybe doing using namespace is the right way to handle this.
+  //    There will, however, most likely be a conflict between
+  //    web::module and our module. Or maybe not, need to try.
+  //
+  using web::status_code;
+  using web::name_value;
+  using web::name_values;
+  using web::request;
+  using web::response;
+  using web::log;
+
   // This exception is used to signal that the request is invalid
   // (4XX codes) rather than that it could not be processed (5XX).
   // By default 422 is returned, which means the request was
@@ -17,13 +33,13 @@ namespace brep
   //
   struct invalid_request
   {
-    web::status_code status {422};
+    status_code status {422};
     std::string description;
 
     //@@ Maybe optional "try again" link?
     //
-    invalid_request (const char* d, web::status_code s = 422)
-        : status (s), description (d) {}
+    invalid_request (std::string d, status_code s = 422)
+        : status (s), description (std::move (d)) {}
   };
 
   // And this exception indicated a server error (5XX). In particular,
@@ -35,7 +51,7 @@ namespace brep
   {
     diag_data data;
 
-    server_error (diag_data&& d) : data (std::move (d)) {}
+    server_error (diag_data&& d): data (std::move (d)) {}
   };
 
   // Every module member function that needs to produce any diagnostics
@@ -63,21 +79,6 @@ namespace brep
 
   // Adaptation of the web::module to our needs.
   //
-
-  // Bring in commonly used names from the web namespace.
-  //
-  // @@ Maybe doing using namespace is the right way to handle this.
-  //    There will, however, most likely be a conflict between
-  //    web::module and our module. Or maybe not, need to try.
-  //
-
-  using web::status_code;
-  using web::name_value;
-  using web::name_values;
-  using web::request;
-  using web::response;
-  using web::log;
-
   class module: public web::module
   {
   public:
