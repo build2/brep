@@ -5,7 +5,9 @@
 #ifndef BREP_MODULE
 #define BREP_MODULE
 
+#include <string>
 #include <utility> // move()
+#include <cstdint>
 
 #include <web/module>
 
@@ -20,27 +22,13 @@ namespace brep
   //    web::module and our module. Or maybe not, need to try.
   //
   using web::status_code;
+  using web::invalid_request;
+  using web::sequence_error;
   using web::name_value;
   using web::name_values;
   using web::request;
   using web::response;
   using web::log;
-
-  // This exception is used to signal that the request is invalid
-  // (4XX codes) rather than that it could not be processed (5XX).
-  // By default 422 is returned, which means the request was
-  // semantically invalid.
-  //
-  struct invalid_request
-  {
-    status_code status {422};
-    std::string description;
-
-    //@@ Maybe optional "try again" link?
-    //
-    invalid_request (std::string d, status_code s = 422)
-        : status (s), description (std::move (d)) {}
-  };
 
   // And this exception indicated a server error (5XX). In particular,
   // it is thrown by the fail diagnostics stream and is caught by the
@@ -105,6 +93,7 @@ namespace brep
     //
   protected:
     module ();
+    module (const module& );
 
     virtual void
     handle (request&, response&, log&);
@@ -113,6 +102,12 @@ namespace brep
     //
   private:
     log* log_ {nullptr}; // Diagnostics backend provided by the web server.
+
+    // Extract function name from a __PRETTY_FUNCTION__.
+    // Throw std::invalid_argument if fail to parse.
+    //
+    static std::string
+    func_name (const std::string& pretty_name);
 
     void
     log_write (diag_data&&) const;

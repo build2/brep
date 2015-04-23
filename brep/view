@@ -1,0 +1,20 @@
+// file      : brep/view -*- C++ -*-
+// copyright : Copyright (c) 2014-2015 Code Synthesis Tools CC
+// license   : MIT; see accompanying LICENSE file
+
+#ifndef BREP_VIEW
+#define BREP_VIEW
+
+#include <brep/module>
+
+namespace brep
+{
+  class view: public module
+  {
+  public:
+    virtual void
+    handle (request&, response&);
+  };
+}
+
+#endif // BREP_VIEW

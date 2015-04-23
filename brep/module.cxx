@@ -4,7 +4,16 @@
 
 #include <brep/module>
 
+#include <stdexcept>
+#include <string>
 #include <functional> // bind()
+#include <cstring>    // strncmp()
+
+#include <httpd/httpd.h>
+
+#include <web/module>
+
+#include <web/apache/log>
 
 using namespace std;
 using namespace placeholders; // For std::bind's _1, etc.
@@ -15,6 +24,7 @@ namespace brep
   handle (request& rq, response& rs, log& l)
   {
     log_ = &l;
+    const basic_mark error (severity::error, log_writer_, __PRETTY_FUNCTION__);
 
     try
     {
@@ -22,38 +32,150 @@ namespace brep
     }
     catch (const invalid_request& e)
     {
-      // @@ Both log and format as HTML in proper style, etc.
-      //
-      rs.content (e.status, "text/html;charset=utf-8") << e.description;
+      if (e.description.empty ())
+      {
+        rs.status (e.status);
+      }
+      else
+      {
+        try
+        {
+          rs.content (e.status, "text/html;charset=utf-8") << e.description;
+        }
+        catch (const sequence_error& se)
+        {
+          error << se.what ();
+          rs.status (e.status);
+        }
+      }
     }
     catch (server_error& e) // Non-const because of move() below.
     {
-      // @@ Both log and return as 505.
-      //
       log_write (move (e.data));
+      rs.status (HTTP_INTERNAL_SERVER_ERROR);
     }
     catch (const exception& e)
     {
-      // @@ Exception: log e.what () & 505.
-      //
-      rs.status (505);
+      error << e.what ();
+      rs.status (HTTP_INTERNAL_SERVER_ERROR);
     }
     catch (...)
     {
-      // @@ Unknown exception: log & 505.
-      //
-      rs.status (505);
+      error << "unknown error";
+      rs.status (HTTP_INTERNAL_SERVER_ERROR);
     }
   }
 
   module::
   module (): log_writer_ (bind (&module::log_write, this, _1)) {}
 
+  // Custom copy constructor is required to initialize log_writer_ properly.
+  //
+  module::
+  module (const module& m): module ()  {verb_ = m.verb_;}
+
+// For function func declared like this:
+// using B = std::string (*)(int);
+// using A = B (*)(int,int);
+// A func(B (*)(char),B (*)(wchar_t));
+// __PRETTY_FUNCTION__ looks like this:
+// virtual std::string (* (* brep::search::func(std::string (* (*)(char))(int)\
+// ,std::string (* (*)(wchar_t))(int)) const)(int, int))(int)
+//
+  string module::
+  func_name (const string& pretty_name)
+  {
+    string::size_type b (0);
+    string::size_type e (pretty_name.find (' '));
+
+    // Position b at beginning of supposed function name,
+    //
+    if (e != string::npos && !strncmp (pretty_name.c_str (), "virtual ", 8))
+    {
+      // Skip keyword virtual.
+      //
+      b = pretty_name.find_first_not_of (' ', e);
+      e = pretty_name.find (' ', b);
+    }
+
+    if (pretty_name.find ('(', b) > e)
+    {
+      // Not a constructor nor destructor. Skip type or *.
+      //
+      b = pretty_name.find_first_not_of (' ', e);
+    }
+
+    if (b != string::npos)
+    {
+      // Position e at the last character of supposed function name.
+      //
+      e = pretty_name.find_last_of (')');
+
+      if (e != string::npos && e > b)
+      {
+        size_t d (1);
+
+        while (--e > b && d)
+        {
+          switch (pretty_name[e])
+          {
+          case ')': ++d; break;
+          case '(': --d; break;
+          }
+        }
+
+        if (!d)
+        {
+          return pretty_name[b] == '(' && pretty_name[e] == ')' ?
+            // Not a name yet, go deeper.
+            //
+            func_name (string(pretty_name, b + 1, e - b - 1)) :
+            // Got the name.
+            //
+            string (pretty_name, b, e - b + 1);
+        }
+      }
+    }
+
+    throw invalid_argument ("");
+  }
+
   void module::
   log_write (diag_data&& d) const
   {
     if (log_ == nullptr)
       return; // No backend yet.
+
+    auto al = dynamic_cast<::web::apache::log*> (log_);
+
+    if (al)
+    {
+      // Considered using lambda for mapping but looks too verbose while can
+      // be a bit safer in runtime.
+      //
+      static int s[] = { APLOG_ERR, APLOG_WARNING, APLOG_INFO, APLOG_TRACE1 };
+
+      for (const auto& e : d)
+      {
+        string name;
+
+        try
+        {
+          name = func_name (e.name);
+        }
+        catch (const invalid_argument&)
+        {
+          // Log "pretty" function description, see in log file & fix.
+          name = e.name;
+        }
+
+        al->write (e.loc.file.c_str(),
+                   e.loc.line,
+                   name.c_str(),
+                   s[static_cast<int> (e.sev)],
+                   e.msg.c_str());
+      }
+    }
 
     //@@ Cast log_ to apache::log and write the records.
     //

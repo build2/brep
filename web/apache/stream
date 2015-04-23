@@ -1,0 +1,161 @@
+// file      : web/apache/stream -*- C++ -*-
+// copyright : Copyright (c) 2014-2015 Code Synthesis Tools CC
+// license   : MIT; see accompanying LICENSE file
+
+#ifndef WEB_APACHE_STREAM
+#define WEB_APACHE_STREAM
+
+#include <streambuf>
+#include <ios>       // streamsize
+#include <algorithm> // min(), max()
+#include <cstring>   // memmove()
+#include <memory>    // unique_ptr
+
+#include <httpd/httpd.h>
+#include <httpd/http_protocol.h>
+
+#include <web/module>
+
+namespace web
+{
+  namespace apache
+  {
+    class ostreambuf : public std::streambuf
+    {
+    public:
+      ostreambuf (request_rec* rec) : rec_ (rec) {}
+
+      bool
+      write_flag () const noexcept {return write_;}
+
+    private:
+      virtual int_type
+      overflow (int_type c)
+      {
+        if (c != traits_type::eof ())
+        {
+          flag_write ();
+
+          char chr = c;
+
+          // Throwing allows to distinguish comm failure from other IO error
+          // conditions.
+          //
+          if (ap_rwrite (&chr, sizeof (chr), rec_) == -1)
+            throw invalid_request (HTTP_REQUEST_TIME_OUT);
+        }
+
+        return c;
+      }
+
+      virtual std::streamsize
+      xsputn (const char* s, std::streamsize num)
+      {
+        flag_write ();
+
+        if (ap_rwrite (s, num, rec_) < 0)
+        {
+          throw invalid_request (HTTP_REQUEST_TIME_OUT);
+        }
+
+        return num;
+      }
+
+      virtual int
+      sync ()
+      {
+        if(ap_rflush (rec_) < 0)
+        {
+          throw invalid_request (HTTP_REQUEST_TIME_OUT);
+        }
+
+        return 0;
+      }
+
+      void
+      flag_write () noexcept
+      {
+        if (!write_)
+        {
+          // Preparing to write a response read and discard request
+          // body if any.
+          //
+          int r = ap_discard_request_body (rec_);
+
+          if (r != OK)
+          {
+            throw invalid_request (r);
+          }
+
+          write_ = true;
+        }
+      }
+
+    private:
+
+      request_rec* rec_;
+      bool write_ {false};
+    };
+
+    class istreambuf : public std::streambuf
+    {
+    public:
+      istreambuf (request_rec* rec, size_t bufsize = 1024, size_t putback = 1)
+          : rec_ (rec),
+            bufsize_ (std::max (bufsize, (size_t)1)),
+            putback_ (std::min (putback, bufsize_ - 1)),
+            buf_ (new char[bufsize_])
+      {
+        char* p = buf_.get () + putback_;
+        setg (p, p, p);
+
+        int status = ap_setup_client_block (rec_, REQUEST_CHUNKED_DECHUNK);
+
+        if (status != OK)
+        {
+          throw invalid_request (status);
+        }
+      }
+
+    private:
+      virtual int_type
+      underflow ()
+      {
+        if (gptr () < egptr ())
+          return traits_type::to_int_type (*gptr ());
+
+        size_t pb = std::min ((size_t)(gptr () - eback ()), putback_);
+        std::memmove (buf_.get () + putback_ - pb, gptr () - pb, pb);
+
+        char* p = buf_.get () + putback_;
+        int rb = ap_get_client_block (rec_, p, bufsize_ - putback_);
+
+        if (rb == 0)
+        {
+          return traits_type::eof ();
+        }
+
+        if (rb < 0)
+        {
+          throw invalid_request (HTTP_REQUEST_TIME_OUT);
+        }
+
+        setg (p - pb, p, p + rb);
+        return traits_type::to_int_type (*gptr ());
+      }
+
+      bool error () const noexcept {return error_;}
+
+    private:
+
+      request_rec* rec_;
+      size_t bufsize_;
+      size_t putback_;
+      std::unique_ptr<char[]> buf_;
+      bool error_ {false};
+    };
+
+  }
+}
+
+#endif // WEB_APACHE_STREAM

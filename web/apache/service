@@ -5,22 +5,106 @@
 #ifndef WEB_APACHE_SERVICE
 #define WEB_APACHE_SERVICE
 
+#include <exception>
 #include <string>
+#include <cassert>
+
+#include <httpd/httpd.h>
+#include <httpd/http_config.h>
 
 #include <web/module>
+
+#include <web/apache/log>
+#include <web/apache/request>
 
 namespace web
 {
   namespace apache
   {
-    class service
+    class service : ::module
     {
     public:
       // Note that the module exemplar is stored by-reference.
       //
       template <typename M>
       service (const std::string& name, const M& exemplar)
-          : exemplar_ (exemplar), handle_ (&handle_impl<M>) {}
+          : ::module
+            {
+              STANDARD20_MODULE_STUFF,
+              nullptr,
+              nullptr,
+              nullptr,
+              nullptr,
+              nullptr,
+              &register_hooks<M>
+            },
+            name_ (name),
+            exemplar_ (exemplar)
+
+// Doesn't look like handle_ member is required at all.
+//          handle_ (&handle_impl<M>)
+      {
+        // instance<M> () invented to delegate processing from apache request
+        // handler C function to service non static member function.
+        // This appoach resticts number of service objects per module
+        // implementation class with just one instance.
+        //
+        service*& srv = instance<M> ();
+        assert (srv == nullptr);
+        srv = this;
+      }
+
+      template <typename M>
+      static service*&
+      instance () noexcept
+      {
+        static service* instance;
+        return instance;
+      }
+
+      template <typename M>
+      static void
+      register_hooks (apr_pool_t *pool) noexcept
+      {
+        ap_hook_handler (&request_handler<M>, NULL, NULL, APR_HOOK_LAST);
+      }
+
+      template <typename M>
+      static int
+      request_handler (request_rec* r) noexcept
+      {
+        auto srv = instance<M> ();
+
+        if (!r->handler || srv->name_ != r->handler)
+          return DECLINED;
+
+        request req (r);
+        log l(r);
+
+        // As soons as M (), handle () and flush () can throw need to handle
+        // exceptions here.
+        //
+        try
+        {
+          M m (static_cast<const M&> (srv->exemplar_));
+          static_cast<module&> (m).handle (req, req, l);
+          return req.flush();
+        }
+        catch (const std::exception& e)
+        {
+          l.write (nullptr, 0, __PRETTY_FUNCTION__, APLOG_ERR, e.what ());
+        }
+        catch (...)
+        {
+          l.write (nullptr,
+                   0,
+                   __PRETTY_FUNCTION__,
+                   APLOG_ERR,
+                   "unknown error");
+        }
+
+        return HTTP_INTERNAL_SERVER_ERROR;
+      }
 
       //@@ Implementation calls handle_ function pointer below:
       //
@@ -28,6 +112,7 @@ namespace web
       //
 
     private:
+/*
       template <typename M>
       static void
       handle_impl (request& rq, response& rs, log& l, const module& exemplar)
@@ -35,9 +120,10 @@ namespace web
         M m (static_cast<const M&> (exemplar));
         static_cast<module&> (m).handle (rq, rs, l);
       }
-
+*/
+      std::string name_;
       const module& exemplar_;
-      void (*handle_) (request&, response&, log&, const module&);
+//      void (*handle_) (request&, response&, log&, const module&);
     };
   }
 }
