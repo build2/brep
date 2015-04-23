@@ -71,8 +71,10 @@ namespace brep
 
   // Custom copy constructor is required to initialize log_writer_ properly.
   //
+  // @@ Won't log_writer_ be left empty by this implementation?
+  //
   module::
-  module (const module& m): module ()  {verb_ = m.verb_;}
+  module (const module& m): module (), verb_ (m.verb_) {}
 
 // For function func declared like this:
 // using B = std::string (*)(int);
@@ -153,7 +155,7 @@ namespace brep
       // Considered using lambda for mapping but looks too verbose while can
       // be a bit safer in runtime.
       //
-      static int s[] = { APLOG_ERR, APLOG_WARNING, APLOG_INFO, APLOG_TRACE1 };
+      static int s[] = {APLOG_ERR, APLOG_WARNING, APLOG_INFO, APLOG_TRACE1};
 
       for (const auto& e : d)
       {

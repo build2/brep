@@ -5,13 +5,13 @@
 #ifndef WEB_MODULE
 #define WEB_MODULE
 
-#include <utility>   // move()
-#include <stdexcept> // runtime_error
 #include <string>
 #include <vector>
 #include <iosfwd>
 #include <chrono>
 #include <cstdint>   // uint16_t
+#include <utility>   // move()
+#include <stdexcept> // runtime_error
 
 namespace web
 {
@@ -24,9 +24,14 @@ namespace web
   // This exception is used to signal that the request is invalid
   // (4XX codes) rather than that it could not be processed (5XX).
   // By default 400 is returned, which means the request is malformed.
-  // Non empty description of a caught by the module implementation exception
-  // can be sent to client in http response body with
-  // Content-Type:text/html;charset=utf-8 header.
+  //
+  // If caught by the web server implementation, it will try to return
+  // the specified status and description to the client, if possible.
+  // It is, however, may not be possible if some unbuffered content has
+  // already been written. The behavior in this case is implementation-
+  // specific and may result in no indication of an error being sent to
+  // the client. If description is not empty, then it is assumed to be
+  // encoded in UTF-8.
   //
   struct invalid_request
   {
@@ -45,7 +50,7 @@ namespace web
   //
   struct sequence_error: std::runtime_error
   {
-    sequence_error (std::string d) : std::runtime_error (d) {}
+    sequence_error (std::string d): std::runtime_error (std::move (d)) {}
   };
 
   struct name_value
@@ -70,21 +75,26 @@ namespace web
     //   in name_values.
     //@@ Maybe parameter_list() and parameter_map()?
     //
-    // Throw invalid_request if mime url decode of name or value fail.
+    // Throw invalid_request if decoding of any name or value fails.
     //
     virtual const name_values&
     parameters () = 0;
 
-    // Throw invalid_request if Cookie header is malformed.
+    // Throw invalid_request if cookies are malformed.
     //
     virtual const name_values&
     cookies () = 0;
 
-    // Get stream to read request body data.
+    // Get the stream to read the request content from.
+    //
     // Throw sequence_error if some unbuffered content is already written.
     //
+    // @@ Why can't I write unbuffered content while reading
+    //    the request? Is it so? If so, is it implementation
+    //    details?
+    //
     virtual std::istream&
-    data () = 0;
+    content () = 0;
   };
 
   class response
@@ -109,15 +119,15 @@ namespace web
     virtual std::ostream&
     content (status_code, const std::string& type, bool buffer = true) = 0;
 
-    // Set status code without writing any content.
-    // On status change discards buffered output and throw sequence_error
-    // if output were not buffered.
+    // Set status code without writing any content. On status change,
+    // discard buffered content or throw sequence_error if content was
+    // not buffered.
     //
     virtual void
     status (status_code) = 0;
 
-    // Throw sequence_error if some unbuffered content is already written as
-    // will not be able to send Set-Cookie header.
+    // Throw sequence_error if some unbuffered content has already
+    // been written.
     //
     virtual void
     cookie (const char* name,
@@ -156,6 +166,13 @@ namespace web
   class module
   {
   public:
+    // Any exception other than invalid_request described above that
+    // leaves this function is treated by the web server implementation
+    // as an internal server error (505). Similar to invalid_request,
+    // it will try to return the status and description (obtained by
+    // calling what() on std::exception) to the client, if possible.
+    // The description is assume to be encoded in UTF-8.
+    //
     virtual void
     handle (request&, response&, log&) = 0;
   };
