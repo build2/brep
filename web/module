@@ -85,13 +85,10 @@ namespace web
     virtual const name_values&
     cookies () = 0;
 
-    // Get the stream to read the request content from.
-    //
-    // Throw sequence_error if some unbuffered content is already written.
-    //
-    // @@ Why can't I write unbuffered content while reading
-    //    the request? Is it so? If so, is it implementation
-    //    details?
+    // Get the stream to read the request content from. Note that
+    // reading content after any unbuffered content has been written
+    // is undefined behavior. The implementation may detect it and
+    // throw sequence_error but is not required to do so.
     //
     virtual std::istream&
     content () = 0;
@@ -168,10 +165,13 @@ namespace web
   public:
     // Any exception other than invalid_request described above that
     // leaves this function is treated by the web server implementation
-    // as an internal server error (505). Similar to invalid_request,
+    // as an internal server error (500). Similar to invalid_request,
     // it will try to return the status and description (obtained by
     // calling what() on std::exception) to the client, if possible.
-    // The description is assume to be encoded in UTF-8.
+    // The description is assume to be encoded in UTF-8. The
+    // implementation may provide a configuration option to omit
+    // the description from the response, for security/privacy
+    // reasons.
     //
     virtual void
     handle (request&, response&, log&) = 0;
