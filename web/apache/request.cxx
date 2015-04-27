@@ -4,19 +4,20 @@
 
 #include <web/apache/request>
 
-#include <stdexcept>
-#include <ios>
-#include <streambuf>
-#include <sstream>
-#include <ostream>
-#include <memory>    // unique_ptr
-#include <algorithm> // move()
-#include <chrono>
-#include <ctime>
+#include <apr_tables.h>
 
 #include <strings.h> // strcasecmp()
 
-#include <apr_tables.h>
+#include <ios>
+#include <ctime>
+#include <chrono>
+#include <memory>    // unique_ptr
+#include <sstream>
+#include <ostream>
+#include <cstring>
+#include <stdexcept>
+#include <streambuf>
+#include <algorithm> // move()
 
 using namespace std;
 
@@ -47,17 +48,19 @@ namespace web
               if (e && e < v)
                 v = 0;
 
-              string name (
-                v ? mime_url_decode (n, v, true) :
-                (e ? mime_url_decode (n, e, true) :
-                 mime_url_decode (n, n + strlen (n), true)));
+              string name (v
+                           ? mime_url_decode (n, v, true)
+                           : (e
+                              ? mime_url_decode (n, e, true)
+                              : mime_url_decode (n, n + strlen (n), true)));
 
               string value;
 
               if (v++)
               {
-                value = e ? mime_url_decode (v, e, true) :
-                  mime_url_decode (v, v + strlen (v), true);
+                value = e
+                  ? mime_url_decode (v, e, true)
+                  : mime_url_decode (v, v + strlen (v), true);
               }
 
               if (!name.empty () || !value.empty ())
@@ -75,29 +78,16 @@ namespace web
     ostream& request::
     content (status_code status, const std::string& type, bool buffer)
     {
-      if (type.empty ())
+      if (out_ && status == rec_->status && buffer == buffer_ &&
+          !::strcasecmp (rec_->content_type ? rec_->content_type : "",
+                         type.c_str ()))
       {
-        // Getting content stream for writing assumes type to be provided.
-        //
-        throw std::invalid_argument (
-          "::web::apache::request::content invalid type");
+        return *out_;
       }
 
-      // Due to apache implementation of error custom response there is no
-      // way to make it unbuffered.
-      //
-      buffer = buffer || status != HTTP_OK;
-
-      if ((status != status_ || type != type_ || buffer != buffer_) &
-          write_flag ())
+      if (get_write_state ())
       {
         throw sequence_error ("::web::apache::request::content");
-      }
-
-      if (status == status_ && type == type_ && buffer == buffer_)
-      {
-        assert (out_);
-        return *out_;
       }
 
       if (!buffer)
@@ -107,9 +97,10 @@ namespace web
         //
         form_data ();
 
-      std::unique_ptr<std::streambuf> out_buf(
-        buffer ? static_cast<std::streambuf*> (new std::stringbuf ()) :
-        static_cast<std::streambuf*> (new ostreambuf (rec_)));
+      std::unique_ptr<std::streambuf> out_buf (
+        buffer
+        ? static_cast<std::streambuf*> (new std::stringbuf ())
+        : static_cast<std::streambuf*> (new ostreambuf (rec_, *this)));
 
       out_.reset (new std::ostream (out_buf.get ()));
 
@@ -118,12 +109,12 @@ namespace web
       out_->exceptions (
         std::ios::eofbit | std::ios::failbit | std::ios::badbit);
 
-      status_ = status;
-      type_ = type;
       buffer_ = buffer;
+      rec_->status = status;
 
-      if (!buffer_)
-        set_content_type ();
+      ap_set_content_type (
+        rec_,
+        type.empty () ? nullptr : apr_pstrdup (rec_->pool, type.c_str ()));
 
       return *out_;
     }
@@ -136,7 +127,7 @@ namespace web
             const char* domain,
             bool secure)
     {
-      if (write_flag ())
+      if (get_write_state ())
       {
         throw sequence_error ("::web::apache::request::cookie");
       }

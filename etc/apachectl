@@ -78,10 +78,14 @@ start)
            -C "DocumentRoot $www/htdocs" -C "CoreDumpDirectory $workspace" \
            -C "PidFile $workspace/httpd.pid" \
            -C "LogLevel $LOG_LEVEL" \
-           -C "LoadModule search_srv $PROJECT_DIR/libbrep.so" \
-           -C "LoadModule view_srv $PROJECT_DIR/libbrep.so" \
            -C "ServerAdmin $ADMIN_EMAIL" \
-           -k $ARGV
+           -k $ARGV \
+	   \
+           -C "LoadModule search_srv $PROJECT_DIR/libbrep.so" \
+	   -C "search_conf $site_config/search.conf" \
+	   \
+           -C "LoadModule view_srv $PROJECT_DIR/libbrep.so" \
+	   -C "view_conf $site_config/view.conf"
 
     ERROR=$?
     ;;

@@ -30,7 +30,7 @@ namespace brep
   using web::response;
   using web::log;
 
-  // And this exception indicated a server error (5XX). In particular,
+  // This exception indicated a server error (5XX). In particular,
   // it is thrown by the fail diagnostics stream and is caught by the
   // module implementation where it is both logged as an error and
   // returned to the user with the 5XX status code.
@@ -98,19 +98,23 @@ namespace brep
     virtual void
     handle (request&, response&, log&);
 
+    virtual void
+    init (const char* path);
+
     // Diagnostics implementation details.
     //
   private:
     log* log_ {nullptr}; // Diagnostics backend provided by the web server.
 
+  public:
     // Extract function name from a __PRETTY_FUNCTION__.
     // Throw std::invalid_argument if fail to parse.
     //
     static std::string
-    func_name (const std::string& pretty_name);
+    func_name (const char* pretty_name);
 
     void
-    log_write (diag_data&&) const;
+    log_write (const diag_data&) const;
 
   protected:
     const diag_epilogue log_writer_;

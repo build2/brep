@@ -26,22 +26,24 @@ namespace web
   // By default 400 is returned, which means the request is malformed.
   //
   // If caught by the web server implementation, it will try to return
-  // the specified status and description to the client, if possible.
+  // the specified status and content to the client, if possible.
   // It is, however, may not be possible if some unbuffered content has
   // already been written. The behavior in this case is implementation-
   // specific and may result in no indication of an error being sent to
-  // the client. If description is not empty, then it is assumed to be
-  // encoded in UTF-8.
+  // the client.
   //
   struct invalid_request
   {
     status_code status;
-    std::string description;
+    std::string content;
+    std::string type;
 
     //@@ Maybe optional "try again" link?
     //
-    invalid_request (status_code s = 400, std::string d = "")
-        : status (s), description (std::move (d)) {}
+    invalid_request (status_code s = 400,
+                     std::string c = "",
+                     std::string t = "text/plain;charset=utf-8")
+        : status (s), content (std::move (c)), type (std::move (t)) {}
   };
 
   // Exception indicating HTTP request/response sequencing error.
@@ -163,6 +165,15 @@ namespace web
   class module
   {
   public:
+    // The web server calls this method on the module exemplar prior
+    // accepting client requests. Configuration file path is passed
+    // as a parameter. The way configuration file content interpreted is
+    // module implementation specific. Any exception thrown terminates web
+    // server.
+    //
+    virtual void
+    init (const char* path) = 0;
+
     // Any exception other than invalid_request described above that
     // leaves this function is treated by the web server implementation
     // as an internal server error (500). Similar to invalid_request,

@@ -5,11 +5,11 @@
 #ifndef WEB_APACHE_LOG
 #define WEB_APACHE_LOG
 
-#include <algorithm> // min()
-#include <cstdint>   // uint64_t
-
 #include <httpd/httpd.h>    // request_rec
 #include <httpd/http_log.h>
+
+#include <cstdint>   // uint64_t
+#include <algorithm> // min()
 
 #include <web/module>
 
@@ -21,7 +21,7 @@ namespace web
     {
     public:
 
-      log (request_rec* req) noexcept : req_ (req) {}
+      log (request_rec* req) noexcept: req_ (req) {}
 
       virtual void
       write (const char* msg) {write (APLOG_ERR, msg);}
@@ -29,7 +29,7 @@ namespace web
       // Apache-specific interface.
       //
       void
-      write (int level, const char* msg)
+      write (int level, const char* msg) const noexcept
       {
         write (nullptr, 0, nullptr, level, msg);
       }
@@ -39,7 +39,7 @@ namespace web
              std::uint64_t line,
              const char* func,
              int level,
-             const char* msg)
+             const char* msg) const noexcept
       {
         if (file && *file)
           file = nullptr; // skip file/line placeholder from log line.

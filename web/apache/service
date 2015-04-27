@@ -5,15 +5,18 @@
 #ifndef WEB_APACHE_SERVICE
 #define WEB_APACHE_SERVICE
 
-#include <exception>
-#include <string>
-#include <cassert>
+#include <string.h> // memset()
+#include <unistd.h> // getppid()
+#include <signal.h> // kill()
 
 #include <httpd/httpd.h>
 #include <httpd/http_config.h>
 
-#include <web/module>
+#include <string>
+#include <cassert>
+#include <exception>
 
+#include <web/module>
 #include <web/apache/log>
 #include <web/apache/request>
 
@@ -21,13 +24,13 @@ namespace web
 {
   namespace apache
   {
-    class service : ::module
+    class service: ::module
     {
     public:
       // Note that the module exemplar is stored by-reference.
       //
       template <typename M>
-      service (const std::string& name, const M& exemplar)
+      service (const std::string& name, M& exemplar)
           : ::module
             {
               STANDARD20_MODULE_STUFF,
@@ -35,23 +38,51 @@ namespace web
               nullptr,
               nullptr,
               nullptr,
-              nullptr,
+              directives_,
               &register_hooks<M>
             },
             name_ (name),
-            exemplar_ (exemplar)
+            exemplar_ (exemplar),
+            conf_ (name + "_conf"),
+            conf_err_ ("A file containing configuration options for module " +
+                       name_),
 
+            // Defines service configuration directives. At the moment the
+            // only configuration directive is
+            // "<module_name>_conf <conf_file_path>". Configuration file path
+            // specified will be passed as a parameter to
+            // web::module::init call on exemplar_ object when apache worker
+            // process is started but prior to accepting client requests.
+            //
+            directives_
+            {
+              {
+                conf_.c_str (),
+                reinterpret_cast<cmd_func> (config_file),
+                this,
+                RSRC_CONF,
+                TAKE1,
+                conf_err_.c_str ()
+              }
+            }
 // Doesn't look like handle_ member is required at all.
 //          handle_ (&handle_impl<M>)
       {
-        // instance<M> () invented to delegate processing from apache request
-        // handler C function to service non static member function.
-        // This appoach resticts number of service objects per module
-        // implementation class with just one instance.
+        // instance<M> () is invented to delegate processing from apache
+        // request handler C function to the service non static member
+        // function. This appoach resticts number of service objects per
+        // specific module implementation class with just one instance.
         //
         service*& srv = instance<M> ();
         assert (srv == nullptr);
         srv = this;
+      }
+
+      static const char*
+      config_file (cmd_parms *parms, void *mconfig, const char *w)
+      {
+        reinterpret_cast<service*> (parms->cmd->cmd_data)->conf_file_ = w;
+        return 0;
       }
 
       template <typename M>
@@ -66,7 +97,42 @@ namespace web
       static void
       register_hooks (apr_pool_t *pool) noexcept
       {
+        // The registered function is called right after apache worker
+        // process is started. Called for every new process spawned.
+        //
+        ap_hook_child_init (&child_initializer<M>, NULL, NULL, APR_HOOK_LAST);
+
+        // The registered function is called for each client request.
+        //
         ap_hook_handler (&request_handler<M>, NULL, NULL, APR_HOOK_LAST);
+      }
+
+      template <typename M>
+      static void
+      child_initializer (apr_pool_t *pchild, server_rec *s) noexcept
+      {
+        auto srv = instance<M> ();
+
+        try
+        {
+          srv->exemplar_.init (srv->conf_file_.c_str ());
+        }
+        catch (const std::exception& e)
+        {
+          ap_log_error (0,
+                        0,
+                        APLOG_NO_MODULE,
+                        APLOG_EMERG,
+                        0,
+                        s,
+                        "[::web::apache::service<%s>::child_initializer]: %s",
+                        srv->name_.c_str (),
+                        e.what ());
+
+          // Terminate the root apache process.
+          //
+          ::kill (::getppid (), SIGTERM);
+        }
       }
 
       template <typename M>
@@ -78,29 +144,75 @@ namespace web
         if (!r->handler || srv->name_ != r->handler)
           return DECLINED;
 
-        request req (r);
-        log l(r);
+        static const std::string func_name (
+          "web::apache::service<" + srv->name_ + ">::request_handler");
 
-        // As soons as M (), handle () and flush () can throw need to handle
-        // exceptions here.
-        //
+        request req (r);
+        log l (r);
+
         try
         {
           M m (static_cast<const M&> (srv->exemplar_));
           static_cast<module&> (m).handle (req, req, l);
-          return req.flush();
+          return req.flush ();
+        }
+        catch (const invalid_request& e)
+        {
+          if (!e.content.empty () && !req.get_write_state ())
+          {
+            try
+            {
+              req.content (e.status, e.type) << e.content;
+              return req.flush ();
+            }
+            catch (const std::exception& e)
+            {
+              l.write (nullptr, 0, func_name.c_str (), APLOG_ERR, e.what ());
+            }
+          }
+
+          return e.status;
         }
         catch (const std::exception& e)
         {
-          l.write (nullptr, 0, __PRETTY_FUNCTION__, APLOG_ERR, e.what ());
+          l.write (nullptr, 0, func_name.c_str (), APLOG_ERR, e.what ());
+
+          if (*e.what () && !req.get_write_state ())
+          {
+            try
+            {
+              req.content (HTTP_INTERNAL_SERVER_ERROR,
+                           "text/plain;charset=utf-8")
+                << e.what ();
+
+              return req.flush ();
+            }
+            catch (const std::exception& e)
+            {
+              l.write (nullptr, 0, func_name.c_str (), APLOG_ERR, e.what ());
+            }
+          }
         }
         catch (...)
         {
-          l.write (nullptr,
-                   0,
-                   __PRETTY_FUNCTION__,
-                   APLOG_ERR,
-                   "unknown error");
+          l.write (nullptr, 0, func_name.c_str (), APLOG_ERR, "unknown error");
+
+          if (!req.get_write_state ())
+          {
+            try
+            {
+              req.content (HTTP_INTERNAL_SERVER_ERROR,
+                           "text/plain;charset=utf-8")
+                << "unknown error";
+
+              return req.flush ();
+            }
+            catch (const std::exception& e)
+            {
+              l.write (nullptr, 0, func_name.c_str (), APLOG_ERR, e.what ());
+            }
+          }
+
         }
 
         return HTTP_INTERNAL_SERVER_ERROR;
@@ -122,7 +234,12 @@ namespace web
       }
 */
       std::string name_;
-      const module& exemplar_;
+      module& exemplar_;
+      std::string conf_;
+      std::string conf_err_;
+      command_rec directives_[2];
+      std::string conf_file_;
+
 //      void (*handle_) (request&, response&, log&, const module&);
     };
   }

@@ -4,15 +4,15 @@
 
 #include <brep/module>
 
-#include <stdexcept>
-#include <string>
-#include <functional> // bind()
-#include <cstring>    // strncmp()
-
 #include <httpd/httpd.h>
+#include <httpd/http_log.h>
+
+#include <string>
+#include <cstring>    // strncmp()
+#include <stdexcept>
+#include <functional> // bind()
 
 #include <web/module>
-
 #include <web/apache/log>
 
 using namespace std;
@@ -24,46 +24,47 @@ namespace brep
   handle (request& rq, response& rs, log& l)
   {
     log_ = &l;
-    const basic_mark error (severity::error, log_writer_, __PRETTY_FUNCTION__);
 
     try
     {
       handle (rq, rs);
     }
-    catch (const invalid_request& e)
+    catch (const server_error& e)
     {
-      if (e.description.empty ())
+      log_write (e.data);
+
+      try
       {
-        rs.status (e.status);
+        static const char* s[] = {"err", "warn", "info", "trace"};
+        std::ostream& o = rs.content (500, "text/plain;charset=utf-8");
+
+        for (const auto& d: e.data)
+        {
+          string name;
+
+          try
+          {
+            name = func_name (d.name);
+          }
+          catch (const invalid_argument&)
+          {
+            // Log "pretty" function description, see in log file & fix.
+            name = d.name;
+          }
+
+          o << "[" << s[static_cast<int> (d.sev)] << "] ["
+            << name << "] " << d.msg << std::endl;
+        }
       }
-      else
+      catch (const sequence_error&)
       {
-        try
-        {
-          rs.content (e.status, "text/html;charset=utf-8") << e.description;
-        }
-        catch (const sequence_error& se)
-        {
-          error << se.what ();
-          rs.status (e.status);
-        }
       }
     }
-    catch (server_error& e) // Non-const because of move() below.
-    {
-      log_write (move (e.data));
-      rs.status (HTTP_INTERNAL_SERVER_ERROR);
-    }
-    catch (const exception& e)
-    {
-      error << e.what ();
-      rs.status (HTTP_INTERNAL_SERVER_ERROR);
-    }
-    catch (...)
-    {
-      error << "unknown error";
-      rs.status (HTTP_INTERNAL_SERVER_ERROR);
-    }
+  }
+
+  void module::
+  init (const char* path)
+  {
   }
 
   module::
@@ -71,10 +72,8 @@ namespace brep
 
   // Custom copy constructor is required to initialize log_writer_ properly.
   //
-  // @@ Won't log_writer_ be left empty by this implementation?
-  //
   module::
-  module (const module& m): module (), verb_ (m.verb_) {}
+  module (const module& m): module ()  {verb_ = m.verb_;}
 
 // For function func declared like this:
 // using B = std::string (*)(int);
@@ -85,65 +84,53 @@ namespace brep
 // ,std::string (* (*)(wchar_t))(int)) const)(int, int))(int)
 //
   string module::
-  func_name (const string& pretty_name)
+  func_name (const char* pretty_name)
   {
-    string::size_type b (0);
-    string::size_type e (pretty_name.find (' '));
+    const char* e = strchr (pretty_name, ')');
 
-    // Position b at beginning of supposed function name,
-    //
-    if (e != string::npos && !strncmp (pretty_name.c_str (), "virtual ", 8))
+    if (e && e > pretty_name)
     {
-      // Skip keyword virtual.
+      // Position e at last matching '(' which is the beginning of the
+      // argument list..
       //
-      b = pretty_name.find_first_not_of (' ', e);
-      e = pretty_name.find (' ', b);
-    }
+      size_t d (1);
 
-    if (pretty_name.find ('(', b) > e)
-    {
-      // Not a constructor nor destructor. Skip type or *.
-      //
-      b = pretty_name.find_first_not_of (' ', e);
-    }
-
-    if (b != string::npos)
-    {
-      // Position e at the last character of supposed function name.
-      //
-      e = pretty_name.find_last_of (')');
-
-      if (e != string::npos && e > b)
+      do
       {
-        size_t d (1);
-
-        while (--e > b && d)
+        switch (*--e)
         {
-          switch (pretty_name[e])
-          {
-          case ')': ++d; break;
-          case '(': --d; break;
-          }
+        case ')': ++d; break;
+        case '(': --d; break;
         }
+      }
+      while (d && e > pretty_name);
 
-        if (!d)
+      if (!d && e > pretty_name)
+      {
+        // Position e at the character following the function name.
+        //
+        while (e > pretty_name &&
+               (*e != '(' || *(e - 1) == ' ' || *(e - 1) == ')'))
+          --e;
+
+        if (e > pretty_name)
         {
-          return pretty_name[b] == '(' && pretty_name[e] == ')' ?
-            // Not a name yet, go deeper.
-            //
-            func_name (string(pretty_name, b + 1, e - b - 1)) :
-            // Got the name.
-            //
-            string (pretty_name, b, e - b + 1);
+          // Position b at the beginning of the qualified function name.
+          //
+          const char* b (e);
+          while (--b > pretty_name && *b != ' ');
+          if (*b == ' ') ++b;
+
+          return string (b, e - b);
         }
       }
     }
 
-    throw invalid_argument ("");
+    throw invalid_argument ("::brep::module::func_name");
   }
 
   void module::
-  log_write (diag_data&& d) const
+  log_write (const diag_data& d) const
   {
     if (log_ == nullptr)
       return; // No backend yet.
@@ -157,7 +144,7 @@ namespace brep
       //
       static int s[] = {APLOG_ERR, APLOG_WARNING, APLOG_INFO, APLOG_TRACE1};
 
-      for (const auto& e : d)
+      for (const auto& e: d)
       {
         string name;
 
@@ -171,11 +158,11 @@ namespace brep
           name = e.name;
         }
 
-        al->write (e.loc.file.c_str(),
+        al->write (e.loc.file.c_str (),
                    e.loc.line,
-                   name.c_str(),
+                   name.c_str (),
                    s[static_cast<int> (e.sev)],
-                   e.msg.c_str());
+                   e.msg.c_str ());
       }
     }
 

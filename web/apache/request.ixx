@@ -2,12 +2,12 @@
 // copyright : Copyright (c) 2014-2015 Code Synthesis Tools CC
 // license   : MIT; see accompanying LICENSE file
 
+#include <strings.h> // strcasecmp()
+
 #include <iomanip>
 #include <sstream>
 #include <cstring>
 #include <cstdlib>
-
-#include <strings.h> // strcasecmp()
 
 namespace web
 {
@@ -18,10 +18,8 @@ namespace web
     {
       if (buffer_ && out_buf_)
       {
-        set_content_type ();
-
         auto b = dynamic_cast<std::stringbuf*> (out_buf_.get ());
-        assert(b);
+        assert (b);
 
         std::string s (b->str ());
 
@@ -33,27 +31,21 @@ namespace web
 
           if (r == OK)
           {
-            if (status_ == HTTP_OK)
-            {
-              if (ap_rwrite (s.c_str (), s.length (), rec_) < 0)
-              {
-                status_ = HTTP_REQUEST_TIME_OUT;
-              }
-            }
-            else
-            {
-              ap_custom_response (rec_, status_, s.c_str ());
-            }
+            set_write_state ();
+
+            if (ap_rwrite (s.c_str (), s.length (), rec_) < 0)
+              rec_->status = HTTP_REQUEST_TIME_OUT;
           }
+
           else
-            status_ = r;
+            rec_->status = r;
         }
 
         out_.reset ();
         out_buf_.reset ();
       }
 
-      return status_ == HTTP_OK ? OK : status_;
+      return rec_->status == HTTP_OK || get_write_state () ? OK : rec_->status;
     }
 
     inline const request::string_ptr& request::
@@ -66,7 +58,7 @@ namespace web
 
         if (ct && !strncasecmp ("application/x-www-form-urlencoded", ct, 33))
         {
-          std::istream& istr (data ());
+          std::istream& istr (content ());
           std::getline (istr, *form_data_);
 
           // Make request data still be available.
@@ -89,8 +81,8 @@ namespace web
     {
       for (auto n (args); n != 0; )
       {
-        const char* v = strchr (n, '=');
-        const char* e = strchr (n, '&');
+        const char* v = std::strchr (n, '=');
+        const char* e = ::strchr (n, '&');
 
         if (e && e < v)
           v = 0;
@@ -123,6 +115,7 @@ namespace web
       char f = o.fill ();
       std::ios_base::fmtflags g = o.flags ();
       o << std::hex << std::uppercase << std::right << std::setfill ('0');
+
       char c;
 
       while ((c = *v++) != '\0')
@@ -140,7 +133,11 @@ namespace web
           case '_':
           case '-':
           case '~': o << c; break;
-          default: o << "%" << std::setw (2) << (unsigned short)c;
+          default:
+            {
+              o << "%" << std::setw (2) << static_cast<unsigned short> (c);
+              break;
+            }
           }
       }
 
@@ -156,7 +153,7 @@ namespace web
         b += std::strspn (b, " ");
 
         if (b >= e)
-          return std::string();
+          return std::string ();
 
         while (*--e == ' ');
         ++e;
@@ -199,7 +196,7 @@ namespace web
                 "::web::apache::request::mime_url_decode wrong");
             }
 
-            value.append (1, (char)vl);
+            value.append (1, static_cast<char> (vl));
             b += 2;
             break;
           }

@@ -5,23 +5,23 @@
 #ifndef WEB_APACHE_REQUEST
 #define WEB_APACHE_REQUEST
 
-#include <stdexcept>
-#include <exception>
-#include <string>
-#include <ios>
-#include <istream>
-#include <ostream>
-#include <streambuf>
-#include <memory>    // unique_ptr
-#include <algorithm> // move
-#include <chrono>
-#include <cassert>
-
 #include <apr_strings.h>
 
 #include <httpd/httpd.h>
 #include <httpd/http_core.h>
 #include <httpd/util_script.h>
+
+#include <ios>
+#include <chrono>
+#include <memory>    // unique_ptr
+#include <string>
+#include <cassert>
+#include <istream>
+#include <ostream>
+#include <streambuf>
+#include <stdexcept>
+#include <exception>
+#include <algorithm> // move
 
 #include <web/module>
 #include <web/apache/stream>
@@ -30,11 +30,13 @@ namespace web
 {
   namespace apache
   {
-    class request : public web::request, public web::response
+    class request: public web::request,
+                   public web::response,
+                   public write_state
     {
       friend class service;
 
-      request (request_rec* rec) noexcept: rec_ (rec) {}
+      request (request_rec* rec) noexcept: rec_ (rec) {rec_->status = HTTP_OK;}
 
       // Flush of buffered content.
       //
@@ -44,16 +46,13 @@ namespace web
       // Get request body data stream.
       //
       virtual std::istream&
-      data ()
+      content ()
       {
-        if (write_flag ())
-        {
-          throw sequence_error ("::web::apache::request::data");
-        }
-
         if (!in_)
         {
-          std::unique_ptr<std::streambuf> in_buf (new istreambuf (rec_));
+          std::unique_ptr<std::streambuf> in_buf (
+            new istreambuf (rec_, *this));
+
           in_.reset (new std::istream (in_buf.get ()));
           in_buf_ = std::move (in_buf);
           in_->exceptions (std::ios::failbit | std::ios::badbit);
@@ -74,16 +73,16 @@ namespace web
       {
         if (!parameters_)
         {
-          parameters_.reset (new name_values());
+          parameters_.reset (new name_values ());
 
           try
           {
-            parse_parameters(rec_->args);
-            parse_parameters(form_data ()->c_str ());
+            parse_parameters (rec_->args);
+            parse_parameters (form_data ()->c_str ());
           }
-          catch(const std::invalid_argument& )
+          catch (const std::invalid_argument& )
           {
-            throw invalid_request();
+            throw invalid_request ();
           }
         }
 
@@ -97,30 +96,29 @@ namespace web
 
       // Get response status code.
       //
-      status_code status () const noexcept {return status_;}
+      status_code status () const noexcept {return rec_->status;}
 
       // Set response status code.
       //
       virtual void
       status (status_code status)
       {
-        if (status != status_)
+        if (status != rec_->status)
         {
           // Setting status code in exception handler is a common usecase
           // where no sense to throw but still need to signal apache a
           // proper status code.
           //
-          if (write_flag () && !std::current_exception ())
+          if (get_write_state () && !std::current_exception ())
           {
             throw sequence_error ("::web::apache::request::status");
           }
 
-          status_ = status;
-          type_.clear ();
+          rec_->status = status;
           buffer_ = true;
           out_.reset ();
           out_buf_.reset ();
-          set_content_type ();
+          ap_set_content_type (rec_, nullptr);
         }
       }
 
@@ -158,60 +156,33 @@ namespace web
       static std::string
       mime_url_decode (const char* b, const char* e, bool trim = false);
 
-      // Save content type to apache internals.
-      //
-      void
-      set_content_type () const noexcept
-      {
-        if (type_.empty ())
-          ap_set_content_type (rec_, nullptr);
-        else
-        {
-          if(status_ == HTTP_OK)
-          {
-            ap_set_content_type (rec_,
-                                 apr_pstrdup (rec_->pool, type_.c_str ()));
-          }
-          else
-          {
-            // Unfortunatelly there is no way to set a proper content type
-            // for error custom response. Depending on presense of
-            // "suppress-error-charset" key in request_rec::subprocess_env
-            // table content type is set to "text/html" otherwise to
-            // "text/html; charset=iso-8859-1" (read http_protocol.c for
-            // details). I have chosen the first one as it is better not to
-            // specify charset than to set a wrong one. Ensure to put
-            // a proper encoding to
-            // <meta http-equiv="Content-Type" content="text/html;charset=...">
-            // tag so browser can render the page properly.
-            // The clean solution would be patching apache but let's leave this
-            // troublesome option untill really required.
-            //
-            apr_table_set (rec_->subprocess_env, "suppress-error-charset", "");
-          }
-        }
-      }
-
       bool
-      write_flag () const noexcept
-      {
-        if (!buffer_)
-        {
-          assert (out_buf_);
-          auto b = dynamic_cast<ostreambuf*> (out_buf_.get ());
-          assert (b);
-          return b->write_flag ();
-        }
+      get_write_state () const noexcept {return write_state_;}
 
-        return false;
+      virtual void
+      set_write_state ()
+      {
+        if (!write_state_)
+        {
+          // Preparing to write a response read and discard request
+          // body if any.
+          //
+          int r = ap_discard_request_body (rec_);
+
+          if (r != OK)
+          {
+            throw invalid_request (r);
+          }
+
+          write_state_ = true;
+        }
       }
 
     private:
 
       request_rec* rec_;
-      status_code status_ {HTTP_OK};
-      std::string type_;
       bool buffer_ {true};
+      bool write_state_ {false};
       std::unique_ptr<std::streambuf> out_buf_;
       std::unique_ptr<std::ostream> out_;
       std::unique_ptr<std::streambuf> in_buf_;

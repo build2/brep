@@ -4,9 +4,8 @@
 
 #include <brep/search>
 
-#include <ostream>
-#include <iostream>
 #include <chrono>
+#include <ostream>
 
 #include <web/module>
 
@@ -25,7 +24,7 @@ namespace brep
 
     info << "handling search request from "; // << rq.client_ip ();
 
-    ostream& o (rs.content (200, "text/html;charset=utf-8", false));
+    ostream& o (rs.content (200, "text/html;charset=utf-8", true));
 
     o << "<html><head></head><body><b>Params:</b>";
 
@@ -47,7 +46,7 @@ namespace brep
 
     o << "<br>\n<b>Cookies:</b>";
 
-    for (const auto& c : rq.cookies ())
+    for (const auto& c: rq.cookies ())
     {
       o << "<br>\n" << c.name << "=" << c.value << " ";
     }
