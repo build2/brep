@@ -165,14 +165,17 @@ namespace web
   class module
   {
   public:
-    // The web server calls this method on the module exemplar prior
-    // accepting client requests. Configuration file path is passed
-    // as a parameter. The way configuration file content interpreted is
-    // module implementation specific. Any exception thrown terminates web
+    // During startup the web server calls this function on the
+    // module exemplar passing a list of configuration name-value
+    // pairs. The place these configuration pairs come from is
+    // implementation-specific (normally a configuration file).
+    // Any exception thrown by this function terminates the web
     // server.
     //
+    // @@ Is log available? Should we pass it?
+    //
     virtual void
-    init (const char* path) = 0;
+    init (const name_values&) = 0;
 
     // Any exception other than invalid_request described above that
     // leaves this function is treated by the web server implementation

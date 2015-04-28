@@ -35,7 +35,7 @@ namespace brep
 
       try
       {
-        static const char* s[] = {"err", "warn", "info", "trace"};
+        static const char* sev_str[] = {"error", "warning", "info", "trace"};
         std::ostream& o = rs.content (500, "text/plain;charset=utf-8");
 
         for (const auto& d: e.data)
@@ -52,12 +52,17 @@ namespace brep
             name = d.name;
           }
 
-          o << "[" << s[static_cast<int> (d.sev)] << "] ["
-            << name << "] " << d.msg << std::endl;
+          o << name << ": " << sev_str[d.sev] << ": " << d.msg << endl;
+
+          //o << "[" << s[static_cast<int> (d.sev)] << "] ["
+          //  << name << "] " << d.msg << std::endl;
         }
       }
       catch (const sequence_error&)
       {
+        // We tried to return the error status/description but some
+        // content has already been written. Nothing we can do about
+        // it.
       }
     }
   }
