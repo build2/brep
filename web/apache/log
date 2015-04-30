@@ -21,7 +21,7 @@ namespace web
     {
     public:
 
-      log (request_rec* req) noexcept: req_ (req) {}
+      log (server_rec* server) noexcept: server_ (server) {}
 
       virtual void
       write (const char* msg) {write (APLOG_ERR, msg);}
@@ -47,30 +47,30 @@ namespace web
         level = std::min (level, APLOG_TRACE8);
 
         if (func)
-          ap_log_rerror (file,
+          ap_log_error (file,
                          line,
                          APLOG_NO_MODULE,
                          level,
                          0,
-                         req_,
+                         server_,
                          "[%s]: %s",
                          func,
                          msg);
         else
           // skip function name placeholder from log line
           //
-          ap_log_rerror (file,
+          ap_log_error (file,
                          line,
                          APLOG_NO_MODULE,
                          level,
                          0,
-                         req_,
+                         server_,
                          ": %s",
                          msg);
       }
 
     private:
-      request_rec* req_;
+      server_rec* server_;
     };
   }
 }

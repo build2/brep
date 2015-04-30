@@ -7,6 +7,7 @@
 #include <httpd/httpd.h>
 #include <httpd/http_log.h>
 
+#include <memory> // unique_ptr
 #include <string>
 #include <cstring>    // strncmp()
 #include <stdexcept>
@@ -14,6 +15,8 @@
 
 #include <web/module>
 #include <web/apache/log>
+
+#include <brep/options>
 
 using namespace std;
 using namespace placeholders; // For std::bind's _1, etc.
@@ -52,10 +55,8 @@ namespace brep
             name = d.name;
           }
 
-          o << name << ": " << sev_str[d.sev] << ": " << d.msg << endl;
-
-          //o << "[" << s[static_cast<int> (d.sev)] << "] ["
-          //  << name << "] " << d.msg << std::endl;
+          o << name << ": " << sev_str[static_cast<size_t> (d.sev)] << ": "
+            << d.msg << endl;
         }
       }
       catch (const sequence_error&)
@@ -67,9 +68,64 @@ namespace brep
     }
   }
 
+  // Parse options with a cli-generated scanner. Options verb and conf are
+  // recognized by brep::module::init while others to be interpreted by the
+  // derived class init method. If there is an option which can not be
+  // interpreted not by brep::module::init nor by derived class init method
+  // then web server is terminated with a corresponding error message being
+  // logged.
+  //
   void module::
-  init (const char* path)
+  init (const name_values& options, log& log)
   {
+    log_ = &log;
+
+    int argc = 0;
+    std::unique_ptr<const char*[]> argv (new const char*[options.size () * 2]);
+
+    for (const auto& nv: options)
+    {
+      argv[argc++] = nv.name.c_str ();
+      argv[argc++] = nv.value.c_str ();
+    }
+
+    try
+    {
+      {
+        // Read module implementation configuration.
+        //
+        cli::argv_file_scanner s (0,
+                                  argc,
+                                  const_cast<char**> (argv.get ()),
+                                  "conf");
+
+        init (s);
+      }
+
+      // Read brep::module configuration.
+      //
+      cli::argv_file_scanner s (0,
+                                argc,
+                                const_cast<char**> (argv.get ()),
+                                "conf");
+
+      module_options o (s,
+                        ::cli::unknown_mode::skip,
+                        ::cli::unknown_mode::skip);
+
+      verb_ = o.verb ();
+    }
+    catch (const server_error& e)
+    {
+      log_write (e.data);
+      throw runtime_error ("initialization failed");
+    }
+    catch (const cli::exception& e)
+    {
+      std::ostringstream o;
+      e.print (o);
+      throw runtime_error (o.str ());
+    }
   }
 
   module::
@@ -166,7 +222,7 @@ namespace brep
         al->write (e.loc.file.c_str (),
                    e.loc.line,
                    name.c_str (),
-                   s[static_cast<int> (e.sev)],
+                   s[static_cast<size_t> (e.sev)],
                    e.msg.c_str ());
       }
     }

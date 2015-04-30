@@ -13,8 +13,11 @@
 #include <httpd/http_config.h>
 
 #include <string>
+#include <vector>
+#include <memory> // unique_ptr
 #include <cassert>
 #include <exception>
+#include <algorithm> // move()
 
 #include <web/module>
 #include <web/apache/log>
@@ -27,10 +30,15 @@ namespace web
     class service: ::module
     {
     public:
+
+      using option_names = std::vector<std::string>;
+
       // Note that the module exemplar is stored by-reference.
       //
       template <typename M>
-      service (const std::string& name, M& exemplar)
+      service (const std::string& name,
+               M& exemplar,
+               option_names opts = option_names ())
           : ::module
             {
               STANDARD20_MODULE_STUFF,
@@ -38,36 +46,44 @@ namespace web
               nullptr,
               nullptr,
               nullptr,
-              directives_,
+              nullptr,
               &register_hooks<M>
             },
             name_ (name),
             exemplar_ (exemplar),
-            conf_ (name + "_conf"),
-            conf_err_ ("A file containing configuration options for module " +
-                       name_),
-
-            // Defines service configuration directives. At the moment the
-            // only configuration directive is
-            // "<module_name>_conf <conf_file_path>". Configuration file path
-            // specified will be passed as a parameter to
-            // web::module::init call on exemplar_ object when apache worker
-            // process is started but prior to accepting client requests.
-            //
-            directives_
-            {
-              {
-                conf_.c_str (),
-                reinterpret_cast<cmd_func> (config_file),
-                this,
-                RSRC_CONF,
-                TAKE1,
-                conf_err_.c_str ()
-              }
-            }
+            option_names_ (std::move (opts))
 // Doesn't look like handle_ member is required at all.
 //          handle_ (&handle_impl<M>)
       {
+        // Fill apache module directive definitions. Directives share
+        // common name space in apache configuration file, so to prevent name
+        // clash have to form directive name as a combination of module and
+        // option names: <module name>-<option name>. This why for option
+        // bar of module foo the corresponding directive will appear in apache
+        // configuration file as foo-bar.
+        //
+        std::unique_ptr<command_rec[]> directives (
+          new command_rec[option_names_.size () + 1]);
+
+        command_rec* d = directives.get ();
+
+        for (auto& o: option_names_)
+        {
+          o = name_ + "-" + o;
+
+          *d++ =
+            {
+              o.c_str (),
+              reinterpret_cast<cmd_func> (add_option),
+              this,
+              RSRC_CONF,
+              TAKE1,
+              nullptr
+            };
+        }
+
+        *d = {};
+
         // instance<M> () is invented to delegate processing from apache
         // request handler C function to the service non static member
         // function. This appoach resticts number of service objects per
@@ -76,12 +92,29 @@ namespace web
         service*& srv = instance<M> ();
         assert (srv == nullptr);
         srv = this;
+
+        cmds = directives.release ();
+      }
+
+      ~service ()
+      {
+        delete [] cmds;
       }
 
       static const char*
-      config_file (cmd_parms *parms, void *mconfig, const char *w)
+      add_option (cmd_parms *parms, void *mconfig, const char *value)
       {
-        reinterpret_cast<service*> (parms->cmd->cmd_data)->conf_file_ = w;
+        service& srv = *reinterpret_cast<service*> (parms->cmd->cmd_data);
+        std::string name (parms->cmd->name + srv.name_.length () + 1);
+
+        for (auto& v: srv.options_)
+          if (v.name == name)
+          {
+            v.value = value;
+            return 0;
+          }
+
+        srv.options_.emplace_back (name, value);
         return 0;
       }
 
@@ -95,12 +128,12 @@ namespace web
 
       template <typename M>
       static void
-      register_hooks (apr_pool_t *pool) noexcept
+      register_hooks (apr_pool_t*) noexcept
       {
         // The registered function is called right after apache worker
         // process is started. Called for every new process spawned.
         //
-        ap_hook_child_init (&child_initializer<M>, NULL, NULL, APR_HOOK_LAST);
+        ap_hook_child_init (&worker_initializer<M>, NULL, NULL, APR_HOOK_LAST);
 
         // The registered function is called for each client request.
         //
@@ -109,25 +142,33 @@ namespace web
 
       template <typename M>
       static void
-      child_initializer (apr_pool_t *pchild, server_rec *s) noexcept
+      worker_initializer (apr_pool_t*, server_rec* server) noexcept
       {
         auto srv = instance<M> ();
+        log l (server);
+
+        static const std::string func_name (
+          "web::apache::service<" + srv->name_ + ">::worker_initializer");
 
         try
         {
-          srv->exemplar_.init (srv->conf_file_.c_str ());
+          srv->exemplar_.init (srv->options_, l);
         }
         catch (const std::exception& e)
         {
-          ap_log_error (0,
-                        0,
-                        APLOG_NO_MODULE,
-                        APLOG_EMERG,
-                        0,
-                        s,
-                        "[::web::apache::service<%s>::child_initializer]: %s",
-                        srv->name_.c_str (),
-                        e.what ());
+          l.write (nullptr, 0, func_name.c_str (), APLOG_EMERG, e.what ());
+
+          // Terminate the root apache process.
+          //
+          ::kill (::getppid (), SIGTERM);
+        }
+        catch (...)
+        {
+          l.write (nullptr,
+                   0,
+                   func_name.c_str (),
+                   APLOG_EMERG,
+                   "unknown error");
 
           // Terminate the root apache process.
           //
@@ -148,7 +189,7 @@ namespace web
           "web::apache::service<" + srv->name_ + ">::request_handler");
 
         request req (r);
-        log l (r);
+        log l (r->server);
 
         try
         {
@@ -235,10 +276,8 @@ namespace web
 */
       std::string name_;
       module& exemplar_;
-      std::string conf_;
-      std::string conf_err_;
-      command_rec directives_[2];
-      std::string conf_file_;
+      option_names option_names_;
+      name_values options_;
 
 //      void (*handle_) (request&, response&, log&, const module&);
     };

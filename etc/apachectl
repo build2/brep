@@ -27,23 +27,28 @@ ARGV="$@"
 # |||||||||||||||||||| START CONFIGURATION SECTION  ||||||||||||||||||||
 # --------------------                              --------------------
 
-PORT=7180
-LOG_LEVEL=trace1
-ADMIN_EMAIL=admin@cppget.org
+export PORT=7180
+export SERVER_NAME="cppget.org:$PORT"
+export LOG_LEVEL=trace1
+export ADMIN_EMAIL=admin@cppget.org
+
+export DB_HOST=localhost
+export DB_PORT=7136
 
 # |||||||||||||||||||| END CONFIGURATION SECTION |||||||||||||||||||||||
 
 PROJECT_DIR=$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )/..
 
-site_config="$PROJECT_DIR/etc"
-workspace="$PROJECT_DIR/var"
-www="$PROJECT_DIR/www"
+export MODULE_DIR="$PROJECT_DIR"
+export WWW_DIR="$PROJECT_DIR/www"
+export CONFIG_DIR="$PROJECT_DIR/etc"
+export WORKSPACE_DIR="$PROJECT_DIR/var"
 
-mkdir -p "$workspace"
+mkdir -p "$WORKSPACE_DIR"
 
 # the path to your httpd binary, including options if necessary
 
-HTTPD="/usr/sbin/httpd -d $workspace -f $site_config/httpd.conf"
+HTTPD="/usr/sbin/httpd -d $WORKSPACE_DIR -f $CONFIG_DIR/httpd.conf"
 
 # a command that outputs a formatted text version of the HTML at the
 # url given on the command line.  Designed for lynx, however other
@@ -73,25 +78,11 @@ if [ "x$ARGV" = "x" ] ; then
 fi
 
 case $ARGV in
-start)
-    $HTTPD -C "Listen $PORT" -C "ServerName cppget.org:$PORT" \
-           -C "DocumentRoot $www/htdocs" -C "CoreDumpDirectory $workspace" \
-           -C "PidFile $workspace/httpd.pid" \
-           -C "LogLevel $LOG_LEVEL" \
-           -C "ServerAdmin $ADMIN_EMAIL" \
-           -k $ARGV \
-	   \
-           -C "LoadModule search_srv $PROJECT_DIR/libbrep.so" \
-	   -C "search_conf $site_config/search.conf" \
-	   \
-           -C "LoadModule view_srv $PROJECT_DIR/libbrep.so" \
-	   -C "view_conf $site_config/view.conf"
-
+start) $HTTPD -k $ARGV
     ERROR=$?
     ;;
 stop|restart|graceful)
-    $HTTPD -C "ServerName cppget.org:$PORT" \
-           -C "PidFile $workspace/httpd.pid" -k $ARGV
+    $HTTPD -k $ARGV
     ERROR=$?
     ;;
 startssl|sslstart|start-SSL)

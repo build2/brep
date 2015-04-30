@@ -11,6 +11,7 @@
 
 #include <web/module>
 
+#include <brep/options>
 #include <brep/diagnostics>
 
 namespace brep
@@ -69,10 +70,6 @@ namespace brep
   //
   class module: public web::module
   {
-  public:
-    virtual void
-    handle (request&, response&) = 0;
-
     // Diagnostics.
     //
   protected:
@@ -95,18 +92,33 @@ namespace brep
     module ();
     module (const module& );
 
+  private:
     virtual void
     handle (request&, response&, log&);
 
     virtual void
-    init (const char* path);
+    handle (request&, response&) = 0;
+
+    virtual void
+    init (const name_values&, log&);
+
+    // Can be overriden by module implementation which has configuration
+    // options.
+    //
+    virtual void
+    init (::cli::scanner& s)
+    {
+      // Just scan options to ensure there is no misspelled ones.
+      //
+      module_options o (s, cli::unknown_mode::fail, cli::unknown_mode::fail);
+    }
 
     // Diagnostics implementation details.
     //
   private:
     log* log_ {nullptr}; // Diagnostics backend provided by the web server.
 
-  public:
+  private:
     // Extract function name from a __PRETTY_FUNCTION__.
     // Throw std::invalid_argument if fail to parse.
     //

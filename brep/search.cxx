@@ -4,6 +4,7 @@
 
 #include <brep/search>
 
+#include <memory> // shared_ptr, make_shared()
 #include <chrono>
 #include <ostream>
 
@@ -13,6 +14,23 @@ using namespace std;
 
 namespace brep
 {
+  void search::
+  init (::cli::scanner& s)
+  {
+    MODULE_DIAG;
+
+    options_ = std::make_shared<search_options> (s,
+                                                 ::cli::unknown_mode::fail,
+                                                 ::cli::unknown_mode::fail);
+
+    if (options_->results_on_page () > 30)
+      fail << "too many search results on page: "
+           << options_->results_on_page ();
+    else if (options_->results_on_page () > 10)
+      warn << options_->results_on_page ()
+           << " search results on page is quite a lot but will try to cope";
+  }
+
   void search::
   handle (request& rq, response& rs)
   {
@@ -24,9 +42,17 @@ namespace brep
 
     info << "handling search request from "; // << rq.client_ip ();
 
-    ostream& o (rs.content (200, "text/html;charset=utf-8", true));
+    ostream& o (rs.content ());
 
-    o << "<html><head></head><body><b>Params:</b>";
+    o << "<html><head></head><body>";
+
+    o << "<b>Options:</b>"
+      << "<br>\ntracing verbosity: " << options_->verb ()
+      << "<br>\ndb endpoint: " << options_->db_host () << ":"
+      << options_->db_port ()
+      << "<br>\nsearch results on page: " << options_->results_on_page ();
+
+    o << "<p>\n<b>Params:</b>";
 
     const name_values& ps (rq.parameters ());
 
@@ -44,13 +70,14 @@ namespace brep
       o << "<br>\n" << p.name << "=" << p.value;
     }
 
-    o << "<br>\n<b>Cookies:</b>";
+    o << "<p>\n<b>Cookies:</b>";
 
     for (const auto& c: rq.cookies ())
     {
-      o << "<br>\n" << c.name << "=" << c.value << " ";
+      o << "<br>\n" << c.name << "=" << c.value;
     }
 
-    o << "</body></html>";
+    o << "<p><a href='view'>View</a>"
+      << "</body></html>";
   }
 }

@@ -116,7 +116,9 @@ namespace web
     // new status.
     //
     virtual std::ostream&
-    content (status_code, const std::string& type, bool buffer = true) = 0;
+    content (status_code code = 200,
+             const std::string& type = "text/html;charset=utf-8",
+             bool buffer = true) = 0;
 
     // Set status code without writing any content. On status change,
     // discard buffered content or throw sequence_error if content was
@@ -175,7 +177,7 @@ namespace web
     // @@ Is log available? Should we pass it?
     //
     virtual void
-    init (const name_values&) = 0;
+    init (const name_values&, log&) = 0;
 
     // Any exception other than invalid_request described above that
     // leaves this function is treated by the web server implementation

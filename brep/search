@@ -5,7 +5,10 @@
 #ifndef BREP_SEARCH
 #define BREP_SEARCH
 
+#include <memory> // shared_ptr
+
 #include <brep/module>
+#include <brep/options>
 
 namespace brep
 {
@@ -14,6 +17,13 @@ namespace brep
   public:
     virtual void
     handle (request&, response&);
+
+    virtual void
+    init (::cli::scanner&);
+
+  private:
+
+    std::shared_ptr<search_options> options_;
   };
 }
 
