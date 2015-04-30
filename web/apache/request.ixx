@@ -63,7 +63,6 @@ namespace web
 
           // Make request data still be available.
           //
-
           std::unique_ptr<std::streambuf> in_buf (
             new std::stringbuf (*form_data_));
 

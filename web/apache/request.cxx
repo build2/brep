@@ -76,7 +76,7 @@ namespace web
     }
 
     ostream& request::
-    content (status_code status, const std::string& type, bool buffer)
+    content (status_code status, const string& type, bool buffer)
     {
       if (out_ && status == rec_->status && buffer == buffer_ &&
           !::strcasecmp (rec_->content_type ? rec_->content_type : "",
@@ -97,17 +97,14 @@ namespace web
         //
         form_data ();
 
-      std::unique_ptr<std::streambuf> out_buf (
+      unique_ptr<std::streambuf> out_buf (
         buffer
         ? static_cast<std::streambuf*> (new std::stringbuf ())
         : static_cast<std::streambuf*> (new ostreambuf (rec_, *this)));
 
       out_.reset (new std::ostream (out_buf.get ()));
-
-      out_buf_ = std::move (out_buf);
-
-      out_->exceptions (
-        std::ios::eofbit | std::ios::failbit | std::ios::badbit);
+      out_buf_ = move (out_buf);
+      out_->exceptions (ios::eofbit | ios::failbit | ios::badbit);
 
       buffer_ = buffer;
       rec_->status = status;
@@ -122,7 +119,7 @@ namespace web
     void request::
     cookie (const char* name,
             const char* value,
-            const std::chrono::seconds* max_age,
+            const chrono::seconds* max_age,
             const char* path,
             const char* domain,
             bool secure)
@@ -132,26 +129,22 @@ namespace web
         throw sequence_error ("::web::apache::request::cookie");
       }
 
-      std::ostringstream s;
+      ostringstream s;
       mime_url_encode (name, s);
       s << "=";
       mime_url_encode (value, s);
 
       if (max_age)
       {
-        std::chrono::system_clock::time_point tp =
-          std::chrono::system_clock::now () + *max_age;
+        chrono::system_clock::time_point tp =
+          chrono::system_clock::now () + *max_age;
 
-        std::time_t t = std::chrono::system_clock::to_time_t (tp);
+        time_t t = chrono::system_clock::to_time_t (tp);
 
         // Assume global "C" locale is not changed.
         //
         char b[100];
-        std::strftime (b,
-                       sizeof (b),
-                       "%a, %d-%b-%Y %H:%M:%S GMT",
-                       std::gmtime (&t));
-
+        strftime (b, sizeof (b), "%a, %d-%b-%Y %H:%M:%S GMT", gmtime (&t));
         s << "; Expires=" << b;
       }
 

@@ -19,9 +19,9 @@ namespace brep
   {
     MODULE_DIAG;
 
-    options_ = std::make_shared<search_options> (s,
-                                                 ::cli::unknown_mode::fail,
-                                                 ::cli::unknown_mode::fail);
+    options_ = make_shared<search_options> (s,
+                                            ::cli::unknown_mode::fail,
+                                            ::cli::unknown_mode::fail);
 
     if (options_->results_on_page () > 30)
       fail << "too many search results on page: "

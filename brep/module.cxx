@@ -9,6 +9,8 @@
 
 #include <memory> // unique_ptr
 #include <string>
+#include <ostream>
+#include <sstream>
 #include <cstring>    // strncmp()
 #include <stdexcept>
 #include <functional> // bind()
@@ -39,7 +41,7 @@ namespace brep
       try
       {
         static const char* sev_str[] = {"error", "warning", "info", "trace"};
-        std::ostream& o = rs.content (500, "text/plain;charset=utf-8");
+        ostream& o = rs.content (500, "text/plain;charset=utf-8");
 
         for (const auto& d: e.data)
         {
@@ -81,7 +83,7 @@ namespace brep
     log_ = &log;
 
     int argc = 0;
-    std::unique_ptr<const char*[]> argv (new const char*[options.size () * 2]);
+    unique_ptr<const char*[]> argv (new const char*[options.size () * 2]);
 
     for (const auto& nv: options)
     {
@@ -122,7 +124,7 @@ namespace brep
     }
     catch (const cli::exception& e)
     {
-      std::ostringstream o;
+      ostringstream o;
       e.print (o);
       throw runtime_error (o.str ());
     }

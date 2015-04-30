@@ -16,9 +16,9 @@ namespace brep
   void view::
   init (::cli::scanner& s)
   {
-    options_ = std::make_shared<view_options> (s,
-                                               ::cli::unknown_mode::fail,
-                                               ::cli::unknown_mode::fail);
+    options_ = make_shared<view_options> (s,
+                                          ::cli::unknown_mode::fail,
+                                          ::cli::unknown_mode::fail);
   }
 
   void view::
