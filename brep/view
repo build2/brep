@@ -22,7 +22,6 @@ namespace brep
     init (::cli::scanner&);
 
   private:
-
     std::shared_ptr<view_options> options_;
   };
 }
