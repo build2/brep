@@ -15,13 +15,13 @@ using namespace std;
 namespace brep
 {
   void search::
-  init (::cli::scanner& s)
+  init (cli::scanner& s)
   {
     MODULE_DIAG;
 
     options_ = make_shared<search_options> (s,
-                                            ::cli::unknown_mode::fail,
-                                            ::cli::unknown_mode::fail);
+                                            cli::unknown_mode::fail,
+                                            cli::unknown_mode::fail);
 
     if (options_->results_on_page () > 30)
       fail << "too many search results on page: "

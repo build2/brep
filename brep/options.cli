@@ -1,21 +1,22 @@
 include <string>;
+include <cstdint>;
 
 namespace brep
 {
   class module_options
   {
-    unsigned int verb = 0;
+    std::uint16_t verb = 0;
   };
 
   class db_options
   {
     std::string db-host = "localhost";
-    unsigned short db-port = 3306;
+    std::uint16_t db-port = 3306;
   };
 
   class search_options: module_options, db_options
   {
-    unsigned int results-on-page = 10;
+    size_t results-on-page = 10;
   };
 
   class view_options: module_options, db_options

@@ -46,48 +46,12 @@ namespace web
       // Get request body data stream.
       //
       virtual std::istream&
-      content ()
-      {
-        if (!in_)
-        {
-          std::unique_ptr<std::streambuf> in_buf (
-            new istreambuf (rec_, *this));
-
-          in_.reset (new std::istream (in_buf.get ()));
-          in_buf_ = std::move (in_buf);
-          in_->exceptions (std::ios::failbit | std::ios::badbit);
-
-          // Save form data now otherwise will not be available to do later
-          // when data read from stream.
-          //
-          form_data ();
-        }
-
-        return *in_;
-      }
+      content ();
 
       // Get request parameters.
       //
       virtual const name_values&
-      parameters ()
-      {
-        if (!parameters_)
-        {
-          parameters_.reset (new name_values ());
-
-          try
-          {
-            parse_parameters (rec_->args);
-            parse_parameters (form_data ()->c_str ());
-          }
-          catch (const std::invalid_argument& )
-          {
-            throw invalid_request ();
-          }
-        }
-
-        return *parameters_;
-      }
+      parameters ();
 
       // Get request cookies.
       //
@@ -101,26 +65,7 @@ namespace web
       // Set response status code.
       //
       virtual void
-      status (status_code status)
-      {
-        if (status != rec_->status)
-        {
-          // Setting status code in exception handler is a common usecase
-          // where no sense to throw but still need to signal apache a
-          // proper status code.
-          //
-          if (get_write_state () && !std::current_exception ())
-          {
-            throw sequence_error ("::web::apache::request::status");
-          }
-
-          rec_->status = status;
-          buffer_ = true;
-          out_.reset ();
-          out_buf_.reset ();
-          ap_set_content_type (rec_, nullptr);
-        }
-      }
+      status (status_code status);
 
       // Set response status code, content type and get body stream.
       //
@@ -140,11 +85,9 @@ namespace web
               bool secure = false);
 
     private:
-      using string_ptr = std::unique_ptr<std::string>;
-
       // Get application/x-www-form-urlencoded form data.
       //
-      const string_ptr&
+      const std::string&
       form_data ();
 
       void
@@ -167,7 +110,7 @@ namespace web
           // Preparing to write a response read and discard request
           // body if any.
           //
-          int r = ap_discard_request_body (rec_);
+          int r (ap_discard_request_body (rec_));
 
           if (r != OK)
           {
@@ -179,7 +122,6 @@ namespace web
       }
 
     private:
-
       request_rec* rec_;
       bool buffer_ {true};
       bool write_state_ {false};
@@ -189,7 +131,7 @@ namespace web
       std::unique_ptr<std::istream> in_;
       std::unique_ptr<name_values> parameters_;
       std::unique_ptr<name_values> cookies_;
-      string_ptr form_data_;
+      std::unique_ptr<std::string> form_data_;
     };
   }
 }

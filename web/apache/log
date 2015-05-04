@@ -48,25 +48,25 @@ namespace web
 
         if (func)
           ap_log_error (file,
-                         line,
-                         APLOG_NO_MODULE,
-                         level,
-                         0,
-                         server_,
-                         "[%s]: %s",
-                         func,
-                         msg);
+                        line,
+                        APLOG_NO_MODULE,
+                        level,
+                        0,
+                        server_,
+                        "[%s]: %s",
+                        func,
+                        msg);
         else
           // skip function name placeholder from log line
           //
           ap_log_error (file,
-                         line,
-                         APLOG_NO_MODULE,
-                         level,
-                         0,
-                         server_,
-                         ": %s",
-                         msg);
+                        line,
+                        APLOG_NO_MODULE,
+                        level,
+                        0,
+                        server_,
+                        ": %s",
+                        msg);
       }
 
     private:

@@ -9,7 +9,7 @@
 #include <httpd/http_protocol.h>
 
 #include <ios>       // streamsize
-#include <memory>    // unique_ptr
+#include <vector>
 #include <cstring>   // memmove()
 #include <streambuf>
 #include <algorithm> // min(), max()
@@ -52,7 +52,7 @@ namespace web
         {
           ws_.set_write_state ();
 
-          char chr = c;
+          char chr (c);
 
           // Throwing allows to distinguish comm failure from other IO error
           // conditions.
@@ -89,7 +89,6 @@ namespace web
       }
 
     private:
-
       request_rec* rec_;
       write_state& ws_;
     };
@@ -105,17 +104,17 @@ namespace web
             ws_ (ws),
             bufsize_ (std::max (bufsize, (size_t)1)),
             putback_ (std::min (putback, bufsize_ - 1)),
-            buf_ (new char[bufsize_])
+            buf_ (bufsize_)
       {
         if (ws_.get_write_state ())
         {
           throw sequence_error ("::web::apache::istreambuf::istreambuf");
         }
 
-        char* p = buf_.get () + putback_;
+        char* p (buf_.data () + putback_);
         setg (p, p, p);
 
-        int status = ap_setup_client_block (rec_, REQUEST_CHUNKED_DECHUNK);
+        int status (ap_setup_client_block (rec_, REQUEST_CHUNKED_DECHUNK));
 
         if (status != OK)
         {
@@ -135,11 +134,11 @@ namespace web
         if (gptr () < egptr ())
           return traits_type::to_int_type (*gptr ());
 
-        size_t pb = std::min ((size_t)(gptr () - eback ()), putback_);
-        std::memmove (buf_.get () + putback_ - pb, gptr () - pb, pb);
+        size_t pb (std::min ((size_t)(gptr () - eback ()), putback_));
+        std::memmove (buf_.data () + putback_ - pb, gptr () - pb, pb);
 
-        char* p = buf_.get () + putback_;
-        int rb = ap_get_client_block (rec_, p, bufsize_ - putback_);
+        char* p (buf_.data () + putback_);
+        int rb (ap_get_client_block (rec_, p, bufsize_ - putback_));
 
         if (rb == 0)
         {
@@ -156,14 +155,12 @@ namespace web
       }
 
     private:
-
       request_rec* rec_;
       write_state& ws_;
       size_t bufsize_;
       size_t putback_;
-      std::unique_ptr<char[]> buf_;
+      std::vector<char> buf_;
     };
-
   }
 }
 

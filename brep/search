@@ -14,12 +14,12 @@ namespace brep
 {
   class search: public module
   {
-  public:
+  private:
     virtual void
     handle (request&, response&);
 
     virtual void
-    init (::cli::scanner&);
+    init (cli::scanner&);
 
   private:
     std::shared_ptr<search_options> options_;

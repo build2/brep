@@ -106,7 +106,7 @@ namespace brep
     // options.
     //
     virtual void
-    init (::cli::scanner& s)
+    init (cli::scanner& s)
     {
       // Just scan options to ensure there is no misspelled ones.
       //

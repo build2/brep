@@ -7,7 +7,7 @@
 #include <httpd/httpd.h>
 #include <httpd/http_log.h>
 
-#include <memory> // unique_ptr
+#include <vector>
 #include <string>
 #include <ostream>
 #include <sstream>
@@ -41,7 +41,7 @@ namespace brep
       try
       {
         static const char* sev_str[] = {"error", "warning", "info", "trace"};
-        ostream& o = rs.content (500, "text/plain;charset=utf-8");
+        ostream& o (rs.content (500, "text/plain;charset=utf-8"));
 
         for (const auto& d: e.data)
         {
@@ -81,15 +81,15 @@ namespace brep
   init (const name_values& options, log& log)
   {
     log_ = &log;
-
-    int argc = 0;
-    unique_ptr<const char*[]> argv (new const char*[options.size () * 2]);
+    vector<const char*> argv;
 
     for (const auto& nv: options)
     {
-      argv[argc++] = nv.name.c_str ();
-      argv[argc++] = nv.value.c_str ();
+      argv.push_back (nv.name.c_str ());
+      argv.push_back (nv.value.c_str ());
     }
+
+    int argc (argv.size());
 
     try
     {
@@ -98,7 +98,7 @@ namespace brep
         //
         cli::argv_file_scanner s (0,
                                   argc,
-                                  const_cast<char**> (argv.get ()),
+                                  const_cast<char**> (argv.data ()),
                                   "conf");
 
         init (s);
@@ -108,13 +108,10 @@ namespace brep
       //
       cli::argv_file_scanner s (0,
                                 argc,
-                                const_cast<char**> (argv.get ()),
+                                const_cast<char**> (argv.data ()),
                                 "conf");
 
-      module_options o (s,
-                        ::cli::unknown_mode::skip,
-                        ::cli::unknown_mode::skip);
-
+      module_options o (s, cli::unknown_mode::skip, cli::unknown_mode::skip);
       verb_ = o.verb ();
     }
     catch (const server_error& e)
@@ -149,7 +146,7 @@ namespace brep
   string module::
   func_name (const char* pretty_name)
   {
-    const char* e = strchr (pretty_name, ')');
+    const char* e (strchr (pretty_name, ')'));
 
     if (e && e > pretty_name)
     {
@@ -198,7 +195,9 @@ namespace brep
     if (log_ == nullptr)
       return; // No backend yet.
 
-    auto al = dynamic_cast<::web::apache::log*> (log_);
+    //@@ Cast log_ to apache::log and write the records.
+    //
+    auto al (dynamic_cast<::web::apache::log*> (log_));
 
     if (al)
     {
@@ -228,37 +227,5 @@ namespace brep
                    e.msg.c_str ());
       }
     }
-
-    //@@ Cast log_ to apache::log and write the records.
-    //
-
-    //@@ __PRETTY_FUNCTION__ contains a lot of fluff that we probably
-    // don't want in the logs (like return value and argument list;
-    // though the argument list would distinguish between several
-    // overloads). If that's the case, then this is probably the
-    // best place to process the name and convert something like:
-    //
-    // void module::handle(request, response)
-    //
-    // To just:
-    //
-    // module::handle
-    //
-    // Note to someone who is going to implement this: searching for a
-    // space to determine the end of the return type may not work if
-    // the return type is, say, a template id or a pointer to function
-    // type. It seems a more robust approach would be to scan backwards
-    // until we find the first ')' -- this got to be the end of the
-    // function argument list. Now we continue scanning backwards keeping
-    // track of the ')' vs '(' balance (arguments can also be of pointer
-    // to function type). Once we see an unbalanced '(', then we know this
-    // is the beginning of the argument list. Everything between it and
-    // the preceding space is the qualified function name. Good luck ;-).
-    //
-    // If we also use the name in handle() above (e.g., to return to
-    // the user as part of 505), then we should do it there as well
-    // (in which case factoring this functionality into a separate
-    // function seem to make a lot of sense).
-    //
   }
 }

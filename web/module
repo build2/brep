@@ -174,8 +174,6 @@ namespace web
     // Any exception thrown by this function terminates the web
     // server.
     //
-    // @@ Is log available? Should we pass it?
-    //
     virtual void
     init (const name_values&, log&) = 0;
 

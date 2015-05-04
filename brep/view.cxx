@@ -14,11 +14,11 @@ using namespace std;
 namespace brep
 {
   void view::
-  init (::cli::scanner& s)
+  init (cli::scanner& s)
   {
     options_ = make_shared<view_options> (s,
-                                          ::cli::unknown_mode::fail,
-                                          ::cli::unknown_mode::fail);
+                                          cli::unknown_mode::fail,
+                                          cli::unknown_mode::fail);
   }
 
   void view::
