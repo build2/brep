@@ -1,3 +1,7 @@
+// file      : brep/options.cli -*- C++ -*-
+// copyright : Copyright (c) 2014-2015 Code Synthesis Tools CC
+// license   : MIT; see accompanying LICENSE file
+
 include <string>;
 include <cstdint>;
 
