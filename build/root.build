@@ -1,0 +1,4 @@
+using cxx
+
+cxx.std = 11
+cxx.poptions += -I$src_root -I/usr/include/apr-1
