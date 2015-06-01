@@ -1,0 +1,25 @@
+# Basic settings (used in this file only)
+SCRIPT_DIR=`dirname $0`
+CONFIG_DIR=`cd $SCRIPT_DIR; pwd`
+PROJECT_DIR="$CONFIG_DIR/.."
+WORKSPACE_DIR="$PROJECT_DIR/var"
+
+# PostgreSQL settings (used in pgctl)
+PG_PORT=8432
+PG_DATA_DIR="$WORKSPACE_DIR/lib/pgsql"
+PG_SOCKET_DIR="$WORKSPACE_DIR/run/pgsql"
+PG_LOG_DIR="$WORKSPACE_DIR/log/pgsql"
+PG_OUT_FILE="$WORKSPACE_DIR/run/pgsql/out"
+
+# Apache settings (used in apachectl)
+AP_PORT=8080
+AP_SERVER_NAME="cppget.org:$AP_PORT"
+AP_ADMIN_EMAIL=admin@cppget.org
+AP_LOG_LEVEL=trace1
+AP_DB_HOST="$PG_SOCKET_DIR"
+AP_DB_PORT=$PG_PORT
+AP_MODULE_DIR="$PROJECT_DIR"
+AP_WWW_DIR="$PROJECT_DIR/www"
+AP_CONFIG_DIR="$CONFIG_DIR"
+AP_LOG_DIR="$WORKSPACE_DIR/log/httpd"
+AP_WORKSPACE_DIR="$WORKSPACE_DIR/run/httpd"

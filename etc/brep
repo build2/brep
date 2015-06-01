@@ -1,0 +1,31 @@
+#!/bin/sh
+# file      : etc/brep
+# copyright : Copyright (c) 2014-2015 Code Synthesis Ltd
+# license   : MIT; see accompanying LICENSE file
+#
+# Designed to simplify controlling brep services.
+
+CMD="$1"
+SCRIPT_DIR=`dirname $0`
+
+case $CMD in
+  start|stop|status) ;;
+  *)
+    echo "Usage: brep (start|stop|status)"
+    exit 1
+    ;;
+esac
+
+case $CMD in
+  start)
+    $SCRIPT_DIR/pgctl start && $SCRIPT_DIR/apachectl start
+    ;;
+  stop)
+    $SCRIPT_DIR/apachectl stop
+    $SCRIPT_DIR/pgctl stop
+    ;;
+  status)
+    $SCRIPT_DIR/pgctl status
+    $SCRIPT_DIR/apachectl status
+    ;;
+esac

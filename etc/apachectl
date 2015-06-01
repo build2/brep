@@ -22,33 +22,27 @@
 # When multiple arguments are given, only the error from the _last_
 # one is reported.  Run "apachectl help" for usage info
 
+. `dirname $0`/config
+
 ARGV="$@"
-#
-# |||||||||||||||||||| START CONFIGURATION SECTION  ||||||||||||||||||||
-# --------------------                              --------------------
 
-export PORT=7180
-export SERVER_NAME="cppget.org:$PORT"
-export LOG_LEVEL=trace1
-export ADMIN_EMAIL=admin@cppget.org
+export AP_LOG_LEVEL
+export AP_ADMIN_EMAIL
+export AP_PORT
+export AP_SERVER_NAME
+export AP_DB_HOST
+export AP_DB_PORT
+export AP_MODULE_DIR
+export AP_WWW_DIR
+export AP_CONFIG_DIR
+export AP_WORKSPACE_DIR
 
-export DB_HOST=localhost
-export DB_PORT=7136
-
-# |||||||||||||||||||| END CONFIGURATION SECTION |||||||||||||||||||||||
-
-PROJECT_DIR=$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )/..
-
-export MODULE_DIR="$PROJECT_DIR"
-export WWW_DIR="$PROJECT_DIR/www"
-export CONFIG_DIR="$PROJECT_DIR/etc"
-export WORKSPACE_DIR="$PROJECT_DIR/var"
-
-mkdir -p "$WORKSPACE_DIR"
+mkdir -p "$AP_WORKSPACE_DIR"
+mkdir -p "$AP_LOG_DIR"
 
 # the path to your httpd binary, including options if necessary
 
-HTTPD="/usr/sbin/httpd -d $WORKSPACE_DIR -f $CONFIG_DIR/httpd.conf"
+HTTPD="/usr/sbin/httpd -d $AP_LOG_DIR -f $AP_CONFIG_DIR/httpd.conf"
 
 # a command that outputs a formatted text version of the HTML at the
 # url given on the command line.  Designed for lynx, however other
@@ -57,7 +51,7 @@ LYNX="lynx -dump"
 
 # the URL to your server's mod_status status page.  If you do not
 # have one, then status and fullstatus will not work.
-STATUSURL="http://localhost:$PORT/server-status"
+STATUSURL="http://localhost:$AP_PORT/server-status"
 
 # Set this variable to a command that increases the maximum
 # number of file descriptors allowed per child process. This is
@@ -74,32 +68,73 @@ fi
 
 ERROR=0
 if [ "x$ARGV" = "x" ] ; then
-    ARGV="-h"
+  ARGV="-h"
 fi
 
 case $ARGV in
-start) $HTTPD -k $ARGV
-    ERROR=$?
+  start)
+    $LYNX $STATUSURL 1>/dev/null 2>&1
+
+    if test $? -eq 0; then
+      echo "Apache server already running"
+      ERROR=$?
+    else
+      echo "Apache server starting ..."
+      $HTTPD -k $ARGV
+      ERROR=$?
+
+      if test $ERROR -eq 0; then
+        echo "server started"
+      else
+        echo "server starting failed"
+      fi
+    fi
     ;;
-stop|restart|graceful)
+
+stop)
+    $LYNX $STATUSURL 1>/dev/null 2>&1
+
+    if test $? -eq 0; then
+      echo "Apache server stopping ..."
+      $HTTPD -k $ARGV
+      ERROR=$?
+
+      if test $ERROR -eq 0; then
+        echo "server stopped"
+      else
+        echo "server stopping failed"
+      fi
+    else
+      echo "Apache server not running"
+      ERROR=$?
+    fi
+    ;;
+
+  restart|graceful)
     $HTTPD -k $ARGV
     ERROR=$?
     ;;
-startssl|sslstart|start-SSL)
+
+  startssl|sslstart|start-SSL)
     $HTTPD -k start -DSSL
     ERROR=$?
     ;;
-configtest)
+
+  configtest)
     $HTTPD -t
     ERROR=$?
     ;;
-status)
+
+  status)
+    echo "checking Apache server status ..."
     $LYNX $STATUSURL | awk ' /process$/ { print; exit } { print } '
     ;;
-fullstatus)
+
+  fullstatus)
     $LYNX $STATUSURL
     ;;
-*)
+
+  *)
     $HTTPD $ARGV
     ERROR=$?
 esac
