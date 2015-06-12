@@ -1,0 +1,367 @@
+// file      : brep/package -*- C++ -*-
+// copyright : Copyright (c) 2014-2015 Code Synthesis Ltd
+// license   : MIT; see accompanying LICENSE file
+
+#ifndef BPKG_PACKAGE
+#define BPKG_PACKAGE
+
+#include <map>
+#include <string>
+#include <vector>
+#include <memory>  // shared_ptr
+#include <utility> // pair
+
+#include <odb/core.hxx>
+#include <odb/forward.hxx>  // database
+#include <odb/lazy-ptr.hxx>
+#include <odb/nullable.hxx>
+
+namespace brep
+{
+  // @@ If namespace, then should probably call it 'repo'.
+  //
+  // @@ Should probably use optional from libbutl instead of odb::nullable
+  //    for consistency. Create butl profile?
+  //
+  // @@ Might make sense to put some heavy members (e.g., description,
+  //    containers) into a separate section.
+  //
+  // @@ Not sure there is a benefit in making tags a full-blown container
+  //    (i.e., a separate table). Maybe provide a mapping of vector<string>
+  //    to TEXT as a comma-separated list.
+  //
+
+  // Forward declarations.
+  //
+  struct package;
+  struct package_version;
+
+  using strings = std::vector<std::string>;
+
+  #pragma db value
+  struct package_version_id
+  {
+    std::string package;
+    std::string version;
+
+    // Database mapping.
+    //
+    #pragma db member(package) points_to(package)
+  };
+
+  inline bool
+  operator< (const package_version_id& x, const package_version_id& y)
+  {
+    int r (x.package.compare (y.package));
+    return r < 0 || r == 0 && x.version < y.version;
+  }
+
+  #pragma db value
+  class priority
+  {
+  public:
+    enum value_type {low, medium, high, security};
+
+    value_type value; // Shouldn't be necessary to access directly.
+    std::string comment;
+
+    priority (value_type v = low): value (v) {}
+    operator value_type () const {return value;}
+
+    // Database mapping.
+    //
+    #pragma db member(value) column("")
+  };
+
+  #pragma db value
+  struct url: std::string
+  {
+    std::string comment;
+
+    // Database mapping.
+    //
+    #pragma db member(value) virtual(std::string) before \
+      access(this) column("")
+  };
+
+  #pragma db value
+  struct email: std::string
+  {
+    std::string comment;
+
+    // Database mapping.
+    //
+    #pragma db member(value) virtual(std::string) before \
+      access(this) column("")
+  };
+
+  // licenses
+  //
+  #pragma db value
+  struct licenses: strings
+  {
+    std::string comment;
+  };
+
+  using license_alternatives = std::vector<licenses>;
+
+  // dependencies
+  //
+  enum class comparison {eq, lt, gt, le, ge};
+
+  #pragma db value
+  struct version_comparison
+  {
+    std::string value;
+    comparison operation;
+  };
+
+  #pragma db value
+  struct dependency
+  {
+    using package_type = brep::package;
+
+    // Notes:
+    //
+    // 1. Will the package be always resolvable? What if it is in
+    //    another repository (i.e., a "chained" third-party repo).
+    //    The question is then whether we will load such "third-
+    //    party packages" (i.e., packages that are not in our
+    //    repository). If the answer is yes, then we can have
+    //    a pointer here. If the answer is no, then we can't.
+    //    Also, if the answer is yes, we probably don't need to
+    //    load as much information as for "our own" packages. We
+    //    also shouldn't be showing them in search results, etc.
+    //    I think all we need is to know which repository this
+    //    package comes from so that we can tell the user. How are
+    //    we going to capture this? Poly hierarchy of packages?
+    //
+    // 2. I believe we don't need to use a weak pointer here since
+    //    there should be no package dependency cycles (and therefore
+    //    ownership cycles).
+    //
+    // 3. Actually there can be dependency cycle as dependency referes not to
+    //    just a package but a specific version, so for the same pair of
+    //    packages dependency for different versions can have an opposite
+    //    directions. The possible solution is instead of a package we point
+    //    to the earliest version that satisfies the condition. But this
+    //    approach requires to ensure no cycles exist before instantiating
+    //    package objects which in presense of "foreign" packages can be
+    //    tricky. Can stick to just a package name until get some clarity on
+    //    "foreign" package resolution.
+    //
+    std::string package;
+    odb::nullable<version_comparison> version;
+
+    // Database mapping.
+    //
+    #pragma db member(package) not_null
+  };
+
+  #pragma db value
+  struct dependency_alternatives: std::vector<dependency>
+  {
+    bool conditional;
+    std::string comment;
+  };
+
+  using dependencies = std::vector<dependency_alternatives>;
+
+  // requirements
+  //
+  #pragma db value
+  struct requirement_alternatives: strings
+  {
+    bool conditional;
+    std::string comment;
+  };
+
+  using requirements = std::vector<requirement_alternatives>;
+
+  #pragma db object pointer(std::shared_ptr) session
+  struct package
+  {
+    // Manifest data.
+    //
+    using url_type = brep::url;
+    using email_type = brep::email;
+
+    std::string name;
+    std::string summary;
+    std::string tags;
+    std::string description;
+    url_type url;
+    odb::nullable<url_type> package_url;
+    email_type email;
+    odb::nullable<email_type> package_email;
+    std::vector<odb::lazy_weak_ptr<package_version>> versions;
+
+    // Additional data.
+    //
+
+    // Database mapping.
+    //
+    #pragma db member(name) id
+    #pragma db member(versions) inverse(id.package)
+  };
+
+  #pragma db object pointer(std::shared_ptr) session
+  struct package_version
+  {
+    // Manifest data.
+    //
+    using package_type = brep::package;
+    using priority_type = brep::priority;
+    using license_alternatives_type = brep::license_alternatives;
+    using dependencies_type = brep::dependencies;
+    using requirements_type = brep::requirements;
+
+    std::string version;
+    std::shared_ptr<package_type> package;
+    priority_type priority;
+    license_alternatives_type license_alternatives;
+    std::string changes;
+    dependencies_type dependencies;
+    requirements_type requirements;
+
+    // Additional data.
+    //
+    std::string repository; // E.g., "stable", "testing".
+
+    // Database mapping.
+    //
+
+    // id
+    //
+    package_version_id
+    id () const {return package_version_id {package->name, version};}
+
+    void
+    id (const package_version_id&, odb::database&);
+
+    #pragma db member(version) transient
+    #pragma db member(package) transient
+    #pragma db member(id) virtual(package_version_id) before id \
+      get(id) set(id ((?), (!))) column("")
+
+    // license
+    //
+    using _license_key = std::pair<std::size_t, std::size_t>;
+    using _licenses_type = std::map<_license_key, std::string>;
+
+    #pragma db value(_license_key)
+    #pragma db member(_license_key::first) column("alternative")
+    #pragma db member(_license_key::second) column("index")
+
+    #pragma db member(license_alternatives) id_column("") value_column("")
+    #pragma db member(licenses)                                 \
+      virtual(_licenses_type)                                   \
+      after(license_alternatives)                               \
+      get(_get (this.license_alternatives))                     \
+      set(_set (this.license_alternatives, (?)))                \
+      id_column("") key_column("") value_column("license")
+
+    // dependencies
+    //
+    using _dependency_key = std::pair<std::size_t, std::size_t>;
+    using _dependency_alternatives_type =
+               std::map<_dependency_key, dependency>;
+
+    #pragma db value(_dependency_key)
+    #pragma db member(_dependency_key::first) column("dependency")
+    #pragma db member(_dependency_key::second) column("index")
+
+    #pragma db member(dependencies) id_column("") value_column("")
+    #pragma db member(dependency_alternatives)                  \
+      virtual(_dependency_alternatives_type)                    \
+      after(dependencies)                                       \
+      get(_get (this.dependencies))                             \
+      set(_set (this.dependencies, (?)))                        \
+      id_column("") key_column("") value_column("dep_")
+
+    // requirements
+    //
+    using _requirement_key = std::pair<std::size_t, std::size_t>;
+    using _requirement_alternatives_type =
+               std::map<_requirement_key, std::string>;
+
+    #pragma db value(_requirement_key)
+    #pragma db member(_requirement_key::first) column("requirement")
+    #pragma db member(_requirement_key::second) column("index")
+
+    #pragma db member(requirements) id_column("") value_column("")
+    #pragma db member(requirement_alternatives)                 \
+      virtual(_requirement_alternatives_type)                   \
+      after(requirements)                                       \
+      get(_get (this.requirements))                             \
+      set(_set (this.requirements, (?)))                        \
+      id_column("") key_column("") value_column("id")
+  };
+}
+
+// Nested container emulation support for ODB.
+//
+// Note that the outer index in the inner container should strictly
+// speaking be a foreign key pointing to the index of the outer
+// container. The only way to achieve this currently is to manually
+// add the constraint via ALTER TABLE ADD CONSTRAINT. Note, however,
+// that as long as we only modify these tables via the ODB container
+// interface, not having the foreign key (and not having ON DELETE
+// CASCADE) should be harmless (since we have a foreign key pointing
+// to the object id).
+//
+#include <map>
+#include <vector>
+#include <cstddef>     // size_t
+#include <utility>     // pair, declval()
+#include <cassert>
+#include <type_traits> // remove_reference
+
+namespace odb
+{
+  template <typename O>
+  struct _inner: std::remove_reference<decltype (std::declval<O> ()[0])> {};
+
+  template <typename O>
+  std::map<std::pair<std::size_t, std::size_t>, typename _inner<O>::type>
+  _get (const std::vector<O>& v)
+  {
+    using namespace std;
+
+    using I = typename _inner<O>::type;
+    using key = pair<size_t, size_t>;
+
+    map<key, I> r;
+    for (size_t n (0); n != v.size (); ++n)
+    {
+      const O& o (v[n]);
+      for (size_t m (0); m != o.size (); ++m)
+        r.emplace (key (n, m), o[m]);
+    }
+    return r;
+  }
+
+  //@@ Second argument should be && once ODB uses move().
+  //
+  template <typename I, typename O>
+  void
+  _set (std::vector<O>& v, std::map<std::pair<std::size_t, std::size_t>, I>& r)
+  {
+    using namespace std;
+
+    using key = pair<size_t, size_t>;
+
+    for (auto& p: r)
+    {
+      size_t n (p.first.first);
+      size_t m (p.first.second);
+      I& i (p.second);
+
+      assert (n < v.size ());
+      assert (m == v[n].size ());
+      v[n].push_back (std::move (i));
+    }
+  }
+}
+
+#endif // BPKG_PACKAGE

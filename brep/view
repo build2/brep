@@ -7,6 +7,8 @@
 
 #include <memory> // shared_ptr
 
+#include <odb/database.hxx>
+
 #include <brep/module>
 #include <brep/options>
 
@@ -23,6 +25,7 @@ namespace brep
 
   private:
     std::shared_ptr<view_options> options_;
+    std::shared_ptr<odb::core::database> db_;
   };
 }
 

@@ -8,9 +8,19 @@
 #include <chrono>
 #include <ostream>
 
+#include <odb/session.hxx>
+#include <odb/database.hxx>
+#include <odb/transaction.hxx>
+
+#include <odb/pgsql/database.hxx>
+
 #include <web/module>
 
+#include <brep/package>
+#include <brep/package-odb.hxx>
+
 using namespace std;
+using namespace odb::core;
 
 namespace brep
 {
@@ -22,6 +32,12 @@ namespace brep
     options_ = make_shared<search_options> (s,
                                             cli::unknown_mode::fail,
                                             cli::unknown_mode::fail);
+
+    db_ = make_shared<odb::pgsql::database>("",
+                                            "",
+                                            "brep",
+                                            options_->db_host (),
+                                            options_->db_port ());
 
     if (options_->results_on_page () > 30)
       fail << "too many search results on page: "
@@ -35,6 +51,60 @@ namespace brep
   handle (request& rq, response& rs)
   {
     MODULE_DIAG;
+
+    std::shared_ptr<package> cli (make_shared<package> ());
+
+    cli->name = "cli";
+    cli->summary = "CLI is ...";
+    cli->description = "This is CLI";
+    cli->tags = "compiler, C++";
+
+    licenses l;
+    l.comment = "License\"A'";
+    l.push_back ("XXX");
+    l.push_back ("AAA");
+    l.push_back ("BBB");
+    l.push_back ("CCC");
+
+    std::shared_ptr<package_version> v (make_shared<package_version> ());
+
+    v->version = "1.1";
+    v->package = cli;
+
+    v->license_alternatives.push_back (l);
+
+    dependency_alternatives da;
+    da.push_back ({"icl", version_comparison{"1.3.3",  comparison::gt}});
+    da.push_back ({"ocl", version_comparison{"1.5.5",  comparison::lt}});
+
+    v->dependencies.push_back (da);
+
+    {
+      requirement_alternatives ra;
+      ra.push_back ("TAO");
+      ra.push_back ("ORBacus");
+
+      v->requirements.push_back (ra);
+    }
+
+    {
+      requirement_alternatives ra;
+      ra.push_back ("Xerces");
+
+      v->requirements.push_back (ra);
+    }
+
+    cli->versions.push_back (v);
+
+    transaction t (db_->begin ());
+//    t.tracer (odb::stderr_full_tracer);
+
+    {
+      db_->persist (cli);
+      db_->persist (v);
+    }
+
+    t.commit ();
 
     chrono::seconds ma (60);
     rs.cookie ("Oh", " Ah\n\n", &ma, "/");

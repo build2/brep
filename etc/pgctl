@@ -7,11 +7,13 @@
 
 . `dirname $0`/config
 
-cmd="$1"
+CMD="$1"
+SOCKET_DIR="$PG_WORKSPACE_DIR"
+OUT_FILE="$PG_WORKSPACE_DIR/out"
 
 # Print usage description and exit.
 #
-case $cmd in
+case $CMD in
   init|start|stop|status|connect) ;;
   *)
     echo "Usage: pgctl (init|start|stop|status|connect)"
@@ -21,10 +23,10 @@ esac
 
 ERROR=0
 
-# Initilization includes creating PostgreSQL DB cluster, creating and
-# populating brep DB.
+# Initialization includes creating PostgreSQL DB cluster, creating brep DB
+# and schema.
 #
-if test "$cmd" = "init"; then
+if test "$CMD" = "init"; then
   if test -d "$PG_DATA_DIR"; then
     echo "PostgreSQL DB cluster directory $PG_DATA_DIR already exist"
   else
@@ -41,7 +43,7 @@ if test "$cmd" = "init"; then
   fi
 fi
 
-case $cmd in
+case $CMD in
   start|init)
     # Start DB server if not running yet.
     #
@@ -57,21 +59,21 @@ case $cmd in
 
       echo "PostgreSQL server starting ..."
 
-      mkdir -p `dirname $PG_OUT_FILE`
+      mkdir -p `dirname $OUT_FILE`
       mkdir -p "$PG_LOG_DIR"
-      mkdir -p "$PG_SOCKET_DIR"
+      mkdir -p "$SOCKET_DIR"
 
       pg_ctl start -D "$PG_DATA_DIR" -w -o \
-        "-c port=$PG_PORT -c unix_socket_directories=$PG_SOCKET_DIR \
+        "-c port=$PG_PORT -c unix_socket_directories=$SOCKET_DIR \
         -c logging_collector=on -c log_directory=$PG_LOG_DIR" \
-	1>"$PG_OUT_FILE" 2>&1
+	1>"$OUT_FILE" 2>&1
 
       ERROR=$?
 
       if test $ERROR -eq 0; then
         echo "server started"
       else
-        cat "$PG_OUT_FILE" 1>&2
+        cat "$OUT_FILE" 1>&2
         echo "server starting failed"
         exit $ERROR
       fi
@@ -104,15 +106,14 @@ case $cmd in
 
   connect)
     echo "connecting to PostgreSQL server ..."
-    psql --host=$PG_SOCKET_DIR --port=$PG_PORT brep
+    psql --host=$SOCKET_DIR --port=$PG_PORT brep
     ;;
 esac
 
-if test "$cmd" = "init"; then
+if test "$CMD" = "init"; then
   # Create brep DB if not exist.
   #
-  psql --host=$PG_SOCKET_DIR --port=$PG_PORT -c "" brep \
-	 1>>"$PG_OUT_FILE" 2>&1
+  psql --host=$SOCKET_DIR --port=$PG_PORT -c "" brep 1>/dev/null 2>&1
 
   ERROR=$?
 
@@ -121,7 +122,7 @@ if test "$cmd" = "init"; then
   else
     if test $ERROR -eq 2; then
       echo "creating brep DB ..."
-      createdb --host=$PG_SOCKET_DIR --port=$PG_PORT brep
+      createdb --host=$SOCKET_DIR --port=$PG_PORT brep
       ERROR=$?
 
       if test $ERROR -eq 0; then
@@ -136,8 +137,29 @@ if test "$cmd" = "init"; then
     fi
   fi
 
-  # Populate brep DB if required.
-  # psql --host=$PG_SOCKET_DIR --port=$PG_PORT -c "select count(1) ..." brep \
-  #	 1>>"$PG_OUT_FILE" 2>&1
-  # ...
+  # Create brep DB schema if not exist.
+  #
+  psql --host=$SOCKET_DIR --port=$PG_PORT -c "select count(1) from package" \
+       brep 1>/dev/null 2>&1
+
+  ERROR=$?
+
+  if test $ERROR -eq 0; then
+    echo "brep DB schema already exist"
+  else
+    echo "creating brep DB schema ..."
+
+    psql -v ON_ERROR_STOP=1 --host=$SOCKET_DIR --port=$PG_PORT \
+	 --file="$PG_SCHEMA_DIR/package.sql" brep 1>"$OUT_FILE" 2>&1
+
+    ERROR=$?
+
+    if test $ERROR -eq 0; then
+      echo "brep DB schema created"
+    else
+      cat "$OUT_FILE" 1>&2
+      echo "brep DB schema creating failed"
+      exit $ERROR;
+    fi
+  fi
 fi
