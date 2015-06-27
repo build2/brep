@@ -68,14 +68,17 @@ namespace brep
 
     std::shared_ptr<package_version> v (make_shared<package_version> ());
 
-    v->version = "1.1";
+    v->version = version ("1.1");
     v->package = cli;
 
     v->license_alternatives.push_back (l);
 
     dependency_alternatives da;
-    da.push_back ({"icl", version_comparison{"1.3.3",  comparison::gt}});
-    da.push_back ({"ocl", version_comparison{"1.5.5",  comparison::lt}});
+    da.push_back (
+      {"icl", version_comparison{version ("1.3.3"),  comparison::gt}});
+
+    da.push_back (
+      {"ocl", version_comparison{version ("1.5.5"),  comparison::lt}});
 
     v->dependencies.push_back (da);
 

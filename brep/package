@@ -10,11 +10,14 @@
 #include <vector>
 #include <memory>  // shared_ptr
 #include <utility> // pair
+#include <cstdint> // uint16
 
 #include <odb/core.hxx>
 #include <odb/forward.hxx>  // database
 #include <odb/lazy-ptr.hxx>
 #include <odb/nullable.hxx>
+
+#include <bpkg/manifest>
 
 namespace brep
 {
@@ -38,11 +41,17 @@ namespace brep
 
   using strings = std::vector<std::string>;
 
+  using version = bpkg::version;
+  #pragma db value(version) definition
+
+  using version_type = brep::version;
+
   #pragma db value
   struct package_version_id
   {
     std::string package;
-    std::string version;
+    std::uint16_t epoch;
+    std::string canonical;
 
     // Database mapping.
     //
@@ -53,128 +62,83 @@ namespace brep
   operator< (const package_version_id& x, const package_version_id& y)
   {
     int r (x.package.compare (y.package));
-    return r < 0 || r == 0 && x.version < y.version;
+
+    if (r != 0)
+      return r < 0;
+
+    return x.epoch < y.epoch ||
+           x.epoch == y.epoch && x.canonical < y.canonical;
   }
 
-  #pragma db value
-  class priority
-  {
-  public:
-    enum value_type {low, medium, high, security};
+  using priority = bpkg::priority;
+  #pragma db value(priority) definition
+  #pragma db member(priority::value) column("")
 
-    value_type value; // Shouldn't be necessary to access directly.
-    std::string comment;
+  using url = bpkg::url;
+  #pragma db value(url) definition
+  #pragma db member(url::value) virtual(std::string) before access(this)  \
+          column("")
 
-    priority (value_type v = low): value (v) {}
-    operator value_type () const {return value;}
-
-    // Database mapping.
-    //
-    #pragma db member(value) column("")
-  };
-
-  #pragma db value
-  struct url: std::string
-  {
-    std::string comment;
-
-    // Database mapping.
-    //
-    #pragma db member(value) virtual(std::string) before \
-      access(this) column("")
-  };
-
-  #pragma db value
-  struct email: std::string
-  {
-    std::string comment;
-
-    // Database mapping.
-    //
-    #pragma db member(value) virtual(std::string) before \
-      access(this) column("")
-  };
+  using email = bpkg::email;
+  #pragma db value(email) definition
+  #pragma db member(email::value) virtual(std::string) before access(this) \
+          column("")
 
   // licenses
   //
-  #pragma db value
-  struct licenses: strings
-  {
-    std::string comment;
-  };
+  using licenses = bpkg::licenses;
+  #pragma db value(licenses) definition
 
   using license_alternatives = std::vector<licenses>;
 
   // dependencies
   //
-  enum class comparison {eq, lt, gt, le, ge};
+  using comparison = bpkg::comparison;
+  using version_comparison = bpkg::version_comparison;
+  #pragma db value(version_comparison) definition
+  #pragma db member(version_comparison::value) column("")
 
-  #pragma db value
-  struct version_comparison
-  {
-    std::string value;
-    comparison operation;
-  };
+  // Notes:
+  //
+  // 1. Will the package be always resolvable? What if it is in
+  //    another repository (i.e., a "chained" third-party repo).
+  //    The question is then whether we will load such "third-
+  //    party packages" (i.e., packages that are not in our
+  //    repository). If the answer is yes, then we can have
+  //    a pointer here. If the answer is no, then we can't.
+  //    Also, if the answer is yes, we probably don't need to
+  //    load as much information as for "our own" packages. We
+  //    also shouldn't be showing them in search results, etc.
+  //    I think all we need is to know which repository this
+  //    package comes from so that we can tell the user. How are
+  //    we going to capture this? Poly hierarchy of packages?
+  //
+  // 2. I believe we don't need to use a weak pointer here since
+  //    there should be no package dependency cycles (and therefore
+  //    ownership cycles).
+  //
+  // 3. Actually there can be dependency cycle as dependency referes not to
+  //    just a package but a specific version, so for the same pair of
+  //    packages dependency for different versions can have an opposite
+  //    directions. The possible solution is instead of a package we point
+  //    to the earliest version that satisfies the condition. But this
+  //    approach requires to ensure no cycles exist before instantiating
+  //    package objects which in presense of "foreign" packages can be
+  //    tricky. Can stick to just a package name until get some clarity on
+  //    "foreign" package resolution.
+  //
+  using dependency = bpkg::dependency;
+  #pragma db value(dependency) definition
 
-  #pragma db value
-  struct dependency
-  {
-    using package_type = brep::package;
-
-    // Notes:
-    //
-    // 1. Will the package be always resolvable? What if it is in
-    //    another repository (i.e., a "chained" third-party repo).
-    //    The question is then whether we will load such "third-
-    //    party packages" (i.e., packages that are not in our
-    //    repository). If the answer is yes, then we can have
-    //    a pointer here. If the answer is no, then we can't.
-    //    Also, if the answer is yes, we probably don't need to
-    //    load as much information as for "our own" packages. We
-    //    also shouldn't be showing them in search results, etc.
-    //    I think all we need is to know which repository this
-    //    package comes from so that we can tell the user. How are
-    //    we going to capture this? Poly hierarchy of packages?
-    //
-    // 2. I believe we don't need to use a weak pointer here since
-    //    there should be no package dependency cycles (and therefore
-    //    ownership cycles).
-    //
-    // 3. Actually there can be dependency cycle as dependency referes not to
-    //    just a package but a specific version, so for the same pair of
-    //    packages dependency for different versions can have an opposite
-    //    directions. The possible solution is instead of a package we point
-    //    to the earliest version that satisfies the condition. But this
-    //    approach requires to ensure no cycles exist before instantiating
-    //    package objects which in presense of "foreign" packages can be
-    //    tricky. Can stick to just a package name until get some clarity on
-    //    "foreign" package resolution.
-    //
-    std::string package;
-    odb::nullable<version_comparison> version;
-
-    // Database mapping.
-    //
-    #pragma db member(package) not_null
-  };
-
-  #pragma db value
-  struct dependency_alternatives: std::vector<dependency>
-  {
-    bool conditional;
-    std::string comment;
-  };
+  using dependency_alternatives = bpkg::dependency_alternatives;
+  #pragma db value(dependency_alternatives) definition
 
   using dependencies = std::vector<dependency_alternatives>;
 
   // requirements
   //
-  #pragma db value
-  struct requirement_alternatives: strings
-  {
-    bool conditional;
-    std::string comment;
-  };
+  using requirement_alternatives = bpkg::requirement_alternatives;
+  #pragma db value(requirement_alternatives) definition
 
   using requirements = std::vector<requirement_alternatives>;
 
@@ -216,7 +180,7 @@ namespace brep
     using dependencies_type = brep::dependencies;
     using requirements_type = brep::requirements;
 
-    std::string version;
+    version_type version;
     std::shared_ptr<package_type> package;
     priority_type priority;
     license_alternatives_type license_alternatives;
@@ -234,7 +198,11 @@ namespace brep
     // id
     //
     package_version_id
-    id () const {return package_version_id {package->name, version};}
+    id () const
+    {
+      return package_version_id
+      {package->name, version.epoch, version.canonical};
+    }
 
     void
     id (const package_version_id&, odb::database&);
@@ -243,6 +211,10 @@ namespace brep
     #pragma db member(package) transient
     #pragma db member(id) virtual(package_version_id) before id \
       get(id) set(id ((?), (!))) column("")
+    #pragma db member(upstream) virtual(std::string) after(id) \
+      get(version.upstream) set(version.upstream=(?))
+    #pragma db member(revision) virtual(std::uint16_t) after(upstream) \
+      get(version.revision) set(version.revision = (?))
 
     // license
     //

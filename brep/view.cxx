@@ -82,7 +82,8 @@ namespace brep
       }
       else
       {
-        o << "<br>licenses:" << v->license_alternatives.size ();
+        o << "<br>version:" << v->version.string()
+          << "<br>licenses:" << v->license_alternatives.size ();
 
         for (const auto& la : v->license_alternatives)
         {
@@ -104,9 +105,9 @@ namespace brep
           {
             o << " |" << d.package;
 
-            if (!d.version.null ())
+            if (d.version)
             {
-              o << "," << d.version->value << ","
+              o << "," << d.version->value.string () << ","
                 << static_cast<int> (d.version->operation) << "|";
             }
           }

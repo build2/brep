@@ -15,7 +15,8 @@ namespace brep
   void package_version::
   id (const package_version_id& v, odb::database& db)
   {
-    version = v.version;
+    version.epoch = v.epoch;
+    version.canonical = v.canonical;
     package = db.load<package_type> (v.package);
   }
 }
