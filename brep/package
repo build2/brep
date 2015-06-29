@@ -172,7 +172,7 @@ namespace brep
 
     std::string name;
     std::string summary;
-    std::string tags;
+    strings tags;
     std::string description;
     url_type url;
     odb::nullable<url_type> package_url;
@@ -186,6 +186,7 @@ namespace brep
     // Database mapping.
     //
     #pragma db member(name) id
+    #pragma db member(tags) id_column("package") value_column("tag")
     #pragma db member(versions) inverse(id.package)
   };
 

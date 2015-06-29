@@ -57,7 +57,8 @@ namespace brep
     cli->name = "cli";
     cli->summary = "CLI is ...";
     cli->description = "This is CLI";
-    cli->tags = "compiler, C++";
+    cli->tags.push_back ("compiler");
+    cli->tags.push_back ("C++");
 
     licenses l;
     l.comment = "License\"A'";
