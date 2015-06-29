@@ -142,6 +142,26 @@ namespace brep
 
   using requirements = std::vector<requirement_alternatives>;
 
+  // Intended for instantiating key classes for maps used for simulation of
+  // 2-dimensional value type containers. Parameter type T not being used in
+  // template implementation is required to instantiate unrelated key
+  // classes to achieve proper table column naming with ODB pragmas.
+  //
+  template <typename T>
+  struct index_pair
+  {
+    std::size_t first;
+    std::size_t second;
+
+    index_pair (std::size_t f = 0, std::size_t s = 0): first (f), second (s) {}
+
+    bool
+    operator< (const index_pair& v) const
+    {
+      return first < v.first || first == v.first && second < v.second;
+    }
+  };
+
   #pragma db object pointer(std::shared_ptr) session
   struct package
   {
@@ -218,7 +238,7 @@ namespace brep
 
     // license
     //
-    using _license_key = std::pair<std::size_t, std::size_t>;
+    using _license_key = index_pair<licenses>;
     using _licenses_type = std::map<_license_key, std::string>;
 
     #pragma db value(_license_key)
@@ -235,7 +255,7 @@ namespace brep
 
     // dependencies
     //
-    using _dependency_key = std::pair<std::size_t, std::size_t>;
+    using _dependency_key = index_pair<dependency_alternatives>;
     using _dependency_alternatives_type =
                std::map<_dependency_key, dependency>;
 
@@ -253,7 +273,7 @@ namespace brep
 
     // requirements
     //
-    using _requirement_key = std::pair<std::size_t, std::size_t>;
+    using _requirement_key = index_pair<requirement_alternatives>;
     using _requirement_alternatives_type =
                std::map<_requirement_key, std::string>;
 
@@ -295,13 +315,13 @@ namespace odb
   struct _inner: std::remove_reference<decltype (std::declval<O> ()[0])> {};
 
   template <typename O>
-  std::map<std::pair<std::size_t, std::size_t>, typename _inner<O>::type>
+  std::map<brep::index_pair<O>, typename _inner<O>::type>
   _get (const std::vector<O>& v)
   {
     using namespace std;
 
     using I = typename _inner<O>::type;
-    using key = pair<size_t, size_t>;
+    using key = brep::index_pair<O>;
 
     map<key, I> r;
     for (size_t n (0); n != v.size (); ++n)
@@ -315,13 +335,11 @@ namespace odb
 
   //@@ Second argument should be && once ODB uses move().
   //
-  template <typename I, typename O>
+  template <typename K, typename I, typename O>
   void
-  _set (std::vector<O>& v, std::map<std::pair<std::size_t, std::size_t>, I>& r)
+  _set (std::vector<O>& v, std::map<K, I>& r)
   {
     using namespace std;
-
-    using key = pair<size_t, size_t>;
 
     for (auto& p: r)
     {
