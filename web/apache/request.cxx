@@ -15,9 +15,9 @@
 #include <sstream>
 #include <ostream>
 #include <cstring>
+#include <utility>   // move()
 #include <stdexcept>
 #include <streambuf>
-#include <algorithm> // move()
 
 using namespace std;
 
@@ -80,7 +80,7 @@ namespace web
         for (auto h (reinterpret_cast<const apr_table_entry_t *> (ha->elts));
              n--; ++h)
         {
-          if (!::strcasecmp (h->key, "Cookie"))
+          if (::strcasecmp (h->key, "Cookie") == 0)
           {
             for (const char* n (h->val); n != 0; )
             {
@@ -121,8 +121,8 @@ namespace web
     content (status_code status, const string& type, bool buffer)
     {
       if (out_ && status == rec_->status && buffer == buffer_ &&
-          !::strcasecmp (rec_->content_type ? rec_->content_type : "",
-                         type.c_str ()))
+          ::strcasecmp (rec_->content_type ? rec_->content_type : "",
+                        type.c_str ()) == 0)
       {
         return *out_;
       }

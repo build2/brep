@@ -55,7 +55,8 @@ namespace web
         form_data_.reset (new std::string ());
         const char* ct (apr_table_get (rec_->headers_in, "Content-Type"));
 
-        if (ct && !strncasecmp ("application/x-www-form-urlencoded", ct, 33))
+        if (ct &&
+            strncasecmp ("application/x-www-form-urlencoded", ct, 33) == 0)
         {
           std::istream& istr (content ());
           std::getline (istr, *form_data_);

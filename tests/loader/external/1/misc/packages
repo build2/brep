@@ -1,0 +1,25 @@
+: 1
+# Foreign repository manifest.
+#
+location: http://pkg.example.org/1/misc
+:
+# Foreign repository manifest.
+#
+location: http://pkg.example.org/1/math
+:
+# Local repository manifest (this repository).
+#
+:
+name: libbar
+version: 2.3.5
+priority: security; Very important to install.
+summary: The Bar library
+description: very very good library.
+license: GPLv2
+tags: c++, bar
+url: http://www.example.com/bar/
+email: bar-users@example.com
+depends: libfoo
+depends: libmath >= 2.0.0
+requires: linux | windows | macosx
+changes: some changes

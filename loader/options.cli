@@ -1,0 +1,24 @@
+// file      : loader/options.cli
+// copyright : Copyright (c) 2014-2015 Code Synthesis Ltd
+// license   : MIT; see accompanying LICENSE file
+
+include <string>;
+include <cstdint>;
+
+class options
+{
+  bool --help {"Print usage information and exit."};
+  bool --version {"Print version and exit."};
+
+  std::string --db-host = "localhost"
+  {
+    "<host>",
+    "Connect database server using specified host or socket directory."
+  };
+
+  std::uint16_t --db-port = 5432
+  {
+    "<port>",
+    "Connect database server using specified port."
+  };
+};

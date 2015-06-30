@@ -3,6 +3,7 @@ SCRIPT_DIR=`dirname $0`
 CONFIG_DIR=`cd $SCRIPT_DIR; pwd`
 PROJECT_DIR="$CONFIG_DIR/.."
 WORKSPACE_DIR="$PROJECT_DIR/var"
+LIB_DIRS="$PROJECT_DIR/brep:$PROJECT_DIR/../libbutl/butl:$PROJECT_DIR/../libbpkg/bpkg"
 
 # PostgreSQL settings (used in pgctl)
 PG_PORT=8432
@@ -18,9 +19,16 @@ AP_ADMIN_EMAIL=admin@cppget.org
 AP_LOG_LEVEL=trace1
 AP_DB_HOST="$PG_WORKSPACE_DIR"
 AP_DB_PORT=$PG_PORT
-AP_LIB_DIRS="$PROJECT_DIR/../libbutl/butl:$PROJECT_DIR/../libbpkg/bpkg"
-AP_MODULE_DIR="$PROJECT_DIR"
+AP_LIB_DIRS="$LIB_DIRS"
+AP_MODULE_DIR="$PROJECT_DIR/brep"
 AP_WWW_DIR="$PROJECT_DIR/www"
 AP_CONFIG_DIR="$CONFIG_DIR"
 AP_LOG_DIR="$WORKSPACE_DIR/log/httpd"
 AP_WORKSPACE_DIR="$WORKSPACE_DIR/run/httpd"
+
+# brep-loader settings (used in loader)
+LD_DB_HOST="$PG_WORKSPACE_DIR"
+LD_DB_PORT=$PG_PORT
+LD_REPOSITORIES="$CONFIG_DIR/repositories.conf"
+LD_LIB_DIRS="$LIB_DIRS"
+LD_EXE_DIRS="$PROJECT_DIR/loader"

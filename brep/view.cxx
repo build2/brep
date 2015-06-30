@@ -16,7 +16,7 @@
 #include <web/module>
 
 #include <brep/package>
-#include <brep/package-odb.hxx>
+#include <brep/package-odb>
 
 using namespace std;
 using namespace odb::core;
@@ -31,11 +31,11 @@ namespace brep
                                           cli::unknown_mode::fail,
                                           cli::unknown_mode::fail);
 
-    db_ = make_shared<odb::pgsql::database>("",
-                                            "",
-                                            "brep",
-                                            options_->db_host (),
-                                            options_->db_port ());
+    db_ = make_shared<odb::pgsql::database> ("",
+                                             "",
+                                             "brep",
+                                             options_->db_host (),
+                                             options_->db_port ());
   }
 
   void view::
@@ -46,9 +46,11 @@ namespace brep
 
     shared_ptr<package> p (db_->load<package> ("cli"));
 
-    for (auto& vp : p->versions)
+    for (auto& vp: p->versions)
     {
-      s.cache_insert<package_version> (*db_, vp.object_id (), vp.load ());
+      shared_ptr<package_version> v (vp.load ());
+      v->repository.load ();
+      v->package.load ();
     }
 
     t.commit ();
@@ -71,61 +73,61 @@ namespace brep
 
     o << "<p>\n" << p->name << ": " << p->versions.size ();
 
-    for (const auto& vp : p->versions)
+    for (const auto& vp: p->versions)
     {
-      shared_ptr<package_version> v (
-        s.cache_find<package_version> (*db_, vp.object_id ()));
+      // Just finds package_version object in session cache.
+      //
+      shared_ptr<package_version> v (vp.load ());
 
-      if (!v)
+      assert (v != nullptr);
+      assert (v->repository.get_eager () != nullptr);
+      assert (v->package.get_eager () != nullptr);
+
+      o << "<br>version:" << v->version.string ()
+        << "<br>package:" << v->package->name
+        << "<br>repo:" << v->repository->display_name
+        << "<br>changes:" << v->changes
+        << "<br>licenses:" << v->license_alternatives.size ();
+
+      for (const auto& la: v->license_alternatives)
       {
-        o << "<br>no version in cache !";
+        o << "<br>";
+
+        for (const auto& l: la)
+        {
+          o << " |" << l << "|";
+        }
       }
-      else
+
+      o << "<br>deps:" << v->dependencies.size ();
+
+      for (const auto& da: v->dependencies)
       {
-        o << "<br>version:" << v->version.string()
-          << "<br>licenses:" << v->license_alternatives.size ();
+        o << "<br>";
 
-        for (const auto& la : v->license_alternatives)
+        for (const auto& d: da)
         {
-          o << "<br>";
+          o << " |" << d.package;
 
-          for (const auto& l : la)
+          if (d.version)
           {
-            o << " |" << l << "|";
-          }
-        }
-
-        o << "<br>deps:" << v->dependencies.size ();
-
-        for (const auto& da : v->dependencies)
-        {
-          o << "<br>";
-
-          for (const auto& d : da)
-          {
-            o << " |" << d.package;
-
-            if (d.version)
-            {
-              o << "," << d.version->value.string () << ","
-                << static_cast<int> (d.version->operation) << "|";
-            }
-          }
-        }
-
-        o << "<br>requirements:" << v->requirements.size ();
-
-        for (const auto& ra : v->requirements)
-        {
-          o << "<br>";
-
-          for (const auto& r : ra)
-          {
-            o << " |" << r << "|";
+            o << "," << d.version->value.string () << ","
+              << static_cast<int> (d.version->operation) << "|";
           }
         }
       }
 
+      o << "<br>requirements:" << v->requirements.size ();
+
+      for (const auto& ra: v->requirements)
+      {
+        o << "<br>";
+
+        for (const auto& r: ra)
+        {
+          o << " |" << r << "|";
+        }
+      }
     }
 
     o << "<p><a href='search?a=1&b&c=2&d=&&x=a+b'>Search</a>"

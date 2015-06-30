@@ -5,8 +5,8 @@
 #ifndef WEB_APACHE_LOG
 #define WEB_APACHE_LOG
 
-#include <httpd/httpd.h>    // request_rec
-#include <httpd/http_log.h>
+#include <httpd.h>    // request_rec
+#include <http_log.h>
 
 #include <cstdint>   // uint64_t
 #include <algorithm> // min()

@@ -2,7 +2,7 @@
 // copyright : Copyright (c) 2014-2015 Code Synthesis Ltd
 // license   : MIT; see accompanying LICENSE file
 
-#include <httpd/http_log.h>
+#include <http_log.h>
 
 #include <exception>
 
@@ -12,7 +12,7 @@ namespace web
   {
     template <typename M>
     int service::
-    handle(request& r, log& l) noexcept
+    handle (request& r, log& l) noexcept
     {
       static const std::string func_name (
         "web::apache::service<" + name_ + ">::handle");

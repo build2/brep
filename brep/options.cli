@@ -15,7 +15,7 @@ namespace brep
   class db_options
   {
     std::string db-host = "localhost";
-    std::uint16_t db-port = 3306;
+    std::uint16_t db-port = 5432;
   };
 
   class search_options: module_options, db_options

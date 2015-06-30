@@ -1,0 +1,18 @@
+#!/bin/sh
+# file      : etc/loader
+# copyright : Copyright (c) 2014-2015 Code Synthesis Ltd
+# license   : MIT; see accompanying LICENSE file
+#
+# Designed to simplify running brep-loader utility.
+
+. `dirname $0`/config
+
+if test -n "$LD_LIB_DIRS"; then
+    export LD_LIBRARY_PATH=$LD_LIB_DIRS:$LD_LIBRARY_PATH
+fi
+
+if test -n "$LD_EXE_DIRS"; then
+    export PATH=$LD_EXE_DIRS:$PATH
+fi
+
+brep-loader --db-host "$LD_DB_HOST" --db-port $PG_PORT "$LD_REPOSITORIES"

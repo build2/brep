@@ -4,8 +4,8 @@
 
 #include <brep/module>
 
-#include <httpd/httpd.h>
-#include <httpd/http_log.h>
+#include <httpd.h>
+#include <http_log.h>
 
 #include <vector>
 #include <string>
@@ -89,7 +89,7 @@ namespace brep
       argv.push_back (nv.value.c_str ());
     }
 
-    int argc (argv.size());
+    int argc (argv.size ());
 
     try
     {
@@ -140,7 +140,7 @@ namespace brep
 // using A = B (*)(int,int);
 // A func(B (*)(char),B (*)(wchar_t));
 // __PRETTY_FUNCTION__ looks like this:
-// virtual std::string (* (* brep::search::func(std::string (* (*)(char))(int)\
+// virtual std::string (* (* brep::search::func(std::string (* (*)(char))(int)
 // ,std::string (* (*)(wchar_t))(int)) const)(int, int))(int)
 //
   string module::

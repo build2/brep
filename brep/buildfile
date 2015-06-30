@@ -1,0 +1,24 @@
+# file      : brep/buildfile
+# copyright : Copyright (c) 2014-2015 Code Synthesis Ltd
+# license   : MIT; see accompanying LICENSE file
+
+using cli
+
+.: libso{brep brep-apache}
+
+import libs += libbpkg%lib{bpkg}
+import libs += libodb-pgsql%lib{odb-pgsql}
+import libs += libodb%lib{odb}
+
+brep = cxx{package package-odb}
+libso{brep}: $brep $libs
+libso{brep}: cxx.export.poptions = -I$out_root -I$src_root
+
+brep = cxx{diagnostics module services search view} cli.cxx{options}
+web = ../web/apache/cxx{request service}
+libso{brep-apache}: $brep $web libso{brep} $libs
+
+cli.options += -I $src_root --include-with-brackets --include-prefix brep \
+--guard-prefix BREP --generate-file-scanner --suppress-usage
+
+cli.cxx{options}: cli{options}

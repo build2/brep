@@ -1,2 +1,3 @@
-project_name = brep
+project = brep
 using config
+using test

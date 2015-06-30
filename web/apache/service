@@ -5,12 +5,12 @@
 #ifndef WEB_APACHE_SERVICE
 #define WEB_APACHE_SERVICE
 
-#include <httpd/httpd.h>
+#include <httpd.h>
 
 #include <string>
 #include <vector>
 #include <cassert>
-#include <algorithm> // move()
+#include <utility>   // move()
 
 #include <web/module>
 #include <web/apache/log>
@@ -45,7 +45,7 @@ namespace web
             exemplar_ (exemplar),
             option_names_ (std::move (opts))
       {
-        init_directives();
+        init_directives ();
 
         // instance<M> () is invented to delegate processing from apache
         // request handler C function to the service non static member
@@ -89,7 +89,7 @@ namespace web
       worker_initializer (apr_pool_t*, server_rec* server) noexcept
       {
         log l (server);
-        instance<M> ()->init_worker(l);
+        instance<M> ()->init_worker (l);
       }
 
       template <typename M>
@@ -101,21 +101,21 @@ namespace web
 
         request req (r);
         log l (r->server);
-        return srv->handle<M>(req, l);
+        return srv->handle<M> (req, l);
       }
 
     private:
       void
-      init_directives();
+      init_directives ();
 
       void
-      init_worker(log& l) noexcept;
+      init_worker (log& l) noexcept;
 
       static const char*
       add_option (cmd_parms *parms, void *mconfig, const char *value) noexcept;
 
       template <typename M>
-      int handle(request& r, log& l) noexcept;
+      int handle (request& r, log& l) noexcept;
 
     private:
       std::string name_;

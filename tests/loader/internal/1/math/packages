@@ -1,0 +1,26 @@
+: 1
+# Foreign repository manifest.
+#
+location: ../../../external/1/misc
+:
+# Local repository manifest (this repository).
+#
+:
+name: libexp
+version: 1+1.2
+summary: The exponent
+license: MIT
+tags: c++, exponent
+url: http://www.exp.com
+email: users@exp.com
+depends: libmisc
+:
+name: libfoo
+version: 1.2.4-1
+summary: The Foo Math Library
+description: Very good math library.
+license: MIT
+tags: c++, foo, math
+url: http://www.example.com/foo/
+email: foo-users@example.com
+depends: libmisc >= 2.3.0

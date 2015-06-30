@@ -88,6 +88,11 @@ case $ARGV in
       ERROR=$?
 
       if test $ERROR -eq 0; then
+        $LYNX $STATUSURL 1>/dev/null 2>&1
+        ERROR=$?
+      fi
+
+      if test $ERROR -eq 0; then
         echo "server started"
       else
         echo "server starting failed"

@@ -1,0 +1,60 @@
+: 1
+# Foreign repository manifest.
+#
+location: http://pkg.cppget.org/1/math
+:
+# Foreign repository manifest.
+#
+location: ../../../external/1/misc
+:
+# Local repository manifest (this repository).
+#
+:
+name: libfoo
+version: 1.2.3-4
+summary: The Foo library
+license: MIT
+tags: c++, foo
+url: http://www.example.com/foo/
+email: foo-users@example.com
+depends: libmisc >= 2.0.0
+:
+name: libstudxml
+version: 1.0.0-1
+summary: Modern C++ XML API
+license: MIT
+tags: c++, xml, parser, serializer, pull, streaming, modern
+description-file: README
+changes-file: NEWS
+url: http://www.codesynthesis.com/projects/libstudxml/
+email: studxml-users@codesynthesis.com; Public mailing list, posts by\
+ non-members are allowed but moderated.
+package-email: boris@codesynthesis.com; Direct email to the author.
+depends: libexpat >= 2.0.0
+depends: libgenx
+:
+name: libfoo
+version: 1.2.2
+summary: The Foo library
+license: MIT
+tags: c++, foo
+url: http://www.example.com/foo/
+email: foo-users@example.com
+depends: libbar <= 2.4.0
+depends: libexp == 1+1.2
+requires: linux | windows | macosx
+requires: c++11
+requires: ? ; VC++ 12.0 or later if targeting Windows.
+requires: ? ; libc++ standard library if using Clang on Mac OS X.
+:
+name: libfoo
+version: 1.2.4
+summary: The Foo Library
+description: Very good foo library.
+license: MIT
+tags: c++, foo
+url: http://www.example.com/foo/
+email: foo-users@example.com
+depends: libmisc >= 2.0.0
+changes: some changes 1
+changes: some changes 2

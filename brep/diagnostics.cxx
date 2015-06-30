@@ -22,7 +22,7 @@ namespace brep
     // once C++17 uncaught_exceptions() becomes available.
     //
     if (!data_.empty () &&
-        (!std::uncaught_exception () /*|| exception_unwinding_dtor*/))
+        (!uncaught_exception () /*|| exception_unwinding_dtor*/))
     {
       data_.back ().msg = os_.str (); // Save last message.
 

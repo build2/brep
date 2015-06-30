@@ -7,9 +7,9 @@
 
 #include <apr_strings.h>
 
-#include <httpd/httpd.h>
-#include <httpd/http_core.h>
-#include <httpd/util_script.h>
+#include <httpd.h>
+#include <http_core.h>
+#include <util_script.h>
 
 #include <ios>
 #include <chrono>
@@ -18,10 +18,10 @@
 #include <cassert>
 #include <istream>
 #include <ostream>
+#include <utility>   // move()
 #include <streambuf>
 #include <stdexcept>
 #include <exception>
-#include <algorithm> // move
 
 #include <web/module>
 #include <web/apache/stream>

@@ -7,8 +7,8 @@
 #include <unistd.h> // getppid()
 #include <signal.h> // kill()
 
-#include <httpd/httpd.h>
-#include <httpd/http_config.h>
+#include <httpd.h>
+#include <http_config.h>
 
 #include <memory> // unique_ptr
 #include <string>
@@ -21,9 +21,9 @@ namespace web
   namespace apache
   {
     void service::
-    init_directives()
+    init_directives ()
     {
-      assert(cmds == nullptr);
+      assert (cmds == nullptr);
 
       // Fill apache module directive definitions. Directives share
       // common name space in apache configuration file, so to prevent name
@@ -52,13 +52,13 @@ namespace web
           };
       }
 
-      *d = {};
+      *d = {nullptr, nullptr, nullptr, 0, RAW_ARGS, nullptr};
 
       cmds = directives.release ();
     }
 
     const char* service::
-    add_option (cmd_parms *parms, void *mconfig, const char *value) noexcept
+    add_option (cmd_parms* parms, void*, const char* value) noexcept
     {
       service& srv (*reinterpret_cast<service*> (parms->cmd->cmd_data));
       string name (parms->cmd->name + srv.name_.length () + 1);
@@ -75,7 +75,7 @@ namespace web
     }
 
     void service::
-    init_worker(log& l) noexcept
+    init_worker (log& l) noexcept
     {
       static const string func_name (
         "web::apache::service<" + name_ + ">::init_worker");

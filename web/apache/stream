@@ -5,8 +5,8 @@
 #ifndef WEB_APACHE_STREAM
 #define WEB_APACHE_STREAM
 
-#include <httpd/httpd.h>
-#include <httpd/http_protocol.h>
+#include <httpd.h>
+#include <http_protocol.h>
 
 #include <ios>       // streamsize
 #include <vector>
