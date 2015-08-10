@@ -1,0 +1,255 @@
+// file      : web/xhtml -*- C++ -*-
+// copyright : Copyright (c) 2014-2015 Code Synthesis Ltd
+// license   : MIT; see accompanying LICENSE file
+
+#ifndef WEB_XHTML
+#define WEB_XHTML
+
+#include <xml/serializer>
+
+namespace web
+{
+  // "Canonical" XHTML5 vocabulary.
+  //
+  // One-letter tag names and local variable clash problem:
+  //
+  // a at|an|an  anc anch
+  // b bt|bo|bl  bld bold
+  // i it|it|it  itl ital
+  // p pt|pr|pr  par para
+  // q qt|qu|qt  quo quot
+  // s st|st|st  stk strk
+  // u ut|un|un  unl undr
+  //
+  // Other options:
+  //   - _a, a_, xa
+  //   - A, I
+  //   - x::i
+  //
+  // Things can actually get much worse, consider:
+  //
+  // int i;
+  // s << i << "text" << ~i;
+  //
+  // So perhaps this is the situation where the explicit namespace
+  // qualification (e.g., x::p) is the only robust option?
+  //
+  namespace xhtml
+  {
+    const char* xmlns = "http://www.w3.org/1999/xhtml";
+
+    using serializer_func = void (*) (xml::serializer&);
+
+    struct attr_value_base
+    {
+      const char* name;
+      mutable const attr_value_base* next;
+
+      virtual void
+      operator() (xml::serializer& s) const = 0;
+
+    protected:
+      explicit
+      attr_value_base (const char* n): name (n), next (nullptr) {}
+    };
+
+    template <typename T>
+    struct attr_value: attr_value_base
+    {
+      const T* val;
+
+      attr_value (const char* n, const T& v): attr_value_base (n), val (&v) {}
+
+      virtual void
+      operator() (xml::serializer& s) const
+      {
+        s.attribute (name, *val);
+        if (next != nullptr)
+          s << *next;
+      }
+    };
+
+    struct element_base;
+
+    // Element without any content, e.g., *BR.
+    //
+    struct empty_element
+    {
+      const element_base* e;
+
+      void
+      operator() (xml::serializer& s) const;
+    };
+
+    struct element_base
+    {
+      virtual void
+      operator() (xml::serializer& s) const = 0;
+
+      virtual serializer_func
+      operator~ () const = 0;
+
+      empty_element
+      operator* () const {return empty_element {this};}
+    };
+
+    inline void empty_element::
+    operator() (xml::serializer& s) const {s << *e << ~*e;}
+
+    // Element with an attribute chain, e.g., P(ID = 123, CLASS = "abc").
+    //
+    struct attr_element: element_base
+    {
+      const element_base* e;
+      const attr_value_base* a;
+
+      attr_element (const element_base& e, const attr_value_base& a)
+          : e (&e), a (&a) {}
+
+      virtual void
+      operator() (xml::serializer& s) const {s << *e << *a;}
+
+      virtual serializer_func
+      operator~ () const {return ~*e;}
+    };
+
+    struct element: element_base
+    {
+      const char* name;
+
+      explicit
+      element (const char* n): name (n) {}
+
+      virtual void
+      operator() (xml::serializer& s) const {s.start_element (xmlns, name);}
+
+      virtual serializer_func
+      operator~ () const {return [](xml::serializer& s) {s.end_element ();};}
+
+      // s << elem(attr1 = 123, attr2 = "abc");
+      //
+      template <typename T1>
+      attr_element
+      operator () (const attr_value<T1>& a1) const
+      {
+        return attr_element (*this, a1);
+      }
+
+      template <typename T1, typename... TN>
+      attr_element
+      operator () (const attr_value<T1>& a1, const attr_value<TN>&... an) const
+      {
+        a1.next = operator() (an...).a;
+        return attr_element (*this, a1);
+      }
+
+    protected:
+      element () = default;
+    };
+
+    struct inline_element: element
+    {
+      using element::element;
+      using element::operator();
+
+      virtual void
+      operator() (xml::serializer& s) const
+      {
+        s.suspend_indentation ();
+        element::operator() (s);
+      }
+
+      virtual serializer_func
+      operator~ () const
+      {
+        return [](xml::serializer& s)
+        {
+          s.end_element (); s.resume_indentation ();
+        };
+      }
+    };
+
+    struct attribute
+    {
+      const char* name;
+
+      explicit
+      attribute (const char* n): name (n) {}
+
+      // s << (attr1 = 123) << (attr2 = "abc");
+      //
+      template <typename T>
+      attr_value<T>
+      operator= (const T& v) const {return attr_value<T> (name, v);}
+
+      // s << attr1 (123) << attr2 ("abc");
+      //
+      template <typename T>
+      attr_value<T>
+      operator() (const T& v) const {return attr_value<T> (name, v);}
+
+      // s << attr1 << 123 << ~attr1 << attr2 << "abc" << ~attr2;
+      //
+      void
+      operator() (xml::serializer& s) const {s.start_attribute (name);}
+
+      virtual serializer_func
+      operator~ () const {return [](xml::serializer& s) {s.end_attribute ();};}
+    };
+
+    // Elements.
+    //
+    // Note that they are all declared static which means we may end
+    // up with multiple identical copies if this header get included
+    // into multiple translation units. The hope here is that the
+    // compiler will "see-through" and eliminate all of them.
+    //
+    struct html_element: element
+    {
+      html_element () {} // Uninitialized const static.
+
+      virtual void
+      operator() (xml::serializer& s) const
+      {
+        s.doctype_decl ("html");
+        s.start_element (xmlns, "html");
+        s.namespace_decl (xmlns, "");
+      }
+    };
+    static const html_element HTML;
+
+    struct head_element: element
+    {
+      head_element () {} // Uninitialized const static.
+
+      virtual void
+      operator() (xml::serializer& s) const
+      {
+        s.start_element (xmlns, "head");
+        s.start_element (xmlns, "meta");
+        s.attribute ("charset", "UTF-8");
+        s.end_element ();
+      }
+    };
+    static const head_element HEAD;
+
+    static const element TITLE ("title");
+    static const element BODY ("body");
+    static const element P ("p");
+
+    static const inline_element B ("b");
+    static const inline_element I ("i");
+    static const inline_element U ("u");
+
+    static const inline_element EM ("em");
+    static const inline_element BR ("br");
+
+    // Attributes.
+    //
+    static const attribute ID ("id");
+    static const attribute CLASS ("class");
+    static const attribute STYLE ("style");
+  }
+}
+
+#endif // WEB_XHTML

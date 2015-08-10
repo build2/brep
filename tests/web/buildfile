@@ -1,7 +1,7 @@
-# file      : tests/buildfile
+# file      : tests/web/buildfile
 # copyright : Copyright (c) 2014-2015 Code Synthesis Ltd
 # license   : MIT; see accompanying LICENSE file
 
-d = loader/ web/
+d = xhtml/
 .: $d
 include $d

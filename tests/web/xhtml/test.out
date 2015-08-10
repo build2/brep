@@ -1,0 +1,15 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml">
+  <head>
+    <meta charset="UTF-8"/>
+    <title>Example XHTML5 document</title>
+  </head>
+  <body>
+    <p>Here be <b>Dragons!</b><br/>and a newline</p>
+    <p id="123" class="cool">Text</p>
+    <p id="123" class="cool">Text</p>
+    <p id="123" class="cool">Text</p>
+    <p id="123" class="cool">Text</p>
+    <p>Text<br class="double"/></p>
+  </body>
+</html>
