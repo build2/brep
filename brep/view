@@ -24,7 +24,7 @@ namespace brep
     init (cli::scanner&);
 
   private:
-    std::shared_ptr<view_options> options_;
+    std::shared_ptr<options::view> options_;
     std::shared_ptr<odb::core::database> db_;
   };
 }

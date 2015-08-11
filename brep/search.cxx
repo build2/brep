@@ -30,9 +30,9 @@ namespace brep
   {
     MODULE_DIAG;
 
-    options_ = make_shared<search_options> (s,
-                                            cli::unknown_mode::fail,
-                                            cli::unknown_mode::fail);
+    options_ = make_shared<options::search> (s,
+                                             cli::unknown_mode::fail,
+                                             cli::unknown_mode::fail);
 
     db_ = shared_database (options_->db_host (), options_->db_port ());
 
@@ -141,6 +141,21 @@ namespace brep
       o << "<br>\n" << p.name << "=" << p.value;
     }
 
+    param_scanner s (ps);
+    unique_ptr<params::search> prm;
+
+    try
+    {
+      prm.reset (new params::search (s,
+                                     cli::unknown_mode::fail,
+                                     cli::unknown_mode::fail));
+    }
+    catch (const cli::unknown_argument& e)
+    {
+      throw invalid_request (400, e.what ());
+    }
+
+    o << "<br>\nPage num: " << prm->page ();
     o << "<p>\n<b>Cookies:</b>";
 
     for (const auto& c: rq.cookies ())

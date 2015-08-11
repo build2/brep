@@ -25,6 +25,8 @@ using namespace placeholders; // For std::bind's _1, etc.
 
 namespace brep
 {
+  // module
+  //
   void module::
   handle (request& rq, response& rs, log& l)
   {
@@ -111,7 +113,7 @@ namespace brep
                                 const_cast<char**> (argv.data ()),
                                 "conf");
 
-      module_options o (s, cli::unknown_mode::skip, cli::unknown_mode::skip);
+      options::module o (s, cli::unknown_mode::skip, cli::unknown_mode::skip);
       verb_ = o.verb ();
     }
     catch (const server_error& e)
@@ -227,5 +229,61 @@ namespace brep
                    e.msg.c_str ());
       }
     }
+  }
+
+  // module::param_scanner
+  //
+  module::param_scanner::
+  param_scanner (const name_values& nv) noexcept
+      : name_values_ (nv),
+        i_ (nv.begin ()),
+        name_ (true)
+  {
+  }
+
+  bool module::param_scanner::
+  more ()
+  {
+    return i_ != name_values_.end ();
+  }
+
+  const char* module::param_scanner::
+  peek ()
+  {
+    if (i_ != name_values_.end ())
+      return name_ ? i_->name.c_str () : i_->value.c_str ();
+    else
+      throw cli::eos_reached ();
+  }
+
+  const char* module::param_scanner::
+  next ()
+  {
+    if (i_ != name_values_.end ())
+    {
+      const char* r (name_ ? i_->name.c_str () : i_->value.c_str ());
+
+      if (!name_)
+        ++i_;
+
+      name_ = !name_;
+      return r;
+    }
+    else
+      throw cli::eos_reached ();
+  }
+
+  void module::param_scanner::
+  skip ()
+  {
+    if (i_ != name_values_.end ())
+    {
+      if (!name_)
+        ++i_;
+
+      name_ = !name_;
+    }
+    else
+      throw cli::eos_reached ();
   }
 }

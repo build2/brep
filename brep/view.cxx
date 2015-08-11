@@ -26,9 +26,9 @@ namespace brep
   void view::
   init (cli::scanner& s)
   {
-    options_ = make_shared<view_options> (s,
-                                          cli::unknown_mode::fail,
-                                          cli::unknown_mode::fail);
+    options_ = make_shared<options::view> (s,
+                                           cli::unknown_mode::fail,
+                                           cli::unknown_mode::fail);
 
     db_ = shared_database (options_->db_host (), options_->db_port ());
   }

@@ -92,6 +92,29 @@ namespace brep
     module ();
     module (const module& );
 
+    class param_scanner: public cli::scanner
+    {
+    public:
+      param_scanner (const name_values&) noexcept;
+
+      virtual bool
+      more ();
+
+      virtual const char*
+      peek ();
+
+      virtual const char*
+      next ();
+
+      virtual void
+      skip ();
+
+    private:
+      const name_values& name_values_;
+      name_values::const_iterator i_;
+      bool name_;
+    };
+
   private:
     virtual void
     handle (request&, response&, log&);
@@ -110,7 +133,7 @@ namespace brep
     {
       // Just scan options to ensure there is no misspelled ones.
       //
-      module_options o (s, cli::unknown_mode::fail, cli::unknown_mode::fail);
+      options::module o (s, cli::unknown_mode::fail, cli::unknown_mode::fail);
     }
 
     // Diagnostics implementation details.

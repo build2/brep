@@ -7,23 +7,38 @@ include <cstdint>;
 
 namespace brep
 {
-  class module_options
+  // Web module configuration options.
+  //
+  namespace options
   {
-    std::uint16_t verb = 0;
-  };
+    class module
+    {
+      std::uint16_t verb = 0;
+    };
 
-  class db_options
-  {
-    std::string db-host = "localhost";
-    std::uint16_t db-port = 5432;
-  };
+    class db
+    {
+      std::string db-host = "localhost";
+      std::uint16_t db-port = 5432;
+    };
 
-  class search_options: module_options, db_options
-  {
-    size_t results-on-page = 10;
-  };
+    class search: module, db
+    {
+      size_t results-on-page = 10;
+    };
 
-  class view_options: module_options, db_options
+    class view: module, db
+    {
+    };
+  }
+
+  // Web module request parameters.
+  //
+  namespace params
   {
-  };
+    class search
+    {
+      size_t page = 0;
+    };
+  }
 }
