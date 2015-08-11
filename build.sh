@@ -30,7 +30,7 @@ cli --include-with-brackets --include-prefix brep  --hxx-suffix "" \
 echo "g++ libbrep-apache.so"
 
 s="search.cxx view.cxx module.cxx diagnostics.cxx services.cxx options.cxx \
-../web/apache/request.cxx ../web/apache/service.cxx"
+shared-database.cxx ../web/apache/request.cxx ../web/apache/service.cxx"
 
 g++ -shared $DEBUG -std=c++11 -I. -I/usr/include/apr-1 -I/usr/include/httpd \
     -I.. -I../../libbpkg -I../../libbutl -L. -L../../libbpkg/bpkg \

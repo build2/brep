@@ -11,12 +11,11 @@
 #include <odb/database.hxx>
 #include <odb/transaction.hxx>
 
-#include <odb/pgsql/database.hxx>
-
 #include <web/module>
 
 #include <brep/package>
 #include <brep/package-odb>
+#include <brep/shared-database>
 
 using namespace std;
 using namespace odb::core;
@@ -31,11 +30,7 @@ namespace brep
                                           cli::unknown_mode::fail,
                                           cli::unknown_mode::fail);
 
-    db_ = make_shared<odb::pgsql::database> ("",
-                                             "",
-                                             "brep",
-                                             options_->db_host (),
-                                             options_->db_port ());
+    db_ = shared_database (options_->db_host (), options_->db_port ());
   }
 
   void view::

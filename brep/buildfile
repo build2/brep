@@ -14,7 +14,8 @@ brep = cxx{package package-odb}
 libso{brep}: $brep $libs
 libso{brep}: cxx.export.poptions = -I$out_root -I$src_root
 
-brep = cxx{diagnostics module services search view} cli.cxx{options}
+brep = cxx{diagnostics module services search view shared-database} \
+       cli.cxx{options}
 web = ../web/apache/cxx{request service}
 libso{brep-apache}: $brep $web libso{brep} $libs
 
