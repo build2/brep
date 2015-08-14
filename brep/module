@@ -92,6 +92,8 @@ namespace brep
     module ();
     module (const module& );
 
+    // Can be used by module implementation to parse HTTP request parameters.
+    //
     class param_scanner: public cli::scanner
     {
     public:

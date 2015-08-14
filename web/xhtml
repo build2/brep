@@ -5,6 +5,8 @@
 #ifndef WEB_XHTML
 #define WEB_XHTML
 
+#include <functional> // function
+
 #include <xml/serializer>
 
 namespace web
@@ -36,9 +38,9 @@ namespace web
   //
   namespace xhtml
   {
-    const char* xmlns = "http://www.w3.org/1999/xhtml";
+    const char* const xmlns = "http://www.w3.org/1999/xhtml";
 
-    using serializer_func = void (*) (xml::serializer&);
+    using serializer_func = std::function<void(xml::serializer&)>;
 
     struct attr_value_base
     {
@@ -124,7 +126,10 @@ namespace web
       operator() (xml::serializer& s) const {s.start_element (xmlns, name);}
 
       virtual serializer_func
-      operator~ () const {return [](xml::serializer& s) {s.end_element ();};}
+      operator~ () const
+      {
+        return [this](xml::serializer& s) {s.end_element (xmlns, name);};
+      }
 
       // s << elem(attr1 = 123, attr2 = "abc");
       //
@@ -143,8 +148,11 @@ namespace web
         return attr_element (*this, a1);
       }
 
-    protected:
-      element () = default;
+// @@ Now always need to provide element name, so operator~ () could create
+//    the lambda capable to pass a valid name to end_element call.
+//
+//    protected:
+//    element () = default;
     };
 
     struct inline_element: element
@@ -162,9 +170,9 @@ namespace web
       virtual serializer_func
       operator~ () const
       {
-        return [](xml::serializer& s)
+        return [this](xml::serializer& s)
         {
-          s.end_element (); s.resume_indentation ();
+          s.end_element (xmlns, name); s.resume_indentation ();
         };
       }
     };
@@ -194,7 +202,10 @@ namespace web
       operator() (xml::serializer& s) const {s.start_attribute (name);}
 
       virtual serializer_func
-      operator~ () const {return [](xml::serializer& s) {s.end_attribute ();};}
+      operator~ () const
+      {
+        return [this](xml::serializer& s) {s.end_attribute (name);};
+      }
     };
 
     // Elements.
@@ -206,13 +217,13 @@ namespace web
     //
     struct html_element: element
     {
-      html_element () {} // Uninitialized const static.
+      html_element (): element ("html") {}
 
       virtual void
       operator() (xml::serializer& s) const
       {
         s.doctype_decl ("html");
-        s.start_element (xmlns, "html");
+        s.start_element (xmlns, name);
         s.namespace_decl (xmlns, "");
       }
     };
@@ -220,12 +231,12 @@ namespace web
 
     struct head_element: element
     {
-      head_element () {} // Uninitialized const static.
+      head_element (): element ("head") {}
 
       virtual void
       operator() (xml::serializer& s) const
       {
-        s.start_element (xmlns, "head");
+        s.start_element (xmlns, name);
         s.start_element (xmlns, "meta");
         s.attribute ("charset", "UTF-8");
         s.end_element ();
@@ -233,10 +244,13 @@ namespace web
     };
     static const head_element HEAD;
 
+    static const element BODY  ("body");
+    static const element DIV   ("div");
+    static const element P     ("p");
+    static const element STYLE ("style");
     static const element TITLE ("title");
-    static const element BODY ("body");
-    static const element P ("p");
 
+    static const inline_element A ("a");
     static const inline_element B ("b");
     static const inline_element I ("i");
     static const inline_element U ("u");
@@ -246,9 +260,16 @@ namespace web
 
     // Attributes.
     //
-    static const attribute ID ("id");
     static const attribute CLASS ("class");
-    static const attribute STYLE ("style");
+    static const attribute HREF  ("href");
+    static const attribute ID    ("id");
+    static const attribute TYPE  ("type");
+
+// @@ Attribute variable names clash with element variable names.
+//    Should we prefix/suffix attribute names like _STYLE, STYLE_ or there
+//    are some better ideas ?
+//
+//  static const attribute STYLE ("style");
   }
 }
 

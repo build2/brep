@@ -13,6 +13,8 @@
 #include <utility>   // move()
 #include <stdexcept> // runtime_error
 
+#include <butl/path>
+
 namespace web
 {
   // HTTP status code.
@@ -68,10 +70,20 @@ namespace web
   };
 
   using name_values = std::vector<name_value>;
+  using path = butl::path;
 
   class request
   {
   public:
+    using path_type = web::path;
+
+    // Corresponds to abs_path portion of HTTP URL as described in
+    // "3.2.2 HTTP URL" of http://tools.ietf.org/html/rfc2616.
+    // Returns '/' if no abs_path is present in URL.
+    //
+    virtual const path_type&
+    path () = 0;
+
     //@@ Why not pass parameters directly? Lazy parsing?
     //@@ Why not have something like operator[] for lookup? Probably
     //   in name_values.

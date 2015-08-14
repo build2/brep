@@ -25,16 +25,19 @@ g++ -shared $DEBUG -std=c++11 -I.. -I../../libbpkg \
 echo "cli brep-apache options"
 
 cli --include-with-brackets --include-prefix brep  --hxx-suffix "" \
-    --guard-prefix BREP --generate-file-scanner --suppress-usage ./options.cli
+    --guard-prefix BREP --generate-file-scanner --suppress-usage \
+    --option-prefix "" ./options.cli
 
 echo "g++ libbrep-apache.so"
 
-s="search.cxx view.cxx module.cxx diagnostics.cxx services.cxx options.cxx \
-shared-database.cxx ../web/apache/request.cxx ../web/apache/service.cxx"
+s="package-search.cxx package-version-search.cxx module.cxx diagnostics.cxx \
+services.cxx options.cxx shared-database.cxx \
+../web/apache/request.cxx ../web/apache/service.cxx \
+../web/mime-url-encoding.cxx"
 
 g++ -shared $DEBUG -std=c++11 -I. -I/usr/include/apr-1 -I/usr/include/httpd \
     -I.. -I../../libbpkg -I../../libbutl -L. -L../../libbpkg/bpkg \
-    -fPIC -o libbrep-apache.so $s -lbrep -lbpkg -lodb-pgsql -lodb
+    -fPIC -o libbrep-apache.so $s -lbrep -lbpkg -lodb-pgsql -lodb -lstudxml
 
 cd ../loader
 

@@ -14,10 +14,13 @@
 #include <memory>    // unique_ptr
 #include <sstream>
 #include <ostream>
+#include <istream>
 #include <cstring>
 #include <utility>   // move()
 #include <stdexcept>
 #include <streambuf>
+
+#include <web/mime-url-encoding>
 
 using namespace std;
 
@@ -25,7 +28,6 @@ namespace web
 {
   namespace apache
   {
-
     istream& request::
     content ()
     {
@@ -46,10 +48,25 @@ namespace web
       return *in_;
     }
 
+    const path& request::
+    path ()
+    {
+      if (path_.empty ())
+      {
+        path_ = path_type (rec_->uri);
+
+        // Module request handler can not be called if URI is empty.
+        //
+        assert (!path_.empty ());
+      }
+
+      return path_;
+    }
+
     const name_values& request::
     parameters ()
     {
-      if (!parameters_)
+      if (parameters_ == nullptr)
       {
         parameters_.reset (new name_values ());
 
@@ -70,7 +87,7 @@ namespace web
     const name_values& request::
     cookies ()
     {
-      if (!cookies_)
+      if (cookies_ == nullptr)
       {
         cookies_.reset (new name_values ());
 
@@ -263,108 +280,6 @@ namespace web
 
         n = e ? e + 1 : 0;
       }
-    }
-
-    void request::
-    mime_url_encode (const char* v, ostream& o)
-    {
-      char f (o.fill ());
-      ios_base::fmtflags g (o.flags ());
-      o << hex << uppercase << right << setfill ('0');
-
-      char c;
-
-      while ((c = *v++) != '\0')
-      {
-        if ((c >= 'A' && c <= 'Z') || (c >= 'a' && c <= 'z') ||
-            (c >= '0' && c <= '9'))
-        {
-          o << c;
-        }
-        else
-          switch (c)
-          {
-          case ' ': o << '+'; break;
-          case '.':
-          case '_':
-          case '-':
-          case '~': o << c; break;
-          default:
-            {
-              o << "%" << setw (2) << static_cast<unsigned short> (c);
-              break;
-            }
-          }
-      }
-
-      o.flags (g);
-      o.fill (f);
-    }
-
-    string request::
-    mime_url_decode (const char* b, const char* e, bool trim)
-    {
-      if (trim)
-      {
-        b += strspn (b, " ");
-
-        if (b >= e)
-          return string ();
-
-        while (*--e == ' ');
-        ++e;
-      }
-
-      string value;
-      value.reserve (e - b);
-
-      char bf[3];
-      bf[2] = '\0';
-
-      while (b != e)
-      {
-        char c (*b++);
-
-        switch (c)
-        {
-        case '+':
-          {
-            value.append (" ");
-            break;
-          }
-        case '%':
-          {
-            if (*b == '\0' || b[1] == '\0')
-            {
-              throw invalid_argument (
-                "::web::apache::request::mime_url_decode short");
-            }
-
-            *bf = *b;
-            bf[1] = b[1];
-
-            char* ebf (nullptr);
-            size_t vl (strtoul (bf, &ebf, 16));
-
-            if (*ebf != '\0')
-            {
-              throw invalid_argument (
-                "::web::apache::request::mime_url_decode wrong");
-            }
-
-            value.append (1, static_cast<char> (vl));
-            b += 2;
-            break;
-          }
-        default:
-          {
-            value.append (1, c);
-            break;
-          }
-        }
-      }
-
-      return value;
     }
   }
 }

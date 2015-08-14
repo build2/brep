@@ -1,20 +1,20 @@
-// file      : brep/view -*- C++ -*-
+// file      : brep/package-search -*- C++ -*-
 // copyright : Copyright (c) 2014-2015 Code Synthesis Ltd
 // license   : MIT; see accompanying LICENSE file
 
-#ifndef BREP_VIEW
-#define BREP_VIEW
+#ifndef BREP_PACKAGE_SEARCH
+#define BREP_PACKAGE_SEARCH
 
 #include <memory> // shared_ptr
 
-#include <odb/database.hxx>
+#include <odb/forward.hxx> // database
 
 #include <brep/module>
 #include <brep/options>
 
 namespace brep
 {
-  class view: public module
+  class package_search: public module
   {
   private:
     virtual void
@@ -24,9 +24,9 @@ namespace brep
     init (cli::scanner&);
 
   private:
-    std::shared_ptr<options::view> options_;
+    std::shared_ptr<options::package_search> options_;
     std::shared_ptr<odb::core::database> db_;
   };
 }
 
-#endif // BREP_VIEW
+#endif // BREP_PACKAGE_SEARCH

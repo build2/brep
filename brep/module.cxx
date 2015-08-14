@@ -22,6 +22,7 @@
 
 using namespace std;
 using namespace placeholders; // For std::bind's _1, etc.
+using namespace cli;
 
 namespace brep
 {
@@ -98,22 +99,22 @@ namespace brep
       {
         // Read module implementation configuration.
         //
-        cli::argv_file_scanner s (0,
-                                  argc,
-                                  const_cast<char**> (argv.data ()),
-                                  "conf");
+        argv_file_scanner s (0,
+                             argc,
+                             const_cast<char**> (argv.data ()),
+                             "conf");
 
         init (s);
       }
 
       // Read brep::module configuration.
       //
-      cli::argv_file_scanner s (0,
-                                argc,
-                                const_cast<char**> (argv.data ()),
-                                "conf");
+      argv_file_scanner s (0,
+                           argc,
+                           const_cast<char**> (argv.data ()),
+                           "conf");
 
-      options::module o (s, cli::unknown_mode::skip, cli::unknown_mode::skip);
+      options::module o (s, unknown_mode::skip, unknown_mode::skip);
       verb_ = o.verb ();
     }
     catch (const server_error& e)
@@ -253,7 +254,7 @@ namespace brep
     if (i_ != name_values_.end ())
       return name_ ? i_->name.c_str () : i_->value.c_str ();
     else
-      throw cli::eos_reached ();
+      throw eos_reached ();
   }
 
   const char* module::param_scanner::
@@ -270,7 +271,7 @@ namespace brep
       return r;
     }
     else
-      throw cli::eos_reached ();
+      throw eos_reached ();
   }
 
   void module::param_scanner::
@@ -284,6 +285,6 @@ namespace brep
       name_ = !name_;
     }
     else
-      throw cli::eos_reached ();
+      throw eos_reached ();
   }
 }

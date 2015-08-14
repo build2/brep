@@ -10,14 +10,14 @@
 #include <odb/pgsql/database.hxx>
 
 using namespace std;
-using namespace odb;
 
 namespace brep
 {
-  shared_ptr<database>
-  shared_database (const string& host, unsigned int port)
+  shared_ptr<odb::database>
+  shared_database (const string& h, unsigned int p)
   {
-    static weak_ptr<pgsql::database> db;
+    using odb::pgsql::database;
+    static weak_ptr<database> db;
 
     // In C++11, function-static variable initialization is
     // guaranteed to be thread-safe, thought this doesn't

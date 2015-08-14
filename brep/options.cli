@@ -3,7 +3,7 @@
 // license   : MIT; see accompanying LICENSE file
 
 include <string>;
-include <cstdint>;
+include <cstdint>; // uint16_t
 
 namespace brep
 {
@@ -22,23 +22,43 @@ namespace brep
       std::uint16_t db-port = 5432;
     };
 
-    class search: module, db
+    class package_search: module, db
     {
-      size_t results-on-page = 10;
+      std::uint16_t results-on-page = 10;
     };
 
-    class view: module, db
+    class package_version_search: module, db
     {
+      std::uint16_t results-on-page = 10;
     };
   }
 
-  // Web module request parameters.
+  // Web module HTTP request parameters.
   //
   namespace params
   {
-    class search
+    // Use parameters long names in the C++ code, short aliases in HTTP URL.
+    //
+    class package_search
     {
-      size_t page = 0;
+      // Display package search result list starting from this page.
+      //
+      std::uint16_t page | p = 0;
+
+      // Package search criteria.
+      //
+      std::string query | q = "";
+    };
+
+    class package_version_search
+    {
+      // Display package version search result list starting from this page.
+      //
+      std::uint16_t page | p = 0;
+
+      // Package version search criteria.
+      //
+      std::string query | q = "";
     };
   }
 }

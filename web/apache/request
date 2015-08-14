@@ -43,6 +43,11 @@ namespace web
       int
       flush ();
 
+      // Get request path.
+      //
+      virtual const path_type&
+      path ();
+
       // Get request body data stream.
       //
       virtual std::istream&
@@ -93,12 +98,6 @@ namespace web
       void
       parse_parameters (const char* args);
 
-      static void
-      mime_url_encode (const char* v, std::ostream& o);
-
-      static std::string
-      mime_url_decode (const char* b, const char* e, bool trim = false);
-
       bool
       get_write_state () const noexcept {return write_state_;}
 
@@ -129,6 +128,7 @@ namespace web
       std::unique_ptr<std::ostream> out_;
       std::unique_ptr<std::streambuf> in_buf_;
       std::unique_ptr<std::istream> in_;
+      path_type path_;
       std::unique_ptr<name_values> parameters_;
       std::unique_ptr<name_values> cookies_;
       std::unique_ptr<std::string> form_data_;

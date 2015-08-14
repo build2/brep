@@ -3,6 +3,7 @@
 // license   : MIT; see accompanying LICENSE file
 
 #include <iostream>
+#include <functional>
 
 #include <xml/serializer>
 
@@ -11,10 +12,37 @@
 using namespace std;
 using namespace xml;
 
+static bool
+bad_sequence (const function<void(serializer& s)>& f)
+{
+  ostringstream o;
+  serializer s (o, "osstream");
+
+  try
+  {
+    f (s);
+    return false;
+  }
+  catch (const serialization&)
+  {
+    return true;
+  }
+}
+
 int
 main ()
 {
   using namespace web::xhtml;
+
+  assert (bad_sequence ([](serializer& s) {s << HTML << ~HEAD;}));
+  assert (bad_sequence ([](serializer& s) {s << HTML << DIV << ~P << ~HTML;}));
+  assert (bad_sequence ([](serializer& s) {s << HTML << DIV << ~A << ~HTML;}));
+  assert (bad_sequence ([](serializer& s) {s << P << A << "a" << ~P << ~P;}));
+  assert (bad_sequence ([](serializer& s) {s << P << A << "a" << ~I << ~P;}));
+
+  assert (
+    bad_sequence (
+      [](serializer& s) {s << P << A << ID << "A" << ~HREF << ~A << ~P;}));
 
   serializer s (cout, "output");
 
