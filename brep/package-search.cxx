@@ -58,7 +58,7 @@ namespace brep
       throw invalid_request (400, e.what ());
     }
 
-    // @@ Would be nice to have a manipulator identing string properly
+    // @@ Would be nice to have a manipulator indenting string properly
     //    according to the most nested element identation.
     //
     const char* ident ("\n      ");
@@ -68,11 +68,11 @@ namespace brep
     s << HTML
       <<   HEAD
       <<     TITLE << title << ~TITLE
-      <<     STYLE(TYPE="text/css") << ident
+      <<     CSS_STYLE << ident
       <<     ".package {margin: 0 0 0.5em;}" << ident
       <<     ".name a {text-decoration: none;}" << ident
       <<     ".summary {font-size: small;}"
-      <<     ~STYLE
+      <<     ~CSS_STYLE
       <<   ~HEAD
       <<   BODY;
 
@@ -93,59 +93,52 @@ namespace brep
 
     for (const auto& p: r)
     {
-      s <<   DIV(CLASS="package")
-        <<     DIV(CLASS="name")
-        <<       A
-        <<         HREF
-        <<           "/go/" << mime_url_encode (p.name);
+      s << DIV(CLASS="package")
+        <<   DIV(CLASS="name")
+        <<     A
+        <<     HREF << "/go/" << mime_url_encode (p.name);
 
       // Propagate search criteria to the package version search url.
       //
       if (!q.empty ())
-        s <<         "?" << q;
+        s << "?" << q;
 
-      s <<         ~HREF
-        <<         p.name
-        <<       ~A
-        <<     ~DIV
-        <<     DIV(CLASS="summary")
-        <<       p.summary
-        <<     ~DIV
-        <<   ~DIV;
+      s <<     ~HREF
+        <<       p.name
+        <<     ~A
+        <<   ~DIV
+        <<   DIV(CLASS="summary")
+        <<     p.summary
+        <<   ~DIV
+        << ~DIV;
     }
 
     t.commit ();
 
     if (pr.page () || r.size () == options_->results_on_page ())
     {
-      s <<   DIV;
+      s << DIV;
 
       if (pr.page ())
-      {
-        s <<   A
-          <<     HREF << "/?p=" << pr.page () - 1
-          <<             (q.empty () ? "" : "&" + q)
-          <<     ~HREF
-          <<     "Previous"
-          <<   ~A
-          <<   " ";
-      }
+        s << A
+          << HREF << "/?p=" << pr.page () - 1 << (q.empty () ? "" : "&" + q)
+          << ~HREF
+          <<   "Previous"
+          << ~A
+          << " ";
 
       // @@ Not ideal as can produce link to an empty page, but easy to fix
       //    and most likelly will be replaced with something more meaningful
       //    based on knowing the total number of matched packages.
       //
       if (r.size () == options_->results_on_page ())
-      {
-        s <<   A
-          <<     HREF << "/?p=" << pr.page () + 1
-          <<             (q.empty () ? "" : "&" + q)
-          <<     ~HREF
-          <<     "Next"
-          <<   ~A;
-      }
+        s << A
+          << HREF << "/?p=" << pr.page () + 1 << (q.empty () ? "" : "&" + q)
+          << ~HREF
+          <<   "Next"
+          << ~A;
 
-      s <<   ~DIV;
+      s << ~DIV;
     }
 
     s <<   ~BODY

@@ -5,15 +5,13 @@
 #ifndef WEB_XHTML
 #define WEB_XHTML
 
-#include <functional> // function
-
 #include <xml/serializer>
 
 namespace web
 {
   // "Canonical" XHTML5 vocabulary.
   //
-  // One-letter tag names and local variable clash problem:
+  // * One-letter tag names and local variable clash problem
   //
   // a at|an|an  anc anch
   // b bt|bo|bl  bld bold
@@ -27,6 +25,7 @@ namespace web
   //   - _a, a_, xa
   //   - A, I
   //   - x::i
+  //   - user-defined literals: "a"_e, "/a"_e, "id"_a
   //
   // Things can actually get much worse, consider:
   //
@@ -36,11 +35,34 @@ namespace web
   // So perhaps this is the situation where the explicit namespace
   // qualification (e.g., x::p) is the only robust option?
   //
+  //
+  // * Element/attribute name clash problem (e.g., STYLE)
+  //
+  //   - some attribute/element name decorator (STYLEA, STYLE_A, STYLE_)
+  //   - rename attribute/element (e.g., STYLEDEF or CSSSTYLE[adds TYPE]);
+  //     in case of STYLE we should probably rename the element since
+  //     attribute will be much more frequently used.
+  //   - "scope" attributes inside elements (P::STYLE); somewhat
+  //     burdensome: P(P::STYLE); could then use low-case names
+  //     for attributes
+  //   - "scope" elements inside other elements (HEAD::STYLE); also
+  //     burdensome.
+  //
+  //
+  // * Text wrapping/indentation
+  //
+  // For some (inline) elements we want additional indentation:
+  //
+  // 1. Indent content on newline (e.g., for <style>).
+  // 2. Automatically wrap and indent lines at (or before) certain
+  //    length, say, 80 characters (e.g., for <p>).
+  //
+  // Would be nice to be able to implement this at the XHTML level,
+  // not XML.
+  //
   namespace xhtml
   {
     const char* const xmlns = "http://www.w3.org/1999/xhtml";
-
-    using serializer_func = std::function<void(xml::serializer&)>;
 
     struct attr_value_base
     {
@@ -83,12 +105,27 @@ namespace web
       operator() (xml::serializer& s) const;
     };
 
+    class end_element
+    {
+    public:
+      const char* name;
+
+      explicit
+      end_element (const char* n): name (n) {}
+
+      virtual void
+      operator() (xml::serializer& s) const
+      {
+        return s.end_element (xmlns, name);
+      }
+    };
+
     struct element_base
     {
       virtual void
       operator() (xml::serializer& s) const = 0;
 
-      virtual serializer_func
+      virtual end_element
       operator~ () const = 0;
 
       empty_element
@@ -111,7 +148,7 @@ namespace web
       virtual void
       operator() (xml::serializer& s) const {s << *e << *a;}
 
-      virtual serializer_func
+      virtual end_element
       operator~ () const {return ~*e;}
     };
 
@@ -125,11 +162,8 @@ namespace web
       virtual void
       operator() (xml::serializer& s) const {s.start_element (xmlns, name);}
 
-      virtual serializer_func
-      operator~ () const
-      {
-        return [this](xml::serializer& s) {s.end_element (xmlns, name);};
-      }
+      virtual end_element
+      operator~ () const {return end_element (name);}
 
       // s << elem(attr1 = 123, attr2 = "abc");
       //
@@ -147,12 +181,20 @@ namespace web
         a1.next = operator() (an...).a;
         return attr_element (*this, a1);
       }
+    };
 
-// @@ Now always need to provide element name, so operator~ () could create
-//    the lambda capable to pass a valid name to end_element call.
-//
-//    protected:
-//    element () = default;
+    class end_inline_element: public end_element
+    {
+    public:
+      explicit
+      end_inline_element (const char* n): end_element (n) {}
+
+      virtual void
+      operator() (xml::serializer& s) const
+      {
+        s.end_element (xmlns, name);
+        s.resume_indentation ();
+      }
     };
 
     struct inline_element: element
@@ -167,14 +209,23 @@ namespace web
         element::operator() (s);
       }
 
-      virtual serializer_func
-      operator~ () const
-      {
-        return [this](xml::serializer& s)
-        {
-          s.end_element (xmlns, name); s.resume_indentation ();
-        };
-      }
+      //@@ Can't do that: you are slicing end_inline_element to
+      //   end_element.
+      //
+      virtual end_element
+      operator~ () const {return end_inline_element (name);}
+    };
+
+    class end_attribute
+    {
+    public:
+      const char* name;
+
+      explicit
+      end_attribute (const char* n): name (n) {}
+
+      virtual void
+      operator() (xml::serializer& s) const {return s.end_attribute (name);}
     };
 
     struct attribute
@@ -201,11 +252,8 @@ namespace web
       void
       operator() (xml::serializer& s) const {s.start_attribute (name);}
 
-      virtual serializer_func
-      operator~ () const
-      {
-        return [this](xml::serializer& s) {s.end_attribute (name);};
-      }
+      virtual end_attribute
+      operator~ () const {return end_attribute (name);}
     };
 
     // Elements.
@@ -244,10 +292,22 @@ namespace web
     };
     static const head_element HEAD;
 
+    struct css_style_element: element
+    {
+      css_style_element (): element ("style") {}
+
+      virtual void
+      operator() (xml::serializer& s) const
+      {
+        s.start_element (xmlns, name);
+        s.attribute ("type", "text/css");
+      }
+    };
+    static const css_style_element CSS_STYLE;
+
     static const element BODY  ("body");
     static const element DIV   ("div");
     static const element P     ("p");
-    static const element STYLE ("style");
     static const element TITLE ("title");
 
     static const inline_element A ("a");
@@ -263,13 +323,8 @@ namespace web
     static const attribute CLASS ("class");
     static const attribute HREF  ("href");
     static const attribute ID    ("id");
+    static const attribute STYLE ("style");
     static const attribute TYPE  ("type");
-
-// @@ Attribute variable names clash with element variable names.
-//    Should we prefix/suffix attribute names like _STYLE, STYLE_ or there
-//    are some better ideas ?
-//
-//  static const attribute STYLE ("style");
   }
 }
 
