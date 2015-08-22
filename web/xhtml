@@ -95,7 +95,17 @@ namespace web
 
     struct element_base;
 
-    // Element without any content, e.g., *BR.
+    // End tag of an element (~P).
+    //
+    struct end_element
+    {
+      const element_base* e;
+
+      void
+      operator() (xml::serializer& s) const;
+    };
+
+    // Element without any conten (*BR).
     //
     struct empty_element
     {
@@ -105,32 +115,21 @@ namespace web
       operator() (xml::serializer& s) const;
     };
 
-    class end_element
-    {
-    public:
-      const char* name;
-
-      explicit
-      end_element (const char* n): name (n) {}
-
-      virtual void
-      operator() (xml::serializer& s) const
-      {
-        return s.end_element (xmlns, name);
-      }
-    };
-
     struct element_base
     {
       virtual void
-      operator() (xml::serializer& s) const = 0;
+      start (xml::serializer& s) const = 0;
 
-      virtual end_element
-      operator~ () const = 0;
+      virtual void
+      end (xml::serializer& s) const = 0;
 
-      empty_element
-      operator* () const {return empty_element {this};}
+      void          operator() (xml::serializer& s) const {start (s);}
+      end_element   operator~  () const {return end_element {this};}
+      empty_element operator*  () const {return empty_element {this};}
     };
+
+    inline void end_element::
+    operator() (xml::serializer& s) const {e->end (s);}
 
     inline void empty_element::
     operator() (xml::serializer& s) const {s << *e << ~*e;}
@@ -146,10 +145,10 @@ namespace web
           : e (&e), a (&a) {}
 
       virtual void
-      operator() (xml::serializer& s) const {s << *e << *a;}
+      start (xml::serializer& s) const {e->start (s); s << *a;}
 
-      virtual end_element
-      operator~ () const {return ~*e;}
+      virtual void
+      end (xml::serializer& s) const {e->end (s);}
     };
 
     struct element: element_base
@@ -160,10 +159,10 @@ namespace web
       element (const char* n): name (n) {}
 
       virtual void
-      operator() (xml::serializer& s) const {s.start_element (xmlns, name);}
+      start (xml::serializer& s) const {s.start_element (xmlns, name);}
 
-      virtual end_element
-      operator~ () const {return end_element (name);}
+      virtual void
+      end (xml::serializer& s) const {s.end_element (xmlns, name);}
 
       // s << elem(attr1 = 123, attr2 = "abc");
       //
@@ -181,51 +180,36 @@ namespace web
         a1.next = operator() (an...).a;
         return attr_element (*this, a1);
       }
-    };
 
-    class end_inline_element: public end_element
-    {
-    public:
-      explicit
-      end_inline_element (const char* n): end_element (n) {}
-
-      virtual void
-      operator() (xml::serializer& s) const
-      {
-        s.end_element (xmlns, name);
-        s.resume_indentation ();
-      }
+      using element_base::operator();
     };
 
     struct inline_element: element
     {
       using element::element;
-      using element::operator();
 
       virtual void
-      operator() (xml::serializer& s) const
+      start (xml::serializer& s) const
       {
         s.suspend_indentation ();
-        element::operator() (s);
+        element::start (s);
       }
 
-      //@@ Can't do that: you are slicing end_inline_element to
-      //   end_element.
-      //
-      virtual end_element
-      operator~ () const {return end_inline_element (name);}
+      virtual void
+      end (xml::serializer& s) const
+      {
+        element::end (s);
+        s.resume_indentation ();
+      }
     };
 
-    class end_attribute
+    struct attribute;
+    struct end_attribute
     {
-    public:
-      const char* name;
+      const attribute* a;
 
-      explicit
-      end_attribute (const char* n): name (n) {}
-
-      virtual void
-      operator() (xml::serializer& s) const {return s.end_attribute (name);}
+      void
+      operator() (xml::serializer& s) const;
     };
 
     struct attribute
@@ -249,12 +233,18 @@ namespace web
 
       // s << attr1 << 123 << ~attr1 << attr2 << "abc" << ~attr2;
       //
-      void
-      operator() (xml::serializer& s) const {s.start_attribute (name);}
+      virtual void
+      start (xml::serializer& s) const {s.start_attribute (name);};
 
-      virtual end_attribute
-      operator~ () const {return end_attribute (name);}
+      virtual void
+      end (xml::serializer& s) const {s.end_attribute (name);}
+
+      void          operator() (xml::serializer& s) const {start (s);}
+      end_attribute operator~  () const {return end_attribute {this};}
     };
+
+    inline void end_attribute::
+    operator() (xml::serializer& s) const {a->end (s);}
 
     // Elements.
     //
@@ -268,7 +258,7 @@ namespace web
       html_element (): element ("html") {}
 
       virtual void
-      operator() (xml::serializer& s) const
+      start (xml::serializer& s) const
       {
         s.doctype_decl ("html");
         s.start_element (xmlns, name);
@@ -282,7 +272,7 @@ namespace web
       head_element (): element ("head") {}
 
       virtual void
-      operator() (xml::serializer& s) const
+      start (xml::serializer& s) const
       {
         s.start_element (xmlns, name);
         s.start_element (xmlns, "meta");
@@ -297,7 +287,7 @@ namespace web
       css_style_element (): element ("style") {}
 
       virtual void
-      operator() (xml::serializer& s) const
+      start (xml::serializer& s) const
       {
         s.start_element (xmlns, name);
         s.attribute ("type", "text/css");
