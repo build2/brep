@@ -1,0 +1,11 @@
+: 1
+# Foreign repository manifest.
+#
+location: http://pkg.cppget.org/1/math
+:
+# Foreign repository manifest.
+#
+location: ../../../external/1/misc
+:
+# Local repository manifest (this repository).
+#

@@ -97,7 +97,9 @@ main (int argc, char* argv[])
       dir_path srp (cp.directory () / dir_path ("internal/1/stable"));
       assert (sr->local_path == srp.normalize ());
 
-      assert (sr->timestamp == srt);
+      assert (sr->packages_timestamp == srt);
+      assert (sr->repositories_timestamp ==
+              file_mtime (dir_path (sr->local_path) / path ("repositories")));
       assert (sr->internal);
       assert (sr->prerequisite_repositories.size () == 2);
 
@@ -335,8 +337,10 @@ main (int argc, char* argv[])
       dir_path mrp (cp.directory () / dir_path ("internal/1/math"));
       assert (mr->local_path == mrp.normalize ());
 
-      assert (mr->timestamp ==
+      assert (mr->packages_timestamp ==
               file_mtime (dir_path (mr->local_path) / path ("packages")));
+      assert (mr->repositories_timestamp ==
+              file_mtime (dir_path (mr->local_path) / path ("repositories")));
       assert (mr->internal);
       assert (mr->prerequisite_repositories.size () == 1);
       assert (mr->prerequisite_repositories[0].load () == cr);
@@ -411,8 +415,9 @@ main (int argc, char* argv[])
       dir_path crp (cp.directory () / dir_path ("external/1/misc"));
       assert (cr->local_path == crp.normalize ());
 
-      assert (cr->timestamp ==
+      assert (cr->packages_timestamp ==
               file_mtime (dir_path (cr->local_path) / path ("packages")));
+      assert (cr->repositories_timestamp == timestamp_nonexistent);
       assert (!cr->internal);
       assert (cr->prerequisite_repositories.empty ());
 

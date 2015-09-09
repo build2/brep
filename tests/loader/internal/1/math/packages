@@ -1,11 +1,4 @@
 : 1
-# Foreign repository manifest.
-#
-location: ../../../external/1/misc
-:
-# Local repository manifest (this repository).
-#
-:
 name: libexp
 version: 1+1.2
 summary: The exponent

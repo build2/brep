@@ -251,7 +251,12 @@ namespace brep
 
     // Initialized with timestamp_nonexistent by default.
     //
-    timestamp_type timestamp;
+    timestamp_type packages_timestamp;
+
+    // Initialized with timestamp_nonexistent by default.
+    // For external repositories stays timestamp_nonexistent.
+    //
+    timestamp_type repositories_timestamp;
 
     bool internal;
     package_versions_type package_versions;

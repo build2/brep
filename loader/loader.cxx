@@ -63,6 +63,9 @@ struct internal_repository
 
   path
   packages_path () const {return local_path / path ("packages");}
+
+  path
+  repositories_path () const {return local_path / path ("repositories");}
 };
 
 using internal_repositories = vector<internal_repository>;
@@ -173,6 +176,9 @@ load_repositories (path p)
       if (!file_exists (r.packages_path ()))
         bad_line ("'packages' file does not exist");
 
+      if (!file_exists (r.repositories_path ()))
+        bad_line ("'repositories' file does not exist");
+
       repos.emplace_back (move (r));
 
       // Check that there is no non-whitespace junk at the end.
@@ -206,7 +212,9 @@ changed (const internal_repositories& repos, database& db)
 
     if (pr == nullptr || r.location.string () != pr->location.string () ||
         r.display_name != pr->display_name || r.local_path != pr->local_path ||
-        file_mtime (r.packages_path ()) != pr->timestamp || !pr->internal)
+        file_mtime (r.packages_path ()) != pr->packages_timestamp ||
+        file_mtime (r.repositories_path ()) != pr->repositories_timestamp ||
+        !pr->internal)
       return true;
 
     names.emplace_back (r.location.canonical_name ());
@@ -231,7 +239,7 @@ changed (const internal_repositories& repos, database& db)
 static void
 load_repository (const shared_ptr<repository>& rp, database& db)
 {
-  if (rp->timestamp != timestamp_nonexistent)
+  if (rp->packages_timestamp != timestamp_nonexistent)
     return; // The repository is already loaded.
 
   // Only locally accessible repositories allowed until package manager API is
@@ -239,31 +247,31 @@ load_repository (const shared_ptr<repository>& rp, database& db)
   //
   assert (!rp->local_path.empty ());
 
-  path p (rp->local_path / path ("packages"));
-
-  ifstream ifs (p.string ());
-  if (!ifs.is_open ())
-    throw ifstream::failure (p.string () + ": unable to open");
-  ifs.exceptions (ifstream::badbit | ifstream::failbit);
-
-  // Mark as loaded. This is important in case we try to load this
-  // repository again recursively.
-  //
-  rp->timestamp = file_mtime (p);
-
-  manifest_parser mp (ifs, p.string ());
-  manifests ms (mp);
-
-  // Close to avoid unpredictable number of files being simultaneously
-  // opened due to load_repository() recursive calls.
-  //
-  ifs.close ();
+  auto mstream ([](const path& p, ifstream& f) -> timestamp
+    {
+      f.open (p.string ());
+      if (!f.is_open ())
+        throw ifstream::failure (p.string () + ": unable to open");
+      f.exceptions (ifstream::badbit | ifstream::failbit);
+      return file_mtime (p);
+    });
 
   // Don't add prerequisite repositories for external repositories.
   //
   if (rp->internal)
   {
-    for (auto& rm: ms.repositories)
+    repository_manifests rpm;
+
+    {
+      ifstream ifs;
+      path p (rp->local_path / path ("repositories"));
+      rp->repositories_timestamp = mstream (p, ifs);
+
+      manifest_parser mp (ifs, p.string ());
+      rpm = repository_manifests (mp);
+    }
+
+    for (auto& rm: rpm)
     {
       if (rm.location.empty ())
         continue; // Ignore entry for this repository.
@@ -342,7 +350,22 @@ load_repository (const shared_ptr<repository>& rp, database& db)
   session& s (session::current ());
   session::reset_current ();
 
-  for (auto& pm: ms.packages)
+  package_manifests pkm;
+
+  {
+    ifstream ifs;
+    path p (rp->local_path / path ("packages"));
+
+    // Mark as loaded. This is important in case we try to load this
+    // repository again recursively.
+    //
+    rp->packages_timestamp = mstream (p, ifs);
+
+    manifest_parser mp (ifs, p.string ());
+    pkm = package_manifests (mp);
+  }
+
+  for (auto& pm: pkm)
   {
     max_package_version mv;
 
@@ -521,10 +544,10 @@ main (int argc, char* argv[])
       db.erase_query<package> ();
       db.erase_query<package_version> ();
 
-      // We use repository object timestamp as a flag to signal that
+      // We use repository object packages_timestamp as a flag to signal that
       // we have already loaded this repo. The easiest way to make
       // it work in case of cycles is to use a session. This way,
-      // the repository object on which we updated the timestamp
+      // the repository object on which we updated the packages_timestamp
       // will be the same as the one we may check down the call
       // stack.
       //
@@ -532,7 +555,7 @@ main (int argc, char* argv[])
 
       // On the first pass over the internal repositories list we
       // persist empty repository objects, setting the interal flag
-      // to true and timestamp to non-existent. The idea is to
+      // to true and packages_timestamp to non-existent. The idea is to
       // establish the "final" list of internal repositories.
       //
       for (auto& ir: irs)

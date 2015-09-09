@@ -1,0 +1,11 @@
+: 1
+# Foreign repository manifest.
+#
+location: http://pkg.example.org/1/misc
+:
+# Foreign repository manifest.
+#
+location: http://pkg.example.org/1/math
+:
+# Local repository manifest (this repository).
+#
