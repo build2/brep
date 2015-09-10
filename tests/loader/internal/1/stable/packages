@@ -7,6 +7,7 @@ tags: c++, foo
 url: http://www.example.com/foo/
 email: foo-users@example.com
 depends: libmisc >= 2.0.0
+location: libfoo-1.2.3-4.tar.gz
 :
 name: libstudxml
 version: 1.0.0-1
@@ -21,6 +22,7 @@ email: studxml-users@codesynthesis.com; Public mailing list, posts by\
 package-email: boris@codesynthesis.com; Direct email to the author.
 depends: libexpat >= 2.0.0
 depends: libgenx
+location: libstudxml-1.0.0-1.tar.gz
 :
 name: libfoo
 version: 1.2.2
@@ -35,6 +37,7 @@ requires: linux | windows | macosx
 requires: c++11
 requires: ? ; VC++ 12.0 or later if targeting Windows.
 requires: ? ; libc++ standard library if using Clang on Mac OS X.
+location: libfoo-1.2.2.tar.gz
 :
 name: libfoo
 version: 1.2.4
@@ -47,3 +50,4 @@ email: foo-users@example.com
 depends: libmisc >= 2.0.0
 changes: some changes 1
 changes: some changes 2
+location: libfoo-1.2.4.tar.gz

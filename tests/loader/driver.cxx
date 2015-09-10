@@ -35,6 +35,17 @@ operator== (const dependency& a, const dependency& b)
                     a.version->operation == b.version->operation));
 }
 
+static bool
+check_location (shared_ptr<package_version>& pv)
+{
+  if (pv->repository.load ()->internal)
+    return pv->location && *pv->location ==
+      path (pv->package.load ()->name + "-" + pv->version.string () +
+            ".tar.gz");
+  else
+    return !pv->location;
+}
+
 int
 main (int argc, char* argv[])
 {
@@ -143,6 +154,7 @@ main (int argc, char* argv[])
             fv1.epoch (),
             fv1.canonical_upstream ()}));
       assert (srv[0].load () == fpv1);
+      assert (check_location (fpv1));
 
       version fv2 ("1.2.3-4");
       shared_ptr<package_version> fpv2 (
@@ -153,6 +165,7 @@ main (int argc, char* argv[])
             fv2.epoch (),
             fv2.canonical_upstream ()}));
       assert (srv[1].load () == fpv2);
+      assert (check_location (fpv2));
 
       version fv3 ("1.2.4");
       shared_ptr<package_version> fpv3 (
@@ -163,6 +176,7 @@ main (int argc, char* argv[])
             fv3.epoch (),
             fv3.canonical_upstream ()}));
       assert (srv[2].load () == fpv3);
+      assert (check_location (fpv3));
 
       version xv ("1.0.0-1");
       shared_ptr<package_version> xpv (
@@ -173,6 +187,7 @@ main (int argc, char* argv[])
             xv.epoch (),
             xv.canonical_upstream ()}));
       assert (srv[3].load () == xpv);
+      assert (check_location (xpv));
 
       // Verify libstudxml package.
       //
@@ -358,6 +373,7 @@ main (int argc, char* argv[])
             ev.epoch (),
             ev.canonical_upstream ()}));
       assert (mrv[0].load () == epv);
+      assert (check_location (epv));
 
       version fv4 ("1.2.4-1");
       shared_ptr<package_version> fpv4 (
@@ -369,6 +385,7 @@ main (int argc, char* argv[])
             fv4.canonical_upstream ()}));
       assert (mrv[1].load () == fpv4);
       assert (fpv[3].load () == fpv4);
+      assert (check_location (fpv4));
 
       // Verify libexp package.
       //
@@ -433,6 +450,7 @@ main (int argc, char* argv[])
             bv.epoch (),
             bv.canonical_upstream ()}));
       assert (crv[0].load () == bpv);
+      assert (check_location (bpv));
 
       // Verify libbar package.
       //

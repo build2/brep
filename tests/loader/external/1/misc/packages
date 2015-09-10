@@ -12,3 +12,4 @@ depends: libfoo
 depends: libmath >= 2.0.0
 requires: linux | windows | macosx
 changes: some changes
+location: libbar-2.3.5.tar.gz

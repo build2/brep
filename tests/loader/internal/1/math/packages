@@ -7,6 +7,7 @@ tags: c++, exponent
 url: http://www.exp.com
 email: users@exp.com
 depends: libmisc
+location: libexp-1+1.2.tar.gz
 :
 name: libfoo
 version: 1.2.4-1
@@ -17,3 +18,4 @@ tags: c++, foo, math
 url: http://www.example.com/foo/
 email: foo-users@example.com
 depends: libmisc >= 2.3.0
+location: libfoo-1.2.4-1.tar.gz

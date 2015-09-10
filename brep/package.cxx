@@ -62,7 +62,8 @@ namespace brep
                    license_alternatives_type la,
                    string ch,
                    dependencies_type dp,
-                   requirements_type rq)
+                   requirements_type rq,
+                   optional<path> lc)
       : repository (move (rp)),
         package (move (pk)),
         version (move (vr)),
@@ -70,7 +71,8 @@ namespace brep
         license_alternatives (move (la)),
         changes (move (ch)),
         dependencies (move (dp)),
-        requirements (move (rq))
+        requirements (move (rq)),
+        location (move (lc))
   {
   }
 

@@ -80,6 +80,13 @@ namespace brep
   #pragma db map type(path) as(std::string)  \
     to((?).string ()) from(brep::path (?))
 
+  using optional_path = optional<path>;
+  using optional_string = optional<std::string>;
+
+  #pragma db map type(optional_path) as(brep::optional_string) \
+    to((?) ? (?)->string () : brep::optional_string ())        \
+    from((?) ? brep::path (*(?)) : brep::optional_path ())
+
   using dir_path = butl::dir_path;
 
   #pragma db map type(dir_path) as(std::string)  \
@@ -352,7 +359,8 @@ namespace brep
                      license_alternatives_type,
                      std::string changes,
                      dependencies_type,
-                     requirements_type);
+                     requirements_type,
+                     optional<path> location);
 
     // Manifest data.
     //
@@ -364,6 +372,7 @@ namespace brep
     std::string changes;
     dependencies_type dependencies;
     requirements_type requirements;
+    optional<path> location;
 
     // Database mapping.
     //

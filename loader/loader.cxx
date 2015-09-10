@@ -416,6 +416,7 @@ load_repository (const shared_ptr<repository>& rp, database& db)
     //
     dependencies dep;
     requirements req;
+    brep::optional<path> loc; // Ambiguity with butl::optional.
     string chn;
 
     // Don't add dependencies, requirements and changes for external
@@ -425,6 +426,7 @@ load_repository (const shared_ptr<repository>& rp, database& db)
     {
       dep = move (pm.dependencies);
       req = move (pm.requirements);
+      loc = move (pm.location);
 
       for (auto& c: pm.changes)
       {
@@ -450,7 +452,8 @@ load_repository (const shared_ptr<repository>& rp, database& db)
                         move (pm.license_alternatives),
                         move (chn),
                         move (dep),
-                        move (req));
+                        move (req),
+                        move (loc));
 
     db.persist (pv);
   }
