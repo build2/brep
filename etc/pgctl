@@ -8,6 +8,8 @@
 . `dirname $0`/config
 
 CMD="$1"
+shift
+
 SOCKET_DIR="$PG_WORKSPACE_DIR"
 OUT_FILE="$PG_WORKSPACE_DIR/out"
 
@@ -90,7 +92,7 @@ case $CMD in
 
     if test $? -eq 0; then
       echo "PostgreSQL server stopping ..."
-      pg_ctl stop -D "$PG_DATA_DIR"
+      pg_ctl stop -D "$PG_DATA_DIR" "$@"
       ERROR=$?
 
       if test $ERROR -eq 0; then
