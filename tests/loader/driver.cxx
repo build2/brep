@@ -92,7 +92,7 @@ main (int argc, char* argv[])
 
       assert (db.query<repository> ().size () == 3);
       assert (db.query<package> ().size () == 4);
-      assert (db.query<package_version> ().size () == 7);
+      assert (db.query<package_version> ().size () == 8);
 
       shared_ptr<repository> sr (db.load<repository> ("cppget.org/stable"));
       shared_ptr<repository> mr (db.load<repository> ("cppget.org/math"));
@@ -128,7 +128,7 @@ main (int argc, char* argv[])
                     sr->prerequisite_repositories[1].load ()) != pr.end ());
 
       auto& srv (sr->package_versions);
-      assert (srv.size () == 4);
+      assert (srv.size () == 5);
 
       using lv_t = decltype (srv[0]);
       auto vc ([](const lv_t& a, const lv_t& b){
@@ -145,6 +145,17 @@ main (int argc, char* argv[])
 
       sort (srv.begin (), srv.end (), vc);
 
+      version fv0 ("1.0");
+      shared_ptr<package_version> fpv0 (
+        db.load<package_version> (
+          package_version_id {
+            "cppget.org/stable",
+            "libfoo",
+            fv0.epoch (),
+            fv0.canonical_upstream ()}));
+      assert (srv[0].load () == fpv0);
+      assert (check_location (fpv0));
+
       version fv1 ("1.2.2");
       shared_ptr<package_version> fpv1 (
         db.load<package_version> (
@@ -153,7 +164,7 @@ main (int argc, char* argv[])
             "libfoo",
             fv1.epoch (),
             fv1.canonical_upstream ()}));
-      assert (srv[0].load () == fpv1);
+      assert (srv[1].load () == fpv1);
       assert (check_location (fpv1));
 
       version fv2 ("1.2.3-4");
@@ -164,7 +175,7 @@ main (int argc, char* argv[])
             "libfoo",
             fv2.epoch (),
             fv2.canonical_upstream ()}));
-      assert (srv[1].load () == fpv2);
+      assert (srv[2].load () == fpv2);
       assert (check_location (fpv2));
 
       version fv3 ("1.2.4");
@@ -175,7 +186,7 @@ main (int argc, char* argv[])
             "libfoo",
             fv3.epoch (),
             fv3.canonical_upstream ()}));
-      assert (srv[2].load () == fpv3);
+      assert (srv[3].load () == fpv3);
       assert (check_location (fpv3));
 
       version xv ("1.0.0-1");
@@ -186,7 +197,7 @@ main (int argc, char* argv[])
             "libstudxml",
             xv.epoch (),
             xv.canonical_upstream ()}));
-      assert (srv[3].load () == xpv);
+      assert (srv[4].load () == xpv);
       assert (check_location (xpv));
 
       // Verify libstudxml package.
@@ -242,24 +253,42 @@ main (int argc, char* argv[])
       assert (pf->name == "libfoo");
       assert (pf->summary == "The Foo Math Library");
       assert (pf->tags == strings ({"c++", "foo", "math"}));
-      assert (*pf->description == "Very good math library.");
+      assert (*pf->description ==
+              "A modern C++ library with easy to use linear algebra and "
+              "optimization tools. There are over 100 functions in total with "
+              "an extensive test suite. The API is similar to MATLAB.");
       assert (pf->url == "http://www.example.com/foo/");
-      assert (!pf->package_url);
-      assert (pf->email == email ("foo-users@example.com"));
-      assert (!pf->package_email);
+      assert (pf->package_url &&
+              *pf->package_url == "http://www.example.com/foo/pack");
+      assert (pf->email == "foo-users@example.com");
+      assert (pf->package_email && *pf->package_email == "pack@example.com");
 
       auto& fpv (pf->versions);
-      assert (fpv.size () == 4);
+      assert (fpv.size () == 5);
       sort (fpv.begin (), fpv.end (), vc);
-      assert (fpv[0].load () == fpv1);
-      assert (fpv[1].load () == fpv2);
-      assert (fpv[2].load () == fpv3);
+      assert (fpv[0].load () == fpv0);
+      assert (fpv[1].load () == fpv1);
+      assert (fpv[2].load () == fpv2);
+      assert (fpv[3].load () == fpv3);
       // Asserting fpv[3].load () == fpv4 goes later when fpv4, belonging to
       // another repository, get introduced.
       //
 
       // Verify libfoo package versions.
       //
+      assert (fpv0->repository.load () == sr);
+      assert (fpv0->package.load () == pf);
+      assert (fpv0->version == version ("1.0"));
+      assert (fpv0->priority == priority::low);
+      assert (fpv0->changes.empty ());
+
+      assert (fpv0->license_alternatives.size () == 1);
+      assert (fpv0->license_alternatives[0].size () == 1);
+      assert (fpv0->license_alternatives[0][0] == "MIT");
+
+      assert (fpv0->dependencies.empty ());
+      assert (fpv0->requirements.empty ());
+
       assert (fpv1->repository.load () == sr);
       assert (fpv1->package.load () == pf);
       assert (fpv1->version == version ("1.2.2"));
@@ -384,8 +413,38 @@ main (int argc, char* argv[])
             fv4.epoch (),
             fv4.canonical_upstream ()}));
       assert (mrv[1].load () == fpv4);
-      assert (fpv[3].load () == fpv4);
+      assert (fpv[4].load () == fpv4);
       assert (check_location (fpv4));
+
+      // Verify libfoo package versions.
+      //
+      assert (fpv4->repository.load () == mr);
+      assert (fpv4->package.load () == pf);
+      assert (fpv4->version == version ("1.2.4-1"));
+      assert (fpv4->priority == priority::high);
+      assert (fpv4->changes.empty ());
+
+      assert (fpv4->license_alternatives.size () == 2);
+      assert (fpv4->license_alternatives[0].comment ==
+              "If using with GNU TLS.");
+      assert (fpv4->license_alternatives[0].size () == 2);
+      assert (fpv4->license_alternatives[0][0] == "LGPLv2");
+      assert (fpv4->license_alternatives[0][1] == "MIT");
+      assert (fpv4->license_alternatives[1].comment ==
+              "If using with OpenSSL.");
+      assert (fpv4->license_alternatives[1].size () == 1);
+      assert (fpv4->license_alternatives[1][0] == "BSD");
+
+      assert (fpv4->dependencies.size () == 1);
+      assert (fpv4->dependencies[0].size () == 1);
+
+      assert (fpv4->dependencies[0][0] ==
+              (dependency {
+                 "libmisc",
+                 brep::optional<version_comparison> (
+                   version_comparison{version ("2.3.0"), comparison::ge})}));
+
+      assert (fpv4->requirements.empty ());
 
       // Verify libexp package.
       //
@@ -488,8 +547,8 @@ main (int argc, char* argv[])
       // Update package summary, update package persistent state, rerun loader
       // and ensure the model were not rebuilt.
       //
-      pf->summary = "test";
-      db.update (pf);
+      pb->summary = "test";
+      db.update (pb);
 
       t.commit ();
     }
@@ -497,7 +556,7 @@ main (int argc, char* argv[])
     assert (process (ld_args).wait ());
 
     transaction t (db.begin ());
-    assert (db.load<package> ("libfoo")->summary == "test");
+    assert (db.load<package> ("libbar")->summary == "test");
     t.commit ();
   }
   // Fully qualified to avoid ambiguity with odb exception.

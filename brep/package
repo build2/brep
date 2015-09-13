@@ -482,6 +482,13 @@ namespace brep
     #pragma db member(id) virtual(package_version::_id_type) \
       get() set(_id (std::move (?)))
   };
+
+  #pragma db view object(package_version)
+  struct package_version_count
+  {
+    #pragma db column("count(1)")
+    std::size_t count;
+  };
 }
 
 // Nested container emulation support for ODB.

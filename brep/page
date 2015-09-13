@@ -1,0 +1,52 @@
+// file      : brep/page -*- C++ -*-
+// copyright : Copyright (c) 2014-2015 Code Synthesis Ltd
+// license   : MIT; see accompanying LICENSE file
+
+#ifndef BREP_PAGE
+#define BREP_PAGE
+
+#include <string>
+#include <cstddef>    // size_t
+#include <functional>
+
+#include <xml/forward>
+
+namespace brep
+{
+  // Page common building blocks.
+  //
+
+  // Generates paging element block.
+  //
+  class pager
+  {
+  public:
+    using get_url_type = std::function<std::string(std::size_t page)>;
+
+    pager (std::size_t current_page,
+           std::size_t item_count,
+           std::size_t item_per_page,
+           std::size_t page_number_count,
+           get_url_type get_url);
+
+    void
+    operator() (xml::serializer& s) const;
+
+  private:
+    std::size_t current_page_;
+    std::size_t item_count_;
+    std::size_t item_per_page_;
+    std::size_t page_number_count_;
+    get_url_type get_url_;
+  };
+
+  // Default pager element block style.
+  //
+  struct pager_style
+  {
+    void
+    operator() (xml::serializer& s) const;
+  };
+}
+
+#endif // BREP_PAGE

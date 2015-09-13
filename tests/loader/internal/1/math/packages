@@ -12,10 +12,16 @@ location: libexp-1+1.2.tar.gz
 name: libfoo
 version: 1.2.4-1
 summary: The Foo Math Library
-description: Very good math library.
-license: MIT
+description: A modern C++ library with easy to use linear algebra and \
+optimization tools. There are over 100 functions in total with an extensive \
+test suite. The API is similar to MATLAB.
+license: LGPLv2, MIT; If using with GNU TLS.
+license: BSD; If using with OpenSSL.
+priority: high
 tags: c++, foo, math
 url: http://www.example.com/foo/
 email: foo-users@example.com
+package-url: http://www.example.com/foo/pack
+package-email: pack@example.com
 depends: libmisc >= 2.3.0
 location: libfoo-1.2.4-1.tar.gz

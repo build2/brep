@@ -31,7 +31,7 @@ cli --include-with-brackets --include-prefix brep  --hxx-suffix "" \
 echo "g++ libbrep-apache.so"
 
 s="package-search.cxx package-version-search.cxx module.cxx diagnostics.cxx \
-services.cxx options.cxx shared-database.cxx \
+page.cxx services.cxx options.cxx shared-database.cxx \
 ../web/apache/request.cxx ../web/apache/service.cxx \
 ../web/mime-url-encoding.cxx"
 
