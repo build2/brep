@@ -16,6 +16,7 @@
 #include <web/module>
 #include <web/mime-url-encoding>
 
+#include <brep/page>
 #include <brep/package>
 #include <brep/package-odb>
 #include <brep/shared-database>
@@ -69,9 +70,14 @@ namespace brep
       <<   HEAD
       <<     TITLE << title << ~TITLE
       <<     CSS_STYLE << ident
-      <<     ".package {margin: 0 0 0.5em;}" << ident
-      <<     ".name a {text-decoration: none;}" << ident
-      <<     ".summary {font-size: small;}"
+      <<       pager_style () << ident
+      <<       "a {text-decoration: none;}" << ident
+      <<       "a:hover {text-decoration: underline;}" << ident
+      <<       ".packages {font-size: x-large;}" << ident
+      <<       ".package {margin: 0.5em 0 0;}" << ident
+      <<       ".name {font-size: x-large;}" << ident
+      <<       ".tags {margin: 0.1em 0 0;}" << ident
+      <<       ".tag {padding: 0 0.3em 0 0;}" << ident
       <<     ~CSS_STYLE
       <<   ~HEAD
       <<   BODY;
@@ -79,24 +85,35 @@ namespace brep
     string q (
       pr.query ().empty () ? "" : "q=" + mime_url_encode (pr.query ()));
 
+    size_t rop (options_->results_on_page ());
+
     transaction t (db_->begin ());
 
+    // @@ Query will include search criteria if specified.
+    //
+    size_t pc (db_->query_value<package_count> ().count);
+
+    s << DIV(CLASS="packages")
+      <<   "Packages (" << pc << ")"
+      << ~DIV;
+
     // @@ Use appropriate view when clarify which package info to be displayed
-    //    and search index structure get implemented.
+    //    and search index structure get implemented. Query will also
+    //    include search criteria if specified.
     //
     using query = query<package>;
     auto r (
       db_->query<package> (
         "ORDER BY" + query::name +
-        "OFFSET" + to_string (pr.page () * options_->results_on_page ()) +
-        "LIMIT" + to_string (options_->results_on_page ())));
+        "OFFSET" + to_string (pr.page () * rop) +
+        "LIMIT" + to_string (rop)));
 
     for (const auto& p: r)
     {
       s << DIV(CLASS="package")
         <<   DIV(CLASS="name")
         <<     A
-        <<     HREF << "/go/" << mime_url_encode (p.name);
+        <<     HREF << "/go/" << mime_url_encode (p.name) << "/";
 
       // Propagate search criteria to the package version search url.
       //
@@ -109,39 +126,38 @@ namespace brep
         <<   ~DIV
         <<   DIV(CLASS="summary")
         <<     p.summary
-        <<   ~DIV
-        << ~DIV;
-    }
+        <<   ~DIV;
 
-    t.commit ();
+      if (!p.tags.empty ())
+      {
+        s << DIV(CLASS="tags");
 
-    if (pr.page () || r.size () == options_->results_on_page ())
-    {
-      s << DIV;
+        for (const auto& t: p.tags)
+          s << SPAN(CLASS="tag") << t << ~SPAN << " ";
 
-      if (pr.page ())
-        s << A
-          << HREF << "/?p=" << pr.page () - 1 << (q.empty () ? "" : "&" + q)
-          << ~HREF
-          <<   "Previous"
-          << ~A
-          << " ";
-
-      // @@ Not ideal as can produce link to an empty page, but easy to fix
-      //    and most likelly will be replaced with something more meaningful
-      //    based on knowing the total number of matched packages.
-      //
-      if (r.size () == options_->results_on_page ())
-        s << A
-          << HREF << "/?p=" << pr.page () + 1 << (q.empty () ? "" : "&" + q)
-          << ~HREF
-          <<   "Next"
-          << ~A;
+        s << ~DIV;
+      }
 
       s << ~DIV;
     }
 
-    s <<   ~BODY
+    t.commit ();
+
+    auto u (
+      [&q](size_t p)
+      {
+        string url ("/");
+        if (p > 0)
+          url += "?p=" + to_string (p);
+
+        if (!q.empty ())
+          url += string (p > 0 ? "&" : "?") + q;
+
+        return url;
+      });
+
+    s <<      pager (pr.page (), pc, rop, options_->pages_in_pager (), u)
+      <<   ~BODY
       << ~HTML;
   }
 }

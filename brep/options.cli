@@ -25,6 +25,7 @@ namespace brep
     class package_search: module, db
     {
       std::uint16_t results-on-page = 10;
+      std::uint16_t pages-in-pager = 10;
     };
 
     class package_version_search: module, db

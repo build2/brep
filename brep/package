@@ -483,10 +483,17 @@ namespace brep
       get() set(_id (std::move (?)))
   };
 
+  #pragma db view object(package)
+  struct package_count
+  {
+    #pragma db column("count(*)")
+    std::size_t count;
+  };
+
   #pragma db view object(package_version)
   struct package_version_count
   {
-    #pragma db column("count(1)")
+    #pragma db column("count(*)")
     std::size_t count;
   };
 }
