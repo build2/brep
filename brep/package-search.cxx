@@ -113,7 +113,7 @@ namespace brep
       s << DIV(CLASS="package")
         <<   DIV(CLASS="name")
         <<     A
-        <<     HREF << "/go/" << mime_url_encode (p.name) << "/";
+        <<     HREF << "/go/" << mime_url_encode (p.name);
 
       // Propagate search criteria to the package version search url.
       //

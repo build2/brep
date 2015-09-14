@@ -179,7 +179,7 @@ namespace brep
         <<   DIV(CLASS="version")
         <<     A
         <<     HREF
-        <<       "/go/" << mime_url_encode (name) << "/" << vs << "/"
+        <<       "/go/" << mime_url_encode (name) << "/" << vs
         <<     ~HREF
         <<       vs
         <<     ~A
@@ -213,7 +213,7 @@ namespace brep
     auto u (
       [&name, &pr](size_t p)
       {
-        string url ("/go/" + name + "/");
+        string url (name);
         if (p > 0)
           url += "?p=" + to_string (p);
 
