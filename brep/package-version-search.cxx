@@ -5,7 +5,9 @@
 #include <brep/package-version-search>
 
 #include <string>
-#include <memory> // make_shared()
+#include <memory>  // make_shared(), shared_ptr
+#include <cstddef> // size_t
+#include <cassert>
 
 #include <xml/serializer>
 
@@ -81,7 +83,7 @@ namespace brep
       <<       ".tag {padding: 0 0.3em 0 0;}" << ident
       <<       ".versions {font-size: x-large; margin: 0.5em 0 0;}" << ident
       <<       ".package_version {margin: 0.5em 0 0;}" << ident
-      <<       ".version {font-size: x-large;}" << ident
+      <<       ".version {font-size: x-large;}"
       <<     ~CSS_STYLE
       <<   ~HEAD
       <<   BODY;
@@ -224,8 +226,8 @@ namespace brep
         return url;
       });
 
-    s <<      pager (pr.page (), pvc, rop, options_->pages_in_pager (), u)
-      <<    ~BODY
+    s <<     pager (pr.page (), pvc, rop, options_->pages_in_pager (), u)
+      <<   ~BODY
       << ~HTML;
   }
 }

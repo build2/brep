@@ -22,7 +22,7 @@ libso{brep}: cxx.export.poptions = -I$out_root -I$src_root
 import libs += libstudxml%lib{studxml}
 
 brep = cxx{diagnostics module services package-search package-version-search \
-       shared-database page} cli.cxx{options}
+       package-version-details shared-database page} cli.cxx{options}
 web = ../web/apache/cxx{request service} ../web/cxx{mime-url-encoding}
 
 libso{brep-apache}: $brep $web libso{brep} $libs

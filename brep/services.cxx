@@ -8,6 +8,7 @@
 
 #include <brep/package-search>
 #include <brep/package-version-search>
+#include <brep/package-version-details>
 
 using namespace brep;
 using web::apache::service;
@@ -22,4 +23,10 @@ static package_version_search package_version_search_mod;
 service AP_MODULE_DECLARE_DATA package_version_search_srv (
   "package-version-search",
   package_version_search_mod,
+  {"db-host", "db-port", "conf"});
+
+static package_version_details package_version_details_mod;
+service AP_MODULE_DECLARE_DATA package_version_details_srv (
+  "package-version-details",
+  package_version_details_mod,
   {"db-host", "db-port", "conf"});

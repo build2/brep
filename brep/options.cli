@@ -33,6 +33,10 @@ namespace brep
       std::uint16_t results-on-page = 10;
       std::uint16_t pages-in-pager = 10;
     };
+
+    class package_version_details: module, db
+    {
+    };
   }
 
   // Web module HTTP request parameters.
@@ -61,6 +65,10 @@ namespace brep
       // Package version search criteria.
       //
       std::string query | q = "";
+    };
+
+    class package_version_details
+    {
     };
   }
 }

@@ -1,0 +1,32 @@
+// file      : brep/package-version-details -*- C++ -*-
+// copyright : Copyright (c) 2014-2015 Code Synthesis Ltd
+// license   : MIT; see accompanying LICENSE file
+
+#ifndef BREP_PACKAGE_VERSION_DETAILS
+#define BREP_PACKAGE_VERSION_DETAILS
+
+#include <memory> // shared_ptr
+
+#include <odb/forward.hxx> // database
+
+#include <brep/module>
+#include <brep/options>
+
+namespace brep
+{
+  class package_version_details: public module
+  {
+  private:
+    virtual void
+    handle (request&, response&);
+
+    virtual void
+    init (cli::scanner&);
+
+  private:
+    std::shared_ptr<options::package_version_details> options_;
+    std::shared_ptr<odb::core::database> db_;
+  };
+}
+
+#endif // BREP_PACKAGE_VERSION_DETAILS

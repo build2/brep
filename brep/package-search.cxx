@@ -5,7 +5,8 @@
 #include <brep/package-search>
 
 #include <string>
-#include <memory> // make_shared()
+#include <memory>  // make_shared()
+#include <cstddef> // size_t
 
 #include <xml/serializer>
 
@@ -77,7 +78,7 @@ namespace brep
       <<       ".package {margin: 0.5em 0 0;}" << ident
       <<       ".name {font-size: x-large;}" << ident
       <<       ".tags {margin: 0.1em 0 0;}" << ident
-      <<       ".tag {padding: 0 0.3em 0 0;}" << ident
+      <<       ".tag {padding: 0 0.3em 0 0;}"
       <<     ~CSS_STYLE
       <<   ~HEAD
       <<   BODY;
