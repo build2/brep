@@ -9,7 +9,6 @@
 #include <cassert>
 #include <stdexcept> // invalid_argument
 
-
 #include <xml/serializer>
 
 #include <odb/database.hxx>

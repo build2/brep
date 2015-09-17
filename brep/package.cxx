@@ -55,17 +55,16 @@ namespace brep
   // package_version
   //
   package_version::
-  package_version (lazy_shared_ptr<repository_type> rp,
-                   lazy_shared_ptr<package_type> pk,
+  package_version (lazy_shared_ptr<package_type> pk,
                    version_type vr,
                    priority_type pr,
                    license_alternatives_type la,
                    string ch,
                    dependencies_type dp,
                    requirements_type rq,
-                   optional<path> lc)
-      : repository (move (rp)),
-        package (move (pk)),
+                   optional<path> lc,
+                   lazy_shared_ptr<repository_type> rp)
+      : package (move (pk)),
         version (move (vr)),
         priority (move (pr)),
         license_alternatives (move (la)),
@@ -74,6 +73,10 @@ namespace brep
         requirements (move (rq)),
         location (move (lc))
   {
+    if (rp.load ()->internal)
+      internal_repository = move (rp);
+    else
+      external_repositories.emplace_back (move (rp));
   }
 
   package_version::_id_type package_version::
@@ -81,21 +84,19 @@ namespace brep
   {
     return _id_type {
       {
-        repository.object_id (),
         package.object_id (),
         version.epoch (),
-        version.canonical_upstream ()
+        version.canonical_upstream (),
+        version.revision ()
       },
-      version.upstream (),
-      version.revision ()};
+      version.upstream ()};
   }
 
   void package_version::
   _id (_id_type&& v, database& db)
   {
-    repository = lazy_shared_ptr<repository_type> (db, v.data.repository);
     package = lazy_shared_ptr<package_type> (db, v.data.package);
-    version = version_type (v.data.epoch, move (v.upstream), v.revision);
+    version = version_type (v.data.epoch, move (v.upstream), v.data.revision);
     assert (version.canonical_upstream () == v.data.canonical_upstream);
   }
 
@@ -104,7 +105,7 @@ namespace brep
   void max_package_version::
   _id (package_version::_id_type&& v)
   {
-    version = version_type (v.data.epoch, move (v.upstream), v.revision);
+    version = version_type (v.data.epoch, move (v.upstream), v.data.revision);
     assert (version.canonical_upstream () == v.data.canonical_upstream);
   }
 

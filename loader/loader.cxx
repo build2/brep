@@ -8,11 +8,11 @@
 #include <utility>   // move()
 #include <cstdint>   // uint64_t
 #include <sstream>
+#include <cassert>
 #include <fstream>
 #include <iostream>
 #include <stdexcept> // runtime_error, invalid_argument
 
-#include <odb/session.hxx>
 #include <odb/database.hxx>
 #include <odb/transaction.hxx>
 
@@ -233,152 +233,123 @@ changed (const internal_repositories& repos, database& db)
   return !rs.empty ();
 }
 
-// Load the repository state (including of its prerequsite repositories)
-// from the 'packages' file.
+static timestamp
+manifest_stream (const path& p, ifstream& f)
+{
+  f.open (p.string ());
+  if (!f.is_open ())
+    throw ifstream::failure (p.string () + ": unable to open");
+
+  f.exceptions (ifstream::badbit | ifstream::failbit);
+  return file_mtime (p);
+}
+
+// Loads the repository packages from the 'packages' file and persists the
+// repository. Should be called once per repository.
 //
 static void
-load_repository (const shared_ptr<repository>& rp, database& db)
+load_packages (const shared_ptr<repository>& rp, database& db)
 {
-  if (rp->packages_timestamp != timestamp_nonexistent)
-    return; // The repository is already loaded.
+  // packages_timestamp different from timestamp_nonexistent signals the
+  // repository packages are already loaded.
+  //
+  assert (rp->packages_timestamp == timestamp_nonexistent);
 
   // Only locally accessible repositories allowed until package manager API is
   // ready.
   //
   assert (!rp->local_path.empty ());
 
-  auto mstream ([](const path& p, ifstream& f) -> timestamp
-    {
-      f.open (p.string ());
-      if (!f.is_open ())
-        throw ifstream::failure (p.string () + ": unable to open");
-      f.exceptions (ifstream::badbit | ifstream::failbit);
-      return file_mtime (p);
-    });
-
-  // Don't add prerequisite repositories for external repositories.
-  //
-  if (rp->internal)
-  {
-    repository_manifests rpm;
-
-    {
-      ifstream ifs;
-      path p (rp->local_path / path ("repositories"));
-      rp->repositories_timestamp = mstream (p, ifs);
-
-      manifest_parser mp (ifs, p.string ());
-      rpm = repository_manifests (mp);
-    }
-
-    for (auto& rm: rpm)
-    {
-      if (rm.location.empty ())
-        continue; // Ignore entry for this repository.
-
-      repository_location rl;
-
-      auto bad_location (
-        [&rp, &rm]()
-        {
-          ostringstream o;
-          o << "invalid location '" << rm.location.string ()
-            << "' of the prerequisite repository for internal "
-            "repository '" << rp->location.string () << "'";
-
-          throw runtime_error (o.str ());
-        });
-
-      try
-      {
-        // Absolute path location make no sense for the web interface.
-        //
-        if (rm.location.absolute ())
-          bad_location ();
-
-        // Convert the relative repository location to remote one, leave remote
-        // location unchanged.
-        //
-        rl = repository_location (rm.location.string (), rp->location);
-      }
-      catch (const invalid_argument&)
-      {
-        bad_location ();
-      }
-
-      shared_ptr<repository> pr (db.find<repository> (rl.canonical_name ()));
-
-      if (pr == nullptr)
-      {
-        pr = make_shared<repository> (move (rl));
-
-        // If the prerequsite repository location is a relative path, then
-        // calculate its absolute local path.
-        //
-        if (rm.location.relative ())
-        {
-          dir_path& lp (pr->local_path);
-          lp = rp->local_path / rm.location.path ();
-
-          try
-          {
-            lp.normalize ();
-          }
-          catch (const invalid_path&)
-          {
-            ostringstream o;
-            o << "can't normalize local path'" << lp.string ()
-              << "' of the prerequisite repository for internal "
-              "repository '" << rp->location.string () << "'";
-
-            throw runtime_error (o.str ());
-          }
-        }
-
-        db.persist (pr);
-      }
-
-      load_repository (pr, db);
-
-      rp->prerequisite_repositories.emplace_back (pr);
-    }
-  }
-
-  // Temporary reset ODB session for the current thread while persisting
-  // package and package_version objects to decrease memory consumption.
-  //
-  session& s (session::current ());
-  session::reset_current ();
-
   package_manifests pkm;
 
   {
     ifstream ifs;
     path p (rp->local_path / path ("packages"));
-
-    // Mark as loaded. This is important in case we try to load this
-    // repository again recursively.
-    //
-    rp->packages_timestamp = mstream (p, ifs);
+    rp->packages_timestamp = manifest_stream (p, ifs);
 
     manifest_parser mp (ifs, p.string ());
     pkm = package_manifests (mp);
   }
 
+  // Let's establish the terminology which will be used in comments appearing
+  // in the body of this function.
+  // * Will call a package manifest internal if corresponding 'packages' file
+  //   is located in the internal repository, otherwise call a package manifest
+  //   external.
+  // * Will call a package version internal if it is described by internal
+  //   package manifest, otherwise call a package version external.
+  // * Will call a package internal if there is an internal package version,
+  //   otherwise call it external.
+  //
+
   for (auto& pm: pkm)
   {
+    // The code below ensures that the package object get updated with a
+    // package manifest info of the highest version. It should also be assured
+    // that for the internal package only an internal package manifests are
+    // considered for an update purpose.
+    //
+
     max_package_version mv;
 
-    // If there are no package_version objects persisted yet for this
-    // package, then query_one() will leave mv unchanged in which case
-    // the version member remains empty. The empty version value is
-    // less than any non-empty one so the condition below evaluates
-    // to true and the package object gets persisted.
+    // If there are no package_version objects meeting query condition,
+    // then query_one() will leave mv unchanged, in which case the version
+    // member remains empty. The empty version value is less than any non-empty
+    // one, so version comparisons below evaluate to true and the package
+    // object gets persisted.
     //
+    // Get maximum internal version of the package.
+    //
+    using query = query<max_package_version>;
     db.query_one<max_package_version> (
-      query<max_package_version>::id.data.package == pm.name, mv);
+      query::id.data.package == pm.name &&
+      query::internal_repository.is_not_null (),
+      mv);
 
-    if (mv.version < pm.version)
+    bool update (false);
+
+    if (mv.version.empty ())
+    {
+      // The package is external or not persisted yet.
+      //
+
+      // Get maximum external version of the package.
+      //
+      db.query_one<max_package_version> (
+        query::id.data.package == pm.name, mv);
+
+      if (rp->internal)
+        // Unconditionally update external package with internal package
+        // manifest info. Persist not yet persisted package.
+        //
+        update = true;
+      else
+        // Update external package with external package manifest info
+        // of a higher version. Version of not persisted package is empty and
+        // therefore less then any package manifest version, so the package
+        // will be persisted.
+        //
+        update = mv.version < pm.version;
+    }
+    else
+    {
+      // The package is internal.
+      //
+
+      if (rp->internal)
+        // Update internal package with the internal package manifest info
+        // of a higher version.
+        //
+        update = mv.version < pm.version;
+      else
+      {
+        // Should not update internal package with an external package
+        // manifest info.
+        //
+      }
+    }
+
+    if (update)
     {
       // Create the package object.
       //
@@ -412,55 +383,196 @@ load_repository (const shared_ptr<repository>& rp, database& db)
         db.update (p);
     }
 
-    // Create package version object.
-    //
-    dependencies dep;
-    requirements req;
-    brep::optional<path> loc; // Ambiguity with butl::optional.
-    string chn;
+    shared_ptr<package_version> pv (
+      db.find<package_version> (
+        package_version_id
+        {
+          pm.name,
+          pm.version.epoch (),
+          pm.version.canonical_upstream (),
+          pm.version.revision ()
+        }));
 
-    // Don't add dependencies, requirements and changes for external
-    // repository packages.
-    //
-    if (rp->internal)
+    if (pv == nullptr)
     {
-      dep = move (pm.dependencies);
-      req = move (pm.requirements);
-      loc = move (pm.location);
+      // Create package version object.
+      //
+      dependencies dep;
+      requirements req;
+      brep::optional<path> loc; // Ambiguity with butl::optional.
+      string chn;
 
-      for (auto& c: pm.changes)
+      // Don't add dependencies, requirements and changes for external
+      // repository packages.
+      //
+      if (rp->internal)
       {
-        if (c.file)
+        dep = move (pm.dependencies);
+        req = move (pm.requirements);
+        loc = move (pm.location);
+
+        for (auto& c: pm.changes)
         {
-          // @@ Pull change notes from the file when package manager
-          // API is ready.
-        }
-        else
-        {
-          if (chn.empty ())
-            chn = move (c);
+          if (c.file)
+          {
+            // @@ Pull change notes from the file when package manager
+            //    API is ready.
+          }
           else
-            chn += "\n" + c;
+          {
+            if (chn.empty ())
+              chn = move (c);
+            else
+              chn += "\n" + c;
+          }
         }
+      }
+
+      package_version pv (lazy_shared_ptr<package> (db, pm.name),
+                          move (pm.version),
+                          pm.priority ? move (*pm.priority) : priority (),
+                          move (pm.license_alternatives),
+                          move (chn),
+                          move (dep),
+                          move (req),
+                          move (loc),
+                          rp);
+
+      db.persist (pv);
+    }
+    else
+    {
+      // @@ Need to ensure that the same package versions coming from
+      //    different repositories are equal. Probably will invent hashsum at
+      //    some point for this purpose.
+      //
+
+      if (rp->internal)
+      {
+        // As soon as internal repositories get loaded first, the internal
+        // package version can duplicate an internal package version only.
+        //
+        assert (pv->internal_repository != nullptr);
+
+        // Just skip the duplicate.
+        //
+      }
+      else
+      {
+        pv->external_repositories.push_back (rp);
+        db.update (pv);
+      }
+    }
+  }
+
+  db.persist (rp); // Save the repository state.
+}
+
+// Loads the prerequsite repositories state from the 'repositories' file.
+// Updates the repository persistent state to save repositories_timestamp
+// member. Should be called once per internal repository.
+//
+static void
+load_prerequsites (const shared_ptr<repository>& rp, database& db)
+{
+  // repositories_timestamp different from timestamp_nonexistent signals the
+  // repository prerequsites are already loaded.
+  //
+  assert (rp->repositories_timestamp == timestamp_nonexistent);
+
+  // Load prerequsites for internal repositories only.
+  //
+  assert (rp->internal);
+
+  // Only locally accessible repositories allowed until package manager API is
+  // ready.
+  //
+  assert (!rp->local_path.empty ());
+
+  repository_manifests rpm;
+
+  {
+    ifstream ifs;
+    path p (rp->local_path / path ("repositories"));
+    rp->repositories_timestamp = manifest_stream (p, ifs);
+
+    manifest_parser mp (ifs, p.string ());
+    rpm = repository_manifests (mp);
+  }
+
+  for (auto& rm: rpm)
+  {
+    if (rm.location.empty ())
+      continue; // Ignore entry for this repository.
+
+    repository_location rl;
+
+    auto bad_location (
+      [&rp, &rm]()
+      {
+        ostringstream o;
+        o << "invalid location '" << rm.location.string ()
+          << "' of the prerequisite repository for internal "
+          "repository '" << rp->location.string () << "'";
+
+        throw runtime_error (o.str ());
+      });
+
+    try
+    {
+      // Absolute path location make no sense for the web interface.
+      //
+      if (rm.location.absolute ())
+        bad_location ();
+
+      // Convert the relative repository location to remote one, leave remote
+      // location unchanged.
+      //
+      rl = repository_location (rm.location.string (), rp->location);
+    }
+    catch (const invalid_argument&)
+    {
+      bad_location ();
+    }
+
+    shared_ptr<repository> pr (db.find<repository> (rl.canonical_name ()));
+
+    if (pr != nullptr)
+      // The prerequisite repository is already loaded.
+      //
+      continue;
+
+    pr = make_shared<repository> (move (rl));
+
+    // If the prerequsite repository location is a relative path, then
+    // calculate its absolute local path.
+    //
+    if (rm.location.relative ())
+    {
+      dir_path& lp (pr->local_path);
+      lp = rp->local_path / rm.location.path ();
+
+      try
+      {
+        lp.normalize ();
+      }
+      catch (const invalid_path&)
+      {
+        ostringstream o;
+        o << "can't normalize local path'" << lp.string ()
+          << "' of the prerequisite repository for internal "
+          "repository '" << rp->location.string () << "'";
+
+        throw runtime_error (o.str ());
       }
     }
 
-    package_version pv (rp,
-                        lazy_shared_ptr<package> (db, pm.name),
-                        move (pm.version),
-                        pm.priority ? move (*pm.priority) : priority (),
-                        move (pm.license_alternatives),
-                        move (chn),
-                        move (dep),
-                        move (req),
-                        move (loc));
-
-    db.persist (pv);
+    load_packages (pr, db);
   }
 
-  session::current (s); // Restore current session.
-
-  db.update (rp); // Save the repository state.
+  // Updates repositories_timestamp member.
+  //
+  db.update (rp);
 }
 
 int
@@ -547,40 +659,28 @@ main (int argc, char* argv[])
       db.erase_query<package> ();
       db.erase_query<package_version> ();
 
-      // We use repository object packages_timestamp as a flag to signal that
-      // we have already loaded this repo. The easiest way to make
-      // it work in case of cycles is to use a session. This way,
-      // the repository object on which we updated the packages_timestamp
-      // will be the same as the one we may check down the call
-      // stack.
+      // On the first pass over the internal repositories we load their
+      // packages.
       //
-      session s;
-
-      // On the first pass over the internal repositories list we
-      // persist empty repository objects, setting the interal flag
-      // to true and packages_timestamp to non-existent. The idea is to
-      // establish the "final" list of internal repositories.
-      //
-      for (auto& ir: irs)
+      for (const auto& ir: irs)
       {
         shared_ptr<repository> r (
           make_shared<repository> (ir.location,
                                    move (ir.display_name),
                                    move (ir.local_path)));
 
-        db.persist (r);
+        load_packages (r, db);
       }
 
       // On the second pass over the internal repositories we
-      // load them and all their (not yet loaded) prerequisite
-      // repositories.
+      // load their (not yet loaded) prerequisite repositories.
       //
       for (const auto& ir: irs)
       {
         shared_ptr<repository> r (
           db.load<repository> (ir.location.canonical_name ()));
 
-        load_repository (r, db);
+        load_prerequsites (r, db);
       }
     }
 

@@ -38,12 +38,12 @@ operator== (const dependency& a, const dependency& b)
 static bool
 check_location (shared_ptr<package_version>& pv)
 {
-  if (pv->repository.load ()->internal)
+  if (pv->internal_repository == nullptr)
+    return !pv->location;
+  else
     return pv->location && *pv->location ==
       path (pv->package.load ()->name + "-" + pv->version.string () +
             ".tar.gz");
-  else
-    return !pv->location;
 }
 
 int
@@ -112,25 +112,8 @@ main (int argc, char* argv[])
       assert (sr->repositories_timestamp ==
               file_mtime (dir_path (sr->local_path) / path ("repositories")));
       assert (sr->internal);
-      assert (sr->prerequisite_repositories.size () == 2);
 
-      vector<shared_ptr<repository>> pr {mr, cr};
-
-      auto i (find (pr.begin (),
-                    pr.end (),
-                    sr->prerequisite_repositories[0].load ()));
-
-      assert (i != pr.end ());
-      pr.erase (i);
-
-      assert (find (pr.begin (),
-                    pr.end (),
-                    sr->prerequisite_repositories[1].load ()) != pr.end ());
-
-      auto& srv (sr->package_versions);
-      assert (srv.size () == 5);
-
-      using lv_t = decltype (srv[0]);
+      using lv_t = lazy_weak_ptr<package_version>;
       auto vc ([](const lv_t& a, const lv_t& b){
           auto v1 (a.load ());
           auto v2 (b.load ());
@@ -143,61 +126,54 @@ main (int argc, char* argv[])
           return v1->version < v2->version;
         });
 
-      sort (srv.begin (), srv.end (), vc);
-
       version fv0 ("1.0");
       shared_ptr<package_version> fpv0 (
         db.load<package_version> (
           package_version_id {
-            "cppget.org/stable",
             "libfoo",
             fv0.epoch (),
-            fv0.canonical_upstream ()}));
-      assert (srv[0].load () == fpv0);
+            fv0.canonical_upstream (),
+            fv0.revision ()}));
       assert (check_location (fpv0));
 
       version fv1 ("1.2.2");
       shared_ptr<package_version> fpv1 (
         db.load<package_version> (
           package_version_id {
-            "cppget.org/stable",
             "libfoo",
             fv1.epoch (),
-            fv1.canonical_upstream ()}));
-      assert (srv[1].load () == fpv1);
+            fv1.canonical_upstream (),
+            fv1.revision ()}));
       assert (check_location (fpv1));
 
       version fv2 ("1.2.3-4");
       shared_ptr<package_version> fpv2 (
         db.load<package_version> (
           package_version_id {
-            "cppget.org/stable",
             "libfoo",
             fv2.epoch (),
-            fv2.canonical_upstream ()}));
-      assert (srv[2].load () == fpv2);
+            fv2.canonical_upstream (),
+            fv2.revision ()}));
       assert (check_location (fpv2));
 
       version fv3 ("1.2.4");
       shared_ptr<package_version> fpv3 (
         db.load<package_version> (
           package_version_id {
-            "cppget.org/stable",
             "libfoo",
             fv3.epoch (),
-            fv3.canonical_upstream ()}));
-      assert (srv[3].load () == fpv3);
+            fv3.canonical_upstream (),
+            fv3.revision ()}));
       assert (check_location (fpv3));
 
       version xv ("1.0.0-1");
       shared_ptr<package_version> xpv (
         db.load<package_version> (
           package_version_id {
-            "cppget.org/stable",
             "libstudxml",
             xv.epoch (),
-            xv.canonical_upstream ()}));
-      assert (srv[4].load () == xpv);
+            xv.canonical_upstream (),
+            xv.revision ()}));
       assert (check_location (xpv));
 
       // Verify libstudxml package.
@@ -223,7 +199,8 @@ main (int argc, char* argv[])
 
       // Verify libstudxml package version.
       //
-      assert (xpv->repository.load () == sr);
+      assert (xpv->internal_repository.load () == sr);
+      assert (xpv->external_repositories.empty ());
       assert (xpv->package.load () == px);
       assert (xpv->version == version ("1.0.0-1"));
       assert (xpv->priority == priority::low);
@@ -270,13 +247,12 @@ main (int argc, char* argv[])
       assert (fpv[1].load () == fpv1);
       assert (fpv[2].load () == fpv2);
       assert (fpv[3].load () == fpv3);
-      // Asserting fpv[3].load () == fpv4 goes later when fpv4, belonging to
-      // another repository, get introduced.
-      //
 
       // Verify libfoo package versions.
       //
-      assert (fpv0->repository.load () == sr);
+      assert (fpv0->internal_repository.load () == sr);
+      assert (fpv0->external_repositories.size () == 1);
+      assert (fpv0->external_repositories[0].load () == cr);
       assert (fpv0->package.load () == pf);
       assert (fpv0->version == version ("1.0"));
       assert (fpv0->priority == priority::low);
@@ -289,7 +265,8 @@ main (int argc, char* argv[])
       assert (fpv0->dependencies.empty ());
       assert (fpv0->requirements.empty ());
 
-      assert (fpv1->repository.load () == sr);
+      assert (fpv1->internal_repository.load () == sr);
+      assert (fpv1->external_repositories.empty ());
       assert (fpv1->package.load () == pf);
       assert (fpv1->version == version ("1.2.2"));
       assert (fpv1->priority == priority::low);
@@ -335,7 +312,8 @@ main (int argc, char* argv[])
       assert (fpvr1[3].comment ==
               "libc++ standard library if using Clang on Mac OS X.");
 
-      assert (fpv2->repository.load () == sr);
+      assert (fpv2->internal_repository.load () == sr);
+      assert (fpv2->external_repositories.empty ());
       assert (fpv2->package.load () == pf);
       assert (fpv2->version == version ("1.2.3-4"));
       assert (fpv2->priority == priority::low);
@@ -353,7 +331,8 @@ main (int argc, char* argv[])
                  brep::optional<version_comparison> (
                    version_comparison{version ("2.0.0"), comparison::ge})}));
 
-      assert (fpv3->repository.load () == sr);
+      assert (fpv3->internal_repository.load () == sr);
+      assert (fpv3->external_repositories.empty ());
       assert (fpv3->package.load () == pf);
       assert (fpv3->version == version ("1.2.4"));
       assert (fpv3->priority == priority::low);
@@ -386,39 +365,32 @@ main (int argc, char* argv[])
       assert (mr->repositories_timestamp ==
               file_mtime (dir_path (mr->local_path) / path ("repositories")));
       assert (mr->internal);
-      assert (mr->prerequisite_repositories.size () == 1);
-      assert (mr->prerequisite_repositories[0].load () == cr);
-
-      auto& mrv (mr->package_versions);
-      assert (mrv.size () == 2);
-      sort (mrv.begin (), mrv.end (), vc);
 
       version ev ("1+1.2");
       shared_ptr<package_version> epv (
         db.load<package_version> (
           package_version_id {
-            "cppget.org/math",
             "libexp",
             ev.epoch (),
-            ev.canonical_upstream ()}));
-      assert (mrv[0].load () == epv);
+            ev.canonical_upstream (),
+            ev.revision ()}));
       assert (check_location (epv));
 
       version fv4 ("1.2.4-1");
       shared_ptr<package_version> fpv4 (
         db.load<package_version> (
           package_version_id {
-            "cppget.org/math",
             "libfoo",
             fv4.epoch (),
-            fv4.canonical_upstream ()}));
-      assert (mrv[1].load () == fpv4);
+            fv4.canonical_upstream (),
+            fv4.revision ()}));
       assert (fpv[4].load () == fpv4);
       assert (check_location (fpv4));
 
       // Verify libfoo package versions.
       //
-      assert (fpv4->repository.load () == mr);
+      assert (fpv4->internal_repository.load () == mr);
+      assert (fpv4->external_repositories.empty ());
       assert (fpv4->package.load () == pf);
       assert (fpv4->version == version ("1.2.4-1"));
       assert (fpv4->priority == priority::high);
@@ -464,7 +436,8 @@ main (int argc, char* argv[])
 
       // Verify libexp package version.
       //
-      assert (epv->repository.load () == mr);
+      assert (epv->internal_repository.load () == mr);
+      assert (epv->external_repositories.empty ());
       assert (epv->package.load () == pe);
       assert (epv->version == version ("1+1.2"));
       assert (epv->priority == priority (priority::low));
@@ -495,20 +468,15 @@ main (int argc, char* argv[])
               file_mtime (dir_path (cr->local_path) / path ("packages")));
       assert (cr->repositories_timestamp == timestamp_nonexistent);
       assert (!cr->internal);
-      assert (cr->prerequisite_repositories.empty ());
-
-      auto& crv (cr->package_versions);
-      assert (crv.size () == 1);
 
       version bv ("2.3.5");
       shared_ptr<package_version> bpv (
         db.load<package_version> (
           package_version_id {
-            "cppget.org/misc",
             "libbar",
             bv.epoch (),
-            bv.canonical_upstream ()}));
-      assert (crv[0].load () == bpv);
+            bv.canonical_upstream (),
+            bv.revision ()}));
       assert (check_location (bpv));
 
       // Verify libbar package.
@@ -529,7 +497,9 @@ main (int argc, char* argv[])
 
       // Verify libbar package version.
       //
-      assert (bpv->repository.load () == cr);
+      assert (bpv->internal_repository == nullptr);
+      assert (bpv->external_repositories.size () == 1);
+      assert (bpv->external_repositories[0].load () == cr);
       assert (bpv->package.load () == pb);
       assert (bpv->version == version ("2.3.5"));
 

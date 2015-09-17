@@ -13,3 +13,11 @@ depends: libmath >= 2.0.0
 requires: linux | windows | macosx
 changes: some changes
 location: libbar-2.3.5.tar.gz
+:
+name: libfoo
+version: 1.0
+summary: Foo Library
+license: MIT
+url: http://www.example.com/foo/
+email: foo-users@example.com
+location: libfoo-1.0.tar.gz

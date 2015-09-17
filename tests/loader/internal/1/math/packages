@@ -25,3 +25,11 @@ package-url: http://www.example.com/foo/pack
 package-email: pack@example.com
 depends: libmisc >= 2.3.0
 location: libfoo-1.2.4-1.tar.gz
+:
+name: libfoo
+version: 1.0
+summary: The Foo Lib
+license: MIT
+url: http://www.example.com/foo/
+email: foo-users@example.com
+location: libfoo-1.0.tar.gz
