@@ -7,7 +7,6 @@
 #include <string>
 #include <memory>  // make_shared(), shared_ptr
 #include <cstddef> // size_t
-#include <cassert>
 
 #include <xml/serializer>
 
@@ -71,19 +70,18 @@ namespace brep
       <<   HEAD
       <<     TITLE << title << ~TITLE
       <<     CSS_STYLE << ident
-      <<       pager_style () << ident
-      <<       "a {text-decoration: none;}" << ident
-      <<       "a:hover {text-decoration: underline;}" << ident
+      <<       A_STYLE () << ident
+      <<       PAGER_STYLE () << ident
       <<       ".name {font-size: xx-large; font-weight: bold;}" << ident
       <<       ".summary {font-size: x-large; margin: 0.2em 0 0;}" << ident
-      <<       ".url {font-size: small;}" << ident
-      <<       ".email {font-size: small;}" << ident
+      <<       ".url {font-size: 90%;}" << ident
+      <<       ".email {font-size: 90%;}" << ident
       <<       ".description {margin: 0.5em 0 0;}" << ident
-      <<       ".tags {margin: 0.5em 0 0;}" << ident
-      <<       ".tag {padding: 0 0.3em 0 0;}" << ident
+      <<       ".tags {margin: 0.3em 0 0;}" << ident
       <<       ".versions {font-size: x-large; margin: 0.5em 0 0;}" << ident
       <<       ".package_version {margin: 0.5em 0 0;}" << ident
-      <<       ".version {font-size: x-large;}"
+      <<       ".version {font-size: x-large;}" << ident
+      <<       ".priority {margin: 0.3em 0 0;}"
       <<     ~CSS_STYLE
       <<   ~HEAD
       <<   BODY;
@@ -106,9 +104,8 @@ namespace brep
       << ~DIV
       << DIV(CLASS="summary")
       <<   p->summary
-      << ~DIV;
-
-    s << DIV(CLASS="url")
+      << ~DIV
+      << DIV(CLASS="url")
       <<   A << HREF << p->url << ~HREF << p->url << ~A
       << ~DIV
       << DIV(CLASS="email")
@@ -120,21 +117,18 @@ namespace brep
         <<   *p->description
         << ~DIV;
 
-    if (!p->tags.empty ())
+    s << TAGS (p->tags);
+
+    size_t pvc;
     {
-      s << DIV(CLASS="tags");
+      using query = query<package_version_count>;
 
-      for (const auto& t: p->tags)
-        s << SPAN(CLASS="tag") << t << ~SPAN << " ";
-
-      s << ~DIV;
+      // @@ Query will also include search criteria if specified.
+      //
+      pvc = db_->query_value<package_version_count> (
+        query::id.data.package == name &&
+        query::internal_repository.is_not_null ()).count;
     }
-
-    // @@ Query will also include search criteria if specified.
-    //
-    size_t pvc (
-      db_->query_value<package_version_count> (
-        query<package_version_count>::id.data.package == name).count);
 
     s << DIV(CLASS="versions")
       <<   "Versions (" << pvc << ")"
@@ -161,7 +155,9 @@ namespace brep
     //
     using query = query<package_version>;
     auto r (
-      db_->query<package_version> ((query::id.data.package == name) +
+      db_->query<package_version> (
+        (query::id.data.package == name &&
+         query::internal_repository.is_not_null ()) +
         "ORDER BY" + query::id.data.epoch + "DESC," +
         query::id.data.canonical_upstream + "DESC," +
         query::id.data.revision + "DESC " +
@@ -170,11 +166,6 @@ namespace brep
 
     for (const auto& v: r)
     {
-      static const strings priority_names (
-        {"low", "medium", "high", "security"});
-
-      assert (v.priority < priority_names.size ());
-
       const string& vs (v.version.string ());
 
       s << DIV(CLASS="package_version")
@@ -186,27 +177,11 @@ namespace brep
         <<       vs
         <<     ~A
         <<   ~DIV
-        <<   DIV(CLASS="priority")
-        <<     "Priority: " << priority_names[v.priority]
+        <<   PRIORITY (v.priority)
+        <<   DIV(CLASS="dependencies")
+        <<     "Dependencies: " << v.dependencies.size ()
         <<   ~DIV
-        <<   DIV(CLASS="licenses")
-        <<     "Licenses: ";
-
-      for (const auto& la: v.license_alternatives)
-      {
-        if (&la != &v.license_alternatives[0])
-          s << " or ";
-
-        for (const auto& l: la)
-        {
-          if (&l != &la[0])
-            s << ", ";
-
-          s << l;
-        }
-      }
-
-      s <<   ~DIV
+        <<   LICENSES (v.license_alternatives)
         << ~DIV;
     }
 
@@ -226,7 +201,7 @@ namespace brep
         return url;
       });
 
-    s <<     pager (pr.page (), pvc, rop, options_->pages_in_pager (), u)
+    s <<     PAGER (pr.page (), pvc, rop, options_->pages_in_pager (), u)
       <<   ~BODY
       << ~HTML;
   }

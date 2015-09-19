@@ -71,14 +71,12 @@ namespace brep
       <<   HEAD
       <<     TITLE << title << ~TITLE
       <<     CSS_STYLE << ident
-      <<       pager_style () << ident
-      <<       "a {text-decoration: none;}" << ident
-      <<       "a:hover {text-decoration: underline;}" << ident
+      <<       A_STYLE () << ident
+      <<       PAGER_STYLE () << ident
       <<       ".packages {font-size: x-large;}" << ident
       <<       ".package {margin: 0.5em 0 0;}" << ident
       <<       ".name {font-size: x-large;}" << ident
-      <<       ".tags {margin: 0.1em 0 0;}" << ident
-      <<       ".tag {padding: 0 0.3em 0 0;}"
+      <<       ".dependencies {margin: 0.3em 0 0;}" << ident
       <<     ~CSS_STYLE
       <<   ~HEAD
       <<   BODY;
@@ -92,7 +90,7 @@ namespace brep
 
     // @@ Query will include search criteria if specified.
     //
-    size_t pc (db_->query_value<package_count> ().count);
+    size_t pc (db_->query_value<internal_package_count> ().count);
 
     s << DIV(CLASS="packages")
       <<   "Packages (" << pc << ")"
@@ -102,15 +100,19 @@ namespace brep
     //    and search index structure get implemented. Query will also
     //    include search criteria if specified.
     //
-    using query = query<package>;
+    using query = query<internal_package>;
+
     auto r (
-      db_->query<package> (
-        "ORDER BY" + query::name +
+      db_->query<internal_package> (
+        "ORDER BY" + query::package::name +
         "OFFSET" + to_string (pr.page () * rop) +
         "LIMIT" + to_string (rop)));
 
-    for (const auto& p: r)
+    for (const auto& ip: r)
     {
+      const package& p = *ip.package;
+      const package_version& v = *ip.version;
+
       s << DIV(CLASS="package")
         <<   DIV(CLASS="name")
         <<     A
@@ -127,17 +129,12 @@ namespace brep
         <<   ~DIV
         <<   DIV(CLASS="summary")
         <<     p.summary
-        <<   ~DIV;
-
-      if (!p.tags.empty ())
-      {
-        s << DIV(CLASS="tags");
-
-        for (const auto& t: p.tags)
-          s << SPAN(CLASS="tag") << t << ~SPAN << " ";
-
-        s << ~DIV;
-      }
+        <<   ~DIV
+        <<   DIV(CLASS="dependencies")
+        <<     "Dependencies: " << v.dependencies.size ()
+        <<   ~DIV
+        <<   LICENSES (v.license_alternatives)
+        <<   TAGS (p.tags);
 
       s << ~DIV;
     }
@@ -157,7 +154,7 @@ namespace brep
         return url;
       });
 
-    s <<      pager (pr.page (), pc, rop, options_->pages_in_pager (), u)
+    s <<      PAGER (pr.page (), pc, rop, options_->pages_in_pager (), u)
       <<   ~BODY
       << ~HTML;
   }

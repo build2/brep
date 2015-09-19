@@ -92,7 +92,7 @@ main (int argc, char* argv[])
 
       assert (db.query<repository> ().size () == 3);
       assert (db.query<package> ().size () == 4);
-      assert (db.query<package_version> ().size () == 8);
+      assert (db.query<package_version> ().size () == 9);
 
       shared_ptr<repository> sr (db.load<repository> ("cppget.org/stable"));
       shared_ptr<repository> mr (db.load<repository> ("cppget.org/math"));
@@ -126,17 +126,7 @@ main (int argc, char* argv[])
           return v1->version < v2->version;
         });
 
-      version fv0 ("1.0");
-      shared_ptr<package_version> fpv0 (
-        db.load<package_version> (
-          package_version_id {
-            "libfoo",
-            fv0.epoch (),
-            fv0.canonical_upstream (),
-            fv0.revision ()}));
-      assert (check_location (fpv0));
-
-      version fv1 ("1.2.2");
+      version fv1 ("1.0");
       shared_ptr<package_version> fpv1 (
         db.load<package_version> (
           package_version_id {
@@ -146,7 +136,7 @@ main (int argc, char* argv[])
             fv1.revision ()}));
       assert (check_location (fpv1));
 
-      version fv2 ("1.2.3-4");
+      version fv2 ("1.2.2");
       shared_ptr<package_version> fpv2 (
         db.load<package_version> (
           package_version_id {
@@ -156,7 +146,7 @@ main (int argc, char* argv[])
             fv2.revision ()}));
       assert (check_location (fpv2));
 
-      version fv3 ("1.2.4");
+      version fv3 ("1.2.3-4");
       shared_ptr<package_version> fpv3 (
         db.load<package_version> (
           package_version_id {
@@ -165,6 +155,16 @@ main (int argc, char* argv[])
             fv3.canonical_upstream (),
             fv3.revision ()}));
       assert (check_location (fpv3));
+
+      version fv4 ("1.2.4");
+      shared_ptr<package_version> fpv4 (
+        db.load<package_version> (
+          package_version_id {
+            "libfoo",
+            fv4.epoch (),
+            fv4.canonical_upstream (),
+            fv4.revision ()}));
+      assert (check_location (fpv4));
 
       version xv ("1.0.0-1");
       shared_ptr<package_version> xpv (
@@ -241,34 +241,20 @@ main (int argc, char* argv[])
       assert (pf->package_email && *pf->package_email == "pack@example.com");
 
       auto& fpv (pf->versions);
-      assert (fpv.size () == 5);
+      assert (fpv.size () == 6);
       sort (fpv.begin (), fpv.end (), vc);
-      assert (fpv[0].load () == fpv0);
       assert (fpv[1].load () == fpv1);
       assert (fpv[2].load () == fpv2);
       assert (fpv[3].load () == fpv3);
+      assert (fpv[4].load () == fpv4);
 
       // Verify libfoo package versions.
       //
-      assert (fpv0->internal_repository.load () == sr);
-      assert (fpv0->external_repositories.size () == 1);
-      assert (fpv0->external_repositories[0].load () == cr);
-      assert (fpv0->package.load () == pf);
-      assert (fpv0->version == version ("1.0"));
-      assert (fpv0->priority == priority::low);
-      assert (fpv0->changes.empty ());
-
-      assert (fpv0->license_alternatives.size () == 1);
-      assert (fpv0->license_alternatives[0].size () == 1);
-      assert (fpv0->license_alternatives[0][0] == "MIT");
-
-      assert (fpv0->dependencies.empty ());
-      assert (fpv0->requirements.empty ());
-
       assert (fpv1->internal_repository.load () == sr);
-      assert (fpv1->external_repositories.empty ());
+      assert (fpv1->external_repositories.size () == 1);
+      assert (fpv1->external_repositories[0].load () == cr);
       assert (fpv1->package.load () == pf);
-      assert (fpv1->version == version ("1.2.2"));
+      assert (fpv1->version == version ("1.0"));
       assert (fpv1->priority == priority::low);
       assert (fpv1->changes.empty ());
 
@@ -276,46 +262,13 @@ main (int argc, char* argv[])
       assert (fpv1->license_alternatives[0].size () == 1);
       assert (fpv1->license_alternatives[0][0] == "MIT");
 
-      assert (fpv1->dependencies.size () == 2);
-      assert (fpv1->dependencies[0].size () == 1);
-      assert (fpv1->dependencies[1].size () == 1);
-
-      assert (fpv1->dependencies[0][0] ==
-              (dependency {
-                 "libbar",
-                 brep::optional<version_comparison> (
-                   version_comparison{version ("2.4.0"), comparison::le})}));
-
-      assert (fpv1->dependencies[1][0] ==
-              (dependency {
-                 "libexp",
-                 brep::optional<version_comparison> (
-                   version_comparison{version ("1+1.2"), comparison::eq})}));
-
-      requirements& fpvr1 (fpv1->requirements);
-      assert (fpvr1.size () == 4);
-
-      assert (fpvr1[0] == strings ({"linux", "windows", "macosx"}));
-      assert (!fpvr1[0].conditional);
-      assert (fpvr1[0].comment.empty ());
-
-      assert (fpvr1[1] == strings ({"c++11"}));
-      assert (!fpvr1[1].conditional);
-      assert (fpvr1[1].comment.empty ());
-
-      assert (fpvr1[2].empty ());
-      assert (fpvr1[2].conditional);
-      assert (fpvr1[2].comment == "VC++ 12.0 or later if targeting Windows.");
-
-      assert (fpvr1[3].empty ());
-      assert (fpvr1[3].conditional);
-      assert (fpvr1[3].comment ==
-              "libc++ standard library if using Clang on Mac OS X.");
+      assert (fpv1->dependencies.empty ());
+      assert (fpv1->requirements.empty ());
 
       assert (fpv2->internal_repository.load () == sr);
       assert (fpv2->external_repositories.empty ());
       assert (fpv2->package.load () == pf);
-      assert (fpv2->version == version ("1.2.3-4"));
+      assert (fpv2->version == version ("1.2.2"));
       assert (fpv2->priority == priority::low);
       assert (fpv2->changes.empty ());
 
@@ -323,20 +276,48 @@ main (int argc, char* argv[])
       assert (fpv2->license_alternatives[0].size () == 1);
       assert (fpv2->license_alternatives[0][0] == "MIT");
 
-      assert (fpv2->dependencies.size () == 1);
+      assert (fpv2->dependencies.size () == 2);
       assert (fpv2->dependencies[0].size () == 1);
+      assert (fpv2->dependencies[1].size () == 1);
+
       assert (fpv2->dependencies[0][0] ==
               (dependency {
-                 "libmisc",
+                 "libbar",
                  brep::optional<version_comparison> (
-                   version_comparison{version ("2.0.0"), comparison::ge})}));
+                   version_comparison{version ("2.4.0"), comparison::le})}));
+
+      assert (fpv2->dependencies[1][0] ==
+              (dependency {
+                 "libexp",
+                 brep::optional<version_comparison> (
+                   version_comparison{version ("1+1.2"), comparison::eq})}));
+
+      requirements& fpvr2 (fpv2->requirements);
+      assert (fpvr2.size () == 4);
+
+      assert (fpvr2[0] == strings ({"linux", "windows", "macosx"}));
+      assert (!fpvr2[0].conditional);
+      assert (fpvr2[0].comment.empty ());
+
+      assert (fpvr2[1] == strings ({"c++11"}));
+      assert (!fpvr2[1].conditional);
+      assert (fpvr2[1].comment.empty ());
+
+      assert (fpvr2[2].empty ());
+      assert (fpvr2[2].conditional);
+      assert (fpvr2[2].comment == "VC++ 12.0 or later if targeting Windows.");
+
+      assert (fpvr2[3].empty ());
+      assert (fpvr2[3].conditional);
+      assert (fpvr2[3].comment ==
+              "libc++ standard library if using Clang on Mac OS X.");
 
       assert (fpv3->internal_repository.load () == sr);
       assert (fpv3->external_repositories.empty ());
       assert (fpv3->package.load () == pf);
-      assert (fpv3->version == version ("1.2.4"));
+      assert (fpv3->version == version ("1.2.3-4"));
       assert (fpv3->priority == priority::low);
-      assert (fpv3->changes == "some changes 1\nsome changes 2");
+      assert (fpv3->changes.empty ());
 
       assert (fpv3->license_alternatives.size () == 1);
       assert (fpv3->license_alternatives[0].size () == 1);
@@ -345,6 +326,25 @@ main (int argc, char* argv[])
       assert (fpv3->dependencies.size () == 1);
       assert (fpv3->dependencies[0].size () == 1);
       assert (fpv3->dependencies[0][0] ==
+              (dependency {
+                 "libmisc",
+                 brep::optional<version_comparison> (
+                   version_comparison{version ("2.0.0"), comparison::ge})}));
+
+      assert (fpv4->internal_repository.load () == sr);
+      assert (fpv4->external_repositories.empty ());
+      assert (fpv4->package.load () == pf);
+      assert (fpv4->version == version ("1.2.4"));
+      assert (fpv4->priority == priority::low);
+      assert (fpv4->changes == "some changes 1\nsome changes 2");
+
+      assert (fpv4->license_alternatives.size () == 1);
+      assert (fpv4->license_alternatives[0].size () == 1);
+      assert (fpv4->license_alternatives[0][0] == "MIT");
+
+      assert (fpv4->dependencies.size () == 1);
+      assert (fpv4->dependencies[0].size () == 1);
+      assert (fpv4->dependencies[0][0] ==
               (dependency {
                  "libmisc",
                  brep::optional<version_comparison> (
@@ -376,47 +376,47 @@ main (int argc, char* argv[])
             ev.revision ()}));
       assert (check_location (epv));
 
-      version fv4 ("1.2.4-1");
-      shared_ptr<package_version> fpv4 (
+      version fv5 ("1.2.4-1");
+      shared_ptr<package_version> fpv5 (
         db.load<package_version> (
           package_version_id {
             "libfoo",
-            fv4.epoch (),
-            fv4.canonical_upstream (),
-            fv4.revision ()}));
-      assert (fpv[4].load () == fpv4);
-      assert (check_location (fpv4));
+            fv5.epoch (),
+            fv5.canonical_upstream (),
+            fv5.revision ()}));
+      assert (fpv[5].load () == fpv5);
+      assert (check_location (fpv5));
 
       // Verify libfoo package versions.
       //
-      assert (fpv4->internal_repository.load () == mr);
-      assert (fpv4->external_repositories.empty ());
-      assert (fpv4->package.load () == pf);
-      assert (fpv4->version == version ("1.2.4-1"));
-      assert (fpv4->priority == priority::high);
-      assert (fpv4->changes.empty ());
+      assert (fpv5->internal_repository.load () == mr);
+      assert (fpv5->external_repositories.empty ());
+      assert (fpv5->package.load () == pf);
+      assert (fpv5->version == version ("1.2.4-1"));
+      assert (fpv5->priority == priority::high);
+      assert (fpv5->changes.empty ());
 
-      assert (fpv4->license_alternatives.size () == 2);
-      assert (fpv4->license_alternatives[0].comment ==
+      assert (fpv5->license_alternatives.size () == 2);
+      assert (fpv5->license_alternatives[0].comment ==
               "If using with GNU TLS.");
-      assert (fpv4->license_alternatives[0].size () == 2);
-      assert (fpv4->license_alternatives[0][0] == "LGPLv2");
-      assert (fpv4->license_alternatives[0][1] == "MIT");
-      assert (fpv4->license_alternatives[1].comment ==
+      assert (fpv5->license_alternatives[0].size () == 2);
+      assert (fpv5->license_alternatives[0][0] == "LGPLv2");
+      assert (fpv5->license_alternatives[0][1] == "MIT");
+      assert (fpv5->license_alternatives[1].comment ==
               "If using with OpenSSL.");
-      assert (fpv4->license_alternatives[1].size () == 1);
-      assert (fpv4->license_alternatives[1][0] == "BSD");
+      assert (fpv5->license_alternatives[1].size () == 1);
+      assert (fpv5->license_alternatives[1][0] == "BSD");
 
-      assert (fpv4->dependencies.size () == 1);
-      assert (fpv4->dependencies[0].size () == 1);
+      assert (fpv5->dependencies.size () == 1);
+      assert (fpv5->dependencies[0].size () == 1);
 
-      assert (fpv4->dependencies[0][0] ==
+      assert (fpv5->dependencies[0][0] ==
               (dependency {
                  "libmisc",
                  brep::optional<version_comparison> (
                    version_comparison{version ("2.3.0"), comparison::ge})}));
 
-      assert (fpv4->requirements.empty ());
+      assert (fpv5->requirements.empty ());
 
       // Verify libexp package.
       //
@@ -479,6 +479,16 @@ main (int argc, char* argv[])
             bv.revision ()}));
       assert (check_location (bpv));
 
+      version fv0 ("0.1");
+      shared_ptr<package_version> fpv0 (
+        db.load<package_version> (
+          package_version_id {
+            "libfoo",
+            fv0.epoch (),
+            fv0.canonical_upstream (),
+            fv0.revision ()}));
+      assert (check_location (fpv0));
+
       // Verify libbar package.
       //
       shared_ptr<package> pb (db.load<package> ("libbar"));
@@ -513,6 +523,23 @@ main (int argc, char* argv[])
 
       assert (bpv->dependencies.empty ());
       assert (bpv->requirements.empty ());
+
+      // Verify libfoo package versions.
+      //
+      assert (fpv0->internal_repository.load () == nullptr);
+      assert (fpv0->external_repositories.size () == 1);
+      assert (fpv0->external_repositories[0].load () == cr);
+      assert (fpv0->package.load () == pf);
+      assert (fpv0->version == version ("0.1"));
+      assert (fpv0->priority == priority::low);
+      assert (fpv0->changes.empty ());
+
+      assert (fpv0->license_alternatives.size () == 1);
+      assert (fpv0->license_alternatives[0].size () == 1);
+      assert (fpv0->license_alternatives[0][0] == "MIT");
+
+      assert (fpv0->dependencies.empty ());
+      assert (fpv0->requirements.empty ());
 
       // Update package summary, update package persistent state, rerun loader
       // and ensure the model were not rebuilt.

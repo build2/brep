@@ -463,7 +463,6 @@ namespace brep
   struct max_package_version
   {
     using version_type = brep::version;
-
     version_type version;
 
     void
@@ -480,10 +479,33 @@ namespace brep
       get() set(_id (std::move (?)))
   };
 
-  #pragma db view object(package)
-  struct package_count
+  #pragma db view object(package_version = version)                    \
+    object(package_version = v:                                        \
+           version::id.data.package == v::id.data.package &&           \
+           (version::id.data.epoch < v::id.data.epoch ||               \
+            (version::id.data.epoch == v::id.data.epoch &&             \
+             (version::id.data.canonical_upstream <                    \
+              v::id.data.canonical_upstream ||                         \
+              (version::id.data.canonical_upstream ==                  \
+               v::id.data.canonical_upstream &&                        \
+               version::id.data.revision < v::id.data.revision)))))    \
+    object(package inner: version::id.data.package == package::name && \
+           version::internal_repository.is_not_null () &&              \
+           v::id.data.package.is_null ())
+  struct internal_package
   {
-    #pragma db column("count(*)")
+    using package_type = brep::package;
+    std::shared_ptr<package_type> package;
+    std::shared_ptr<package_version> version;
+  };
+
+  #pragma db view object(package)                                     \
+    object(package_version: package_version::id.data.package ==       \
+           package::name)                                             \
+    query(package_version::internal_repository.is_not_null () && (?))
+  struct internal_package_count
+  {
+    #pragma db column("count(DISTINCT" + package::name + ")")
     std::size_t count;
   };
 

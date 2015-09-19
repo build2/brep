@@ -11,19 +11,29 @@
 
 #include <xml/forward>
 
+#include <brep/package>
+
 namespace brep
 {
   // Page common building blocks.
   //
 
-  // Generates paging element block.
+  // A element default style.
   //
-  class pager
+  struct A_STYLE
+  {
+    void
+    operator() (xml::serializer& s) const;
+  };
+
+  // Generates paging element.
+  //
+  class PAGER
   {
   public:
     using get_url_type = std::function<std::string(std::size_t page)>;
 
-    pager (std::size_t current_page,
+    PAGER (std::size_t current_page,
            std::size_t item_count,
            std::size_t item_per_page,
            std::size_t page_number_count,
@@ -40,12 +50,55 @@ namespace brep
     get_url_type get_url_;
   };
 
-  // Default pager element block style.
+  // PAGER element default style.
   //
-  struct pager_style
+  struct PAGER_STYLE
   {
     void
     operator() (xml::serializer& s) const;
+  };
+
+  // Generates package tags element.
+  //
+  class TAGS
+  {
+  public:
+    TAGS (const strings& ts): tags_ (ts) {}
+
+    void
+    operator() (xml::serializer& s) const;
+
+  private:
+    const strings& tags_;
+  };
+
+  // Generates package version license alternatives element.
+  //
+  class LICENSES
+  {
+  public:
+    LICENSES (const license_alternatives& la)
+        : license_alternatives_ (la) {}
+
+    void
+    operator() (xml::serializer& s) const;
+
+  private:
+    const license_alternatives& license_alternatives_;
+  };
+
+  // Generates package version priority element.
+  //
+  class PRIORITY
+  {
+  public:
+    PRIORITY (const priority& pr): priority_ (pr) {}
+
+    void
+    operator() (xml::serializer& s) const;
+
+  private:
+    const priority& priority_;
   };
 }
 

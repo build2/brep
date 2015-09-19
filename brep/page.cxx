@@ -4,6 +4,7 @@
 
 #include <brep/page>
 
+#include <cassert>
 #include <utility>   // move()
 #include <algorithm> // min()
 
@@ -11,16 +12,28 @@
 
 #include <web/xhtml>
 
+#include <brep/package>
+
 using namespace std;
 using namespace xml;
 using namespace web::xhtml;
 
 namespace brep
 {
-  // pager
+  // A_STYLE
   //
-  pager::
-  pager (size_t current_page,
+  void A_STYLE::
+  operator() (xml::serializer& s) const
+  {
+    const char* ident ("\n      ");
+    s << "a {text-decoration: none;}" << ident
+      << "a:hover {text-decoration: underline;}";
+  }
+
+  // PAGER
+  //
+  PAGER::
+  PAGER (size_t current_page,
          size_t item_count,
          size_t item_per_page,
          size_t page_number_count,
@@ -33,7 +46,7 @@ namespace brep
   {
   }
 
-  void pager::
+  void PAGER::
   operator() (serializer& s) const
   {
     if (item_count_ == 0 || item_per_page_ == 0)
@@ -89,9 +102,9 @@ namespace brep
     }
   }
 
-  // pager_style
+  // PAGER_STYLE
   //
-  void pager_style::
+  void PAGER_STYLE::
   operator() (xml::serializer& s) const
   {
     const char* ident ("\n      ");
@@ -99,5 +112,62 @@ namespace brep
       << ".pg-prev {padding: 0 0.3em 0 0;}" << ident
       << ".pg-page {padding: 0 0.3em 0 0;}" << ident
       << ".pg-cpage {padding: 0 0.3em 0 0; font-weight: bold;}";
+  }
+
+  // LICENSES
+  //
+  void LICENSES::
+  operator() (serializer& s) const
+  {
+    s << DIV(CLASS="licenses")
+      <<  "Licenses: ";
+
+    for (const auto& la: license_alternatives_)
+    {
+      if (&la != &license_alternatives_[0])
+        s << " | ";
+
+      for (const auto& l: la)
+      {
+        if (&l != &la[0])
+          s << " & ";
+
+        s << l;
+      }
+    }
+
+    s << ~DIV;
+  }
+
+  // TAGS
+  //
+  void TAGS::
+  operator() (serializer& s) const
+  {
+    if (!tags_.empty ())
+    {
+      s << DIV(CLASS="tags")
+        <<   "Tags: ";
+
+      for (const auto& t: tags_)
+        s << t << " ";
+
+      s << ~DIV;
+    }
+  }
+
+  // PRIORITY
+  //
+  void PRIORITY::
+  operator() (serializer& s) const
+  {
+    static const strings priority_names (
+      {"low", "medium", "high", "security"});
+
+    assert (priority_ < priority_names.size ());
+
+    s << DIV(CLASS="priority")
+      <<   "Priority: " << priority_names[priority_]
+      << ~DIV;
   }
 }
