@@ -18,6 +18,7 @@
 #include <web/mime-url-encoding>
 
 #include <brep/page>
+#include <brep/options>
 #include <brep/package>
 #include <brep/package-odb>
 #include <brep/shared-database>
@@ -72,11 +73,11 @@ namespace brep
       <<     TITLE << title << ~TITLE
       <<     CSS_STYLE << ident
       <<       A_STYLE () << ident
-      <<       PAGER_STYLE () << ident
-      <<       ".packages {font-size: x-large;}" << ident
+      <<       DIV_PAGER_STYLE () << ident
+      <<       "#packages {font-size: x-large;}" << ident
       <<       ".package {margin: 0.5em 0 0;}" << ident
       <<       ".name {font-size: x-large;}" << ident
-      <<       ".dependencies {margin: 0.3em 0 0;}" << ident
+      <<       ".tags {margin: 0.3em 0 0;}"
       <<     ~CSS_STYLE
       <<   ~HEAD
       <<   BODY;
@@ -92,18 +93,14 @@ namespace brep
     //
     size_t pc (db_->query_value<internal_package_count> ().count);
 
-    s << DIV(CLASS="packages")
-      <<   "Packages (" << pc << ")"
-      << ~DIV;
+    s << DIV(ID="packages") << "Packages (" << pc << ")" << ~DIV;
 
-    // @@ Use appropriate view when clarify which package info to be displayed
-    //    and search index structure get implemented. Query will also
-    //    include search criteria if specified.
+    // @@ Query will also include search criteria if specified.
     //
-    using query = query<internal_package>;
+    using query = query<latest_internal_package_version>;
 
     auto r (
-      db_->query<internal_package> (
+      db_->query<latest_internal_package_version> (
         "ORDER BY" + query::package::name +
         "OFFSET" + to_string (pr.page () * rop) +
         "LIMIT" + to_string (rop)));
@@ -127,34 +124,20 @@ namespace brep
         <<       p.name
         <<     ~A
         <<   ~DIV
-        <<   DIV(CLASS="summary")
-        <<     p.summary
-        <<   ~DIV
+        <<   DIV(CLASS="summary") << p.summary << ~DIV
+        <<   DIV_TAGS (p.tags)
+        <<   DIV_LICENSES (v.license_alternatives)
         <<   DIV(CLASS="dependencies")
         <<     "Dependencies: " << v.dependencies.size ()
         <<   ~DIV
-        <<   LICENSES (v.license_alternatives)
-        <<   TAGS (p.tags);
-
-      s << ~DIV;
+        << ~DIV;
     }
 
     t.commit ();
 
-    auto u (
-      [&q](size_t p)
-      {
-        string url ("/");
-        if (p > 0)
-          url += "?p=" + to_string (p);
+    string u (q.empty () ? "/" : ("/?" + q));
 
-        if (!q.empty ())
-          url += string (p > 0 ? "&" : "?") + q;
-
-        return url;
-      });
-
-    s <<      PAGER (pr.page (), pc, rop, options_->pages_in_pager (), u)
+    s <<      DIV_PAGER (pr.page (), pc, rop, options_->pages_in_pager (), u)
       <<   ~BODY
       << ~HTML;
   }

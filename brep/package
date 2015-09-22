@@ -348,7 +348,7 @@ namespace brep
                      dependencies_type,
                      requirements_type,
                      optional<path> location,
-                     odb::lazy_shared_ptr<repository_type>);
+                     std::shared_ptr<repository_type>);
 
     // Manifest data.
     //
@@ -446,10 +446,8 @@ namespace brep
       set(_set (this.requirements, (?)))              \
       id_column("") key_column("") value_column("id")
 
-    #pragma db member(external_repositories) \
-      id_column("")                          \
-      value_column("repository")             \
-      value_not_null
+    #pragma db member(external_repositories)                  \
+      id_column("") value_column("repository") value_not_null
 
   private:
     friend class odb::access;
@@ -479,6 +477,8 @@ namespace brep
       get() set(_id (std::move (?)))
   };
 
+  // Find the latest version of an internal package.
+  //
   #pragma db view object(package_version = version)                    \
     object(package_version = v:                                        \
            version::id.data.package == v::id.data.package &&           \
@@ -492,7 +492,7 @@ namespace brep
     object(package inner: version::id.data.package == package::name && \
            version::internal_repository.is_not_null () &&              \
            v::id.data.package.is_null ())
-  struct internal_package
+  struct latest_internal_package_version
   {
     using package_type = brep::package;
     std::shared_ptr<package_type> package;

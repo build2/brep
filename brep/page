@@ -7,7 +7,6 @@
 
 #include <string>
 #include <cstddef>    // size_t
-#include <functional>
 
 #include <xml/forward>
 
@@ -28,16 +27,14 @@ namespace brep
 
   // Generates paging element.
   //
-  class PAGER
+  class DIV_PAGER
   {
   public:
-    using get_url_type = std::function<std::string(std::size_t page)>;
-
-    PAGER (std::size_t current_page,
-           std::size_t item_count,
-           std::size_t item_per_page,
-           std::size_t page_number_count,
-           get_url_type get_url);
+    DIV_PAGER (std::size_t current_page,
+               std::size_t item_count,
+               std::size_t item_per_page,
+               std::size_t page_number_count,
+               const std::string& url);
 
     void
     operator() (xml::serializer& s) const;
@@ -47,12 +44,12 @@ namespace brep
     std::size_t item_count_;
     std::size_t item_per_page_;
     std::size_t page_number_count_;
-    get_url_type get_url_;
+    const std::string& url_;
   };
 
-  // PAGER element default style.
+  // DIV_PAGER element default style.
   //
-  struct PAGER_STYLE
+  struct DIV_PAGER_STYLE
   {
     void
     operator() (xml::serializer& s) const;
@@ -60,10 +57,10 @@ namespace brep
 
   // Generates package tags element.
   //
-  class TAGS
+  class DIV_TAGS
   {
   public:
-    TAGS (const strings& ts): tags_ (ts) {}
+    DIV_TAGS (const strings& ts): tags_ (ts) {}
 
     void
     operator() (xml::serializer& s) const;
@@ -74,11 +71,10 @@ namespace brep
 
   // Generates package version license alternatives element.
   //
-  class LICENSES
+  class DIV_LICENSES
   {
   public:
-    LICENSES (const license_alternatives& la)
-        : license_alternatives_ (la) {}
+    DIV_LICENSES (const license_alternatives& l): license_alternatives_ (l) {}
 
     void
     operator() (xml::serializer& s) const;
@@ -89,10 +85,10 @@ namespace brep
 
   // Generates package version priority element.
   //
-  class PRIORITY
+  class DIV_PRIORITY
   {
   public:
-    PRIORITY (const priority& pr): priority_ (pr) {}
+    DIV_PRIORITY (const priority& p): priority_ (p) {}
 
     void
     operator() (xml::serializer& s) const;

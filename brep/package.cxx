@@ -63,7 +63,7 @@ namespace brep
                    dependencies_type dp,
                    requirements_type rq,
                    optional<path> lc,
-                   lazy_shared_ptr<repository_type> rp)
+                   shared_ptr<repository_type> rp)
       : package (move (pk)),
         version (move (vr)),
         priority (move (pr)),
@@ -73,7 +73,10 @@ namespace brep
         requirements (move (rq)),
         location (move (lc))
   {
-    if (rp.load ()->internal)
+    //@@ Can't be sure we are in transaction. Instead, make caller
+    //   pass shared_ptr.
+    //
+    if (rp->internal)
       internal_repository = move (rp);
     else
       external_repositories.emplace_back (move (rp));

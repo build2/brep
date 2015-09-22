@@ -226,9 +226,9 @@ changed (const internal_repositories& repos, database& db)
   // configuration file.
   //
   auto rs (
-    db.query<repository> (query::internal &&
-                          !query::id.canonical_name.in_range (names.begin (),
-                                                              names.end ())));
+    db.query<repository> (
+      query::internal &&
+      !query::id.canonical_name.in_range (names.begin (), names.end ())));
 
   return !rs.empty ();
 }
@@ -244,13 +244,15 @@ manifest_stream (const path& p, ifstream& f)
   return file_mtime (p);
 }
 
-// Loads the repository packages from the 'packages' file and persists the
+// Load the repository packages from the 'packages' file and persist the
 // repository. Should be called once per repository.
 //
 static void
 load_packages (const shared_ptr<repository>& rp, database& db)
 {
-  // packages_timestamp different from timestamp_nonexistent signals the
+  using brep::optional; // Ambiguity with butl::optional.
+
+  // packages_timestamp other than timestamp_nonexistent signals the
   // repository packages are already loaded.
   //
   assert (rp->packages_timestamp == timestamp_nonexistent);
@@ -282,12 +284,22 @@ load_packages (const shared_ptr<repository>& rp, database& db)
   //   otherwise call it external.
   //
 
+  // @@ External packages and external package versions are not used by the
+  //    current implementation in any way. The reason to keep them is to see
+  //    if we decide to link dependency information displayed on package
+  //    version details page to best matching package or package version
+  //    details pages. But even if we decide to keep mentioned objects for
+  //    that purpose the ammount of information we store about them can be
+  //    reduces significantly. Seems all we need to keep is in which
+  //    repository they are located.
+  //
+
   for (auto& pm: pkm)
   {
     // The code below ensures that the package object get updated with a
-    // package manifest info of the highest version. It should also be assured
-    // that for the internal package only an internal package manifests are
-    // considered for an update purpose.
+    // package manifest info of the highest version. We should also make
+    // sure that for the internal package only internal package manifests
+    // are considered for this purpose.
     //
 
     max_package_version mv;
@@ -319,13 +331,19 @@ load_packages (const shared_ptr<repository>& rp, database& db)
         query::id.data.package == pm.name, mv);
 
       if (rp->internal)
-        // Unconditionally update external package with internal package
-        // manifest info. Persist not yet persisted package.
+      {
+        // Since internal repositories get loaded first, the package
+        // can't be external.
+        //
+        assert (mv.version.empty ());
+
+        // Persist not yet persisted internal package.
         //
         update = true;
+      }
       else
-        // Update external package with external package manifest info
-        // of a higher version. Version of not persisted package is empty and
+        // Update the external package with the external package manifest info
+        // of a higher version. Version of non-persisted package is empty and
         // therefore less then any package manifest version, so the package
         // will be persisted.
         //
@@ -337,7 +355,7 @@ load_packages (const shared_ptr<repository>& rp, database& db)
       //
 
       if (rp->internal)
-        // Update internal package with the internal package manifest info
+        // Update the internal package with the internal package manifest info
         // of a higher version.
         //
         update = mv.version < pm.version;
@@ -353,7 +371,7 @@ load_packages (const shared_ptr<repository>& rp, database& db)
     {
       // Create the package object.
       //
-      brep::optional<string> desc; // Ambiguity with butl::optional.
+      optional<string> desc;
 
       // Don't add description for external repository packages.
       //
@@ -399,7 +417,7 @@ load_packages (const shared_ptr<repository>& rp, database& db)
       //
       dependencies dep;
       requirements req;
-      brep::optional<path> loc; // Ambiguity with butl::optional.
+      optional<path> loc;
       string chn;
 
       // Don't add dependencies, requirements and changes for external
@@ -449,13 +467,13 @@ load_packages (const shared_ptr<repository>& rp, database& db)
 
       if (rp->internal)
       {
+        // Just skip the duplicate.
+        //
+
         // As soon as internal repositories get loaded first, the internal
         // package version can duplicate an internal package version only.
         //
         assert (pv->internal_repository != nullptr);
-
-        // Just skip the duplicate.
-        //
       }
       else
       {
@@ -468,19 +486,19 @@ load_packages (const shared_ptr<repository>& rp, database& db)
   db.persist (rp); // Save the repository state.
 }
 
-// Loads the prerequsite repositories state from the 'repositories' file.
-// Updates the repository persistent state to save repositories_timestamp
+// Load the prerequsite repositories state from the 'repositories' file.
+// Update the repository persistent state to save repositories_timestamp
 // member. Should be called once per internal repository.
 //
 static void
-load_prerequsites (const shared_ptr<repository>& rp, database& db)
+load_prerequisites (const shared_ptr<repository>& rp, database& db)
 {
-  // repositories_timestamp different from timestamp_nonexistent signals the
-  // repository prerequsites are already loaded.
+  // repositories_timestamp other than timestamp_nonexistent signals that
+  // repository prerequisites are already loaded.
   //
   assert (rp->repositories_timestamp == timestamp_nonexistent);
 
-  // Load prerequsites for internal repositories only.
+  // Load prerequisites for internal repositories only.
   //
   assert (rp->internal);
 
@@ -655,9 +673,9 @@ main (int argc, char* argv[])
     {
       // Rebuild repositories persistent state from scratch.
       //
-      db.erase_query<repository> ();
-      db.erase_query<package> ();
       db.erase_query<package_version> ();
+      db.erase_query<package> ();
+      db.erase_query<repository> ();
 
       // On the first pass over the internal repositories we load their
       // packages.
@@ -680,7 +698,7 @@ main (int argc, char* argv[])
         shared_ptr<repository> r (
           db.load<repository> (ir.location.canonical_name ()));
 
-        load_prerequsites (r, db);
+        load_prerequisites (r, db);
       }
     }
 

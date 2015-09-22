@@ -4,6 +4,7 @@
 
 #include <brep/page>
 
+#include <string>
 #include <cassert>
 #include <utility>   // move()
 #include <algorithm> // min()
@@ -30,23 +31,23 @@ namespace brep
       << "a:hover {text-decoration: underline;}";
   }
 
-  // PAGER
+  // DIV_PAGER
   //
-  PAGER::
-  PAGER (size_t current_page,
-         size_t item_count,
-         size_t item_per_page,
-         size_t page_number_count,
-         get_url_type get_url)
+  DIV_PAGER::
+  DIV_PAGER (size_t current_page,
+             size_t item_count,
+             size_t item_per_page,
+             size_t page_number_count,
+             const string& url)
       : current_page_ (current_page),
         item_count_ (item_count),
         item_per_page_ (item_per_page),
         page_number_count_ (page_number_count),
-        get_url_ (move (get_url))
+        url_ (url)
   {
   }
 
-  void PAGER::
+  void DIV_PAGER::
   operator() (serializer& s) const
   {
     if (item_count_ == 0 || item_per_page_ == 0)
@@ -59,13 +60,22 @@ namespace brep
 
     if (pc > 1)
     {
+      auto u (
+        [this](size_t page) -> string
+        {
+          return page == 0
+            ? url_
+            : url_ + (url_.find ('?') == string::npos ? "?p=" : "&p=") +
+            to_string (page);
+        });
+
       // Can consider customizing class names if use-case appear.
       //
       s << DIV(CLASS="pager");
 
       if (current_page_ > 0)
         s << A(CLASS="pg-prev")
-          << HREF << get_url_ (current_page_ - 1) << ~HREF
+          << HREF << u (current_page_ - 1) << ~HREF
           <<   "<<"
           << ~A
           << " ";
@@ -79,12 +89,10 @@ namespace brep
         for (size_t p (fp); p < tp; ++p)
         {
           if (p == current_page_)
-            s << SPAN(CLASS="pg-cpage")
-              <<   p + 1
-              << ~SPAN;
+            s << SPAN(CLASS="pg-cpage") << p + 1 << ~SPAN;
           else
             s << A(CLASS="pg-page")
-              << HREF << get_url_ (p) << ~HREF
+              << HREF << u (p) << ~HREF
               <<   p + 1
               << ~A;
 
@@ -94,7 +102,7 @@ namespace brep
 
       if (current_page_ < pc - 1)
         s << A(CLASS="pg-next")
-          << HREF << get_url_ (current_page_ + 1) << ~HREF
+          << HREF << u (current_page_ + 1) << ~HREF
           <<   ">>"
           << ~A;
 
@@ -102,9 +110,9 @@ namespace brep
     }
   }
 
-  // PAGER_STYLE
+  // DIV_PAGER_STYLE
   //
-  void PAGER_STYLE::
+  void DIV_PAGER_STYLE::
   operator() (xml::serializer& s) const
   {
     const char* ident ("\n      ");
@@ -114,9 +122,9 @@ namespace brep
       << ".pg-cpage {padding: 0 0.3em 0 0; font-weight: bold;}";
   }
 
-  // LICENSES
+  // DIV_LICENSES
   //
-  void LICENSES::
+  void DIV_LICENSES::
   operator() (serializer& s) const
   {
     s << DIV(CLASS="licenses")
@@ -139,9 +147,9 @@ namespace brep
     s << ~DIV;
   }
 
-  // TAGS
+  // DIV_TAGS
   //
-  void TAGS::
+  void DIV_TAGS::
   operator() (serializer& s) const
   {
     if (!tags_.empty ())
@@ -156,9 +164,9 @@ namespace brep
     }
   }
 
-  // PRIORITY
+  // DIV_PRIORITY
   //
-  void PRIORITY::
+  void DIV_PRIORITY::
   operator() (serializer& s) const
   {
     static const strings priority_names (

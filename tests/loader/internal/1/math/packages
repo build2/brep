@@ -17,14 +17,27 @@ optimization tools. There are over 100 functions in total with an extensive \
 test suite. The API is similar to MATLAB.
 license: LGPLv2, MIT; If using with GNU TLS.
 license: BSD; If using with OpenSSL.
-priority: high
+priority: high; Due to critical bug fix.
 tags: c++, foo, math
 url: http://www.example.com/foo/
 email: foo-users@example.com
 package-url: http://www.example.com/foo/pack
 package-email: pack@example.com
-depends: libmisc >= 2.3.0
+depends: libmisc < 1.1 | libmisc > 2.3.0; Crashes in range [1.1, 2.3.0].
+depends: ? libstudxml; Newer - better.
+requires: linux | windows | macosx; Symbian is coming.
+requires: c++11
+requires: ? VC++; 12.0 or later if targeting Windows.
+requires: ? ; libc++ standard library if using Clang on Mac OS X.
 location: libfoo-1.2.4-1.tar.gz
+changes:\
+1.2.4-1
+ * applied patch for critical bug-219
+ * regenerated documentation
+
+1.2.4
+ * test suite extended significantly
+\
 :
 name: libfoo
 version: 1.0

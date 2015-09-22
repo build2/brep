@@ -292,31 +292,14 @@ main (int argc, char* argv[])
                  brep::optional<version_comparison> (
                    version_comparison{version ("1+1.2"), comparison::eq})}));
 
-      requirements& fpvr2 (fpv2->requirements);
-      assert (fpvr2.size () == 4);
-
-      assert (fpvr2[0] == strings ({"linux", "windows", "macosx"}));
-      assert (!fpvr2[0].conditional);
-      assert (fpvr2[0].comment.empty ());
-
-      assert (fpvr2[1] == strings ({"c++11"}));
-      assert (!fpvr2[1].conditional);
-      assert (fpvr2[1].comment.empty ());
-
-      assert (fpvr2[2].empty ());
-      assert (fpvr2[2].conditional);
-      assert (fpvr2[2].comment == "VC++ 12.0 or later if targeting Windows.");
-
-      assert (fpvr2[3].empty ());
-      assert (fpvr2[3].conditional);
-      assert (fpvr2[3].comment ==
-              "libc++ standard library if using Clang on Mac OS X.");
+      assert (fpv2->requirements.empty ());
 
       assert (fpv3->internal_repository.load () == sr);
       assert (fpv3->external_repositories.empty ());
       assert (fpv3->package.load () == pf);
       assert (fpv3->version == version ("1.2.3-4"));
       assert (fpv3->priority == priority::low);
+
       assert (fpv3->changes.empty ());
 
       assert (fpv3->license_alternatives.size () == 1);
@@ -339,6 +322,8 @@ main (int argc, char* argv[])
       assert (fpv4->changes == "some changes 1\nsome changes 2");
 
       assert (fpv4->license_alternatives.size () == 1);
+      assert (fpv4->license_alternatives[0].comment ==
+              "Permissive free software license.");
       assert (fpv4->license_alternatives[0].size () == 1);
       assert (fpv4->license_alternatives[0][0] == "MIT");
 
@@ -390,11 +375,22 @@ main (int argc, char* argv[])
       // Verify libfoo package versions.
       //
       assert (fpv5->internal_repository.load () == mr);
-      assert (fpv5->external_repositories.empty ());
+      assert (fpv5->external_repositories.size () == 1);
+      assert (fpv5->external_repositories[0].load () == cr);
+
       assert (fpv5->package.load () == pf);
       assert (fpv5->version == version ("1.2.4-1"));
       assert (fpv5->priority == priority::high);
-      assert (fpv5->changes.empty ());
+      assert (fpv5->priority.comment == "Due to critical bug fix.");
+
+      const char ch[] = R"DLM(1.2.4-1
+ * applied patch for critical bug-219
+ * regenerated documentation
+
+1.2.4
+ * test suite extended significantly)DLM";
+
+      assert (fpv5->changes == ch);
 
       assert (fpv5->license_alternatives.size () == 2);
       assert (fpv5->license_alternatives[0].comment ==
@@ -407,16 +403,48 @@ main (int argc, char* argv[])
       assert (fpv5->license_alternatives[1].size () == 1);
       assert (fpv5->license_alternatives[1][0] == "BSD");
 
-      assert (fpv5->dependencies.size () == 1);
-      assert (fpv5->dependencies[0].size () == 1);
+      assert (fpv5->dependencies.size () == 2);
+      assert (fpv5->dependencies[0].size () == 2);
+      assert (fpv5->dependencies[0].comment ==
+              "Crashes in range [1.1, 2.3.0].");
 
       assert (fpv5->dependencies[0][0] ==
               (dependency {
                  "libmisc",
                  brep::optional<version_comparison> (
-                   version_comparison{version ("2.3.0"), comparison::ge})}));
+                   version_comparison{version ("1.1"), comparison::lt})}));
 
-      assert (fpv5->requirements.empty ());
+      assert (fpv5->dependencies[0][1] ==
+              (dependency {
+                 "libmisc",
+                 brep::optional<version_comparison> (
+                   version_comparison{version ("2.3.0"), comparison::gt})}));
+
+      assert (fpv5->dependencies[1].size () == 1);
+      assert (fpv5->dependencies[1].comment == "Newer - better.");
+
+      assert (fpv5->dependencies[1][0] ==
+              (dependency {"libstudxml", nullopt}));
+
+      requirements& fpvr5 (fpv5->requirements);
+      assert (fpvr5.size () == 4);
+
+      assert (fpvr5[0] == strings ({"linux", "windows", "macosx"}));
+      assert (!fpvr5[0].conditional);
+      assert (fpvr5[0].comment == "Symbian is coming.");
+
+      assert (fpvr5[1] == strings ({"c++11"}));
+      assert (!fpvr5[1].conditional);
+      assert (fpvr5[1].comment.empty ());
+
+      assert (fpvr5[2] == strings ({"VC++"}));
+      assert (fpvr5[2].conditional);
+      assert (fpvr5[2].comment == "12.0 or later if targeting Windows.");
+
+      assert (fpvr5[3].empty ());
+      assert (fpvr5[3].conditional);
+      assert (fpvr5[3].comment ==
+              "libc++ standard library if using Clang on Mac OS X.");
 
       // Verify libexp package.
       //

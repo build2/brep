@@ -33,17 +33,13 @@ url: http://www.example.com/foo/
 email: foo-users@example.com
 depends: libbar <= 2.4.0
 depends: libexp == 1+1.2
-requires: linux | windows | macosx
-requires: c++11
-requires: ? ; VC++ 12.0 or later if targeting Windows.
-requires: ? ; libc++ standard library if using Clang on Mac OS X.
 location: libfoo-1.2.2.tar.gz
 :
 name: libfoo
 version: 1.2.4
 summary: The Foo Library
 description: Very good foo library.
-license: MIT
+license: MIT; Permissive free software license.
 tags: c++, foo
 url: http://www.example.com/foo/
 email: foo-users@example.com

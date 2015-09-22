@@ -307,9 +307,12 @@ namespace web
     static const element H4    ("h4");
     static const element H5    ("h5");
     static const element H6    ("h6");
+    static const element LI    ("li");
     static const element META  ("meta");
     static const element P     ("p");
+    static const element PRE   ("pre");
     static const element TITLE ("title");
+    static const element UL    ("ul");
 
     static const inline_element A    ("a");
     static const inline_element B    ("b");

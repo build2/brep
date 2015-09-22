@@ -18,6 +18,7 @@
 #include <web/mime-url-encoding>
 
 #include <brep/page>
+#include <brep/options>
 #include <brep/package>
 #include <brep/package-odb>
 #include <brep/shared-database>
@@ -71,24 +72,25 @@ namespace brep
       <<     TITLE << title << ~TITLE
       <<     CSS_STYLE << ident
       <<       A_STYLE () << ident
-      <<       PAGER_STYLE () << ident
-      <<       ".name {font-size: xx-large; font-weight: bold;}" << ident
-      <<       ".summary {font-size: x-large; margin: 0.2em 0 0;}" << ident
-      <<       ".url {font-size: 90%;}" << ident
-      <<       ".email {font-size: 90%;}" << ident
-      <<       ".description {margin: 0.5em 0 0;}" << ident
+      <<       DIV_PAGER_STYLE () << ident
+      <<       "#name {font-size: xx-large; font-weight: bold;}" << ident
+      <<       "#summary {font-size: x-large; margin: 0.2em 0 0;}" << ident
+      <<       ".url {margin: 0.3em 0 0;}" << ident
+      <<       "#description {margin: 0.5em 0 0;}" << ident
       <<       ".tags {margin: 0.3em 0 0;}" << ident
-      <<       ".versions {font-size: x-large; margin: 0.5em 0 0;}" << ident
+      <<       "#versions {font-size: x-large; margin: 0.5em 0 0;}" << ident
       <<       ".package_version {margin: 0.5em 0 0;}" << ident
       <<       ".version {font-size: x-large;}" << ident
       <<       ".priority {margin: 0.3em 0 0;}"
       <<     ~CSS_STYLE
       <<   ~HEAD
-      <<   BODY;
-
-    transaction t (db_->begin ());
+      <<   BODY
+      <<     DIV(ID="name") << name << ~DIV;
 
     shared_ptr<package> p;
+    size_t rop (options_->results_on_page ());
+
+    transaction t (db_->begin ());
 
     try
     {
@@ -99,12 +101,7 @@ namespace brep
       throw invalid_request (404, "Package '" + name + "' not found");
     }
 
-    s << DIV(CLASS="name")
-      <<   name
-      << ~DIV
-      << DIV(CLASS="summary")
-      <<   p->summary
-      << ~DIV
+    s << DIV(ID="summary") << p->summary << ~DIV
       << DIV(CLASS="url")
       <<   A << HREF << p->url << ~HREF << p->url << ~A
       << ~DIV
@@ -113,11 +110,9 @@ namespace brep
       << ~DIV;
 
     if (p->description)
-      s << DIV(CLASS="description")
-        <<   *p->description
-        << ~DIV;
+      s << DIV(ID="description") << *p->description << ~DIV;
 
-    s << TAGS (p->tags);
+    s << DIV_TAGS (p->tags);
 
     size_t pvc;
     {
@@ -130,9 +125,7 @@ namespace brep
         query::internal_repository.is_not_null ()).count;
     }
 
-    s << DIV(CLASS="versions")
-      <<   "Versions (" << pvc << ")"
-      << ~DIV;
+    s << DIV(ID="versions") << "Versions (" << pvc << ")" << ~DIV;
 
     if (p->package_url)
       s << DIV(CLASS="url")
@@ -146,8 +139,6 @@ namespace brep
         <<     *p->package_email
         <<   ~A
         << ~DIV;
-
-    size_t rop (options_->results_on_page ());
 
     // @@ Use appropriate view when clarify which package version info to be
     //    displayed and search index structure get implemented. Query will also
@@ -171,37 +162,25 @@ namespace brep
       s << DIV(CLASS="package_version")
         <<   DIV(CLASS="version")
         <<     A
-        <<     HREF
-        <<       "/go/" << mime_url_encode (name) << "/" << vs
-        <<     ~HREF
+        <<     HREF << "/go/" << mime_url_encode (name) << "/" << vs << ~HREF
         <<       vs
         <<     ~A
         <<   ~DIV
-        <<   PRIORITY (v.priority)
+        <<   DIV_PRIORITY (v.priority)
+        <<   DIV_LICENSES (v.license_alternatives)
         <<   DIV(CLASS="dependencies")
         <<     "Dependencies: " << v.dependencies.size ()
         <<   ~DIV
-        <<   LICENSES (v.license_alternatives)
         << ~DIV;
     }
 
     t.commit ();
 
-    auto u (
-      [&name, &pr](size_t p)
-      {
-        string url (name);
-        if (p > 0)
-          url += "?p=" + to_string (p);
+    string u (mime_url_encode (name));
+    if (!pr.query ().empty ())
+      u += "?q=" + mime_url_encode (pr.query ());
 
-        if (!pr.query ().empty ())
-          url +=
-            string (p > 0 ? "&" : "?") + "q=" + mime_url_encode (pr.query ());
-
-        return url;
-      });
-
-    s <<     PAGER (pr.page (), pvc, rop, options_->pages_in_pager (), u)
+    s <<     DIV_PAGER (pr.page (), pvc, rop, options_->pages_in_pager (), u)
       <<   ~BODY
       << ~HTML;
   }
