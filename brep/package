@@ -45,12 +45,16 @@ namespace brep
 // bpkg namespace from which we "borrow" types (and some of them use
 // version).
 //
-#pragma db map type(bpkg::version) as(brep::_version)                    \
-  to(brep::_version{(?).epoch (),                                        \
-                    (?).upstream (),                                     \
-                    (?).revision (),                                     \
-                    (?).canonical_upstream ()})                          \
+#pragma db map type(bpkg::version) as(brep::_version)                     \
+  to(brep::_version{(?).epoch,                                            \
+                    (?).upstream,                                         \
+                    (?).revision,                                         \
+                    (?).canonical_upstream})                              \
   from(bpkg::version ((?).epoch, std::move ((?).upstream), (?).revision))
+
+#pragma db map type(bpkg::comparison) as(std::string) \
+    to(bpkg::to_string (?))                           \
+    from(bpkg::to_comparison (?))
 
 namespace brep
 {
@@ -157,9 +161,8 @@ namespace brep
   // dependencies
   //
   using comparison = bpkg::comparison;
-  using version_comparison = bpkg::version_comparison;
-  #pragma db value(version_comparison) definition
-  #pragma db member(version_comparison::value) column("")
+  using dependency_condition = bpkg::dependency_condition;
+  #pragma db value(dependency_condition) definition
 
   // Notes:
   //
@@ -192,6 +195,7 @@ namespace brep
   //
   using dependency = bpkg::dependency;
   #pragma db value(dependency) definition
+  #pragma db member(dependency::condition) column("")
 
   using dependency_alternatives = bpkg::dependency_alternatives;
   #pragma db value(dependency_alternatives) definition

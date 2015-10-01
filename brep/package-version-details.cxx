@@ -116,9 +116,7 @@ namespace brep
 
     try
     {
-      package_version_id id {
-        p, v.epoch (), v.canonical_upstream (), v.revision ()};
-
+      package_version_id id {p, v.epoch, v.canonical_upstream, v.revision};
       pv = db_->load<package_version> (id);
 
       // If the requested package version turned up to be an "external" one
@@ -193,22 +191,11 @@ namespace brep
           if (&d != &da[0])
             s << " | ";
 
-          // @@ Should it be a link to package version search page on the
+          // @@ Should it be a link to the package version search page or
+          //    the best matching package version details page on the
           //    corresponding repository site ?
           //
-          s << d.package;
-
-          if (d.version)
-          {
-            static const strings operations ({"==", "<", ">", "<=", ">="});
-            size_t op (static_cast<size_t> (d.version->operation));
-            assert (op < operations.size ());
-
-            // @@ Should it be a link to the best matching package version
-            //    details page on the corresponding repository site ?
-            //
-            s << " " << operations[op] << " " << d.version->value.string ();
-          }
+          s << d;
         }
 
         if (!da.comment.empty ())

@@ -30,9 +30,9 @@ using namespace brep;
 static inline bool
 operator== (const dependency& a, const dependency& b)
 {
-  return a.package == b.package && !a.version == !b.version &&
-    (!a.version || (a.version->value == b.version->value &&
-                    a.version->operation == b.version->operation));
+  return a.name == b.name && !a.condition == !b.condition &&
+    (!a.condition || (a.condition->operation == b.condition->operation &&
+                      a.condition->version == b.condition->version));
 }
 
 static bool
@@ -131,9 +131,9 @@ main (int argc, char* argv[])
         db.load<package_version> (
           package_version_id {
             "libfoo",
-            fv1.epoch (),
-            fv1.canonical_upstream (),
-            fv1.revision ()}));
+            fv1.epoch,
+            fv1.canonical_upstream,
+            fv1.revision}));
       assert (check_location (fpv1));
 
       version fv2 ("1.2.2");
@@ -141,9 +141,9 @@ main (int argc, char* argv[])
         db.load<package_version> (
           package_version_id {
             "libfoo",
-            fv2.epoch (),
-            fv2.canonical_upstream (),
-            fv2.revision ()}));
+            fv2.epoch,
+            fv2.canonical_upstream,
+            fv2.revision}));
       assert (check_location (fpv2));
 
       version fv3 ("1.2.3-4");
@@ -151,9 +151,9 @@ main (int argc, char* argv[])
         db.load<package_version> (
           package_version_id {
             "libfoo",
-            fv3.epoch (),
-            fv3.canonical_upstream (),
-            fv3.revision ()}));
+            fv3.epoch,
+            fv3.canonical_upstream,
+            fv3.revision}));
       assert (check_location (fpv3));
 
       version fv4 ("1.2.4");
@@ -161,9 +161,9 @@ main (int argc, char* argv[])
         db.load<package_version> (
           package_version_id {
             "libfoo",
-            fv4.epoch (),
-            fv4.canonical_upstream (),
-            fv4.revision ()}));
+            fv4.epoch,
+            fv4.canonical_upstream,
+            fv4.revision}));
       assert (check_location (fpv4));
 
       version xv ("1.0.0-1");
@@ -171,9 +171,9 @@ main (int argc, char* argv[])
         db.load<package_version> (
           package_version_id {
             "libstudxml",
-            xv.epoch (),
-            xv.canonical_upstream (),
-            xv.revision ()}));
+            xv.epoch,
+            xv.canonical_upstream,
+            xv.revision}));
       assert (check_location (xpv));
 
       // Verify libstudxml package.
@@ -215,12 +215,13 @@ main (int argc, char* argv[])
       assert (xpv->dependencies[0][0] ==
               (dependency {
                  "libexpat",
-                 brep::optional<version_comparison> (
-                   version_comparison{version ("2.0.0"), comparison::ge})}));
+                 brep::optional<dependency_condition> (
+                   dependency_condition{comparison::ge, version ("2.0.0")})}));
 
       assert (xpv->dependencies[1].size () == 1);
       assert (xpv->dependencies[1][0] ==
-              (dependency {"libgenx", brep::optional<version_comparison> ()}));
+              (dependency {
+                "libgenx", brep::optional<dependency_condition> ()}));
 
       assert (xpv->requirements.empty ());
 
@@ -283,14 +284,14 @@ main (int argc, char* argv[])
       assert (fpv2->dependencies[0][0] ==
               (dependency {
                  "libbar",
-                 brep::optional<version_comparison> (
-                   version_comparison{version ("2.4.0"), comparison::le})}));
+                 brep::optional<dependency_condition> (
+                   dependency_condition{comparison::le, version ("2.4.0")})}));
 
       assert (fpv2->dependencies[1][0] ==
               (dependency {
                  "libexp",
-                 brep::optional<version_comparison> (
-                   version_comparison{version ("1+1.2"), comparison::eq})}));
+                 brep::optional<dependency_condition> (
+                   dependency_condition{comparison::eq, version ("1+1.2")})}));
 
       assert (fpv2->requirements.empty ());
 
@@ -311,8 +312,8 @@ main (int argc, char* argv[])
       assert (fpv3->dependencies[0][0] ==
               (dependency {
                  "libmisc",
-                 brep::optional<version_comparison> (
-                   version_comparison{version ("2.0.0"), comparison::ge})}));
+                 brep::optional<dependency_condition> (
+                   dependency_condition{comparison::ge, version ("2.0.0")})}));
 
       assert (fpv4->internal_repository.load () == sr);
       assert (fpv4->external_repositories.empty ());
@@ -332,8 +333,8 @@ main (int argc, char* argv[])
       assert (fpv4->dependencies[0][0] ==
               (dependency {
                  "libmisc",
-                 brep::optional<version_comparison> (
-                   version_comparison{version ("2.0.0"), comparison::ge})}));
+                 brep::optional<dependency_condition> (
+                   dependency_condition{comparison::ge, version ("2.0.0")})}));
 
       // Verify 'math' repository.
       //
@@ -356,9 +357,9 @@ main (int argc, char* argv[])
         db.load<package_version> (
           package_version_id {
             "libexp",
-            ev.epoch (),
-            ev.canonical_upstream (),
-            ev.revision ()}));
+            ev.epoch,
+            ev.canonical_upstream,
+            ev.revision}));
       assert (check_location (epv));
 
       version fv5 ("1.2.4-1");
@@ -366,9 +367,9 @@ main (int argc, char* argv[])
         db.load<package_version> (
           package_version_id {
             "libfoo",
-            fv5.epoch (),
-            fv5.canonical_upstream (),
-            fv5.revision ()}));
+            fv5.epoch,
+            fv5.canonical_upstream,
+            fv5.revision}));
       assert (fpv[5].load () == fpv5);
       assert (check_location (fpv5));
 
@@ -411,14 +412,14 @@ main (int argc, char* argv[])
       assert (fpv5->dependencies[0][0] ==
               (dependency {
                  "libmisc",
-                 brep::optional<version_comparison> (
-                   version_comparison{version ("1.1"), comparison::lt})}));
+                 brep::optional<dependency_condition> (
+                   dependency_condition{comparison::lt, version ("1.1")})}));
 
       assert (fpv5->dependencies[0][1] ==
               (dependency {
                  "libmisc",
-                 brep::optional<version_comparison> (
-                   version_comparison{version ("2.3.0"), comparison::gt})}));
+                 brep::optional<dependency_condition> (
+                   dependency_condition{comparison::gt, version ("2.3.0")})}));
 
       assert (fpv5->dependencies[1].size () == 1);
       assert (fpv5->dependencies[1].comment == "Newer - better.");
@@ -478,7 +479,8 @@ main (int argc, char* argv[])
       assert (epv->dependencies.size () == 1);
       assert (epv->dependencies[0].size () == 1);
       assert (epv->dependencies[0][0] ==
-              (dependency {"libmisc", brep::optional<version_comparison> ()}));
+              (dependency {
+                "libmisc", brep::optional<dependency_condition> ()}));
 
       assert (epv->requirements.empty ());
 
@@ -502,9 +504,9 @@ main (int argc, char* argv[])
         db.load<package_version> (
           package_version_id {
             "libbar",
-            bv.epoch (),
-            bv.canonical_upstream (),
-            bv.revision ()}));
+            bv.epoch,
+            bv.canonical_upstream,
+            bv.revision}));
       assert (check_location (bpv));
 
       version fv0 ("0.1");
@@ -512,9 +514,9 @@ main (int argc, char* argv[])
         db.load<package_version> (
           package_version_id {
             "libfoo",
-            fv0.epoch (),
-            fv0.canonical_upstream (),
-            fv0.revision ()}));
+            fv0.epoch,
+            fv0.canonical_upstream,
+            fv0.revision}));
       assert (check_location (fpv0));
 
       // Verify libbar package.
