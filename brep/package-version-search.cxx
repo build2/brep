@@ -149,9 +149,7 @@ namespace brep
       db_->query<package_version> (
         (query::id.data.package == name &&
          query::internal_repository.is_not_null ()) +
-        "ORDER BY" + query::id.data.epoch + "DESC," +
-        query::id.data.canonical_upstream + "DESC," +
-        query::id.data.revision + "DESC " +
+        order_by_version_desc (query::id.data.version) +
         "OFFSET" + to_string (pr.page () * rop) +
         "LIMIT" + to_string (rop)));
 

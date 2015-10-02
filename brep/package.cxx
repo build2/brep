@@ -98,9 +98,10 @@ namespace brep
   void package_version::
   _id (_id_type&& v, database& db)
   {
+    const auto& dv (v.data.version);
     package = lazy_shared_ptr<package_type> (db, v.data.package);
-    version = version_type (v.data.epoch, move (v.upstream), v.data.revision);
-    assert (version.canonical_upstream == v.data.canonical_upstream);
+    version = version_type (dv.epoch, move (v.upstream), dv.revision);
+    assert (version.canonical_upstream == dv.canonical_upstream);
   }
 
   // max_package_version
@@ -108,8 +109,9 @@ namespace brep
   void max_package_version::
   _id (package_version::_id_type&& v)
   {
-    version = version_type (v.data.epoch, move (v.upstream), v.data.revision);
-    assert (version.canonical_upstream == v.data.canonical_upstream);
+    const auto& dv (v.data.version);
+    version = version_type (dv.epoch, move (v.upstream), dv.revision);
+    assert (version.canonical_upstream == dv.canonical_upstream);
   }
 
   // repository

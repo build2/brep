@@ -68,6 +68,30 @@ namespace brep
   //    to TEXT as a comma-separated list.
   //
 
+  // Version comparison operators.
+  //
+  template <typename T1, typename T2>
+  inline auto
+  operator< (const T1& x, const T2& y) -> decltype (x.epoch < y.epoch)
+  {
+    return x.epoch < y.epoch ||
+                     (x.epoch == y.epoch &&
+                      x.canonical_upstream < y.canonical_upstream) ||
+      (x.epoch == y.epoch &&
+       x.canonical_upstream == y.canonical_upstream &&
+       x.revision < y.revision);
+  }
+
+  template <typename T>
+  inline auto
+  order_by_version_desc (const T& x) -> decltype (x.epoch == 0)
+  {
+    return "ORDER BY"
+      + x.epoch + "DESC,"
+      + x.canonical_upstream + "DESC,"
+      + x.revision + "DESC";
+  }
+
   // Forward declarations.
   //
   class repository;
@@ -109,9 +133,16 @@ namespace brep
   struct package_version_id
   {
     std::string package;
-    std::uint16_t epoch;
-    std::string canonical_upstream;
-    std::uint16_t revision;
+
+    #pragma db value
+    struct version_type
+    {
+      std::uint16_t epoch;
+      std::string canonical_upstream;
+      std::uint16_t revision;
+    };
+
+    version_type version;
 
     // Database mapping.
     //
@@ -126,15 +157,7 @@ namespace brep
     if (r != 0)
       return r < 0;
 
-    if (x.epoch != y.epoch)
-      return x.epoch < y.epoch;
-
-    r = x.canonical_upstream.compare (y.canonical_upstream);
-
-    if (r != 0)
-      return r < 0;
-
-    return x.revision < y.revision;
+    return x.version < y.version;
   }
 
   using priority = bpkg::priority;
@@ -458,10 +481,9 @@ namespace brep
     package_version () = default;
   };
 
-  #pragma db view object(package_version)                               \
-    query((?) + "ORDER BY" + package_version::id.data.epoch + "DESC," + \
-          package_version::id.data.canonical_upstream + "DESC," +       \
-          package_version::id.data.revision + "DESC LIMIT 1")
+  #pragma db view object(package_version)                                  \
+    query((?) + order_by_version_desc (package_version::id.data.version) + \
+          "LIMIT 1")
   struct max_package_version
   {
     using version_type = brep::version;
@@ -486,13 +508,7 @@ namespace brep
   #pragma db view object(package_version = version)                    \
     object(package_version = v:                                        \
            version::id.data.package == v::id.data.package &&           \
-           (version::id.data.epoch < v::id.data.epoch ||               \
-            (version::id.data.epoch == v::id.data.epoch &&             \
-             (version::id.data.canonical_upstream <                    \
-              v::id.data.canonical_upstream ||                         \
-              (version::id.data.canonical_upstream ==                  \
-               v::id.data.canonical_upstream &&                        \
-               version::id.data.revision < v::id.data.revision)))))    \
+           version::id.data.version < v::id.data.version)              \
     object(package inner: version::id.data.package == package::name && \
            version::internal_repository.is_not_null () &&              \
            v::id.data.package.is_null ())
@@ -519,6 +535,12 @@ namespace brep
     #pragma db column("count(*)")
     std::size_t count;
   };
+}
+
+namespace odb
+{
+  using ::brep::operator<;
+  using ::brep::order_by_version_desc;
 }
 
 // Nested container emulation support for ODB.

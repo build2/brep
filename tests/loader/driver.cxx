@@ -131,9 +131,7 @@ main (int argc, char* argv[])
         db.load<package_version> (
           package_version_id {
             "libfoo",
-            fv1.epoch,
-            fv1.canonical_upstream,
-            fv1.revision}));
+            {fv1.epoch, fv1.canonical_upstream, fv1.revision}}));
       assert (check_location (fpv1));
 
       version fv2 ("1.2.2");
@@ -141,9 +139,7 @@ main (int argc, char* argv[])
         db.load<package_version> (
           package_version_id {
             "libfoo",
-            fv2.epoch,
-            fv2.canonical_upstream,
-            fv2.revision}));
+            {fv2.epoch, fv2.canonical_upstream, fv2.revision}}));
       assert (check_location (fpv2));
 
       version fv3 ("1.2.3-4");
@@ -151,9 +147,7 @@ main (int argc, char* argv[])
         db.load<package_version> (
           package_version_id {
             "libfoo",
-            fv3.epoch,
-            fv3.canonical_upstream,
-            fv3.revision}));
+            {fv3.epoch, fv3.canonical_upstream, fv3.revision}}));
       assert (check_location (fpv3));
 
       version fv4 ("1.2.4");
@@ -161,9 +155,7 @@ main (int argc, char* argv[])
         db.load<package_version> (
           package_version_id {
             "libfoo",
-            fv4.epoch,
-            fv4.canonical_upstream,
-            fv4.revision}));
+            {fv4.epoch, fv4.canonical_upstream, fv4.revision}}));
       assert (check_location (fpv4));
 
       version xv ("1.0.0-1");
@@ -171,9 +163,7 @@ main (int argc, char* argv[])
         db.load<package_version> (
           package_version_id {
             "libstudxml",
-            xv.epoch,
-            xv.canonical_upstream,
-            xv.revision}));
+            {xv.epoch, xv.canonical_upstream, xv.revision}}));
       assert (check_location (xpv));
 
       // Verify libstudxml package.
@@ -357,9 +347,7 @@ main (int argc, char* argv[])
         db.load<package_version> (
           package_version_id {
             "libexp",
-            ev.epoch,
-            ev.canonical_upstream,
-            ev.revision}));
+            {ev.epoch, ev.canonical_upstream, ev.revision}}));
       assert (check_location (epv));
 
       version fv5 ("1.2.4-1");
@@ -367,9 +355,7 @@ main (int argc, char* argv[])
         db.load<package_version> (
           package_version_id {
             "libfoo",
-            fv5.epoch,
-            fv5.canonical_upstream,
-            fv5.revision}));
+            {fv5.epoch, fv5.canonical_upstream, fv5.revision}}));
       assert (fpv[5].load () == fpv5);
       assert (check_location (fpv5));
 
@@ -504,9 +490,7 @@ main (int argc, char* argv[])
         db.load<package_version> (
           package_version_id {
             "libbar",
-            bv.epoch,
-            bv.canonical_upstream,
-            bv.revision}));
+            {bv.epoch, bv.canonical_upstream, bv.revision}}));
       assert (check_location (bpv));
 
       version fv0 ("0.1");
@@ -514,9 +498,7 @@ main (int argc, char* argv[])
         db.load<package_version> (
           package_version_id {
             "libfoo",
-            fv0.epoch,
-            fv0.canonical_upstream,
-            fv0.revision}));
+            {fv0.epoch, fv0.canonical_upstream, fv0.revision}}));
       assert (check_location (fpv0));
 
       // Verify libbar package.

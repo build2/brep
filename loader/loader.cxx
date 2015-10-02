@@ -406,9 +406,10 @@ load_packages (const shared_ptr<repository>& rp, database& db)
         package_version_id
         {
           pm.name,
-          pm.version.epoch,
-          pm.version.canonical_upstream,
-          pm.version.revision
+          { pm.version.epoch,
+            pm.version.canonical_upstream,
+            pm.version.revision
+          }
         }));
 
     if (pv == nullptr)
