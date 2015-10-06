@@ -55,6 +55,34 @@ namespace brep
     operator() (xml::serializer& s) const;
   };
 
+  // Generates url element.
+  //
+  class DIV_URL
+  {
+  public:
+    DIV_URL (const url& u): url_ (u) {}
+
+    void
+    operator() (xml::serializer& s) const;
+
+  private:
+    const url& url_;
+  };
+
+  // Generates email element.
+  //
+  class DIV_EMAIL
+  {
+  public:
+    DIV_EMAIL (const email& e): email_ (e) {}
+
+    void
+    operator() (xml::serializer& s) const;
+
+  private:
+    const email& email_;
+  };
+
   // Generates package tags element.
   //
   class DIV_TAGS

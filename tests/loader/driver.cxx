@@ -42,8 +42,7 @@ check_location (shared_ptr<package_version>& pv)
     return !pv->location;
   else
     return pv->location && *pv->location ==
-      path (pv->package.load ()->name + "-" + pv->version.string () +
-            ".tar.gz");
+      path (pv->name + "-" + pv->version.string () + ".tar.gz");
 }
 
 int
@@ -91,7 +90,6 @@ main (int argc, char* argv[])
       transaction t (db.begin ());
 
       assert (db.query<repository> ().size () == 3);
-      assert (db.query<package> ().size () == 4);
       assert (db.query<package_version> ().size () == 9);
 
       shared_ptr<repository> sr (db.load<repository> ("cppget.org/stable"));
@@ -112,19 +110,6 @@ main (int argc, char* argv[])
       assert (sr->repositories_timestamp ==
               file_mtime (dir_path (sr->local_path) / path ("repositories")));
       assert (sr->internal);
-
-      using lv_t = lazy_weak_ptr<package_version>;
-      auto vc ([](const lv_t& a, const lv_t& b){
-          auto v1 (a.load ());
-          auto v2 (b.load ());
-
-          int r (v1->package.object_id ().compare (v2->package.object_id ()));
-
-          if (r)
-            return r < 0;
-
-          return v1->version < v2->version;
-        });
 
       version fv1 ("1.0");
       shared_ptr<package_version> fpv1 (
@@ -166,33 +151,26 @@ main (int argc, char* argv[])
             {xv.epoch, xv.canonical_upstream, xv.revision}}));
       assert (check_location (xpv));
 
-      // Verify libstudxml package.
-      //
-      shared_ptr<package> px (db.load<package> ("libstudxml"));
-      assert (px->name == "libstudxml");
-      assert (px->summary == "Modern C++ XML API");
-      assert (px->tags == strings ({"c++", "xml", "parser", "serializer",
-              "pull", "streaming", "modern"}));
-      assert (!px->description);
-      assert (px->url == "http://www.codesynthesis.com/projects/libstudxml/");
-      assert (!px->package_url);
-      assert (px->email == email ("studxml-users@codesynthesis.com",
-                                  "Public mailing list, posts by  non-members "
-                                  "are allowed but moderated."));
-      assert (px->package_email &&
-              *px->package_email == email ("boris@codesynthesis.com",
-                                           "Direct email to the author."));
-
-      auto& xpvs (px->versions);
-      assert (xpvs.size () == 1);
-      assert (xpvs[0].load () == xpv);
-
       // Verify libstudxml package version.
       //
+      assert (xpv->name == "libstudxml");
+      assert (xpv->version == version ("1.0.0-1"));
+      assert (xpv->summary == "Modern C++ XML API");
+      assert (xpv->tags == strings ({"c++", "xml", "parser", "serializer",
+              "pull", "streaming", "modern"}));
+      assert (!xpv->description);
+      assert (xpv->url == "http://www.codesynthesis.com/projects/libstudxml/");
+      assert (!xpv->package_url);
+      assert (xpv->email ==
+              email ("studxml-users@codesynthesis.com",
+                     "Public mailing list, posts by  non-members "
+                     "are allowed but moderated."));
+      assert (xpv->package_email &&
+              *xpv->package_email == email ("boris@codesynthesis.com",
+                                            "Direct email to the author."));
+
       assert (xpv->internal_repository.load () == sr);
       assert (xpv->external_repositories.empty ());
-      assert (xpv->package.load () == px);
-      assert (xpv->version == version ("1.0.0-1"));
       assert (xpv->priority == priority::low);
       assert (xpv->changes.empty ());
 
@@ -215,37 +193,21 @@ main (int argc, char* argv[])
 
       assert (xpv->requirements.empty ());
 
-      // Verify libfoo package.
-      //
-      shared_ptr<package> pf (db.load<package> ("libfoo"));
-      assert (pf->name == "libfoo");
-      assert (pf->summary == "The Foo Math Library");
-      assert (pf->tags == strings ({"c++", "foo", "math"}));
-      assert (*pf->description ==
-              "A modern C++ library with easy to use linear algebra and "
-              "optimization tools. There are over 100 functions in total with "
-              "an extensive test suite. The API is similar to MATLAB.");
-      assert (pf->url == "http://www.example.com/foo/");
-      assert (pf->package_url &&
-              *pf->package_url == "http://www.example.com/foo/pack");
-      assert (pf->email == "foo-users@example.com");
-      assert (pf->package_email && *pf->package_email == "pack@example.com");
-
-      auto& fpv (pf->versions);
-      assert (fpv.size () == 6);
-      sort (fpv.begin (), fpv.end (), vc);
-      assert (fpv[1].load () == fpv1);
-      assert (fpv[2].load () == fpv2);
-      assert (fpv[3].load () == fpv3);
-      assert (fpv[4].load () == fpv4);
-
       // Verify libfoo package versions.
       //
+      assert (fpv1->name == "libfoo");
+      assert (fpv1->version == version ("1.0"));
+      assert (fpv1->summary == "The Foo Library");
+      assert (fpv1->tags.empty ());
+      assert (!fpv1->description);
+      assert (fpv1->url == "http://www.example.com/foo/");
+      assert (!fpv1->package_url);
+      assert (fpv1->email == "foo-users@example.com");
+      assert (!fpv1->package_email);
+
       assert (fpv1->internal_repository.load () == sr);
       assert (fpv1->external_repositories.size () == 1);
       assert (fpv1->external_repositories[0].load () == cr);
-      assert (fpv1->package.load () == pf);
-      assert (fpv1->version == version ("1.0"));
       assert (fpv1->priority == priority::low);
       assert (fpv1->changes.empty ());
 
@@ -256,10 +218,18 @@ main (int argc, char* argv[])
       assert (fpv1->dependencies.empty ());
       assert (fpv1->requirements.empty ());
 
+      assert (fpv2->name == "libfoo");
+      assert (fpv2->version == version ("1.2.2"));
+      assert (fpv2->summary == "The Foo library");
+      assert (fpv2->tags == strings ({"c++", "foo"}));
+      assert (!fpv2->description);
+      assert (fpv2->url == "http://www.example.com/foo/");
+      assert (!fpv2->package_url);
+      assert (fpv2->email == "foo-users@example.com");
+      assert (!fpv2->package_email);
+
       assert (fpv2->internal_repository.load () == sr);
       assert (fpv2->external_repositories.empty ());
-      assert (fpv2->package.load () == pf);
-      assert (fpv2->version == version ("1.2.2"));
       assert (fpv2->priority == priority::low);
       assert (fpv2->changes.empty ());
 
@@ -285,10 +255,18 @@ main (int argc, char* argv[])
 
       assert (fpv2->requirements.empty ());
 
+      assert (fpv3->name == "libfoo");
+      assert (fpv3->version == version ("1.2.3-4"));
+      assert (fpv3->summary == "The Foo library");
+      assert (fpv3->tags == strings ({"c++", "foo"}));
+      assert (!fpv3->description);
+      assert (fpv3->url == "http://www.example.com/foo/");
+      assert (!fpv3->package_url);
+      assert (fpv3->email == "foo-users@example.com");
+      assert (!fpv3->package_email);
+
       assert (fpv3->internal_repository.load () == sr);
       assert (fpv3->external_repositories.empty ());
-      assert (fpv3->package.load () == pf);
-      assert (fpv3->version == version ("1.2.3-4"));
       assert (fpv3->priority == priority::low);
 
       assert (fpv3->changes.empty ());
@@ -305,10 +283,18 @@ main (int argc, char* argv[])
                  brep::optional<dependency_condition> (
                    dependency_condition{comparison::ge, version ("2.0.0")})}));
 
+      assert (fpv4->name == "libfoo");
+      assert (fpv4->version == version ("1.2.4"));
+      assert (fpv4->summary == "The Foo Library");
+      assert (fpv4->tags == strings ({"c++", "foo"}));
+      assert (*fpv4->description == "Very good foo library.");
+      assert (fpv4->url == "http://www.example.com/foo/");
+      assert (!fpv4->package_url);
+      assert (fpv4->email == "foo-users@example.com");
+      assert (!fpv4->package_email);
+
       assert (fpv4->internal_repository.load () == sr);
       assert (fpv4->external_repositories.empty ());
-      assert (fpv4->package.load () == pf);
-      assert (fpv4->version == version ("1.2.4"));
       assert (fpv4->priority == priority::low);
       assert (fpv4->changes == "some changes 1\nsome changes 2");
 
@@ -356,17 +342,29 @@ main (int argc, char* argv[])
           package_version_id {
             "libfoo",
             {fv5.epoch, fv5.canonical_upstream, fv5.revision}}));
-      assert (fpv[5].load () == fpv5);
       assert (check_location (fpv5));
 
       // Verify libfoo package versions.
       //
+      assert (fpv5->name == "libfoo");
+      assert (fpv5->version == version ("1.2.4-1"));
+      assert (fpv5->summary == "The Foo Math Library");
+      assert (fpv5->tags == strings ({"c++", "foo", "math"}));
+      assert (*fpv5->description ==
+              "A modern C++ library with easy to use linear algebra and "
+              "optimization tools. There are over 100 functions in total with "
+              "an extensive test suite. The API is similar to MATLAB.");
+      assert (fpv5->url == "http://www.example.com/foo/");
+      assert (fpv5->package_url &&
+              *fpv5->package_url == "http://www.example.com/foo/pack");
+      assert (fpv5->email == "foo-users@example.com");
+      assert (fpv5->package_email &&
+              *fpv5->package_email == "pack@example.com");
+
       assert (fpv5->internal_repository.load () == mr);
       assert (fpv5->external_repositories.size () == 1);
       assert (fpv5->external_repositories[0].load () == cr);
 
-      assert (fpv5->package.load () == pf);
-      assert (fpv5->version == version ("1.2.4-1"));
       assert (fpv5->priority == priority::high);
       assert (fpv5->priority.comment == "Due to critical bug fix.");
 
@@ -433,28 +431,20 @@ main (int argc, char* argv[])
       assert (fpvr5[3].comment ==
               "libc++ standard library if using Clang on Mac OS X.");
 
-      // Verify libexp package.
-      //
-      shared_ptr<package> pe (db.load<package> ("libexp"));
-      assert (pe->name == "libexp");
-      assert (pe->summary == "The exponent");
-      assert (pe->tags == strings ({"c++", "exponent"}));
-      assert (!pe->description);
-      assert (pe->url == "http://www.exp.com");
-      assert (!pe->package_url);
-      assert (pe->email == email ("users@exp.com"));
-      assert (!pe->package_email);
-
-      auto& epvs (pe->versions);
-      assert (epvs.size () == 1);
-      assert (epvs[0].load () == epv);
-
       // Verify libexp package version.
       //
+      assert (epv->name == "libexp");
+      assert (epv->version == version ("1+1.2"));
+      assert (epv->summary == "The exponent");
+      assert (epv->tags == strings ({"c++", "exponent"}));
+      assert (!epv->description);
+      assert (epv->url == "http://www.exp.com");
+      assert (!epv->package_url);
+      assert (epv->email == email ("users@exp.com"));
+      assert (!epv->package_email);
+
       assert (epv->internal_repository.load () == mr);
       assert (epv->external_repositories.empty ());
-      assert (epv->package.load () == pe);
-      assert (epv->version == version ("1+1.2"));
       assert (epv->priority == priority (priority::low));
       assert (epv->changes.empty ());
 
@@ -501,71 +491,73 @@ main (int argc, char* argv[])
             {fv0.epoch, fv0.canonical_upstream, fv0.revision}}));
       assert (check_location (fpv0));
 
-      // Verify libbar package.
-      //
-      shared_ptr<package> pb (db.load<package> ("libbar"));
-      assert (pb->name == "libbar");
-      assert (pb->summary == "The Bar library");
-      assert (pb->tags == strings ({"c++", "bar"}));
-      assert (!pb->description);
-      assert (pb->url == "http://www.example.com/bar/");
-      assert (!pb->package_url);
-      assert (pb->email == email ("bar-users@example.com"));
-      assert (!pb->package_email);
-
-      auto& bpvs (pb->versions);
-      assert (bpvs.size () == 1);
-      assert (bpvs[0].load () == bpv);
-
       // Verify libbar package version.
       //
+      assert (bpv->name == "libbar");
+      assert (bpv->version == version ("2.3.5"));
+      assert (bpv->summary.empty ());
+      assert (bpv->tags.empty ());
+      assert (!bpv->description);
+      assert (bpv->url.empty ());
+      assert (!bpv->package_url);
+      assert (bpv->email.empty ());
+      assert (!bpv->package_email);
+
       assert (bpv->internal_repository == nullptr);
       assert (bpv->external_repositories.size () == 1);
       assert (bpv->external_repositories[0].load () == cr);
-      assert (bpv->package.load () == pb);
-      assert (bpv->version == version ("2.3.5"));
 
-      assert (bpv->priority == priority (priority::security,
-                                         "Very important to install."));
+      assert (bpv->priority == priority ());
       assert (bpv->changes.empty ());
 
-      assert (bpv->license_alternatives.size () == 1);
-      assert (bpv->license_alternatives[0].size () == 1);
-      assert (bpv->license_alternatives[0][0] == "GPLv2");
-
+      assert (bpv->license_alternatives.empty ());
       assert (bpv->dependencies.empty ());
       assert (bpv->requirements.empty ());
 
       // Verify libfoo package versions.
       //
+      assert (fpv0->name == "libfoo");
+      assert (fpv0->version == version ("0.1"));
+      assert (fpv0->summary.empty ());
+      assert (fpv0->tags.empty ());
+      assert (!fpv0->description);
+      assert (fpv0->url.empty ());
+      assert (!fpv0->package_url);
+      assert (fpv0->email.empty ());
+      assert (!fpv0->package_email);
+
       assert (fpv0->internal_repository.load () == nullptr);
       assert (fpv0->external_repositories.size () == 1);
       assert (fpv0->external_repositories[0].load () == cr);
-      assert (fpv0->package.load () == pf);
-      assert (fpv0->version == version ("0.1"));
       assert (fpv0->priority == priority::low);
       assert (fpv0->changes.empty ());
 
-      assert (fpv0->license_alternatives.size () == 1);
-      assert (fpv0->license_alternatives[0].size () == 1);
-      assert (fpv0->license_alternatives[0][0] == "MIT");
+      assert (fpv0->license_alternatives.empty ());
 
       assert (fpv0->dependencies.empty ());
       assert (fpv0->requirements.empty ());
 
-      // Update package summary, update package persistent state, rerun loader
-      // and ensure the model were not rebuilt.
+      // Change package version summary, update the object persistent
+      // state, rerun loader and ensure the model were not rebuilt.
       //
-      pb->summary = "test";
-      db.update (pb);
+      bpv->summary = "test";
+      db.update (bpv);
 
       t.commit ();
     }
 
     assert (process (ld_args).wait ());
-
     transaction t (db.begin ());
-    assert (db.load<package> ("libbar")->summary == "test");
+
+    version bv ("2.3.5");
+    shared_ptr<package_version> bpv (
+      db.load<package_version> (
+        package_version_id {
+          "libbar",
+          {bv.epoch, bv.canonical_upstream, bv.revision}}));
+
+    assert (bpv->summary == "test");
+
     t.commit ();
   }
   // Fully qualified to avoid ambiguity with odb exception.

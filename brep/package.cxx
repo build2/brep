@@ -16,70 +16,54 @@ using namespace odb::core;
 
 namespace brep
 {
-  // Utility functions
-  //
-  static inline bool
-  alpha (char c)
-  {
-    return (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z');
-  }
-
-  static inline bool
-  digit (char c)
-  {
-    return c >= '0' && c <= '9';
-  }
-
-  // package
-  //
-  package::
-  package (string n,
-           string s,
-           strings t,
-           optional<string> d,
-           url_type u,
-           optional<url_type> pu,
-           email_type e,
-           optional<email_type> pe)
-      : name (move (n)),
-        summary (move (s)),
-        tags (move (t)),
-        description (move (d)),
-        url (move (u)),
-        package_url (move (pu)),
-        email (move (e)),
-        package_email (move (pe))
-  {
-  }
-
   // package_version
   //
   package_version::
-  package_version (lazy_shared_ptr<package_type> pk,
+  package_version (string nm,
                    version_type vr,
                    priority_type pr,
+                   string sm,
                    license_alternatives_type la,
+                   strings tg,
+                   optional<string> ds,
                    string ch,
+                   url_type ur,
+                   optional<url_type> pu,
+                   email_type em,
+                   optional<email_type> pe,
                    dependencies_type dp,
                    requirements_type rq,
                    optional<path> lc,
                    shared_ptr<repository_type> rp)
-      : package (move (pk)),
+      : name (move (nm)),
         version (move (vr)),
         priority (move (pr)),
+        summary (move (sm)),
         license_alternatives (move (la)),
+        tags (move (tg)),
+        description (move (ds)),
         changes (move (ch)),
+        url (move (ur)),
+        package_url (move (pu)),
+        email (move (em)),
+        package_email (move (pe)),
         dependencies (move (dp)),
         requirements (move (rq)),
+        internal_repository (move (rp)),
         location (move (lc))
   {
-    //@@ Can't be sure we are in transaction. Instead, make caller
-    //   pass shared_ptr.
-    //
-    if (rp->internal)
-      internal_repository = move (rp);
-    else
-      external_repositories.emplace_back (move (rp));
+    assert (internal_repository->internal);
+  }
+
+  package_version::
+  package_version (string nm,
+                   version_type vr,
+                   shared_ptr<repository_type> rp)
+      : name (move (nm)),
+        version (move (vr))
+  {
+    assert (!rp->internal);
+    external_repositories.emplace_back (move (rp));
   }
 
   package_version::_id_type package_version::
@@ -87,7 +71,7 @@ namespace brep
   {
     return _id_type {
       {
-        package.object_id (),
+        name,
         version.epoch,
         version.canonical_upstream,
         version.revision
@@ -96,20 +80,10 @@ namespace brep
   }
 
   void package_version::
-  _id (_id_type&& v, database& db)
+  _id (_id_type&& v, database&)
   {
     const auto& dv (v.data.version);
-    package = lazy_shared_ptr<package_type> (db, v.data.package);
-    version = version_type (dv.epoch, move (v.upstream), dv.revision);
-    assert (version.canonical_upstream == dv.canonical_upstream);
-  }
-
-  // max_package_version
-  //
-  void max_package_version::
-  _id (package_version::_id_type&& v)
-  {
-    const auto& dv (v.data.version);
+    name = move (v.data.package);
     version = version_type (dv.epoch, move (v.upstream), dv.revision);
     assert (version.canonical_upstream == dv.canonical_upstream);
   }

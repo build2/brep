@@ -147,6 +147,34 @@ namespace brep
     s << ~DIV;
   }
 
+  // DIV_URL
+  //
+  void DIV_URL::
+  operator() (serializer& s) const
+  {
+    s << DIV(CLASS="url")
+      <<   A << HREF << url_ << ~HREF << url_ << ~A;
+
+    if (!url_.comment.empty ())
+      s << DIV(CLASS="comment") << url_.comment << ~DIV;
+
+    s << ~DIV;
+  }
+
+  // DIV_EMAIL
+  //
+  void DIV_EMAIL::
+  operator() (serializer& s) const
+  {
+    s << DIV(CLASS="email")
+      <<   A << HREF << "mailto:" << email_ << ~HREF << email_ << ~A;
+
+    if (!email_.comment.empty ())
+      s << DIV(CLASS="comment") << email_.comment << ~DIV;
+
+    s << ~DIV;
+  }
+
   // DIV_TAGS
   //
   void DIV_TAGS::

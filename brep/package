@@ -40,10 +40,10 @@ namespace brep
 
 #include <bpkg/manifest>
 
-// We have to keep this mapping at the global scope instead of inside
-// the brep namespace because it needs to be also effective in the
+// We have to keep these mappings at the global scope instead of inside
+// the brep namespace because they need to be also effective in the
 // bpkg namespace from which we "borrow" types (and some of them use
-// version).
+// version and comparison).
 //
 #pragma db map type(bpkg::version) as(brep::_version)                     \
   to(brep::_version{(?).epoch,                                            \
@@ -68,34 +68,9 @@ namespace brep
   //    to TEXT as a comma-separated list.
   //
 
-  // Version comparison operators.
-  //
-  template <typename T1, typename T2>
-  inline auto
-  operator< (const T1& x, const T2& y) -> decltype (x.epoch < y.epoch)
-  {
-    return x.epoch < y.epoch ||
-                     (x.epoch == y.epoch &&
-                      x.canonical_upstream < y.canonical_upstream) ||
-      (x.epoch == y.epoch &&
-       x.canonical_upstream == y.canonical_upstream &&
-       x.revision < y.revision);
-  }
-
-  template <typename T>
-  inline auto
-  order_by_version_desc (const T& x) -> decltype (x.epoch == 0)
-  {
-    return "ORDER BY"
-      + x.epoch + "DESC,"
-      + x.canonical_upstream + "DESC,"
-      + x.revision + "DESC";
-  }
-
   // Forward declarations.
   //
   class repository;
-  class package;
   class package_version;
 
   using strings = std::vector<std::string>;
@@ -146,19 +121,7 @@ namespace brep
 
     // Database mapping.
     //
-    #pragma db member(package) points_to(package) //on_delete(cascade)
   };
-
-  inline bool
-  operator< (const package_version_id& x, const package_version_id& y)
-  {
-    int r (x.package.compare (y.package));
-
-    if (r != 0)
-      return r < 0;
-
-    return x.version < y.version;
-  }
 
   using priority = bpkg::priority;
   #pragma db value(priority) definition
@@ -215,6 +178,17 @@ namespace brep
   //    package objects which in presense of "foreign" packages can be
   //    tricky. Can stick to just a package name until get some clarity on
   //    "foreign" package resolution.
+  //
+  // 4. As we get rid of the package class the dependency resolution come to
+  //    finding the best matching package version object. The question is
+  //    if to resolve dependencies on the loading phase or in the WEB interface
+  //    when required. The arguments in favour of doing that during loading
+  //    phase are:
+  //    * WEB interface get offloaded from a possibly expensive queries
+  //      which otherwise have to be executed multiple times for the same
+  //      dependency no matter the result would be the same.
+  //    * No need to complicate persisted object model with repository
+  //      relations otherwise required just for dependency resolution.
   //
   using dependency = bpkg::dependency;
   #pragma db value(dependency) definition
@@ -313,77 +287,68 @@ namespace brep
     repository () = default;
   };
 
-  #pragma db object pointer(std::shared_ptr) session
-  class package
-  {
-  public:
-    using url_type = brep::url;
-    using email_type = brep::email;
-
-    package (std::string name,
-             std::string summary,
-             strings tags,
-             optional<std::string> description,
-             url_type,
-             optional<url_type> package_url,
-             email_type,
-             optional<email_type> package_email);
-
-    // Manifest data.
-    //
-    std::string name;
-    std::string summary;
-    strings tags;
-    optional<std::string> description;
-    url_type url;
-    optional<url_type> package_url;
-    email_type email;
-    optional<email_type> package_email;
-    std::vector<odb::lazy_weak_ptr<package_version>> versions;
-
-    // Additional data.
-    //
-
-    // Database mapping.
-    //
-    #pragma db member(name) id
-    #pragma db member(tags) id_column("package") value_column("tag")
-    #pragma db member(versions) inverse(id.data.package) value_not_null
-
-  private:
-    friend class odb::access;
-    package () = default;
-  };
-
+  // @@ While it's very tempting to rename package_version to package wouldn't
+  //    it be confusing having package denoting both specific package version
+  //    and package as a collection of versions.
+  //
   #pragma db object pointer(std::shared_ptr) session
   class package_version
   {
   public:
     using repository_type = brep::repository;
-    using package_type = brep::package;
     using version_type = brep::version;
     using priority_type = brep::priority;
     using license_alternatives_type = brep::license_alternatives;
+    using url_type = brep::url;
+    using email_type = brep::email;
     using dependencies_type = brep::dependencies;
     using requirements_type = brep::requirements;
 
-    package_version (odb::lazy_shared_ptr<package_type>,
+    // Create internal package version object.
+    //
+    package_version (std::string name,
                      version_type,
                      priority_type,
+                     std::string summary,
                      license_alternatives_type,
+                     strings tags,
+                     optional<std::string> description,
                      std::string changes,
+                     url_type,
+                     optional<url_type> package_url,
+                     email_type,
+                     optional<email_type> package_email,
                      dependencies_type,
                      requirements_type,
                      optional<path> location,
                      std::shared_ptr<repository_type>);
 
+    // Create external package version object.
+    //
+    // External repository packages can appear on the WEB interface only on
+    // the package version details page in dependency list in the form of a
+    // link to the corresponding WEB page. The only package information
+    // required to compose such a link is the package name, version, and
+    // repository location.
+    //
+    package_version (std::string name,
+                     version_type,
+                     std::shared_ptr<repository_type>);
+
     // Manifest data.
     //
-    odb::lazy_shared_ptr<package_type> package;
+    std::string name;
     version_type version;
     priority_type priority;
+    std::string summary;
     license_alternatives_type license_alternatives;
+    strings tags;
+    optional<std::string> description;
     std::string changes;
+    url_type url;
+    optional<url_type> package_url;
+    email_type email;
+    optional<email_type> package_email;
     dependencies_type dependencies;
     requirements_type requirements;
     odb::lazy_shared_ptr<repository_type> internal_repository;
@@ -405,6 +370,8 @@ namespace brep
     {
       #pragma db column("")
       package_version_id data;
+
+      #pragma db column("version_upstream")
       std::string upstream;
     };
 
@@ -414,8 +381,8 @@ namespace brep
     void
     _id (_id_type&&, odb::database&);
 
+    #pragma db member(name) transient
     #pragma db member(version) transient
-    #pragma db member(package) transient
 
     #pragma db member(id) virtual(_id_type) before id(data) \
       get(_id) set(_id (std::move (?), (!))) column("")
@@ -436,6 +403,10 @@ namespace brep
       get(_get (this.license_alternatives))                \
       set(_set (this.license_alternatives, (?)))           \
       id_column("") key_column("") value_column("license")
+
+    // tags
+    //
+    #pragma db member(tags) id_column("") value_column("tag")
 
     // dependencies
     //
@@ -481,65 +452,141 @@ namespace brep
     package_version () = default;
   };
 
-  #pragma db view object(package_version)                                  \
-    query((?) + order_by_version_desc (package_version::id.data.version) + \
-          "LIMIT 1")
-  struct max_package_version
-  {
-    using version_type = brep::version;
-    version_type version;
-
-    void
-    _id (package_version::_id_type&&);
-
-    // Database mapping.
-    //
-    #pragma db member(version) transient
-
-    // Can't specify column expression using aggregate max function for a
-    // data member of a composite value type.
-    //
-    #pragma db member(id) virtual(package_version::_id_type) \
-      get() set(_id (std::move (?)))
-  };
-
   // Find the latest version of an internal package.
   //
-  #pragma db view object(package_version = version)                    \
-    object(package_version = v:                                        \
-           version::id.data.package == v::id.data.package &&           \
-           version::id.data.version < v::id.data.version)              \
-    object(package inner: version::id.data.package == package::name && \
-           version::internal_repository.is_not_null () &&              \
-           v::id.data.package.is_null ())
+  #pragma db view object(package_version)                            \
+    object(package_version = v:                                      \
+           package_version::id.data.package == v::id.data.package && \
+           package_version::id.data.version < v::id.data.version)    \
+    query((package_version::internal_repository.is_not_null () &&    \
+           v::id.data.package.is_null ()) + "AND" + (?))
   struct latest_internal_package_version
   {
-    using package_type = brep::package;
-    std::shared_ptr<package_type> package;
-    std::shared_ptr<package_version> version;
+    using package_version_type = brep::package_version;
+    std::shared_ptr<package_version_type> package_version;
+
+    operator const std::shared_ptr<package_version_type>& () const
+    {return package_version;}
+
+    explicit operator package_version_type& () const
+    {return *package_version;}
   };
 
-  #pragma db view object(package)                                     \
-    object(package_version: package_version::id.data.package ==       \
-           package::name)                                             \
+  #pragma db view object(package_version)                             \
     query(package_version::internal_repository.is_not_null () && (?))
   struct internal_package_count
   {
-    #pragma db column("count(DISTINCT" + package::name + ")")
-    std::size_t count;
+    #pragma db column("count(DISTINCT" +                    \
+                      package_version::id.data.package+ ")")
+
+    std::size_t result;
+
+    operator std::size_t () const {return result;}
   };
 
   #pragma db view object(package_version)
   struct package_version_count
   {
     #pragma db column("count(*)")
-    std::size_t count;
+    std::size_t result;
+
+    operator std::size_t () const {return result;}
   };
+
+  // Version comparison operators.
+  //
+  // They allow comparing objects that have epoch, canonical_upstream,
+  // and revision data members.
+  //
+  template <typename T1, typename T2>
+  inline auto
+  operator== (const T1& x, const T2& y) -> decltype (x.epoch == y.epoch)
+  {
+    return x.epoch == y.epoch &&
+      x.canonical_upstream == y.canonical_upstream &&
+      x.revision == y.revision;
+  }
+
+  template <typename T1, typename T2>
+  inline auto
+  operator!= (const T1& x, const T2& y) -> decltype (x.epoch != y.epoch)
+  {
+    return x.epoch != y.epoch ||
+      x.canonical_upstream != y.canonical_upstream ||
+      x.revision != y.revision;
+  }
+
+  template <typename T1, typename T2>
+  inline auto
+  operator< (const T1& x, const T2& y) -> decltype (x.epoch < y.epoch)
+  {
+    return x.epoch < y.epoch ||
+      (x.epoch == y.epoch && x.canonical_upstream < y.canonical_upstream) ||
+      (x.epoch == y.epoch && x.canonical_upstream == y.canonical_upstream &&
+       x.revision < y.revision);
+  }
+
+  template <typename T1, typename T2>
+  inline auto
+  operator<= (const T1& x, const T2& y) -> decltype (x.epoch <= y.epoch)
+  {
+    return x.epoch < y.epoch ||
+      (x.epoch == y.epoch && x.canonical_upstream < y.canonical_upstream) ||
+      (x.epoch == y.epoch && x.canonical_upstream == y.canonical_upstream &&
+       x.revision <= y.revision);
+  }
+
+  template <typename T1, typename T2>
+  inline auto
+  operator> (const T1& x, const T2& y) -> decltype (x.epoch > y.epoch)
+  {
+    return x.epoch > y.epoch ||
+      (x.epoch == y.epoch && x.canonical_upstream > y.canonical_upstream) ||
+      (x.epoch == y.epoch && x.canonical_upstream == y.canonical_upstream &&
+       x.revision > y.revision);
+  }
+
+  template <typename T1, typename T2>
+  inline auto
+  operator>= (const T1& x, const T2& y) -> decltype (x.epoch >= y.epoch)
+  {
+    return x.epoch > y.epoch ||
+      (x.epoch == y.epoch && x.canonical_upstream > y.canonical_upstream) ||
+      (x.epoch == y.epoch && x.canonical_upstream == y.canonical_upstream &&
+       x.revision >= y.revision);
+  }
+
+  template <typename T>
+  inline auto
+  order_by_version_desc (const T& x) -> //decltype ("ORDER BY" + x.epoch)
+                                        decltype (x.epoch == 0)
+  {
+    return "ORDER BY"
+      + x.epoch + "DESC,"
+      + x.canonical_upstream + "DESC,"
+      + x.revision + "DESC";
+  }
+
+  inline bool
+  operator< (const package_version_id& x, const package_version_id& y)
+  {
+    int r (x.package.compare (y.package));
+
+    if (r != 0)
+      return r < 0;
+
+    return x.version < y.version;
+  }
 }
 
 namespace odb
 {
+  using ::brep::operator==;
+  using ::brep::operator!=;
   using ::brep::operator<;
+  using ::brep::operator<=;
+  using ::brep::operator>;
+  using ::brep::operator>=;
   using ::brep::order_by_version_desc;
 }
 

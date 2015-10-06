@@ -75,7 +75,8 @@ namespace brep
       <<       DIV_PAGER_STYLE () << ident
       <<       "#name {font-size: xx-large; font-weight: bold;}" << ident
       <<       "#summary {font-size: x-large; margin: 0.2em 0 0;}" << ident
-      <<       ".url {margin: 0.3em 0 0;}" << ident
+      <<       ".url, .email {font-size: medium;}" << ident
+      <<       ".comment {font-size: small;}" << ident
       <<       "#description {margin: 0.5em 0 0;}" << ident
       <<       ".tags {margin: 0.3em 0 0;}" << ident
       <<       "#versions {font-size: x-large; margin: 0.5em 0 0;}" << ident
@@ -87,32 +88,32 @@ namespace brep
       <<   BODY
       <<     DIV(ID="name") << name << ~DIV;
 
-    shared_ptr<package> p;
     size_t rop (options_->results_on_page ());
 
     transaction t (db_->begin ());
 
-    try
+    shared_ptr<package_version> pv;
     {
-      p = db_->load<package> (name);
+      using query = query<latest_internal_package_version>;
+
+      latest_internal_package_version v;
+      if (!db_->query_one<latest_internal_package_version> (
+            query::package_version::id.data.package == name, v))
+      {
+        throw invalid_request (404, "Package '" + name + "' not found");
+      }
+
+      pv = v;
     }
-    catch (const object_not_persistent& )
-    {
-      throw invalid_request (404, "Package '" + name + "' not found");
-    }
 
-    s << DIV(ID="summary") << p->summary << ~DIV
-      << DIV(CLASS="url")
-      <<   A << HREF << p->url << ~HREF << p->url << ~A
-      << ~DIV
-      << DIV(CLASS="email")
-      <<   A << HREF << "mailto:" << p->email << ~HREF << p->email << ~A
-      << ~DIV;
+    s << DIV(ID="summary") << pv->summary << ~DIV
+      << DIV_URL (pv->url)
+      << DIV_EMAIL (pv->email);
 
-    if (p->description)
-      s << DIV(ID="description") << *p->description << ~DIV;
+    if (pv->description)
+      s << DIV(ID="description") << *pv->description << ~DIV;
 
-    s << DIV_TAGS (p->tags);
+    s << DIV_TAGS (pv->tags);
 
     size_t pvc;
     {
@@ -122,23 +123,21 @@ namespace brep
       //
       pvc = db_->query_value<package_version_count> (
         query::id.data.package == name &&
-        query::internal_repository.is_not_null ()).count;
+        query::internal_repository.is_not_null ());
     }
 
     s << DIV(ID="versions") << "Versions (" << pvc << ")" << ~DIV;
 
-    if (p->package_url)
-      s << DIV(CLASS="url")
-        <<   A << HREF << *p->package_url << ~HREF << *p->package_url << ~A
-        << ~DIV;
+    // @@ Need to find some better place for package url and email or drop them
+    //    from this page totally.
+    //
+/*
+    if (pv->package_url)
+      s << DIV_URL (*pv->package_url);
 
-    if (p->package_email)
-      s << DIV(CLASS="email")
-        <<   A
-        <<   HREF << "mailto:" << *p->package_email << ~HREF
-        <<     *p->package_email
-        <<   ~A
-        << ~DIV;
+    if (pv->package_email)
+      s << DIV_EMAIL (*pv->package_email);
+*/
 
     // @@ Use appropriate view when clarify which package version info to be
     //    displayed and search index structure get implemented. Query will also

@@ -91,7 +91,7 @@ namespace brep
 
     // @@ Query will include search criteria if specified.
     //
-    size_t pc (db_->query_value<internal_package_count> ().count);
+    size_t pc (db_->query_value<internal_package_count> ());
 
     s << DIV(ID="packages") << "Packages (" << pc << ")" << ~DIV;
 
@@ -100,20 +100,19 @@ namespace brep
     using query = query<latest_internal_package_version>;
 
     auto r (
-      db_->query<latest_internal_package_version> (
-        "ORDER BY" + query::package::name +
+      db_->query<latest_internal_package_version> (query (true) +
+        "ORDER BY" + query::package_version::id.data.package +
         "OFFSET" + to_string (pr.page () * rop) +
         "LIMIT" + to_string (rop)));
 
     for (const auto& ip: r)
     {
-      const package& p = *ip.package;
-      const package_version& v = *ip.version;
+      const package_version& v (ip);
 
       s << DIV(CLASS="package")
         <<   DIV(CLASS="name")
         <<     A
-        <<     HREF << "/go/" << mime_url_encode (p.name);
+        <<     HREF << "/go/" << mime_url_encode (v.name);
 
       // Propagate search criteria to the package version search url.
       //
@@ -121,11 +120,11 @@ namespace brep
         s << "?" << q;
 
       s <<     ~HREF
-        <<       p.name
+        <<       v.name
         <<     ~A
         <<   ~DIV
-        <<   DIV(CLASS="summary") << p.summary << ~DIV
-        <<   DIV_TAGS (p.tags)
+        <<   DIV(CLASS="summary") << v.summary << ~DIV
+        <<   DIV_TAGS (v.tags)
         <<   DIV_LICENSES (v.license_alternatives)
         <<   DIV(CLASS="dependencies")
         <<     "Dependencies: " << v.dependencies.size ()

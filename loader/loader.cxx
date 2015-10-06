@@ -273,140 +273,15 @@ load_packages (const shared_ptr<repository>& rp, database& db)
     pkm = package_manifests (mp);
   }
 
-  // Let's establish the terminology which will be used in comments appearing
-  // in the body of this function.
-  // * Will call a package manifest internal if corresponding 'packages' file
-  //   is located in the internal repository, otherwise call a package manifest
-  //   external.
-  // * Will call a package version internal if it is described by internal
-  //   package manifest, otherwise call a package version external.
-  // * Will call a package internal if there is an internal package version,
-  //   otherwise call it external.
-  //
-
-  // @@ External packages and external package versions are not used by the
-  //    current implementation in any way. The reason to keep them is to see
-  //    if we decide to link dependency information displayed on package
-  //    version details page to best matching package or package version
-  //    details pages. But even if we decide to keep mentioned objects for
-  //    that purpose the ammount of information we store about them can be
-  //    reduces significantly. Seems all we need to keep is in which
-  //    repository they are located.
-  //
-
   for (auto& pm: pkm)
   {
-    // The code below ensures that the package object get updated with a
-    // package manifest info of the highest version. We should also make
-    // sure that for the internal package only internal package manifests
-    // are considered for this purpose.
-    //
-
-    max_package_version mv;
-
-    // If there are no package_version objects meeting query condition,
-    // then query_one() will leave mv unchanged, in which case the version
-    // member remains empty. The empty version value is less than any non-empty
-    // one, so version comparisons below evaluate to true and the package
-    // object gets persisted.
-    //
-    // Get maximum internal version of the package.
-    //
-    using query = query<max_package_version>;
-    db.query_one<max_package_version> (
-      query::id.data.package == pm.name &&
-      query::internal_repository.is_not_null (),
-      mv);
-
-    bool update (false);
-
-    if (mv.version.empty ())
-    {
-      // The package is external or not persisted yet.
-      //
-
-      // Get maximum external version of the package.
-      //
-      db.query_one<max_package_version> (
-        query::id.data.package == pm.name, mv);
-
-      if (rp->internal)
-      {
-        // Since internal repositories get loaded first, the package
-        // can't be external.
-        //
-        assert (mv.version.empty ());
-
-        // Persist not yet persisted internal package.
-        //
-        update = true;
-      }
-      else
-        // Update the external package with the external package manifest info
-        // of a higher version. Version of non-persisted package is empty and
-        // therefore less then any package manifest version, so the package
-        // will be persisted.
-        //
-        update = mv.version < pm.version;
-    }
-    else
-    {
-      // The package is internal.
-      //
-
-      if (rp->internal)
-        // Update the internal package with the internal package manifest info
-        // of a higher version.
-        //
-        update = mv.version < pm.version;
-      else
-      {
-        // Should not update internal package with an external package
-        // manifest info.
-        //
-      }
-    }
-
-    if (update)
-    {
-      // Create the package object.
-      //
-      optional<string> desc;
-
-      // Don't add description for external repository packages.
-      //
-      if (rp->internal && pm.description)
-      {
-        if (pm.description->file)
-        {
-          // @@ Pull description from the file when package manager API
-          // is ready.
-        }
-        else
-          desc = move (*pm.description);
-      }
-
-      package p (pm.name,
-                 move (pm.summary),
-                 move (pm.tags),
-                 move (desc),
-                 move (pm.url),
-                 move (pm.package_url),
-                 move (pm.email),
-                 move (pm.package_email));
-
-      if (mv.version.empty ())
-        db.persist (p);
-      else
-        db.update (p);
-    }
-
     shared_ptr<package_version> pv (
       db.find<package_version> (
         package_version_id
         {
           pm.name,
-          { pm.version.epoch,
+          {
+            pm.version.epoch,
             pm.version.canonical_upstream,
             pm.version.revision
           }
@@ -414,22 +289,23 @@ load_packages (const shared_ptr<repository>& rp, database& db)
 
     if (pv == nullptr)
     {
-      // Create package version object.
-      //
-      dependencies dep;
-      requirements req;
-      optional<path> loc;
-      string chn;
-
-      // Don't add dependencies, requirements and changes for external
-      // repository packages.
-      //
       if (rp->internal)
       {
-        dep = move (pm.dependencies);
-        req = move (pm.requirements);
-        loc = move (pm.location);
+        // Create internal package version object.
+        //
+        optional<string> dsc;
+        if (pm.description)
+        {
+          if (pm.description->file)
+          {
+            // @@ Pull description from the file when package manager API
+            // is ready.
+          }
+          else
+            dsc = move (*pm.description);
+        }
 
+        string chn;
         for (auto& c: pm.changes)
         {
           if (c.file)
@@ -445,17 +321,32 @@ load_packages (const shared_ptr<repository>& rp, database& db)
               chn += "\n" + c;
           }
         }
-      }
 
-      package_version pv (lazy_shared_ptr<package> (db, pm.name),
-                          move (pm.version),
-                          pm.priority ? move (*pm.priority) : priority (),
-                          move (pm.license_alternatives),
-                          move (chn),
-                          move (dep),
-                          move (req),
-                          move (loc),
-                          rp);
+        pv = make_shared<package_version>(
+          move (pm.name),
+          move (pm.version),
+          pm.priority ? move (*pm.priority) : priority (),
+          move (pm.summary),
+          move (pm.license_alternatives),
+          move (pm.tags),
+          move (dsc),
+          move (chn),
+          move (pm.url),
+          move (pm.package_url),
+          move (pm.email),
+          move (pm.package_email),
+          move (pm.dependencies),
+          move (pm.requirements),
+          move (pm.location),
+          rp);
+      }
+      else
+        // Create external package version object.
+        //
+        pv = make_shared<package_version>(
+          move (pm.name),
+          move (pm.version),
+          rp);
 
       db.persist (pv);
     }
@@ -675,7 +566,6 @@ main (int argc, char* argv[])
       // Rebuild repositories persistent state from scratch.
       //
       db.erase_query<package_version> ();
-      db.erase_query<package> ();
       db.erase_query<repository> ();
 
       // On the first pass over the internal repositories we load their

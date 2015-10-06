@@ -90,13 +90,16 @@ namespace brep
       <<     CSS_STYLE << ident
       <<       A_STYLE () << ident
       <<       "#name {font-size: xx-large; font-weight: bold;}" << ident
-      <<       ".url {margin: 0.3em 0 0;}" << ident
-      <<       ".priority, #licenses, #dependencies, #requirements, "
+      <<       ".url, .email {font-size: medium;}" << ident
+      <<       ".comment {font-size: small;}" << ident
+      <<       "#summary {font-size: x-large; margin: 0.2em 0 0;}" << ident
+      <<       "#description {margin: 0.5em 0 0;}" << ident
+      <<       ".tags {margin: 0.3em 0 0;}" << ident
+      <<       "#package, .priority, #licenses, #dependencies, #requirements, "
                "#locations, #changes {" << ident
       <<       "  font-size: x-large;" << ident
       <<       "  margin: 0.5em 0 0;" << ident
       <<       "}" << ident
-      <<       ".comment {font-size: medium;}" << ident
       <<       "ul {margin: 0; padding: 0 0 0 1em;}" << ident
       <<       "li {font-size: large; margin: 0.1em 0 0;}" << ident
       <<       ".conditional {font-weight: bold;}" << ident
@@ -112,7 +115,7 @@ namespace brep
     bool not_found (false);
     shared_ptr<package_version> pv;
 
-    transaction t (db_->begin ()); //@@ Not committed, other places?
+    transaction t (db_->begin ());
 
     try
     {
@@ -133,12 +136,20 @@ namespace brep
       throw invalid_request (404, "Package '" + name + "' not found");
 
     assert (pv->location);
-    const string url (pv->internal_repository.load ()->location.string () +
-                      "/" + pv->location->string ());
+    const string u (pv->internal_repository.load ()->location.string () +
+                    "/" + pv->location->string ());
+
+    s << DIV(CLASS="url") << A << HREF << u << ~HREF << u << ~A << ~DIV
+      << DIV(ID="summary") << pv->summary << ~DIV
+      << DIV_URL (pv->url)
+      << DIV_EMAIL (pv->email);
+
+    if (pv->description)
+      s << DIV(ID="description") << *pv->description << ~DIV;
 
     const priority& pt (pv->priority);
 
-    s << DIV(CLASS="url") << A << HREF << url << ~HREF << url << ~A << ~DIV
+    s << DIV_TAGS (pv->tags)
       << DIV_PRIORITY (pt);
 
     if (!pt.comment.empty ())
@@ -249,6 +260,22 @@ namespace brep
         << ~DIV;
     }
 
+    if (pv->package_url || pv->package_email)
+    {
+      s << DIV(ID="package")
+        <<   "Package:"
+        <<   UL;
+
+      if (pv->package_url)
+        s << LI << DIV_URL (*pv->package_url) << ~LI;
+
+      if (pv->package_email)
+        s << LI << DIV_EMAIL (*pv->package_email) << ~LI;
+
+      s <<   ~UL
+        << ~DIV;
+    }
+
     const auto& er (pv->external_repositories);
 
     if (!er.empty ())
@@ -267,7 +294,9 @@ namespace brep
           u += ":" + to_string (l.port ());
 
         u += "/go/" + mime_url_encode (p) + "/" + vs;
-        s << LI << A << HREF << u << ~HREF << u << ~A << ~LI;
+        s << LI
+          <<   DIV(CLASS="url") << A << HREF << u << ~HREF << u << ~A << ~DIV
+          << ~LI;
       }
 
       s <<   ~UL
