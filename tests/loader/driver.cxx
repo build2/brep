@@ -30,9 +30,9 @@ using namespace brep;
 static inline bool
 operator== (const dependency& a, const dependency& b)
 {
-  return a.name == b.name && !a.condition == !b.condition &&
-    (!a.condition || (a.condition->operation == b.condition->operation &&
-                      a.condition->version == b.condition->version));
+  return a.name == b.name && !a.constraint == !b.constraint &&
+    (!a.constraint || (a.constraint->operation == b.constraint->operation &&
+                      a.constraint->version == b.constraint->version));
 }
 
 static bool
@@ -183,13 +183,14 @@ main (int argc, char* argv[])
       assert (xpv->dependencies[0][0] ==
               (dependency {
                  "libexpat",
-                 brep::optional<dependency_condition> (
-                   dependency_condition{comparison::ge, version ("2.0.0")})}));
+                 brep::optional<dependency_constraint> (
+                   dependency_constraint{
+                     comparison::ge, version ("2.0.0")})}));
 
       assert (xpv->dependencies[1].size () == 1);
       assert (xpv->dependencies[1][0] ==
               (dependency {
-                "libgenx", brep::optional<dependency_condition> ()}));
+                "libgenx", brep::optional<dependency_constraint> ()}));
 
       assert (xpv->requirements.empty ());
 
@@ -244,14 +245,15 @@ main (int argc, char* argv[])
       assert (fpv2->dependencies[0][0] ==
               (dependency {
                  "libbar",
-                 brep::optional<dependency_condition> (
-                   dependency_condition{comparison::le, version ("2.4.0")})}));
+                 brep::optional<dependency_constraint> (
+                   dependency_constraint{comparison::le, version ("2.4.0")})}));
 
       assert (fpv2->dependencies[1][0] ==
               (dependency {
                  "libexp",
-                 brep::optional<dependency_condition> (
-                   dependency_condition{comparison::eq, version ("1+1.2")})}));
+                 brep::optional<dependency_constraint> (
+                   dependency_constraint{
+                     comparison::eq, version ("1+1.2")})}));
 
       assert (fpv2->requirements.empty ());
 
@@ -280,8 +282,9 @@ main (int argc, char* argv[])
       assert (fpv3->dependencies[0][0] ==
               (dependency {
                  "libmisc",
-                 brep::optional<dependency_condition> (
-                   dependency_condition{comparison::ge, version ("2.0.0")})}));
+                 brep::optional<dependency_constraint> (
+                   dependency_constraint{
+                     comparison::ge, version ("2.0.0")})}));
 
       assert (fpv4->name == "libfoo");
       assert (fpv4->version == version ("1.2.4"));
@@ -309,8 +312,9 @@ main (int argc, char* argv[])
       assert (fpv4->dependencies[0][0] ==
               (dependency {
                  "libmisc",
-                 brep::optional<dependency_condition> (
-                   dependency_condition{comparison::ge, version ("2.0.0")})}));
+                 brep::optional<dependency_constraint> (
+                   dependency_constraint{
+                     comparison::ge, version ("2.0.0")})}));
 
       // Verify 'math' repository.
       //
@@ -396,14 +400,15 @@ main (int argc, char* argv[])
       assert (fpv5->dependencies[0][0] ==
               (dependency {
                  "libmisc",
-                 brep::optional<dependency_condition> (
-                   dependency_condition{comparison::lt, version ("1.1")})}));
+                 brep::optional<dependency_constraint> (
+                   dependency_constraint{comparison::lt, version ("1.1")})}));
 
       assert (fpv5->dependencies[0][1] ==
               (dependency {
                  "libmisc",
-                 brep::optional<dependency_condition> (
-                   dependency_condition{comparison::gt, version ("2.3.0")})}));
+                 brep::optional<dependency_constraint> (
+                   dependency_constraint{
+                     comparison::gt, version ("2.3.0")})}));
 
       assert (fpv5->dependencies[1].size () == 1);
       assert (fpv5->dependencies[1].comment == "Newer - better.");
@@ -456,7 +461,7 @@ main (int argc, char* argv[])
       assert (epv->dependencies[0].size () == 1);
       assert (epv->dependencies[0][0] ==
               (dependency {
-                "libmisc", brep::optional<dependency_condition> ()}));
+                "libmisc", brep::optional<dependency_constraint> ()}));
 
       assert (epv->requirements.empty ());
 

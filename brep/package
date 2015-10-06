@@ -147,8 +147,8 @@ namespace brep
   // dependencies
   //
   using comparison = bpkg::comparison;
-  using dependency_condition = bpkg::dependency_condition;
-  #pragma db value(dependency_condition) definition
+  using dependency_constraint = bpkg::dependency_constraint;
+  #pragma db value(dependency_constraint) definition
 
   // Notes:
   //
@@ -173,7 +173,7 @@ namespace brep
   //    just a package but a specific version, so for the same pair of
   //    packages dependency for different versions can have an opposite
   //    directions. The possible solution is instead of a package we point
-  //    to the earliest version that satisfies the condition. But this
+  //    to the earliest version that satisfies the constraint. But this
   //    approach requires to ensure no cycles exist before instantiating
   //    package objects which in presense of "foreign" packages can be
   //    tricky. Can stick to just a package name until get some clarity on
@@ -192,7 +192,7 @@ namespace brep
   //
   using dependency = bpkg::dependency;
   #pragma db value(dependency) definition
-  #pragma db member(dependency::condition) column("")
+  #pragma db member(dependency::constraint) column("")
 
   using dependency_alternatives = bpkg::dependency_alternatives;
   #pragma db value(dependency_alternatives) definition
