@@ -17,6 +17,7 @@
 #include <odb/core.hxx>
 #include <odb/forward.hxx>  // database
 #include <odb/lazy-ptr.hxx>
+#include <odb/nested-container.hxx>
 
 #include <butl/path>
 #include <butl/path-io>
@@ -211,22 +212,6 @@ namespace brep
   // template implementation is required to instantiate unrelated key
   // classes to achieve proper table column naming with ODB pragmas.
   //
-  template <typename T>
-  struct index_pair
-  {
-    std::size_t first;
-    std::size_t second;
-
-    index_pair () = default;
-    index_pair (std::size_t f, std::size_t s): first (f), second (s) {}
-
-    bool
-    operator< (const index_pair& v) const
-    {
-      return first < v.first || (first == v.first && second < v.second);
-    }
-  };
-
   #pragma db object pointer(std::shared_ptr) session
   class repository
   {
@@ -389,19 +374,19 @@ namespace brep
 
     // license
     //
-    using _license_key = index_pair<licenses>;
+    using _license_key = odb::nested_key<licenses>;
     using _licenses_type = std::map<_license_key, std::string>;
 
     #pragma db value(_license_key)
-    #pragma db member(_license_key::first) column("alternative")
-    #pragma db member(_license_key::second) column("index")
+    #pragma db member(_license_key::outer) column("alternative_index")
+    #pragma db member(_license_key::inner) column("index")
 
     #pragma db member(license_alternatives) id_column("") value_column("")
-    #pragma db member(licenses)                            \
-      virtual(_licenses_type)                              \
-      after(license_alternatives)                          \
-      get(_get (this.license_alternatives))                \
-      set(_set (this.license_alternatives, (?)))           \
+    #pragma db member(licenses)                                       \
+      virtual(_licenses_type)                                         \
+      after(license_alternatives)                                     \
+      get(odb::nested_get (this.license_alternatives))                \
+      set(odb::nested_set (this.license_alternatives, std::move (?))) \
       id_column("") key_column("") value_column("license")
 
     // tags
@@ -410,38 +395,38 @@ namespace brep
 
     // dependencies
     //
-    using _dependency_key = index_pair<dependency_alternatives>;
+    using _dependency_key = odb::nested_key<dependency_alternatives>;
     using _dependency_alternatives_type =
                std::map<_dependency_key, dependency>;
 
     #pragma db value(_dependency_key)
-    #pragma db member(_dependency_key::first) column("dependency")
-    #pragma db member(_dependency_key::second) column("index")
+    #pragma db member(_dependency_key::outer) column("dependency_index")
+    #pragma db member(_dependency_key::inner) column("index")
 
     #pragma db member(dependencies) id_column("") value_column("")
-    #pragma db member(dependency_alternatives)          \
-      virtual(_dependency_alternatives_type)            \
-      after(dependencies)                               \
-      get(_get (this.dependencies))                     \
-      set(_set (this.dependencies, (?)))                \
+    #pragma db member(dependency_alternatives)                \
+      virtual(_dependency_alternatives_type)                  \
+      after(dependencies)                                     \
+      get(odb::nested_get (this.dependencies))                \
+      set(odb::nested_set (this.dependencies, std::move (?))) \
       id_column("") key_column("") value_column("dep_")
 
     // requirements
     //
-    using _requirement_key = index_pair<requirement_alternatives>;
+    using _requirement_key = odb::nested_key<requirement_alternatives>;
     using _requirement_alternatives_type =
                std::map<_requirement_key, std::string>;
 
     #pragma db value(_requirement_key)
-    #pragma db member(_requirement_key::first) column("requirement")
-    #pragma db member(_requirement_key::second) column("index")
+    #pragma db member(_requirement_key::outer) column("requirement_index")
+    #pragma db member(_requirement_key::inner) column("index")
 
     #pragma db member(requirements) id_column("") value_column("")
-    #pragma db member(requirement_alternatives)       \
-      virtual(_requirement_alternatives_type)         \
-      after(requirements)                             \
-      get(_get (this.requirements))                   \
-      set(_set (this.requirements, (?)))              \
+    #pragma db member(requirement_alternatives)          \
+      virtual(_requirement_alternatives_type)            \
+      after(requirements)                                \
+      get(odb::nested_get (this.requirements))           \
+      set(odb::nested_set (this.requirements, move (?))) \
       id_column("") key_column("") value_column("id")
 
     #pragma db member(external_repositories)                  \
@@ -588,69 +573,6 @@ namespace odb
   using ::brep::operator>;
   using ::brep::operator>=;
   using ::brep::order_by_version_desc;
-}
-
-// Nested container emulation support for ODB.
-//
-// Note that the outer index in the inner container should strictly
-// speaking be a foreign key pointing to the index of the outer
-// container. The only way to achieve this currently is to manually
-// add the constraint via ALTER TABLE ADD CONSTRAINT. Note, however,
-// that as long as we only modify these tables via the ODB container
-// interface, not having the foreign key (and not having ON DELETE
-// CASCADE) should be harmless (since we have a foreign key pointing
-// to the object id).
-//
-#include <map>
-#include <vector>
-#include <cstddef>     // size_t
-#include <utility>     // declval()
-#include <cassert>
-#include <type_traits> // remove_reference
-
-namespace odb
-{
-  template <typename O>
-  struct _inner: std::remove_reference<decltype (std::declval<O> ()[0])> {};
-
-  template <typename O>
-  std::map<brep::index_pair<O>, typename _inner<O>::type>
-  _get (const std::vector<O>& v)
-  {
-    using namespace std;
-
-    using I = typename _inner<O>::type;
-    using key = brep::index_pair<O>;
-
-    map<key, I> r;
-    for (size_t n (0); n != v.size (); ++n)
-    {
-      const O& o (v[n]);
-      for (size_t m (0); m != o.size (); ++m)
-        r.emplace (key (n, m), o[m]);
-    }
-    return r;
-  }
-
-  //@@ Second argument should be && once ODB uses move().
-  //
-  template <typename K, typename I, typename O>
-  void
-  _set (std::vector<O>& v, std::map<K, I>& r)
-  {
-    using namespace std;
-
-    for (auto& p: r)
-    {
-      size_t n (p.first.first);
-      size_t m (p.first.second);
-      I& i (p.second);
-
-      assert (n < v.size ());
-      assert (m == v[n].size ());
-      v[n].push_back (std::move (i));
-    }
-  }
 }
 
 #endif // BREP_PACKAGE
