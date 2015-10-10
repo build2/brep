@@ -275,9 +275,9 @@ load_packages (const shared_ptr<repository>& rp, database& db)
 
   for (auto& pm: pkm)
   {
-    shared_ptr<package_version> pv (
-      db.find<package_version> (
-        package_version_id
+    shared_ptr<package> p (
+      db.find<package> (
+        package_id
         {
           pm.name,
           {
@@ -287,11 +287,11 @@ load_packages (const shared_ptr<repository>& rp, database& db)
           }
         }));
 
-    if (pv == nullptr)
+    if (p == nullptr)
     {
       if (rp->internal)
       {
-        // Create internal package version object.
+        // Create internal package object.
         //
         optional<string> dsc;
         if (pm.description)
@@ -322,7 +322,7 @@ load_packages (const shared_ptr<repository>& rp, database& db)
           }
         }
 
-        pv = make_shared<package_version>(
+        p = make_shared<package> (
           move (pm.name),
           move (pm.version),
           pm.priority ? move (*pm.priority) : priority (),
@@ -341,20 +341,17 @@ load_packages (const shared_ptr<repository>& rp, database& db)
           rp);
       }
       else
-        // Create external package version object.
+        // Create external package object.
         //
-        pv = make_shared<package_version>(
-          move (pm.name),
-          move (pm.version),
-          rp);
+        p = make_shared<package> (move (pm.name), move (pm.version), rp);
 
-      db.persist (pv);
+      db.persist (p);
     }
     else
     {
-      // @@ Need to ensure that the same package versions coming from
-      //    different repositories are equal. Probably will invent hashsum at
-      //    some point for this purpose.
+      // @@ Need to ensure that the same packages coming from different
+      //    repositories are equal. Probably will invent hashsum at some point
+      //    for this purpose.
       //
 
       if (rp->internal)
@@ -363,14 +360,14 @@ load_packages (const shared_ptr<repository>& rp, database& db)
         //
 
         // As soon as internal repositories get loaded first, the internal
-        // package version can duplicate an internal package version only.
+        // package can duplicate an internal package only.
         //
-        assert (pv->internal_repository != nullptr);
+        assert (p->internal_repository != nullptr);
       }
       else
       {
-        pv->external_repositories.push_back (rp);
-        db.update (pv);
+        p->external_repositories.push_back (rp);
+        db.update (p);
       }
     }
   }
@@ -565,7 +562,7 @@ main (int argc, char* argv[])
     {
       // Rebuild repositories persistent state from scratch.
       //
-      db.erase_query<package_version> ();
+      db.erase_query<package> ();
       db.erase_query<repository> ();
 
       // On the first pass over the internal repositories we load their

@@ -16,25 +16,25 @@ using namespace odb::core;
 
 namespace brep
 {
-  // package_version
+  // package
   //
-  package_version::
-  package_version (string nm,
-                   version_type vr,
-                   priority_type pr,
-                   string sm,
-                   license_alternatives_type la,
-                   strings tg,
-                   optional<string> ds,
-                   string ch,
-                   url_type ur,
-                   optional<url_type> pu,
-                   email_type em,
-                   optional<email_type> pe,
-                   dependencies_type dp,
-                   requirements_type rq,
-                   optional<path> lc,
-                   shared_ptr<repository_type> rp)
+  package::
+  package (string nm,
+           version_type vr,
+           priority_type pr,
+           string sm,
+           license_alternatives_type la,
+           strings tg,
+           optional<string> ds,
+           string ch,
+           url_type ur,
+           optional<url_type> pu,
+           email_type em,
+           optional<email_type> pe,
+           dependencies_type dp,
+           requirements_type rq,
+           optional<path> lc,
+           shared_ptr<repository_type> rp)
       : name (move (nm)),
         version (move (vr)),
         priority (move (pr)),
@@ -55,10 +55,10 @@ namespace brep
     assert (internal_repository->internal);
   }
 
-  package_version::
-  package_version (string nm,
-                   version_type vr,
-                   shared_ptr<repository_type> rp)
+  package::
+  package (string nm,
+           version_type vr,
+           shared_ptr<repository_type> rp)
       : name (move (nm)),
         version (move (vr))
   {
@@ -66,7 +66,7 @@ namespace brep
     external_repositories.emplace_back (move (rp));
   }
 
-  package_version::_id_type package_version::
+  package::_id_type package::
   _id () const
   {
     return _id_type {
@@ -79,11 +79,11 @@ namespace brep
       version.upstream};
   }
 
-  void package_version::
+  void package::
   _id (_id_type&& v, database&)
   {
     const auto& dv (v.data.version);
-    name = move (v.data.package);
+    name = move (v.data.name);
     version = version_type (dv.epoch, move (v.upstream), dv.revision);
     assert (version.canonical_upstream == dv.canonical_upstream);
   }

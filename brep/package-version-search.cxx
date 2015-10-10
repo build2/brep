@@ -92,37 +92,37 @@ namespace brep
 
     transaction t (db_->begin ());
 
-    shared_ptr<package_version> pv;
+    shared_ptr<package> p;
     {
-      using query = query<latest_internal_package_version>;
+      using query = query<latest_internal_package>;
 
-      latest_internal_package_version v;
-      if (!db_->query_one<latest_internal_package_version> (
-            query::package_version::id.data.package == name, v))
+      latest_internal_package ip;
+      if (!db_->query_one<latest_internal_package> (
+            query::package::id.data.name == name, ip))
       {
         throw invalid_request (404, "Package '" + name + "' not found");
       }
 
-      pv = v;
+      p = ip;
     }
 
-    s << DIV(ID="summary") << pv->summary << ~DIV
-      << DIV_URL (pv->url)
-      << DIV_EMAIL (pv->email);
+    s << DIV(ID="summary") << p->summary << ~DIV
+      << DIV_URL (p->url)
+      << DIV_EMAIL (p->email);
 
-    if (pv->description)
-      s << DIV(ID="description") << *pv->description << ~DIV;
+    if (p->description)
+      s << DIV(ID="description") << *p->description << ~DIV;
 
-    s << DIV_TAGS (pv->tags);
+    s << DIV_TAGS (p->tags);
 
     size_t pvc;
     {
-      using query = query<package_version_count>;
+      using query = query<package_count>;
 
       // @@ Query will also include search criteria if specified.
       //
-      pvc = db_->query_value<package_version_count> (
-        query::id.data.package == name &&
+      pvc = db_->query_value<package_count> (
+        query::id.data.name == name &&
         query::internal_repository.is_not_null ());
     }
 
@@ -132,21 +132,21 @@ namespace brep
     //    from this page totally.
     //
 /*
-    if (pv->package_url)
-      s << DIV_URL (*pv->package_url);
+    if (p->package_url)
+      s << DIV_URL (*p->package_url);
 
-    if (pv->package_email)
-      s << DIV_EMAIL (*pv->package_email);
+    if (p->package_email)
+      s << DIV_EMAIL (*p->package_email);
 */
 
-    // @@ Use appropriate view when clarify which package version info to be
-    //    displayed and search index structure get implemented. Query will also
-    //    include search criteria if specified.
+    // @@ Use appropriate view when clarify which package info to be displayed
+    //    and search index structure get implemented. Query will also include
+    //    search criteria if specified.
     //
-    using query = query<package_version>;
+    using query = query<package>;
     auto r (
-      db_->query<package_version> (
-        (query::id.data.package == name &&
+      db_->query<package> (
+        (query::id.data.name == name &&
          query::internal_repository.is_not_null ()) +
         order_by_version_desc (query::id.data.version) +
         "OFFSET" + to_string (pr.page () * rop) +

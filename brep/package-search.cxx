@@ -82,37 +82,35 @@ namespace brep
       <<   ~HEAD
       <<   BODY;
 
-    string q (
-      pr.query ().empty () ? "" : "q=" + mime_url_encode (pr.query ()));
-
+    string q (pr.query ().empty () ? "" : "q=" + mime_url_encode (pr.query ()));
     size_t rop (options_->results_on_page ());
 
     transaction t (db_->begin ());
 
     // @@ Query will include search criteria if specified.
     //
-    size_t pc (db_->query_value<internal_package_count> ());
+    size_t pc (db_->query_value<internal_package_name_count> ());
 
     s << DIV(ID="packages") << "Packages (" << pc << ")" << ~DIV;
 
     // @@ Query will also include search criteria if specified.
     //
-    using query = query<latest_internal_package_version>;
+    using query = query<latest_internal_package>;
 
     auto r (
-      db_->query<latest_internal_package_version> (query (true) +
-        "ORDER BY" + query::package_version::id.data.package +
+      db_->query<latest_internal_package> (query (true) +
+        "ORDER BY" + query::package::id.data.name +
         "OFFSET" + to_string (pr.page () * rop) +
         "LIMIT" + to_string (rop)));
 
     for (const auto& ip: r)
     {
-      const package_version& v (ip);
+      const package& p (ip);
 
       s << DIV(CLASS="package")
         <<   DIV(CLASS="name")
         <<     A
-        <<     HREF << "/go/" << mime_url_encode (v.name);
+        <<     HREF << "/go/" << mime_url_encode (p.name);
 
       // Propagate search criteria to the package version search url.
       //
@@ -120,14 +118,14 @@ namespace brep
         s << "?" << q;
 
       s <<     ~HREF
-        <<       v.name
+        <<       p.name
         <<     ~A
         <<   ~DIV
-        <<   DIV(CLASS="summary") << v.summary << ~DIV
-        <<   DIV_TAGS (v.tags)
-        <<   DIV_LICENSES (v.license_alternatives)
+        <<   DIV(CLASS="summary") << p.summary << ~DIV
+        <<   DIV_TAGS (p.tags)
+        <<   DIV_LICENSES (p.license_alternatives)
         <<   DIV(CLASS="dependencies")
-        <<     "Dependencies: " << v.dependencies.size ()
+        <<     "Dependencies: " << p.dependencies.size ()
         <<   ~DIV
         << ~DIV;
     }

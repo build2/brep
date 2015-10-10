@@ -63,7 +63,7 @@ namespace brep
     }
 
     assert (i != rq.path ().rend ());
-    const string& p (*i);
+    const string& n (*i);
 
     params::package_version_details pr;
 
@@ -80,7 +80,7 @@ namespace brep
 
     const char* ident ("\n      ");
     const string& vs (v.string ());
-    const string name (p + " " + vs);
+    const string name (n + " " + vs);
     const string title ("Package Version " + name);
     serializer s (rs.content (), title);
 
@@ -108,24 +108,24 @@ namespace brep
       <<   ~HEAD
       <<   BODY
       <<     DIV(ID="name")
-      <<       A << HREF << "/go/" << mime_url_encode (p) << ~HREF << p << ~A
+      <<       A << HREF << "/go/" << mime_url_encode (n) << ~HREF << n << ~A
       <<       " " << vs
       <<     ~DIV;
 
     bool not_found (false);
-    shared_ptr<package_version> pv;
+    shared_ptr<package> p;
 
     transaction t (db_->begin ());
 
     try
     {
-      package_version_id id {p, v.epoch, v.canonical_upstream, v.revision};
-      pv = db_->load<package_version> (id);
+      package_id id {n, v.epoch, v.canonical_upstream, v.revision};
+      p = db_->load<package> (id);
 
-      // If the requested package version turned up to be an "external" one
-      // just respond that no "internal" package version is present.
+      // If the requested package turned up to be an "external" one just
+      // respond that no "internal" package is present.
       //
-      not_found = pv->internal_repository == nullptr;
+      not_found = p->internal_repository == nullptr;
     }
     catch (const object_not_persistent& )
     {
@@ -135,27 +135,27 @@ namespace brep
     if (not_found)
       throw invalid_request (404, "Package '" + name + "' not found");
 
-    assert (pv->location);
-    const string u (pv->internal_repository.load ()->location.string () +
-                    "/" + pv->location->string ());
+    assert (p->location);
+    const string u (p->internal_repository.load ()->location.string () +
+                    "/" + p->location->string ());
 
     s << DIV(CLASS="url") << A << HREF << u << ~HREF << u << ~A << ~DIV
-      << DIV(ID="summary") << pv->summary << ~DIV
-      << DIV_URL (pv->url)
-      << DIV_EMAIL (pv->email);
+      << DIV(ID="summary") << p->summary << ~DIV
+      << DIV_URL (p->url)
+      << DIV_EMAIL (p->email);
 
-    if (pv->description)
-      s << DIV(ID="description") << *pv->description << ~DIV;
+    if (p->description)
+      s << DIV(ID="description") << *p->description << ~DIV;
 
-    const priority& pt (pv->priority);
+    const priority& pt (p->priority);
 
-    s << DIV_TAGS (pv->tags)
+    s << DIV_TAGS (p->tags)
       << DIV_PRIORITY (pt);
 
     if (!pt.comment.empty ())
       s << DIV(CLASS="comment") << pt.comment << ~DIV;
 
-    const auto& ls (pv->license_alternatives);
+    const auto& ls (p->license_alternatives);
 
     s << DIV(ID="licenses")
       <<   "Licenses:"
@@ -182,7 +182,7 @@ namespace brep
     s <<   ~UL
       << ~DIV;
 
-    const auto& ds (pv->dependencies);
+    const auto& ds (p->dependencies);
 
     if (!ds.empty ())
     {
@@ -219,7 +219,7 @@ namespace brep
         << ~DIV;
     }
 
-    const auto& rm (pv->requirements);
+    const auto& rm (p->requirements);
 
     if (!rm.empty ())
     {
@@ -260,23 +260,23 @@ namespace brep
         << ~DIV;
     }
 
-    if (pv->package_url || pv->package_email)
+    if (p->package_url || p->package_email)
     {
       s << DIV(ID="package")
         <<   "Package:"
         <<   UL;
 
-      if (pv->package_url)
-        s << LI << DIV_URL (*pv->package_url) << ~LI;
+      if (p->package_url)
+        s << LI << DIV_URL (*p->package_url) << ~LI;
 
-      if (pv->package_email)
-        s << LI << DIV_EMAIL (*pv->package_email) << ~LI;
+      if (p->package_email)
+        s << LI << DIV_EMAIL (*p->package_email) << ~LI;
 
       s <<   ~UL
         << ~DIV;
     }
 
-    const auto& er (pv->external_repositories);
+    const auto& er (p->external_repositories);
 
     if (!er.empty ())
     {
@@ -293,7 +293,7 @@ namespace brep
         if (l.port () != 0)
           u += ":" + to_string (l.port ());
 
-        u += "/go/" + mime_url_encode (p) + "/" + vs;
+        u += "/go/" + mime_url_encode (n) + "/" + vs;
         s << LI
           <<   DIV(CLASS="url") << A << HREF << u << ~HREF << u << ~A << ~DIV
           << ~LI;
@@ -305,7 +305,7 @@ namespace brep
 
     t.commit ();
 
-    const string& ch (pv->changes);
+    const string& ch (p->changes);
 
     if (!ch.empty ())
       s << DIV(ID="changes") << "Changes:" << PRE << ch << ~PRE << ~DIV;

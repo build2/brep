@@ -72,7 +72,7 @@ namespace brep
   // Forward declarations.
   //
   class repository;
-  class package_version;
+  class package;
 
   using strings = std::vector<std::string>;
 
@@ -106,9 +106,9 @@ namespace brep
   using repository_location = bpkg::repository_location;
 
   #pragma db value
-  struct package_version_id
+  struct package_id
   {
-    std::string package;
+    std::string name;
 
     #pragma db value
     struct version_type
@@ -180,8 +180,8 @@ namespace brep
   //    tricky. Can stick to just a package name until get some clarity on
   //    "foreign" package resolution.
   //
-  // 4. As we get rid of the package class the dependency resolution come to
-  //    finding the best matching package version object. The question is
+  // 4. As we left just the the package class the dependency resolution come to
+  //    finding the best version matching package object. The question is
   //    if to resolve dependencies on the loading phase or in the WEB interface
   //    when required. The arguments in favour of doing that during loading
   //    phase are:
@@ -207,11 +207,6 @@ namespace brep
 
   using requirements = std::vector<requirement_alternatives>;
 
-  // Intended for instantiating key classes for maps used for simulation of
-  // 2-dimensional value type containers. Parameter type T not being used in
-  // template implementation is required to instantiate unrelated key
-  // classes to achieve proper table column naming with ODB pragmas.
-  //
   #pragma db object pointer(std::shared_ptr) session
   class repository
   {
@@ -272,12 +267,8 @@ namespace brep
     repository () = default;
   };
 
-  // @@ While it's very tempting to rename package_version to package wouldn't
-  //    it be confusing having package denoting both specific package version
-  //    and package as a collection of versions.
-  //
   #pragma db object pointer(std::shared_ptr) session
-  class package_version
+  class package
   {
   public:
     using repository_type = brep::repository;
@@ -289,26 +280,26 @@ namespace brep
     using dependencies_type = brep::dependencies;
     using requirements_type = brep::requirements;
 
-    // Create internal package version object.
+    // Create internal package object.
     //
-    package_version (std::string name,
-                     version_type,
-                     priority_type,
-                     std::string summary,
-                     license_alternatives_type,
-                     strings tags,
-                     optional<std::string> description,
-                     std::string changes,
-                     url_type,
-                     optional<url_type> package_url,
-                     email_type,
-                     optional<email_type> package_email,
-                     dependencies_type,
-                     requirements_type,
-                     optional<path> location,
-                     std::shared_ptr<repository_type>);
+    package (std::string name,
+             version_type,
+             priority_type,
+             std::string summary,
+             license_alternatives_type,
+             strings tags,
+             optional<std::string> description,
+             std::string changes,
+             url_type,
+             optional<url_type> package_url,
+             email_type,
+             optional<email_type> package_email,
+             dependencies_type,
+             requirements_type,
+             optional<path> location,
+             std::shared_ptr<repository_type>);
 
-    // Create external package version object.
+    // Create external package object.
     //
     // External repository packages can appear on the WEB interface only on
     // the package version details page in dependency list in the form of a
@@ -316,9 +307,9 @@ namespace brep
     // required to compose such a link is the package name, version, and
     // repository location.
     //
-    package_version (std::string name,
-                     version_type,
-                     std::shared_ptr<repository_type>);
+    package (std::string name,
+             version_type,
+             std::shared_ptr<repository_type>);
 
     // Manifest data.
     //
@@ -338,8 +329,8 @@ namespace brep
     requirements_type requirements;
     odb::lazy_shared_ptr<repository_type> internal_repository;
 
-    // Path to the package file. Set only for package versions present in
-    // internal repository.
+    // Path to the package file. Set only for packages present in internal
+    // repository.
     //
     optional<path> location;
 
@@ -354,7 +345,7 @@ namespace brep
     struct _id_type
     {
       #pragma db column("")
-      package_version_id data;
+      package_id data;
 
       #pragma db column("version_upstream")
       std::string upstream;
@@ -434,43 +425,40 @@ namespace brep
 
   private:
     friend class odb::access;
-    package_version () = default;
+    package () = default;
   };
 
-  // Find the latest version of an internal package.
+  // Find an internal package of the latest version.
   //
-  #pragma db view object(package_version)                            \
-    object(package_version = v:                                      \
-           package_version::id.data.package == v::id.data.package && \
-           package_version::id.data.version < v::id.data.version)    \
-    query((package_version::internal_repository.is_not_null () &&    \
-           v::id.data.package.is_null ()) + "AND" + (?))
-  struct latest_internal_package_version
+  #pragma db view object(package)                         \
+    object(package = p:                                   \
+           package::id.data.name == p::id.data.name &&    \
+           package::id.data.version < p::id.data.version) \
+    query((package::internal_repository.is_not_null () && \
+           p::id.data.name.is_null ()) + "AND" + (?))
+  struct latest_internal_package
   {
-    using package_version_type = brep::package_version;
-    std::shared_ptr<package_version_type> package_version;
+    using package_type = brep::package;
+    std::shared_ptr<package_type> package;
 
-    operator const std::shared_ptr<package_version_type>& () const
-    {return package_version;}
-
-    explicit operator package_version_type& () const
-    {return *package_version;}
+    operator const std::shared_ptr<package_type>& () const {return package;}
+    explicit operator package_type& () const {return *package;}
   };
 
-  #pragma db view object(package_version)                             \
-    query(package_version::internal_repository.is_not_null () && (?))
-  struct internal_package_count
+  // Count number of internal packages distinct names.
+  //
+  #pragma db view object(package)                             \
+    query(package::internal_repository.is_not_null () && (?))
+  struct internal_package_name_count
   {
-    #pragma db column("count(DISTINCT" +                    \
-                      package_version::id.data.package+ ")")
-
+    #pragma db column("count(DISTINCT" + package::id.data.name+ ")")
     std::size_t result;
 
     operator std::size_t () const {return result;}
   };
 
-  #pragma db view object(package_version)
-  struct package_version_count
+  #pragma db view object(package)
+  struct package_count
   {
     #pragma db column("count(*)")
     std::size_t result;
@@ -480,7 +468,7 @@ namespace brep
 
   // Version comparison operators.
   //
-  // They allow comparing objects that have epoch, canonical_upstream,
+  // They allow comparing objects that have epoch, canonical_upstream
   // and revision data members.
   //
   template <typename T1, typename T2>
@@ -553,11 +541,9 @@ namespace brep
   }
 
   inline bool
-  operator< (const package_version_id& x, const package_version_id& y)
+  operator< (const package_id& x, const package_id& y)
   {
-    int r (x.package.compare (y.package));
-
-    if (r != 0)
+    if (int r = x.name.compare (y.name))
       return r < 0;
 
     return x.version < y.version;
