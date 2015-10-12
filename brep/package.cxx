@@ -35,7 +35,7 @@ namespace brep
            requirements_type rq,
            optional<path> lc,
            shared_ptr<repository_type> rp)
-      : name (move (nm)),
+      : id (move (nm), vr),
         version (move (vr)),
         priority (move (pr)),
         summary (move (sm)),
@@ -59,33 +59,11 @@ namespace brep
   package (string nm,
            version_type vr,
            shared_ptr<repository_type> rp)
-      : name (move (nm)),
+      : id (move (nm), vr),
         version (move (vr))
   {
     assert (!rp->internal);
     external_repositories.emplace_back (move (rp));
-  }
-
-  package::_id_type package::
-  _id () const
-  {
-    return _id_type {
-      {
-        name,
-        version.epoch,
-        version.canonical_upstream,
-        version.revision
-      },
-      version.upstream};
-  }
-
-  void package::
-  _id (_id_type&& v, database&)
-  {
-    const auto& dv (v.data.version);
-    name = move (v.data.name);
-    version = version_type (dv.epoch, move (v.upstream), dv.revision);
-    assert (version.canonical_upstream == dv.canonical_upstream);
   }
 
   // repository
@@ -97,18 +75,14 @@ namespace brep
         local_path (move (p)),
         internal (true)
   {
+    name = location.canonical_name ();
   }
 
-  repository::_id_type repository::
-  _id () const
+  repository::
+  repository (repository_location l)
+      : location (move (l)),
+        internal (false)
   {
-    return _id_type {location.canonical_name (), location.string ()};
-  }
-
-  void repository::
-  _id (_id_type&& l)
-  {
-    location = repository_location (move (l.location));
-    assert (location.canonical_name () == l.canonical_name);
+    name = location.canonical_name ();
   }
 }

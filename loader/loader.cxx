@@ -227,8 +227,7 @@ changed (const internal_repositories& repos, database& db)
   //
   auto rs (
     db.query<repository> (
-      query::internal &&
-      !query::id.canonical_name.in_range (names.begin (), names.end ())));
+      query::internal && !query::name.in_range (names.begin (), names.end ())));
 
   return !rs.empty ();
 }

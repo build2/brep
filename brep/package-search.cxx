@@ -99,7 +99,7 @@ namespace brep
 
     auto r (
       db_->query<latest_internal_package> (query (true) +
-        "ORDER BY" + query::package::id.data.name +
+        "ORDER BY" + query::package::id.name +
         "OFFSET" + to_string (pr.page () * rop) +
         "LIMIT" + to_string (rop)));
 
@@ -110,7 +110,7 @@ namespace brep
       s << DIV(CLASS="package")
         <<   DIV(CLASS="name")
         <<     A
-        <<     HREF << "/go/" << mime_url_encode (p.name);
+        <<     HREF << "/go/" << mime_url_encode (p.id.name);
 
       // Propagate search criteria to the package version search url.
       //
@@ -118,7 +118,7 @@ namespace brep
         s << "?" << q;
 
       s <<     ~HREF
-        <<       p.name
+        <<       p.id.name
         <<     ~A
         <<   ~DIV
         <<   DIV(CLASS="summary") << p.summary << ~DIV

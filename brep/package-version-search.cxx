@@ -98,7 +98,7 @@ namespace brep
 
       latest_internal_package ip;
       if (!db_->query_one<latest_internal_package> (
-            query::package::id.data.name == name, ip))
+            query::package::id.name == name, ip))
       {
         throw invalid_request (404, "Package '" + name + "' not found");
       }
@@ -122,8 +122,7 @@ namespace brep
       // @@ Query will also include search criteria if specified.
       //
       pvc = db_->query_value<package_count> (
-        query::id.data.name == name &&
-        query::internal_repository.is_not_null ());
+        query::id.name == name && query::internal_repository.is_not_null ());
     }
 
     s << DIV(ID="versions") << "Versions (" << pvc << ")" << ~DIV;
@@ -146,9 +145,8 @@ namespace brep
     using query = query<package>;
     auto r (
       db_->query<package> (
-        (query::id.data.name == name &&
-         query::internal_repository.is_not_null ()) +
-        order_by_version_desc (query::id.data.version) +
+        (query::id.name == name && query::internal_repository.is_not_null ()) +
+        order_by_version_desc (query::id.version) +
         "OFFSET" + to_string (pr.page () * rop) +
         "LIMIT" + to_string (rop)));
 

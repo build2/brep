@@ -119,8 +119,7 @@ namespace brep
 
     try
     {
-      package_id id {n, v.epoch, v.canonical_upstream, v.revision};
-      p = db_->load<package> (id);
+      p = db_->load<package> (package_id (n, v));
 
       // If the requested package turned up to be an "external" one just
       // respond that no "internal" package is present.

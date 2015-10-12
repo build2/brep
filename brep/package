@@ -29,13 +29,14 @@ namespace brep
   // Use an image type to map bpkg::version to the database since there
   // is no way to modify individual components directly.
   //
+
   #pragma db value
   struct _version
   {
     std::uint16_t epoch;
-    std::string upstream;
-    std::uint16_t revision;
     std::string canonical_upstream;
+    std::uint16_t revision;
+    std::string upstream;
   };
 }
 
@@ -48,9 +49,9 @@ namespace brep
 //
 #pragma db map type(bpkg::version) as(brep::_version)                     \
   to(brep::_version{(?).epoch,                                            \
-                    (?).upstream,                                         \
+                    (?).canonical_upstream,                               \
                     (?).revision,                                         \
-                    (?).canonical_upstream})                              \
+                    (?).upstream})                                        \
   from(bpkg::version ((?).epoch, std::move ((?).upstream), (?).revision))
 
 #pragma db map type(bpkg::comparison) as(std::string) \
@@ -79,6 +80,8 @@ namespace brep
   template <typename T>
   using optional = butl::optional<T>;
 
+  // path
+  //
   using path = butl::path;
 
   #pragma db map type(path) as(std::string)  \
@@ -96,44 +99,65 @@ namespace brep
   #pragma db map type(dir_path) as(std::string)  \
     to((?).string ()) from(brep::dir_path (?))
 
+  // timestamp
+  //
   using timestamp = butl::timestamp;
 
   #pragma db map type(timestamp) as(std::uint64_t)   \
     to(std::chrono::system_clock::to_time_t (?))     \
     from(std::chrono::system_clock::from_time_t (?))
 
+  // version
+  //
   using version = bpkg::version;
-  using repository_location = bpkg::repository_location;
 
   #pragma db value
-  struct package_id
+  struct canonical_version
   {
-    std::string name;
-
-    #pragma db value
-    struct version_type
-    {
-      std::uint16_t epoch;
-      std::string canonical_upstream;
-      std::uint16_t revision;
-    };
-
-    version_type version;
-
-    // Database mapping.
-    //
+    std::uint16_t epoch;
+    std::string   canonical_upstream;
+    std::uint16_t revision;
   };
 
+  #pragma db value transient
+  struct upstream_version: version
+  {
+    #pragma db member(upstream_) virtual(std::string) \
+      get(this.upstream)                              \
+      set(this = brep::version (0, std::move (?), 0))
+
+    upstream_version () = default;
+    upstream_version (version v): version (std::move (v)) {}
+    upstream_version&
+    operator= (version v) {version& b (*this); b = v; return *this;}
+
+    void
+    init (const canonical_version& cv, const upstream_version& uv)
+    {
+      *this = version (cv.epoch, uv.upstream, cv.revision);
+      assert (cv.canonical_upstream == canonical_upstream);
+    }
+  };
+
+  // priority
+  //
   using priority = bpkg::priority;
+
   #pragma db value(priority) definition
   #pragma db member(priority::value) column("")
 
+  // url
+  //
   using url = bpkg::url;
+
   #pragma db value(url) definition
   #pragma db member(url::value) virtual(std::string) before access(this) \
           column("")
 
+  // email
+  //
   using email = bpkg::email;
+
   #pragma db value(email) definition
   #pragma db member(email::value) virtual(std::string) before access(this) \
           column("")
@@ -141,14 +165,15 @@ namespace brep
   // licenses
   //
   using licenses = bpkg::licenses;
-  #pragma db value(licenses) definition
-
   using license_alternatives = std::vector<licenses>;
+
+  #pragma db value(licenses) definition
 
   // dependencies
   //
   using comparison = bpkg::comparison;
   using dependency_constraint = bpkg::dependency_constraint;
+
   #pragma db value(dependency_constraint) definition
 
   // Notes:
@@ -192,20 +217,26 @@ namespace brep
   //      relations otherwise required just for dependency resolution.
   //
   using dependency = bpkg::dependency;
+  using dependency_alternatives = bpkg::dependency_alternatives;
+  using dependencies = std::vector<dependency_alternatives>;
+
   #pragma db value(dependency) definition
   #pragma db member(dependency::constraint) column("")
-
-  using dependency_alternatives = bpkg::dependency_alternatives;
   #pragma db value(dependency_alternatives) definition
-
-  using dependencies = std::vector<dependency_alternatives>;
 
   // requirements
   //
   using requirement_alternatives = bpkg::requirement_alternatives;
+  using requirements = std::vector<requirement_alternatives>;
+
   #pragma db value(requirement_alternatives) definition
 
-  using requirements = std::vector<requirement_alternatives>;
+  // repository_location
+  //
+  using repository_location = bpkg::repository_location;
+
+  #pragma db map type(repository_location) as(std::string) \
+    to((?).string ()) from(brep::repository_location (?))
 
   #pragma db object pointer(std::shared_ptr) session
   class repository
@@ -220,9 +251,9 @@ namespace brep
     // Create external repository.
     //
     explicit
-    repository (repository_location l)
-        : location (std::move (l)), internal (false) {}
+    repository (repository_location);
 
+    std::string name; // Object id (canonical name).
     repository_location location;
     std::string display_name;
 
@@ -244,27 +275,29 @@ namespace brep
 
     // Database mapping.
     //
-    #pragma db value
-    struct _id_type
-    {
-      std::string canonical_name;
-      std::string location;
-    };
+    #pragma db member(name) id
 
-    _id_type
-    _id () const;
-
-    void
-    _id (_id_type&&);
-
-    #pragma db member(location) transient
-
-    #pragma db member(id) virtual(_id_type) before id(canonical_name)   \
-      get(_id) set(_id (std::move (?))) column("")
+    #pragma db member(location)                                  \
+      set(this.location = std::move (?);                         \
+          assert (this.name == this.location.canonical_name ()))
 
   private:
     friend class odb::access;
     repository () = default;
+  };
+
+  #pragma db value
+  struct package_id
+  {
+    std::string name;
+    canonical_version version;
+
+    package_id () = default;
+    package_id (std::string n, const brep::version& v)
+        : name (std::move (n)),
+          version {v.epoch, v.canonical_upstream, v.revision}
+    {
+    }
   };
 
   #pragma db object pointer(std::shared_ptr) session
@@ -307,14 +340,12 @@ namespace brep
     // required to compose such a link is the package name, version, and
     // repository location.
     //
-    package (std::string name,
-             version_type,
-             std::shared_ptr<repository_type>);
+    package (std::string name, version_type, std::shared_ptr<repository_type>);
 
     // Manifest data.
     //
-    std::string name;
-    version_type version;
+    package_id id;
+    upstream_version version;
     priority_type priority;
     std::string summary;
     license_alternatives_type license_alternatives;
@@ -338,30 +369,8 @@ namespace brep
 
     // Database mapping.
     //
-
-    // id
-    //
-    #pragma db value
-    struct _id_type
-    {
-      #pragma db column("")
-      package_id data;
-
-      #pragma db column("version_upstream")
-      std::string upstream;
-    };
-
-    _id_type
-    _id () const;
-
-    void
-    _id (_id_type&&, odb::database&);
-
-    #pragma db member(name) transient
-    #pragma db member(version) transient
-
-    #pragma db member(id) virtual(_id_type) before id(data) \
-      get(_id) set(_id (std::move (?), (!))) column("")
+    #pragma db member(id) id column("")
+    #pragma db member(version) set(this.version.init (this.id.version, (?)))
 
     // license
     //
@@ -431,11 +440,10 @@ namespace brep
   // Find an internal package of the latest version.
   //
   #pragma db view object(package)                         \
-    object(package = p:                                   \
-           package::id.data.name == p::id.data.name &&    \
-           package::id.data.version < p::id.data.version) \
+    object(package = p: package::id.name == p::id.name && \
+           package::id.version < p::id.version)           \
     query((package::internal_repository.is_not_null () && \
-           p::id.data.name.is_null ()) + "AND" + (?))
+           p::id.name.is_null ()) + "AND" + (?))
   struct latest_internal_package
   {
     using package_type = brep::package;
@@ -451,7 +459,7 @@ namespace brep
     query(package::internal_repository.is_not_null () && (?))
   struct internal_package_name_count
   {
-    #pragma db column("count(DISTINCT" + package::id.data.name+ ")")
+    #pragma db column("count(DISTINCT" + package::id.name + ")")
     std::size_t result;
 
     operator std::size_t () const {return result;}

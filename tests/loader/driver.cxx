@@ -42,7 +42,7 @@ check_location (shared_ptr<package>& p)
     return !p->location;
   else
     return p->location && *p->location ==
-      path (p->name + "-" + p->version.string () + ".tar.gz");
+      path (p->id.name + "-" + p->version.string () + ".tar.gz");
 }
 
 int
@@ -111,45 +111,28 @@ main (int argc, char* argv[])
               file_mtime (dir_path (sr->local_path) / path ("repositories")));
       assert (sr->internal);
 
-      version fv1 ("1.0");
       shared_ptr<package> fpv1 (
-        db.load<package> (
-          package_id {
-            "libfoo", {fv1.epoch, fv1.canonical_upstream, fv1.revision}}));
+        db.load<package> (package_id ("libfoo", version ("1.0"))));
       assert (check_location (fpv1));
 
-      version fv2 ("1.2.2");
       shared_ptr<package> fpv2 (
-        db.load<package> (
-          package_id {
-            "libfoo", {fv2.epoch, fv2.canonical_upstream, fv2.revision}}));
+        db.load<package> (package_id ("libfoo", version ("1.2.2"))));
       assert (check_location (fpv2));
 
-      version fv3 ("1.2.3-4");
       shared_ptr<package> fpv3 (
-        db.load<package> (
-          package_id {
-            "libfoo", {fv3.epoch, fv3.canonical_upstream, fv3.revision}}));
+        db.load<package> (package_id ("libfoo", version ("1.2.3-4"))));
       assert (check_location (fpv3));
 
-      version fv4 ("1.2.4");
       shared_ptr<package> fpv4 (
-        db.load<package> (
-          package_id {
-            "libfoo", {fv4.epoch, fv4.canonical_upstream, fv4.revision}}));
+        db.load<package> (package_id ("libfoo", version ("1.2.4"))));
       assert (check_location (fpv4));
 
-      version xv ("1.0.0-1");
       shared_ptr<package> xpv (
-        db.load<package> (
-          package_id {
-            "libstudxml", {xv.epoch, xv.canonical_upstream, xv.revision}}));
+        db.load<package> (package_id ("libstudxml", version ("1.0.0-1"))));
       assert (check_location (xpv));
 
       // Verify libstudxml package version.
       //
-      assert (xpv->name == "libstudxml");
-      assert (xpv->version == version ("1.0.0-1"));
       assert (xpv->summary == "Modern C++ XML API");
       assert (xpv->tags == strings ({"c++", "xml", "parser", "serializer",
               "pull", "streaming", "modern"}));
@@ -189,8 +172,8 @@ main (int argc, char* argv[])
 
       // Verify libfoo package versions.
       //
-      assert (fpv1->name == "libfoo");
-      assert (fpv1->version == version ("1.0"));
+      // libfoo-1.0
+      //
       assert (fpv1->summary == "The Foo Library");
       assert (fpv1->tags.empty ());
       assert (!fpv1->description);
@@ -212,8 +195,8 @@ main (int argc, char* argv[])
       assert (fpv1->dependencies.empty ());
       assert (fpv1->requirements.empty ());
 
-      assert (fpv2->name == "libfoo");
-      assert (fpv2->version == version ("1.2.2"));
+      // libfoo-1.2.2
+      //
       assert (fpv2->summary == "The Foo library");
       assert (fpv2->tags == strings ({"c++", "foo"}));
       assert (!fpv2->description);
@@ -249,8 +232,8 @@ main (int argc, char* argv[])
 
       assert (fpv2->requirements.empty ());
 
-      assert (fpv3->name == "libfoo");
-      assert (fpv3->version == version ("1.2.3-4"));
+      // libfoo-1.2.3-4
+      //
       assert (fpv3->summary == "The Foo library");
       assert (fpv3->tags == strings ({"c++", "foo"}));
       assert (!fpv3->description);
@@ -277,8 +260,8 @@ main (int argc, char* argv[])
                  brep::optional<dependency_constraint> (
                    dependency_constraint{comparison::ge, version ("2.0.0")})}));
 
-      assert (fpv4->name == "libfoo");
-      assert (fpv4->version == version ("1.2.4"));
+      // libfoo-1.2.4
+      //
       assert (fpv4->summary == "The Foo Library");
       assert (fpv4->tags == strings ({"c++", "foo"}));
       assert (*fpv4->description == "Very good foo library.");
@@ -322,24 +305,18 @@ main (int argc, char* argv[])
               file_mtime (dir_path (mr->local_path) / path ("repositories")));
       assert (mr->internal);
 
-      version ev ("1+1.2");
       shared_ptr<package> epv (
-        db.load<package> (
-          package_id {
-            "libexp", {ev.epoch, ev.canonical_upstream, ev.revision}}));
+        db.load<package> (package_id ("libexp", version ("1+1.2"))));
       assert (check_location (epv));
 
-      version fv5 ("1.2.4-1");
       shared_ptr<package> fpv5 (
-        db.load<package> (
-          package_id {
-            "libfoo", {fv5.epoch, fv5.canonical_upstream, fv5.revision}}));
+        db.load<package> (package_id ("libfoo", version ("1.2.4-1"))));
       assert (check_location (fpv5));
 
       // Verify libfoo package versions.
       //
-      assert (fpv5->name == "libfoo");
-      assert (fpv5->version == version ("1.2.4-1"));
+      // libfoo-1.2.4-1
+      //
       assert (fpv5->summary == "The Foo Math Library");
       assert (fpv5->tags == strings ({"c++", "foo", "math"}));
       assert (*fpv5->description ==
@@ -425,8 +402,8 @@ main (int argc, char* argv[])
 
       // Verify libexp package version.
       //
-      assert (epv->name == "libexp");
-      assert (epv->version == version ("1+1.2"));
+      // libexp-1+1.2
+      //
       assert (epv->summary == "The exponent");
       assert (epv->tags == strings ({"c++", "exponent"}));
       assert (!epv->description);
@@ -465,24 +442,18 @@ main (int argc, char* argv[])
       assert (cr->repositories_timestamp == timestamp_nonexistent);
       assert (!cr->internal);
 
-      version bv ("2.3.5");
       shared_ptr<package> bpv (
-        db.load<package> (
-          package_id {
-            "libbar", {bv.epoch, bv.canonical_upstream, bv.revision}}));
+        db.load<package> (package_id ("libbar", version ("2.3.5"))));
       assert (check_location (bpv));
 
-      version fv0 ("0.1");
       shared_ptr<package> fpv0 (
-        db.load<package> (
-          package_id {
-            "libfoo", {fv0.epoch, fv0.canonical_upstream, fv0.revision}}));
+        db.load<package> (package_id ("libfoo", version ("0.1"))));
       assert (check_location (fpv0));
 
       // Verify libbar package version.
       //
-      assert (bpv->name == "libbar");
-      assert (bpv->version == version ("2.3.5"));
+      // libbar-2.3.5
+      //
       assert (bpv->summary.empty ());
       assert (bpv->tags.empty ());
       assert (!bpv->description);
@@ -504,8 +475,8 @@ main (int argc, char* argv[])
 
       // Verify libfoo package versions.
       //
-      assert (fpv0->name == "libfoo");
-      assert (fpv0->version == version ("0.1"));
+      // libfoo-0.1
+      //
       assert (fpv0->summary.empty ());
       assert (fpv0->tags.empty ());
       assert (!fpv0->description);
@@ -537,10 +508,8 @@ main (int argc, char* argv[])
     assert (process (ld_args).wait ());
     transaction t (db.begin ());
 
-    version bv ("2.3.5");
     shared_ptr<package> bpv (
-      db.load<package> (
-        package_id {"libbar", {bv.epoch, bv.canonical_upstream, bv.revision}}));
+      db.load<package> (package_id ("libbar", version ("2.3.5"))));
 
     assert (bpv->summary == "test");
 
