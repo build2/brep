@@ -66,6 +66,48 @@ namespace brep
     external_repositories.emplace_back (move (rp));
   }
 
+  weighted_text package::
+  search_text () const
+  {
+    if (internal_repository == nullptr)
+      return weighted_text ();
+
+    // Derive keywords from the basic package information: name,
+    // version.
+    //
+    //@@ What about 'stable' from cppget.org/stable? Add path of
+    //   the repository to keywords? Or is it too "polluting" and
+    //   we will handle it in some other way (e.g., by allowing
+    //   the user to specify repo location in the drop-down box)?
+    //   Probably drop-box would be better as also tells what are
+    //   the available internal repositories.
+    //
+    string k (id.name + " " + version.string () + " " + version.string (true));
+
+    // Add tags to keywords.
+    //
+    for (const auto& t: tags)
+      k += " " + t;
+
+    // Add licenses to keywords.
+    //
+    for (const auto& la: license_alternatives)
+    {
+      for (const auto& l: la)
+      {
+        k += " " + l;
+
+        // If license is say LGPLv2 then LGPL is also a keyword.
+        //
+        size_t n (l.size ());
+        if (n > 2 && l[n - 2] == 'v' && l[n - 1] >= '0' && l[n - 1] <= '9')
+          k += " " + string (l, 0, n - 2);
+      }
+    }
+
+    return {move (k), summary, description ? *description : "", changes};
+  }
+
   // repository
   //
   repository::

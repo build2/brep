@@ -160,9 +160,7 @@ load_repositories (path p)
       // process.
       //
       if (r.local_path.relative ())
-      {
         r.local_path = p.directory () / r.local_path;
-      }
 
       try
       {

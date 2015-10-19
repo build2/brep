@@ -2,6 +2,7 @@
 name: libexp
 version: 1+1.2
 summary: The exponent
+description: The exponent math function.
 license: MIT
 tags: c++, exponent
 url: http://www.exp.com

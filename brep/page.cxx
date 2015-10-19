@@ -206,4 +206,15 @@ namespace brep
       <<   "Priority: " << priority_names[priority_]
       << ~DIV;
   }
+
+  // FORM_SEARCH
+  //
+  void FORM_SEARCH::
+  operator() (serializer& s) const
+  {
+    s << FORM
+      <<   *INPUT(TYPE="search", NAME="q", VALUE=query_)
+      <<   *INPUT(TYPE="submit", VALUE="Search")
+      << ~FORM;
+  }
 }

@@ -406,7 +406,8 @@ main (int argc, char* argv[])
       //
       assert (epv->summary == "The exponent");
       assert (epv->tags == strings ({"c++", "exponent"}));
-      assert (!epv->description);
+      assert (epv->description && *epv->description ==
+              "The exponent math function.");
       assert (epv->url == "http://www.exp.com");
       assert (!epv->package_url);
       assert (epv->email == email ("users@exp.com"));

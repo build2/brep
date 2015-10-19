@@ -40,6 +40,18 @@ namespace brep
     db_ = shared_database (options_->db_host (), options_->db_port ());
   }
 
+  template <typename T>
+  static inline query<T>
+  search_param (const string& q)
+  {
+    using query = query<T>;
+    return "(" +
+      (q.empty ()
+       ? query ("NULL")
+       : "plainto_tsquery (" + query::_val (q) + ")") +
+      ")";
+  }
+
   void package_search::
   handle (request& rq, response& rs)
   {
@@ -77,62 +89,62 @@ namespace brep
       <<       "#packages {font-size: x-large;}" << ident
       <<       ".package {margin: 0.5em 0 0;}" << ident
       <<       ".name {font-size: x-large;}" << ident
-      <<       ".tags {margin: 0.3em 0 0;}"
+      <<       ".tags {margin: 0.3em 0 0;}" << ident
+      <<       "form {margin:  0.5em 0 0 0;}"
       <<     ~CSS_STYLE
       <<   ~HEAD
       <<   BODY;
 
-    string q (pr.query ().empty () ? "" : "q=" + mime_url_encode (pr.query ()));
+    const string& sq (pr.query ()); // Search query.
+    string qp (sq.empty () ? "" : "q=" + mime_url_encode (sq));
     size_t rop (options_->results_on_page ());
 
     transaction t (db_->begin ());
 
-    // @@ Query will include search criteria if specified.
-    //
-    size_t pc (db_->query_value<internal_package_name_count> ());
+    size_t pc (
+      db_->query_value<latest_package_count> (
+        search_param<latest_package_count> (sq)));
 
-    s << DIV(ID="packages") << "Packages (" << pc << ")" << ~DIV;
-
-    // @@ Query will also include search criteria if specified.
-    //
-    using query = query<latest_internal_package>;
+    s << DIV(ID="packages") << "Packages (" << pc << ")" << ~DIV
+      << FORM_SEARCH (sq);
 
     auto r (
-      db_->query<latest_internal_package> (query (true) +
-        "ORDER BY" + query::package::id.name +
+      db_->query<latest_package_search_rank> (
+        search_param<latest_package_search_rank> (sq) +
+        "ORDER BY rank DESC, name" +
         "OFFSET" + to_string (pr.page () * rop) +
         "LIMIT" + to_string (rop)));
 
-    for (const auto& ip: r)
+    for (const auto& pr: r)
     {
-      const package& p (ip);
+      shared_ptr<package> p (db_->load<package> (pr.id));
 
       s << DIV(CLASS="package")
         <<   DIV(CLASS="name")
         <<     A
-        <<     HREF << "/go/" << mime_url_encode (p.id.name);
+        <<     HREF << "/go/" << mime_url_encode (p->id.name);
 
       // Propagate search criteria to the package version search url.
       //
-      if (!q.empty ())
-        s << "?" << q;
+      if (!qp.empty ())
+        s << "?" << qp;
 
       s <<     ~HREF
-        <<       p.id.name
+        <<       p->id.name
         <<     ~A
         <<   ~DIV
-        <<   DIV(CLASS="summary") << p.summary << ~DIV
-        <<   DIV_TAGS (p.tags)
-        <<   DIV_LICENSES (p.license_alternatives)
+        <<   DIV(CLASS="summary") << p->summary << ~DIV
+        <<   DIV_TAGS (p->tags)
+        <<   DIV_LICENSES (p->license_alternatives)
         <<   DIV(CLASS="dependencies")
-        <<     "Dependencies: " << p.dependencies.size ()
+        <<     "Dependencies: " << p->dependencies.size ()
         <<   ~DIV
         << ~DIV;
     }
 
     t.commit ();
 
-    string u (q.empty () ? "/" : ("/?" + q));
+    string u (qp.empty () ? "/" : ("/?" + qp));
 
     s <<      DIV_PAGER (pr.page (), pc, rop, options_->pages_in_pager (), u)
       <<   ~BODY

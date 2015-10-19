@@ -29,7 +29,6 @@ namespace brep
   // Use an image type to map bpkg::version to the database since there
   // is no way to modify individual components directly.
   //
-
   #pragma db value
   struct _version
   {
@@ -300,6 +299,26 @@ namespace brep
     }
   };
 
+  // The 'to' expression calls the PostgreSQL to_tsvector(weighted_text)
+  // function overload (package-extra.sql). Since we are only interested
+  // in "write-only" members of this type, make the 'from' expression
+  // always return empty string (we still have to work the placeholder
+  // in to keep overprotective ODB happy).
+  //
+  #pragma db map type("tsvector") as("TEXT")                       \
+    to("to_tsvector((?)::weighted_text)") from("COALESCE('',(?))")
+
+  // C++ type for weighted PostgreSQL tsvector.
+  //
+  #pragma db value type("tsvector")
+  struct weighted_text
+  {
+    std::string a;
+    std::string b;
+    std::string c;
+    std::string d;
+  };
+
   #pragma db object pointer(std::shared_ptr) session
   class package
   {
@@ -429,49 +448,72 @@ namespace brep
       set(odb::nested_set (this.requirements, move (?))) \
       id_column("") key_column("") value_column("id")
 
+    // external_repositories
+    //
     #pragma db member(external_repositories)                  \
       id_column("") value_column("repository") value_not_null
+
+    // search_index
+    //
+    #pragma db member(search_index) virtual(weighted_text) null \
+      access(search_text)
+
+    #pragma db index method("GIN") member(search_index)
 
   private:
     friend class odb::access;
     package () = default;
+
+    // Save keywords, summary, description, and changes to weighted_text
+    // a, b, c, d members, respectively. So a word found in keywords will
+    // have a higher weight than if it's found in the summary.
+    //
+    weighted_text
+    search_text () const;
+
+    // Noop as search_index is a write-only member.
+    //
+    void
+    search_text (const weighted_text&) {}
   };
 
-  // Find an internal package of the latest version.
+  // Package search query matching rank.
   //
-  #pragma db view object(package)                         \
-    object(package = p: package::id.name == p::id.name && \
-           package::id.version < p::id.version)           \
-    query((package::internal_repository.is_not_null () && \
-           p::id.name.is_null ()) + "AND" + (?))
-  struct latest_internal_package
+  #pragma db view query("/*CALL*/ SELECT * FROM search_latest_packages(?)")
+  struct latest_package_search_rank
   {
-    using package_type = brep::package;
-    std::shared_ptr<package_type> package;
-
-    operator const std::shared_ptr<package_type>& () const {return package;}
-    explicit operator package_type& () const {return *package;}
+    package_id id;
+    double rank;
   };
 
-  // Count number of internal packages distinct names.
-  //
-  #pragma db view object(package)                             \
-    query(package::internal_repository.is_not_null () && (?))
-  struct internal_package_name_count
+  #pragma db view \
+    query("/*CALL*/ SELECT count(*) FROM search_latest_packages(?)")
+  struct latest_package_count
   {
-    #pragma db column("count(DISTINCT" + package::id.name + ")")
     std::size_t result;
 
     operator std::size_t () const {return result;}
   };
 
-  #pragma db view object(package)
+  #pragma db view query("/*CALL*/ SELECT * FROM search_packages(?)")
+  struct package_search_rank
+  {
+    package_id id;
+    double rank;
+  };
+
+  #pragma db view  query("/*CALL*/ SELECT count(*) FROM search_packages(?)")
   struct package_count
   {
-    #pragma db column("count(*)")
     std::size_t result;
 
     operator std::size_t () const {return result;}
+  };
+
+  #pragma db view query("/*CALL*/ SELECT * FROM latest_package(?)")
+  struct latest_package
+  {
+    package_id id;
   };
 
   // Version comparison operators.

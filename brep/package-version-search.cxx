@@ -40,6 +40,21 @@ namespace brep
     db_ = shared_database (options_->db_host (), options_->db_port ());
   }
 
+  template <typename T>
+  static inline query<T>
+  search_params (const string& n, const string& q)
+  {
+    using query = query<T>;
+
+    return "(" +
+      (q.empty ()
+       ? query ("NULL")
+       : "plainto_tsquery (" + query::_val (q) + ")") +
+      "," +
+      query::_val (n) +
+      ")";
+  }
+
   void package_version_search::
   handle (request& rq, response& rs)
   {
@@ -82,28 +97,29 @@ namespace brep
       <<       "#versions {font-size: x-large; margin: 0.5em 0 0;}" << ident
       <<       ".package_version {margin: 0.5em 0 0;}" << ident
       <<       ".version {font-size: x-large;}" << ident
-      <<       ".priority {margin: 0.3em 0 0;}"
+      <<       ".priority {margin: 0.3em 0 0;}" << ident
+      <<       "form {margin:  0.5em 0 0 0;}"
       <<     ~CSS_STYLE
       <<   ~HEAD
       <<   BODY
       <<     DIV(ID="name") << name << ~DIV;
 
+    const string& sq (pr.query ()); // Search query.
     size_t rop (options_->results_on_page ());
 
     transaction t (db_->begin ());
 
     shared_ptr<package> p;
     {
-      using query = query<latest_internal_package>;
-
-      latest_internal_package ip;
-      if (!db_->query_one<latest_internal_package> (
-            query::package::id.name == name, ip))
+      latest_package lp;
+      if (!db_->query_one<latest_package> (
+            query<latest_package>(
+              "(" + query<latest_package>::_val (name) + ")"), lp))
       {
         throw invalid_request (404, "Package '" + name + "' not found");
       }
 
-      p = ip;
+      p = db_->load<package> (lp.id);
     }
 
     s << DIV(ID="summary") << p->summary << ~DIV
@@ -115,56 +131,37 @@ namespace brep
 
     s << DIV_TAGS (p->tags);
 
-    size_t pvc;
-    {
-      using query = query<package_count>;
+    size_t pvc (
+      db_->query_value<package_count> (
+        search_params<package_count> (name, sq)));
 
-      // @@ Query will also include search criteria if specified.
-      //
-      pvc = db_->query_value<package_count> (
-        query::id.name == name && query::internal_repository.is_not_null ());
-    }
+    s << DIV(ID="versions") << "Versions (" << pvc << ")" << ~DIV
+      << FORM_SEARCH (sq);
 
-    s << DIV(ID="versions") << "Versions (" << pvc << ")" << ~DIV;
-
-    // @@ Need to find some better place for package url and email or drop them
-    //    from this page totally.
-    //
-/*
-    if (p->package_url)
-      s << DIV_URL (*p->package_url);
-
-    if (p->package_email)
-      s << DIV_EMAIL (*p->package_email);
-*/
-
-    // @@ Use appropriate view when clarify which package info to be displayed
-    //    and search index structure get implemented. Query will also include
-    //    search criteria if specified.
-    //
-    using query = query<package>;
     auto r (
-      db_->query<package> (
-        (query::id.name == name && query::internal_repository.is_not_null ()) +
-        order_by_version_desc (query::id.version) +
+      db_->query<package_search_rank> (
+        search_params<package_search_rank> (name, sq) +
+        "ORDER BY rank DESC, version_epoch DESC, "
+        "version_canonical_upstream DESC, version_revision DESC" +
         "OFFSET" + to_string (pr.page () * rop) +
         "LIMIT" + to_string (rop)));
 
-    for (const auto& v: r)
+    for (const auto& pr: r)
     {
-      const string& vs (v.version.string ());
+      shared_ptr<package> p (db_->load<package> (pr.id));
+      const string& v (p->version.string ());
 
       s << DIV(CLASS="package_version")
         <<   DIV(CLASS="version")
         <<     A
-        <<     HREF << "/go/" << mime_url_encode (name) << "/" << vs << ~HREF
-        <<       vs
+        <<     HREF << "/go/" << mime_url_encode (name) << "/" << v << ~HREF
+        <<       v
         <<     ~A
         <<   ~DIV
-        <<   DIV_PRIORITY (v.priority)
-        <<   DIV_LICENSES (v.license_alternatives)
+        <<   DIV_PRIORITY (p->priority)
+        <<   DIV_LICENSES (p->license_alternatives)
         <<   DIV(CLASS="dependencies")
-        <<     "Dependencies: " << v.dependencies.size ()
+        <<     "Dependencies: " << p->dependencies.size ()
         <<   ~DIV
         << ~DIV;
     }
@@ -172,8 +169,8 @@ namespace brep
     t.commit ();
 
     string u (mime_url_encode (name));
-    if (!pr.query ().empty ())
-      u += "?q=" + mime_url_encode (pr.query ());
+    if (!sq.empty ())
+      u += "?q=" + mime_url_encode (sq);
 
     s <<     DIV_PAGER (pr.page (), pvc, rop, options_->pages_in_pager (), u)
       <<   ~BODY

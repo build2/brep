@@ -301,6 +301,7 @@ namespace web
 
     static const element BODY  ("body");
     static const element DIV   ("div");
+    static const element FORM  ("form");
     static const element H1    ("h1");
     static const element H2    ("h2");
     static const element H3    ("h3");
@@ -314,13 +315,14 @@ namespace web
     static const element TITLE ("title");
     static const element UL    ("ul");
 
-    static const inline_element A    ("a");
-    static const inline_element B    ("b");
-    static const inline_element BR   ("br");
-    static const inline_element EM   ("em");
-    static const inline_element I    ("i");
-    static const inline_element SPAN ("span");
-    static const inline_element U    ("u");
+    static const inline_element A     ("a");
+    static const inline_element B     ("b");
+    static const inline_element BR    ("br");
+    static const inline_element EM    ("em");
+    static const inline_element I     ("i");
+    static const inline_element INPUT ("input");
+    static const inline_element SPAN  ("span");
+    static const inline_element U     ("u");
 
     // Attributes.
     //
@@ -331,6 +333,7 @@ namespace web
     static const attribute NAME    ("name");
     static const attribute STYLE   ("style");
     static const attribute TYPE    ("type");
+    static const attribute VALUE   ("value");
   }
 }
 

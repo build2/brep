@@ -124,6 +124,20 @@ namespace brep
   private:
     const priority& priority_;
   };
+
+  // Generates package search element.
+  //
+  class FORM_SEARCH
+  {
+  public:
+    FORM_SEARCH (const std::string& q): query_ (q) {}
+
+    void
+    operator() (xml::serializer& s) const;
+
+  private:
+    const std::string& query_;
+  };
 }
 
 #endif // BREP_PAGE
