@@ -13,23 +13,29 @@ location: libexp-1+1.2.tar.gz
 name: libfoo
 version: 1.2.4-1
 summary: The Foo Math Library
-description: A modern C++ library with easy to use linear algebra and \
-optimization tools. There are over 100 functions in total with an extensive \
-test suite. The API is similar to MATLAB.
+description:\
+A modern C++ library with easy to use linear algebra and lot of optimization
+tools.
+
+There are over 100 functions in total with an extensive test suite. The API is
+similar to MATLAB.
+
+Useful for conversion of research code into production environments.
+\
 license: LGPLv2, MIT; If using with GNU TLS.
 license: BSD; If using with OpenSSL.
-priority: high; Due to critical bug fix.
+priority: high; Critical bug fixes, performance improvement.
 tags: c++, foo, math
 url: http://www.example.com/foo/; Project home page.
-email: foo-users@example.com; Public mailing list.
+email: foo-users@example.com; Public mailing list. Read FAQ before posting.
 package-url: http://www.example.com/foo/pack; Package details.
 package-email: pack@example.com; Current packager.
-depends: libmisc < 1.1 | libmisc > 2.3.0; Crashes in range [1.1, 2.3.0].
-depends: ? libstudxml; Newer - better.
-requires: linux | windows | macosx; Symbian is coming.
+depends: libmisc < 1.1 | libmisc > 2.3.0; Crashes with 1.1.0-2.3.0.
+depends: ? libstudxml | libexpat; The newer the better.
+requires: linux | windows | macosx; Symbian support is coming.
 requires: c++11
-requires: ? VC++; 12.0 or later if targeting Windows.
 requires: ? ; libc++ standard library if using Clang on Mac OS X.
+requires: ? vc++ >= 12.0; Only if using VC++ on Windows.
 location: libfoo-1.2.4-1.tar.gz
 changes:\
 1.2.4-1

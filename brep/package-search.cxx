@@ -73,80 +73,68 @@ namespace brep
       throw invalid_request (400, e.what ());
     }
 
-    // @@ Would be nice to have a manipulator indenting string properly
-    //    according to the most nested element identation.
-    //
-    const char* ident ("\n      ");
-    const char* title ("Package Search");
-    serializer s (rs.content (), title);
+    const string& sq (pr.query ()); // Search query.
+    size_t pg (pr.page ());
+    string qp (sq.empty () ? "" : "q=" + mime_url_encode (sq));
+    size_t rp (options_->results_on_page ());
+
+    serializer s (rs.content (), "Packages");
+
+    const string& title (
+      sq.empty () ? s.output_name () : s.output_name () + " " + sq);
 
     s << HTML
       <<   HEAD
       <<     TITLE << title << ~TITLE
-      <<     CSS_STYLE << ident
-      <<       A_STYLE () << ident
-      <<       DIV_PAGER_STYLE () << ident
-      <<       "#packages {font-size: x-large;}" << ident
-      <<       ".package {margin: 0.5em 0 0;}" << ident
-      <<       ".name {font-size: x-large;}" << ident
-      <<       ".tags {margin: 0.3em 0 0;}" << ident
-      <<       "form {margin:  0.5em 0 0 0;}"
-      <<     ~CSS_STYLE
+      <<     CSS_LINKS ("/package-search.css")
       <<   ~HEAD
-      <<   BODY;
-
-    const string& sq (pr.query ()); // Search query.
-    string qp (sq.empty () ? "" : "q=" + mime_url_encode (sq));
-    size_t rop (options_->results_on_page ());
+      <<   BODY
+      <<     DIV_HEADER ()
+      <<     DIV(ID="content");
 
     transaction t (db_->begin ());
 
-    size_t pc (
+    auto pc (
       db_->query_value<latest_package_count> (
         search_param<latest_package_count> (sq)));
-
-    s << DIV(ID="packages") << "Packages (" << pc << ")" << ~DIV
-      << FORM_SEARCH (sq);
 
     auto r (
       db_->query<latest_package_search_rank> (
         search_param<latest_package_search_rank> (sq) +
         "ORDER BY rank DESC, name" +
-        "OFFSET" + to_string (pr.page () * rop) +
-        "LIMIT" + to_string (rop)));
+        "OFFSET" + to_string (pg * rp) +
+        "LIMIT" + to_string (rp)));
+
+    s << FORM_SEARCH (sq.c_str ())
+      << DIV_COUNTER (pc, "Package", "Packages")
+
+      // Enclose the subsequent tables to be able to use nth-child CSS selector.
+      //
+      <<   DIV;
 
     for (const auto& pr: r)
     {
       shared_ptr<package> p (db_->load<package> (pr.id));
 
-      s << DIV(CLASS="package")
-        <<   DIV(CLASS="name")
-        <<     A
-        <<     HREF << "/go/" << mime_url_encode (p->id.name);
-
-      // Propagate search criteria to the package version search url.
-      //
-      if (!qp.empty ())
-        s << "?" << qp;
-
-      s <<     ~HREF
-        <<       p->id.name
-        <<     ~A
-        <<   ~DIV
-        <<   DIV(CLASS="summary") << p->summary << ~DIV
-        <<   DIV_TAGS (p->tags)
-        <<   DIV_LICENSES (p->license_alternatives)
-        <<   DIV(CLASS="dependencies")
-        <<     "Dependencies: " << p->dependencies.size ()
-        <<   ~DIV
-        << ~DIV;
+      s << TABLE(CLASS="proplist package")
+        <<   TBODY
+        <<     TR_NAME (p->id.name, qp)
+        <<     TR_SUMMARY (p->summary)
+        <<     TR_LICENSE (p->license_alternatives)
+        <<     TR_TAGS (p->tags)
+        <<     TR_DEPENDS (p->dependencies)
+        <<     TR_REQUIRES (p->requirements)
+        <<   ~TBODY
+        << ~TABLE;
     }
 
     t.commit ();
 
-    string u (qp.empty () ? "/" : ("/?" + qp));
+    string url (qp.empty () ? "/" : ("/?" + qp));
 
-    s <<      DIV_PAGER (pr.page (), pc, rop, options_->pages_in_pager (), u)
+    s <<       ~DIV
+      <<       DIV_PAGER (pg, pc, rp, options_->pages_in_pager (), url)
+      <<     ~DIV
       <<   ~BODY
       << ~HTML;
   }

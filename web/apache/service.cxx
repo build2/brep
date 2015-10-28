@@ -70,7 +70,7 @@ namespace web
           return 0;
         }
 
-      srv.options_.emplace_back (name, value);
+      srv.options_.emplace_back (name, string (value));
       return 0;
     }
 

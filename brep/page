@@ -17,12 +17,319 @@ namespace brep
   // Page common building blocks.
   //
 
-  // A element default style.
+  // Generates CSS link elements.
   //
-  struct A_STYLE
+  class CSS_LINKS
+  {
+  public:
+    CSS_LINKS (const char* u): url_ (u) {}
+
+    void
+    operator() (xml::serializer& s) const;
+
+  private:
+    const char* url_;
+  };
+
+  // Generates page header element.
+  //
+  struct DIV_HEADER
   {
     void
     operator() (xml::serializer& s) const;
+  };
+
+  // Generates package search form element.
+  //
+  class FORM_SEARCH
+  {
+  public:
+    FORM_SEARCH (const std::string& q): query_ (q) {}
+
+    void
+    operator() (xml::serializer& s) const;
+
+  private:
+    const std::string& query_;
+  };
+
+  // Generates counter element.
+  //
+  // It could be redunant to distinguish between singular and plural word forms
+  // if it wouldn't be so cheap in English, and phrase '1 Packages' wouldn't
+  // look that ugly.
+  //
+  class DIV_COUNTER
+  {
+  public:
+    DIV_COUNTER (std::size_t c, const char* s, const char* p)
+        : count_ (c), singular_ (s), plural_ (p) {}
+
+    void
+    operator() (xml::serializer& s) const;
+
+  private:
+    std::size_t count_;
+    const char* singular_;
+    const char* plural_;
+  };
+
+  // Generates package name element.
+  //
+  class TR_NAME
+  {
+  public:
+    TR_NAME (const std::string& n, const std::string& q)
+        : name_ (n), query_param_ (q) {}
+
+    void
+    operator() (xml::serializer& s) const;
+
+  private:
+    const std::string& name_;
+    const std::string& query_param_;
+  };
+
+  // Generates package version element.
+  //
+  class TR_VERSION
+  {
+  public:
+    // Display the version as a link to the package version details page.
+    //
+    TR_VERSION (const std::string& p, const std::string& v)
+        : package_ (&p), version_ (v) {}
+
+    // Display the version as a regular text.
+    //
+    TR_VERSION (const std::string& v): package_ (nullptr), version_ (v) {}
+
+    void
+    operator() (xml::serializer& s) const;
+
+  private:
+    const std::string* package_;
+    const std::string& version_;
+  };
+
+  // Generates package summary element.
+  //
+  class TR_SUMMARY
+  {
+  public:
+    TR_SUMMARY (const std::string& s): summary_ (s) {}
+
+    void
+    operator() (xml::serializer& s) const;
+
+  private:
+    const std::string& summary_;
+  };
+
+  // Generates package license alternatives element.
+  //
+  class TR_LICENSE
+  {
+  public:
+    TR_LICENSE (const license_alternatives& l): licenses_ (l) {}
+
+    void
+    operator() (xml::serializer& s) const;
+
+  private:
+    const license_alternatives& licenses_;
+  };
+
+  // Generates package license alternatives elements. Differs from TR_LICENSE
+  // by producing multiple rows instead of a single one.
+  //
+  class TR_LICENSES
+  {
+  public:
+    TR_LICENSES (const license_alternatives& l): licenses_ (l) {}
+
+    void
+    operator() (xml::serializer& s) const;
+
+  private:
+    const license_alternatives& licenses_;
+  };
+
+  // Generates package tags element.
+  //
+  class TR_TAGS
+  {
+  public:
+    TR_TAGS (const strings& ts): tags_ (ts) {}
+
+    void
+    operator() (xml::serializer& s) const;
+
+  private:
+    const strings& tags_;
+  };
+
+  // Generates package dependencies element.
+  //
+  class TR_DEPENDS
+  {
+  public:
+    TR_DEPENDS (const dependencies& d): dependencies_ (d) {}
+
+    void
+    operator() (xml::serializer& s) const;
+
+  private:
+    const dependencies& dependencies_;
+  };
+
+  // Generates package requirements element.
+  //
+  class TR_REQUIRES
+  {
+  public:
+    TR_REQUIRES (const requirements& r): requirements_ (r) {}
+
+    void
+    operator() (xml::serializer& s) const;
+
+  private:
+    const requirements& requirements_;
+  };
+
+  // Generates url element.
+  //
+  class TR_URL
+  {
+  public:
+    TR_URL (const url& u, const char* l = "url"): url_ (u), label_ (l) {}
+
+    void
+    operator() (xml::serializer& s) const;
+
+  private:
+    const url& url_;
+    const char* label_;
+  };
+
+  // Generates email element.
+  //
+  class TR_EMAIL
+  {
+  public:
+    TR_EMAIL (const email& e, const char* l = "email")
+        : email_ (e), label_ (l) {}
+
+    void
+    operator() (xml::serializer& s) const;
+
+  private:
+    const email& email_;
+    const char* label_;
+  };
+
+  // Generates package version priority element.
+  //
+  class TR_PRIORITY
+  {
+  public:
+    TR_PRIORITY (const priority& p): priority_ (p) {}
+
+    void
+    operator() (xml::serializer& s) const;
+
+  private:
+    const priority& priority_;
+  };
+
+  // Generates package location element.
+  //
+  class TR_LOCATION
+  {
+  public:
+    TR_LOCATION (const std::string& l): location_ (l) {}
+
+    void
+    operator() (xml::serializer& s) const;
+
+  private:
+    const std::string& location_;
+  };
+
+  // Generates package download URL element.
+  //
+  class TR_DOWNLOAD
+  {
+  public:
+    TR_DOWNLOAD (const std::string& u): url_ (u) {}
+
+    void
+    operator() (xml::serializer& s) const;
+
+  private:
+    const std::string& url_;
+  };
+
+  // Generates comment element.
+  //
+  class SPAN_COMMENT
+  {
+  public:
+    SPAN_COMMENT (const std::string& c): comment_ (c) {}
+
+    void
+    operator() (xml::serializer& s) const;
+
+  private:
+    const std::string& comment_;
+  };
+
+  // Generates package description element.
+  //
+  class P_DESCRIPTION
+  {
+  public:
+    // Genereate full description.
+    //
+    P_DESCRIPTION (const std::string& d)
+        : description_ (d), length_ (d.size ()), url_ (nullptr) {}
+
+    // Genereate brief description.
+    //
+    P_DESCRIPTION (const std::string& d, size_t l, const std::string& u)
+        : description_ (d), length_ (l), url_ (&u) {}
+
+    void
+    operator() (xml::serializer& s) const;
+
+  private:
+    const std::string& description_;
+    std::size_t length_;
+    const std::string* url_; // Full page url.
+  };
+
+  // Generates package description element.
+  //
+  class PRE_CHANGES
+  {
+  public:
+    // Genereate full changes info.
+    //
+    PRE_CHANGES (const std::string& c)
+        : changes_ (c), length_ (c.size ()), url_ (nullptr) {}
+
+    // Genereate brief changes info.
+    //
+    PRE_CHANGES (const std::string& c, size_t l, const std::string& u)
+        : changes_ (c), length_ (l), url_ (&u) {}
+
+    void
+    operator() (xml::serializer& s) const;
+
+  private:
+    const std::string& changes_;
+    std::size_t length_;
+    const std::string* url_; // Full page url.
   };
 
   // Generates paging element.
@@ -45,98 +352,6 @@ namespace brep
     std::size_t item_per_page_;
     std::size_t page_number_count_;
     const std::string& url_;
-  };
-
-  // DIV_PAGER element default style.
-  //
-  struct DIV_PAGER_STYLE
-  {
-    void
-    operator() (xml::serializer& s) const;
-  };
-
-  // Generates url element.
-  //
-  class DIV_URL
-  {
-  public:
-    DIV_URL (const url& u): url_ (u) {}
-
-    void
-    operator() (xml::serializer& s) const;
-
-  private:
-    const url& url_;
-  };
-
-  // Generates email element.
-  //
-  class DIV_EMAIL
-  {
-  public:
-    DIV_EMAIL (const email& e): email_ (e) {}
-
-    void
-    operator() (xml::serializer& s) const;
-
-  private:
-    const email& email_;
-  };
-
-  // Generates package tags element.
-  //
-  class DIV_TAGS
-  {
-  public:
-    DIV_TAGS (const strings& ts): tags_ (ts) {}
-
-    void
-    operator() (xml::serializer& s) const;
-
-  private:
-    const strings& tags_;
-  };
-
-  // Generates package version license alternatives element.
-  //
-  class DIV_LICENSES
-  {
-  public:
-    DIV_LICENSES (const license_alternatives& l): license_alternatives_ (l) {}
-
-    void
-    operator() (xml::serializer& s) const;
-
-  private:
-    const license_alternatives& license_alternatives_;
-  };
-
-  // Generates package version priority element.
-  //
-  class DIV_PRIORITY
-  {
-  public:
-    DIV_PRIORITY (const priority& p): priority_ (p) {}
-
-    void
-    operator() (xml::serializer& s) const;
-
-  private:
-    const priority& priority_;
-  };
-
-  // Generates package search element.
-  //
-  class FORM_SEARCH
-  {
-  public:
-    FORM_SEARCH (const std::string& q): query_ (q) {}
-
-    void
-    operator() (xml::serializer& s) const;
-
-  private:
-    const std::string& query_;
   };
 }
 

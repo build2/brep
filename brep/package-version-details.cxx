@@ -78,39 +78,44 @@ namespace brep
       throw invalid_request (400, e.what ());
     }
 
-    const char* ident ("\n      ");
+    bool f (pr.full ());
     const string& vs (v.string ());
+
+    auto url ([&vs](bool f = false, const string& a = "") -> string
+      {
+        string u (vs);
+
+        if (f)           { u += "?full"; }
+        if (!a.empty ()) { u += '#' + a; }
+        return u;
+      });
+
     const string name (n + " " + vs);
-    const string title ("Package Version " + name);
-    serializer s (rs.content (), title);
+    serializer s (rs.content (), name);
 
     s << HTML
       <<   HEAD
-      <<     TITLE << title << ~TITLE
-      <<     CSS_STYLE << ident
-      <<       A_STYLE () << ident
-      <<       "#name {font-size: xx-large; font-weight: bold;}" << ident
-      <<       ".url, .email {font-size: medium;}" << ident
-      <<       ".comment {font-size: small;}" << ident
-      <<       "#summary {font-size: x-large; margin: 0.2em 0 0;}" << ident
-      <<       "#description {margin: 0.5em 0 0;}" << ident
-      <<       ".tags {margin: 0.3em 0 0;}" << ident
-      <<       "#package, .priority, #licenses, #dependencies, #requirements, "
-               "#locations, #changes {" << ident
-      <<       "  font-size: x-large;" << ident
-      <<       "  margin: 0.5em 0 0;" << ident
-      <<       "}" << ident
-      <<       "ul {margin: 0; padding: 0 0 0 1em;}" << ident
-      <<       "li {font-size: large; margin: 0.1em 0 0;}" << ident
-      <<       ".conditional {font-weight: bold;}" << ident
-      <<       "pre {font-size: medium; margin: 0.1em 0 0 1em;}"
-      <<     ~CSS_STYLE
+      <<     TITLE << name << ~TITLE
+      <<     CSS_LINKS ("/package-version-details.css")
       <<   ~HEAD
       <<   BODY
-      <<     DIV(ID="name")
-      <<       A << HREF << "/go/" << mime_url_encode (n) << ~HREF << n << ~A
-      <<       " " << vs
-      <<     ~DIV;
+      <<     DIV_HEADER ()
+      <<     DIV(ID="content");
+
+    if (f)
+      s << CLASS << "full" << ~CLASS;
+
+    s <<       DIV(ID="heading")
+      <<         H1
+      <<           A
+      <<           HREF << "/go/" << mime_url_encode (n) << ~HREF
+      <<             n
+      <<           ~A
+      <<           "/"
+      <<           A(HREF=url ()) << vs << ~A
+      <<         ~H1
+      <<         A(HREF=url (!f)) << (f ? "[brief]" : "[full]") << ~A
+      <<       ~DIV;
 
     bool not_found (false);
     shared_ptr<package> p;
@@ -134,182 +139,138 @@ namespace brep
     if (not_found)
       throw invalid_request (404, "Package '" + name + "' not found");
 
+    s << H2 << p->summary << ~H2;
+
+    if (const auto& d = p->description)
+      s << (f
+            ? P_DESCRIPTION (*d)
+            : P_DESCRIPTION (
+                *d, options_->description_length (), url (!f, "description")));
+
+    // Link to download from the internal repository.
+    //
     assert (p->location);
-    const string u (p->internal_repository.load ()->location.string () +
-                    "/" + p->location->string ());
+    const string du (p->internal_repository.load ()->location.string () +
+                     "/" + p->location->string ());
 
-    s << DIV(CLASS="url") << A << HREF << u << ~HREF << u << ~A << ~DIV
-      << DIV(ID="summary") << p->summary << ~DIV
-      << DIV_URL (p->url)
-      << DIV_EMAIL (p->email);
+    t.commit ();
 
-    if (p->description)
-      s << DIV(ID="description") << *p->description << ~DIV;
+    s << TABLE(CLASS="proplist", ID="version")
+      <<   TBODY
 
-    const priority& pt (p->priority);
+      // Repeat version here since it can be cut out in the header.
+      //
+      <<     TR_VERSION (p->version.string ())
 
-    s << DIV_TAGS (p->tags)
-      << DIV_PRIORITY (pt);
+      <<     TR_PRIORITY (p->priority)
+      <<     TR_LICENSES (p->license_alternatives)
+      <<     TR_LOCATION (p->internal_repository.object_id ())
+      <<     TR_DOWNLOAD (du)
+      <<   ~TBODY
+      << ~TABLE
 
-    if (!pt.comment.empty ())
-      s << DIV(CLASS="comment") << pt.comment << ~DIV;
+      << TABLE(CLASS="proplist", ID="package")
+      <<   TBODY
+      <<     TR_URL (p->url)
+      <<     TR_EMAIL (p->email);
 
-    const auto& ls (p->license_alternatives);
+    if (p->package_url && *p->package_url != p->url)
+      s << TR_URL (*p->package_url, "pkg-url");
 
-    s << DIV(ID="licenses")
-      <<   "Licenses:"
-      <<   UL;
+    if (p->package_email && *p->package_email != p->email)
+      s << TR_EMAIL (*p->package_email, "pkg-email");
 
-    for (const auto& la: ls)
-    {
-      s << LI;
-
-      for (const auto& l: la)
-      {
-        if (&l != &la[0])
-          s << " & ";
-
-        s << l;
-      }
-
-      if (!la.comment.empty ())
-        s << DIV(CLASS="comment") << la.comment << ~DIV;
-
-      s << ~LI;
-    }
-
-    s <<   ~UL
-      << ~DIV;
+    s <<     TR_TAGS (p->tags)
+      <<   ~TBODY
+      << ~TABLE;
 
     const auto& ds (p->dependencies);
 
     if (!ds.empty ())
     {
-      s << DIV(ID="dependencies")
-        <<   "Dependencies:"
-        <<   UL;
+      s << H3 << "Depends" << ~H3
+        << TABLE(CLASS="proplist", ID="depends")
+        <<   TBODY;
 
       for (const auto& da: ds)
       {
-        s << LI;
+        s << TR(CLASS="depends")
+          <<   TH;
 
         if (da.conditional)
-          s << SPAN(CLASS="conditional") << "? " << ~SPAN;
+          s << "?";
+
+        s <<   ~TH
+          <<   TD
+          <<     SPAN(CLASS="value");
 
         for (const auto& d: da)
         {
           if (&d != &da[0])
             s << " | ";
 
-          // @@ Should it be a link to the package version search page or
-          //    the best matching package version details page on the
-          //    corresponding repository site ?
-          //
-          s << d;
+          s << d; // @@ Should it be a link ?
         }
 
-        if (!da.comment.empty ())
-          s << DIV(CLASS="comment") << da.comment << ~DIV;
-
-        s << ~LI;
+        s <<     ~SPAN
+          <<     SPAN_COMMENT (da.comment)
+          <<   ~TD
+          << ~TR;
       }
 
-      s <<   ~UL
-        << ~DIV;
+      s <<   ~TBODY
+        << ~TABLE;
     }
 
-    const auto& rm (p->requirements);
+    const auto& rt (p->requirements);
 
-    if (!rm.empty ())
+    if (!rt.empty ())
     {
-      s << DIV(ID="requirements")
-        <<   "Requirements:"
-        <<   UL;
+      s << H3 << "Requires" << ~H3
+        << TABLE(CLASS="proplist", ID="requires")
+        <<   TBODY;
 
-      for (const auto& ra: rm)
+      for (const auto& ra: rt)
       {
-        s << LI;
+        s << TR(CLASS="requires")
+          <<   TH;
 
         if (ra.conditional)
-          s << SPAN(CLASS="conditional") << "? " << ~SPAN;
+          s << "?";
 
-        if (ra.empty ())
-          // If there is no requirement alternatives specified, then
-          // print the comment instead.
-          //
-          s << ra.comment;
-        else
+        s <<   ~TH
+          <<   TD
+          <<     SPAN(CLASS="value");
+
+        for (const auto& r: ra)
         {
-          for (const auto& r: ra)
-          {
-            if (&r != &ra[0])
-              s << " | ";
+          if (&r != &ra[0])
+            s << " | ";
 
-            s << r;
-          }
-
-          if (!ra.comment.empty ())
-            s << DIV(CLASS="comment") << ra.comment << ~DIV;
+          s << r;
         }
 
-        s << ~LI;
+        s <<     ~SPAN
+          <<     SPAN_COMMENT (ra.comment)
+          <<   ~TD
+          << ~TR;
       }
 
-      s <<   ~UL
-        << ~DIV;
+      s <<   ~TBODY
+        << ~TABLE;
     }
-
-    if (p->package_url || p->package_email)
-    {
-      s << DIV(ID="package")
-        <<   "Package:"
-        <<   UL;
-
-      if (p->package_url)
-        s << LI << DIV_URL (*p->package_url) << ~LI;
-
-      if (p->package_email)
-        s << LI << DIV_EMAIL (*p->package_email) << ~LI;
-
-      s <<   ~UL
-        << ~DIV;
-    }
-
-    const auto& er (p->external_repositories);
-
-    if (!er.empty ())
-    {
-      s << DIV(ID="locations")
-        <<   "Alternative Locations:"
-        <<   UL;
-
-      for (const auto& r: er)
-      {
-        repository_location  l (move (r.load ()->location));
-        assert (l.remote ());
-
-        string u ("http://" + l.host ());
-        if (l.port () != 0)
-          u += ":" + to_string (l.port ());
-
-        u += "/go/" + mime_url_encode (n) + "/" + vs;
-        s << LI
-          <<   DIV(CLASS="url") << A << HREF << u << ~HREF << u << ~A << ~DIV
-          << ~LI;
-      }
-
-      s <<   ~UL
-        << ~DIV;
-    }
-
-    t.commit ();
 
     const string& ch (p->changes);
 
     if (!ch.empty ())
-      s << DIV(ID="changes") << "Changes:" << PRE << ch << ~PRE << ~DIV;
+      s << H3 << "Changes" << ~H3
+        << (f
+            ? PRE_CHANGES (ch)
+            : PRE_CHANGES (
+                ch, options_->changes_length (), url (!f, "changes")));
 
-    s <<   ~BODY
+    s <<     ~DIV
+      <<   ~BODY
       << ~HTML;
   }
 }

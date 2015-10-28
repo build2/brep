@@ -99,33 +99,31 @@ namespace web
         {
           if (::strcasecmp (h->key, "Cookie") == 0)
           {
-            for (const char* n (h->val); n != 0; )
+            for (const char* n (h->val); n != nullptr; )
             {
               const char* v (strchr (n, '='));
               const char* e (strchr (n, ';'));
 
-              if (e && e < v)
-                v = 0;
+              if (e != nullptr && e < v)
+                v = nullptr;
 
-              string name (v
+              string name (v != nullptr
                            ? mime_url_decode (n, v, true)
                            : (e
                               ? mime_url_decode (n, e, true)
                               : mime_url_decode (n, n + strlen (n), true)));
 
-              string value;
+              optional<string> value;
 
               if (v++)
-              {
                 value = e
                   ? mime_url_decode (v, e, true)
                   : mime_url_decode (v, v + strlen (v), true);
-              }
 
-              if (!name.empty () || !value.empty ())
+              if (!name.empty () || value)
                 cookies_->emplace_back (move (name), move (value));
 
-              n = e ? e + 1 : 0;
+              n = e ? e + 1 : nullptr;
             }
           }
         }
@@ -252,33 +250,31 @@ namespace web
     void request::
     parse_parameters (const char* args)
     {
-      for (auto n (args); n != 0; )
+      for (auto n (args); n != nullptr; )
       {
         const char* v (strchr (n, '='));
         const char* e (strchr (n, '&'));
 
-        if (e && e < v)
-          v = 0;
+        if (e != nullptr && e < v)
+          v = nullptr;
 
-        string name (v
+        string name (v != nullptr
                      ? mime_url_decode (n, v) :
                      (e
                       ? mime_url_decode (n, e)
                       : mime_url_decode (n, n + strlen (n))));
 
-        string value;
+        optional<string> value;
 
         if (v++)
-        {
           value = e
             ? mime_url_decode (v, e)
             : mime_url_decode (v, v + strlen (v));
-        }
 
-        if (!name.empty () || !value.empty ())
+        if (!name.empty () || value)
           parameters_->emplace_back (move (name), move (value));
 
-        n = e ? e + 1 : 0;
+        n = e ? e + 1 : nullptr;
       }
     }
   }

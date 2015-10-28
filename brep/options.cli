@@ -28,14 +28,17 @@ namespace brep
       std::uint16_t pages-in-pager = 10;
     };
 
-    class package_version_search: module, db
+    class package_details: module, db
     {
       std::uint16_t results-on-page = 10;
       std::uint16_t pages-in-pager = 10;
+      std::uint16_t description-length = 400;
     };
 
     class package_version_details: module, db
     {
+      std::uint16_t description-length = 400;
+      std::uint16_t changes-length = 800;
     };
   }
 
@@ -43,7 +46,8 @@ namespace brep
   //
   namespace params
   {
-    // Use parameters long names in the C++ code, short aliases in HTTP URL.
+    // Use parameters long names in the C++ code, short aliases (if present)
+    // in HTTP URL.
     //
     class package_search
     {
@@ -56,7 +60,7 @@ namespace brep
       std::string query | q = "";
     };
 
-    class package_version_search
+    class package_details
     {
       // Display package version search result list starting from this page.
       //
@@ -65,10 +69,20 @@ namespace brep
       // Package version search criteria.
       //
       std::string query | q = "";
+
+      // Full page variant.
+      //
+      // @@ Shouldn't we use one letter alias for URL as well ?
+      //    I like full. It is descriptive. q= is kind now a convention.
+      //
+      bool full = false;
     };
 
     class package_version_details
     {
+      // Full page variant.
+      //
+      bool full = false;
     };
   }
 }

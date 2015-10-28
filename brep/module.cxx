@@ -89,7 +89,9 @@ namespace brep
     for (const auto& nv: options)
     {
       argv.push_back (nv.name.c_str ());
-      argv.push_back (nv.value.c_str ());
+
+      if (nv.value)
+        argv.push_back (nv.value->c_str ());
     }
 
     int argc (argv.size ());
@@ -252,7 +254,7 @@ namespace brep
   peek ()
   {
     if (i_ != name_values_.end ())
-      return name_ ? i_->name.c_str () : i_->value.c_str ();
+      return name_ ? i_->name.c_str () : i_->value->c_str ();
     else
       throw eos_reached ();
   }
@@ -262,12 +264,8 @@ namespace brep
   {
     if (i_ != name_values_.end ())
     {
-      const char* r (name_ ? i_->name.c_str () : i_->value.c_str ());
-
-      if (!name_)
-        ++i_;
-
-      name_ = !name_;
+      const char* r (name_ ? i_->name.c_str () : i_->value->c_str ());
+      skip ();
       return r;
     }
     else
@@ -279,10 +277,18 @@ namespace brep
   {
     if (i_ != name_values_.end ())
     {
-      if (!name_)
+      if (name_)
+      {
+        if (i_->value)
+          name_ = false;
+        else
+          ++i_;
+      }
+      else
+      {
         ++i_;
-
-      name_ = !name_;
+        name_ = true;
+      }
     }
     else
       throw eos_reached ();

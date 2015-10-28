@@ -14,6 +14,7 @@
 #include <stdexcept> // runtime_error
 
 #include <butl/path>
+#include <butl/optional>
 
 namespace web
 {
@@ -57,15 +58,18 @@ namespace web
     sequence_error (std::string d): std::runtime_error (std::move (d)) {}
   };
 
+  template <typename T>
+  using optional = butl::optional<T>;
+
   struct name_value
   {
     // These should eventually become string_view's.
     //
     std::string name;
-    std::string value;
+    optional<std::string> value;
 
     name_value () {}
-    name_value (std::string n, std::string v)
+    name_value (std::string n, optional<std::string> v)
         : name (std::move (n)), value (std::move (v)) {}
   };
 

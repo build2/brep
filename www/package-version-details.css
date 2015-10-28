@@ -1,0 +1,161 @@
+#heading
+{ 
+  display: table;
+  table-layout: fixed;
+  width: 100%;
+  border: none;
+}
+
+/* Since it is a link to itself, it will always be visited. */
+#heading a:visited {color: #006fbf;}
+#heading a:hover, h1 a:active {color: #0087e7; text-decoration: none;}
+
+h1
+{
+  font-family: monospace;
+  font-weight: normal;
+  font-size: 2.074em;
+  line-height: 1.4em;
+  color: #444;
+
+  margin: .6em 0 .6em 0;
+
+  display: table-cell;
+  text-align: left; 
+}
+
+#heading > a 
+{
+  font-size: 1.32em;
+  line-height: 1.4em;
+
+  display: table-cell;   
+  text-align: right;
+  width: 3.2em;
+  vertical-align: middle;
+}
+
+h1 a:first-child {margin-right: .14em;}
+h1 a:last-child {margin-left: .14em;}
+
+h2
+{
+  font-style: italic;
+  font-weight: normal;
+  font-size: 1.32em;
+  line-height: 1.4em;
+
+  margin: .4em 0 .4em 0;
+}
+
+h3
+{
+  font-family: monospace;  
+  font-weight: normal;
+  font-size: 1.26em;
+  line-height: 1.4em;
+
+  margin: 1.8em 0 0 0;
+}
+h3:after{content: ":";}
+
+h1, h2, h3
+{
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* 
+ * Version details table. 
+ */
+#version 
+{
+  margin-top: .5em;
+  margin-bottom: 1em;
+
+  padding-top: .4em;
+  padding-bottom: .4em;
+
+  background-color: rgba(0, 0, 0, 0.07);  /* Emphasize. */
+
+  /*
+  background: #eee;
+  border-radius: 6px;
+  border: 1px outset rgba(230,230,230,.24);
+  */
+}
+#version th {width: 6.4em;}
+
+#version tr.version td .value,
+#version tr.priority td .value,
+#version tr.location td .value
+{
+  /* <code> style. */
+  font-family: monospace;
+  font-size: 0.94em;
+}
+
+/* 
+ * Package details table. 
+ */
+#package 
+{
+  margin-top: 1.2em;
+  margin-bottom: 1em;
+}
+#package th {width: 6.4em;}
+
+/* 
+ * Dependencies and requirements tables. 
+ */
+#depends {margin-top: .4em; margin-bottom: 1em;}
+#depends th {width: 2.8em; text-align: center;}
+#depends th:after{content: "";}
+
+/* Striping. For some reason (related to flexbox), this works exactly as
+   we want, that is, the background extends all the way to the browser's
+   right frame. */
+#depends tr:nth-child(even) td {background-color: rgba(0, 0, 0, 0.07);}
+#depends td {padding-left: .4em;}
+#depends td .comment {padding-right: .4em;}
+
+/*
+#depends td .value {padding-left: .4em;}
+#depends td .comment {padding-right: .4em;}
+*/
+
+#depends tr.depends td .value
+{
+  /* <code> style. */
+  font-family: monospace;
+  font-size: 0.94em;
+}
+
+#requires {margin-top: .4em; margin-bottom: 1em;}
+#requires th {width: 2.8em; text-align: center;}
+#requires th:after{content: "";}
+
+#requires tr:nth-child(even) td {background-color: rgba(0, 0, 0, 0.07);}
+#requires td {padding-left: .4em;}
+#requires td .comment {padding-right: .4em;}
+
+#requires tr.requires td .value
+{
+  /* <code> style. */
+  font-family: monospace;
+  font-size: 0.94em;
+}
+
+/* 
+ * Changes.
+ *
+ * This is a <pre> block that fits lines up to 80 characters long and
+ * wraps longer ones.
+ */
+#changes 
+{     
+  font-size: 0.78em;
+  white-space: pre-wrap;
+  margin: .5em 0 .5em 0;
+}

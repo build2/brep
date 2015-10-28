@@ -320,9 +320,11 @@ main (int argc, char* argv[])
       assert (fpv5->summary == "The Foo Math Library");
       assert (fpv5->tags == strings ({"c++", "foo", "math"}));
       assert (*fpv5->description ==
-              "A modern C++ library with easy to use linear algebra and "
-              "optimization tools. There are over 100 functions in total with "
-              "an extensive test suite. The API is similar to MATLAB.");
+              "A modern C++ library with easy to use linear algebra and lot of "
+              "optimization\ntools.\n\nThere are over 100 functions in total "
+              "with an extensive test suite. The API is\nsimilar to MATLAB."
+              "\n\nUseful for conversion of research code into production "
+              "environments.");
       assert (fpv5->url == "http://www.example.com/foo/");
       assert (fpv5->package_url &&
               *fpv5->package_url == "http://www.example.com/foo/pack");
@@ -335,7 +337,8 @@ main (int argc, char* argv[])
       assert (fpv5->external_repositories[0].load () == cr);
 
       assert (fpv5->priority == priority::high);
-      assert (fpv5->priority.comment == "Due to critical bug fix.");
+      assert (fpv5->priority.comment ==
+              "Critical bug fixes, performance improvement.");
 
       const char ch[] = R"DLM(1.2.4-1
  * applied patch for critical bug-219
@@ -360,7 +363,7 @@ main (int argc, char* argv[])
       assert (fpv5->dependencies.size () == 2);
       assert (fpv5->dependencies[0].size () == 2);
       assert (fpv5->dependencies[0].comment ==
-              "Crashes in range [1.1, 2.3.0].");
+              "Crashes with 1.1.0-2.3.0.");
 
       assert (fpv5->dependencies[0][0] ==
               (dependency {
@@ -374,31 +377,31 @@ main (int argc, char* argv[])
                  brep::optional<dependency_constraint> (
                    dependency_constraint{comparison::gt, version ("2.3.0")})}));
 
-      assert (fpv5->dependencies[1].size () == 1);
-      assert (fpv5->dependencies[1].comment == "Newer - better.");
+      assert (fpv5->dependencies[1].size () == 2);
+      assert (fpv5->dependencies[1].comment == "The newer the better.");
 
-      assert (fpv5->dependencies[1][0] ==
-              (dependency {"libstudxml", nullopt}));
+      assert (fpv5->dependencies[1][0] == (dependency {"libstudxml", nullopt}));
+      assert (fpv5->dependencies[1][1] == (dependency {"libexpat", nullopt}));
 
       requirements& fpvr5 (fpv5->requirements);
       assert (fpvr5.size () == 4);
 
       assert (fpvr5[0] == strings ({"linux", "windows", "macosx"}));
       assert (!fpvr5[0].conditional);
-      assert (fpvr5[0].comment == "Symbian is coming.");
+      assert (fpvr5[0].comment == "Symbian support is coming.");
 
       assert (fpvr5[1] == strings ({"c++11"}));
       assert (!fpvr5[1].conditional);
       assert (fpvr5[1].comment.empty ());
 
-      assert (fpvr5[2] == strings ({"VC++"}));
+      assert (fpvr5[2].empty ());
       assert (fpvr5[2].conditional);
-      assert (fpvr5[2].comment == "12.0 or later if targeting Windows.");
-
-      assert (fpvr5[3].empty ());
-      assert (fpvr5[3].conditional);
-      assert (fpvr5[3].comment ==
+      assert (fpvr5[2].comment ==
               "libc++ standard library if using Clang on Mac OS X.");
+
+      assert (fpvr5[3] == strings ({"vc++ >= 12.0"}));
+      assert (fpvr5[3].conditional);
+      assert (fpvr5[3].comment == "Only if using VC++ on Windows.");
 
       // Verify libexp package version.
       //
