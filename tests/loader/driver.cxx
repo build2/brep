@@ -90,7 +90,7 @@ main (int argc, char* argv[])
       transaction t (db.begin ());
 
       assert (db.query<repository> ().size () == 3);
-      assert (db.query<package> ().size () == 9);
+      assert (db.query<package> ().size () == 10);
 
       shared_ptr<repository> sr (db.load<repository> ("cppget.org/stable"));
       shared_ptr<repository> mr (db.load<repository> ("cppget.org/math"));
@@ -451,6 +451,10 @@ main (int argc, char* argv[])
         db.load<package> (package_id ("libfoo", version ("0.1"))));
       assert (check_location (fpv0));
 
+      shared_ptr<package> fpv6 (
+        db.load<package> (package_id ("libfoo", version ("1.2.4-2"))));
+      assert (check_location (fpv6));
+
       // Verify libbar package version.
       //
       // libbar-2.3.5
@@ -486,7 +490,7 @@ main (int argc, char* argv[])
       assert (fpv0->email.empty ());
       assert (!fpv0->package_email);
 
-      assert (fpv0->internal_repository.load () == nullptr);
+      assert (fpv0->internal_repository == nullptr);
       assert (fpv0->external_repositories.size () == 1);
       assert (fpv0->external_repositories[0].load () == cr);
       assert (fpv0->priority == priority::low);
@@ -496,6 +500,27 @@ main (int argc, char* argv[])
 
       assert (fpv0->dependencies.empty ());
       assert (fpv0->requirements.empty ());
+
+      // libfoo-1.2.4-2
+      //
+      assert (fpv6->summary.empty ());
+      assert (fpv6->tags.empty ());
+      assert (!fpv6->description);
+      assert (fpv6->url.empty ());
+      assert (!fpv6->package_url);
+      assert (fpv6->email.empty ());
+      assert (!fpv6->package_email);
+
+      assert (fpv6->internal_repository == nullptr);
+      assert (fpv6->external_repositories.size () == 1);
+      assert (fpv6->external_repositories[0].load () == cr);
+      assert (fpv6->priority == priority::low);
+      assert (fpv6->changes.empty ());
+
+      assert (fpv6->license_alternatives.empty ());
+
+      assert (fpv6->dependencies.empty ());
+      assert (fpv6->requirements.empty ());
 
       // Change package summary, update the object persistent state, rerun
       // loader and ensure the model were not rebuilt.

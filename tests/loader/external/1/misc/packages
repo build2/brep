@@ -37,3 +37,11 @@ license: MIT
 url: http://www.example.com/foo/
 email: foo-users@example.com
 location: libfoo-1.2.4-1.tar.gz
+:
+name: libfoo
+version: 1.2.4-2
+summary: Foo Library
+license: MIT
+url: http://www.example.com/foo/
+email: foo-users@example.com
+location: libfoo-1.2.4-2.tar.gz

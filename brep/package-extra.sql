@@ -14,7 +14,8 @@ latest_packages()
 RETURNS SETOF package AS $$
   SELECT p1.*
   FROM package p1 LEFT JOIN package p2 ON (
-    p1.name = p2.name AND
+    p1.internal_repository IS NOT NULL AND p1.name = p2.name AND
+    p2.internal_repository IS NOT NULL AND
     (p1.version_epoch < p2.version_epoch OR
      p1.version_epoch = p2.version_epoch AND
      (p1.version_canonical_upstream < p2.version_canonical_upstream OR
