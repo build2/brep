@@ -1,11 +1,8 @@
 : 1
-# Foreign repository manifest.
-#
-location: ../../../external/1/misc
-:
 # Adjacent repository manifest.
 #
-location: ../math
+location: ../staging
+role: complement
 :
 # Local repository manifest (this repository).
 #

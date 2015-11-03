@@ -1,0 +1,8 @@
+: 1
+name: libexpat
+version: 5.1
+summary: The Expat Library
+license: MIT
+url: http://www.example.com/expat/
+email: expat-users@example.com
+location: libexpat-5.1.tar.gz

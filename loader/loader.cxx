@@ -372,9 +372,9 @@ load_packages (const shared_ptr<repository>& rp, database& db)
   db.persist (rp); // Save the repository state.
 }
 
-// Load the prerequsite repositories state from the 'repositories' file.
-// Update the repository persistent state to save repositories_timestamp
-// member. Should be called once per internal repository.
+// Load the prerequsite repositories and their complements state from the
+// 'repositories' file. Update the repository persistent state to save
+// repositories_timestamp member. Should be called once per internal repository.
 //
 static void
 load_prerequisites (const shared_ptr<repository>& rp, database& db)
@@ -383,10 +383,6 @@ load_prerequisites (const shared_ptr<repository>& rp, database& db)
   // repository prerequisites are already loaded.
   //
   assert (rp->repositories_timestamp == timestamp_nonexistent);
-
-  // Load prerequisites for internal repositories only.
-  //
-  assert (rp->internal);
 
   // Only locally accessible repositories allowed until package manager API is
   // ready.
@@ -399,6 +395,7 @@ load_prerequisites (const shared_ptr<repository>& rp, database& db)
     ifstream ifs;
     path p (rp->local_path / path ("repositories"));
     rp->repositories_timestamp = manifest_stream (p, ifs);
+    db.update (rp);
 
     manifest_parser mp (ifs, p.string ());
     rpm = repository_manifests (mp);
@@ -406,7 +403,9 @@ load_prerequisites (const shared_ptr<repository>& rp, database& db)
 
   for (auto& rm: rpm)
   {
-    if (rm.location.empty ())
+    if (rm.location.empty () ||
+        (!rp->internal &&
+         rm.effective_role () == repository_role::prerequisite))
       continue; // Ignore entry for this repository.
 
     repository_location rl;
@@ -472,11 +471,8 @@ load_prerequisites (const shared_ptr<repository>& rp, database& db)
     }
 
     load_packages (pr, db);
+    load_prerequisites (pr, db);
   }
-
-  // Updates repositories_timestamp member.
-  //
-  db.update (rp);
 }
 
 int

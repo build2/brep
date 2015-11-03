@@ -266,7 +266,6 @@ namespace brep
     timestamp packages_timestamp;
 
     // Initialized with timestamp_nonexistent by default.
-    // For external repositories stays timestamp_nonexistent.
     //
     timestamp repositories_timestamp;
 
@@ -353,11 +352,10 @@ namespace brep
 
     // Create external package object.
     //
-    // External repository packages can appear on the WEB interface only on
-    // the package version details page in dependency list in the form of a
-    // link to the corresponding WEB page. The only package information
-    // required to compose such a link is the package name, version, and
-    // repository location.
+    // External repository packages can appear on the WEB interface only in
+    // dependency list in the form of a link to the corresponding WEB page.
+    // The only package information required to compose such a link is the
+    // package name, version, and repository location.
     //
     package (std::string name, version_type, std::shared_ptr<repository_type>);
 

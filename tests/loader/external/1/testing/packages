@@ -1,0 +1,9 @@
+: 1
+name: libmisc
+version: 1.1
+summary: The Expat Library
+license: MIT
+url: http://www.example.com/misc/
+email: misc-users@example.com
+depends: libexpat >= 5.0
+location: libmisc-1.1.tar.gz

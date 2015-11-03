@@ -1,11 +1,12 @@
 : 1
 # Foreign repository manifest.
 #
-location: http://pkg.example.org/1/misc
+location: ../basics
 :
-# Foreign repository manifest.
+# Adjacent repository manifest.
 #
-location: http://pkg.example.org/1/math
+location: ../testing
+role: complement
 :
 # Local repository manifest (this repository).
 #

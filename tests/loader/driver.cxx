@@ -89,12 +89,14 @@ main (int argc, char* argv[])
       session s;
       transaction t (db.begin ());
 
-      assert (db.query<repository> ().size () == 3);
-      assert (db.query<package> ().size () == 10);
+      assert (db.query<repository> ().size () == 5);
+      assert (db.query<package> ().size () == 12);
 
       shared_ptr<repository> sr (db.load<repository> ("cppget.org/stable"));
       shared_ptr<repository> mr (db.load<repository> ("cppget.org/math"));
       shared_ptr<repository> cr (db.load<repository> ("cppget.org/misc"));
+      shared_ptr<repository> tr (db.load<repository> ("cppget.org/testing"));
+      shared_ptr<repository> gr (db.load<repository> ("cppget.org/staging"));
 
       // Verify 'stable' repository.
       //
@@ -443,7 +445,8 @@ main (int argc, char* argv[])
 
       assert (cr->packages_timestamp ==
               file_mtime (dir_path (cr->local_path) / path ("packages")));
-      assert (cr->repositories_timestamp == timestamp_nonexistent);
+      assert (cr->repositories_timestamp ==
+              file_mtime (dir_path (cr->local_path) / path ("repositories")));
       assert (!cr->internal);
 
       shared_ptr<package> bpv (
@@ -524,6 +527,76 @@ main (int argc, char* argv[])
 
       assert (fpv6->dependencies.empty ());
       assert (fpv6->requirements.empty ());
+
+      // Verify 'testing' repository.
+      //
+      assert (tr->location.canonical_name () == "cppget.org/testing");
+      assert (tr->location.string () ==
+              "http://pkg.cppget.org/external/1/testing");
+      assert (tr->display_name.empty ());
+
+      dir_path trp (cp.directory () / dir_path ("external/1/testing"));
+      assert (tr->local_path == trp.normalize ());
+
+      assert (tr->packages_timestamp ==
+              file_mtime (dir_path (tr->local_path) / path ("packages")));
+      assert (tr->repositories_timestamp ==
+              file_mtime (dir_path (tr->local_path) / path ("repositories")));
+      assert (!tr->internal);
+
+      shared_ptr<package> mpv (
+        db.load<package> (package_id ("libmisc", version ("1.1"))));
+      assert (check_location (mpv));
+
+      shared_ptr<package> tpv (
+        db.load<package> (package_id ("libexpat", version ("5.1"))));
+      assert (check_location (tpv));
+
+      // Verify libmisc package version.
+      //
+      // libmisc-1.1
+      //
+      assert (mpv->summary.empty ());
+      assert (mpv->tags.empty ());
+      assert (!mpv->description);
+      assert (mpv->url.empty ());
+      assert (!mpv->package_url);
+      assert (mpv->email.empty ());
+      assert (!mpv->package_email);
+
+      assert (mpv->internal_repository == nullptr);
+      assert (mpv->external_repositories.size () == 1);
+      assert (mpv->external_repositories[0].load () == tr);
+
+      assert (mpv->priority == priority ());
+      assert (mpv->changes.empty ());
+
+      assert (mpv->license_alternatives.empty ());
+      assert (mpv->dependencies.empty ());
+      assert (mpv->requirements.empty ());
+
+      // Verify libexpat package version.
+      //
+      // libexpat-5.1
+      //
+      assert (tpv->summary.empty ());
+      assert (tpv->tags.empty ());
+      assert (!tpv->description);
+      assert (tpv->url.empty ());
+      assert (!tpv->package_url);
+      assert (tpv->email.empty ());
+      assert (!tpv->package_email);
+
+      assert (tpv->internal_repository == nullptr);
+      assert (tpv->external_repositories.size () == 1);
+      assert (tpv->external_repositories[0].load () == gr);
+
+      assert (tpv->priority == priority ());
+      assert (tpv->changes.empty ());
+
+      assert (tpv->license_alternatives.empty ());
+      assert (tpv->dependencies.empty ());
+      assert (tpv->requirements.empty ());
 
       // Change package summary, update the object persistent state, rerun
       // loader and ensure the model were not rebuilt.
