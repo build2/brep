@@ -58,8 +58,7 @@ namespace web
     sequence_error (std::string d): std::runtime_error (std::move (d)) {}
   };
 
-  template <typename T>
-  using optional = butl::optional<T>;
+  using butl::optional;
 
   struct name_value
   {
@@ -74,7 +73,7 @@ namespace web
   };
 
   using name_values = std::vector<name_value>;
-  using path = butl::path;
+  using butl::path;
 
   class request
   {

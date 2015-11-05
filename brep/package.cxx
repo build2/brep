@@ -16,6 +16,14 @@ using namespace odb::core;
 
 namespace brep
 {
+  // dependency
+  //
+  string dependency::
+  name () const
+  {
+    return package.object_id ().name;
+  }
+
   // package
   //
   package::
@@ -63,7 +71,7 @@ namespace brep
         version (move (vr))
   {
     assert (!rp->internal);
-    external_repositories.emplace_back (move (rp));
+    other_repositories.emplace_back (move (rp));
   }
 
   weighted_text package::

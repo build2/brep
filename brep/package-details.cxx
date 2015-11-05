@@ -10,6 +10,7 @@
 
 #include <xml/serializer>
 
+#include <odb/session.hxx>
 #include <odb/database.hxx>
 #include <odb/transaction.hxx>
 
@@ -119,6 +120,7 @@ namespace brep
       <<         A(HREF=url (!f, sq, pg)) << (f ? "[brief]" : "[full]") << ~A
       <<       ~DIV;
 
+    session sn;
     transaction t (db_->begin ());
 
     shared_ptr<package> p;
@@ -172,13 +174,12 @@ namespace brep
         "OFFSET" + to_string (pg * rp) +
         "LIMIT" + to_string (rp)));
 
-    s << FORM_SEARCH (sq.c_str ())
-      << DIV_COUNTER (pc, "Version", "Versions")
+    s << FORM_SEARCH (sq)
+      << DIV_COUNTER (pc, "Version", "Versions");
 
-      // Enclose the subsequent tables to be able to use nth-child CSS selector.
-      //
-      <<   DIV;
-
+    // Enclose the subsequent tables to be able to use nth-child CSS selector.
+    //
+    s << DIV;
     for (const auto& pr: r)
     {
       shared_ptr<package> p (db_->load<package> (pr.id));
@@ -187,7 +188,7 @@ namespace brep
         <<   TBODY
         <<     TR_VERSION (name, p->version.string ())
 
-        // @@ Shouldn't we skip low priority row ?
+        // @@ Shouldn't we skip low priority row ? Don't think so, why?
         //
         <<     TR_PRIORITY (p->priority);
 
@@ -200,12 +201,15 @@ namespace brep
       assert (p->internal_repository != nullptr);
 
       // @@ Shouldn't we make package location to be a link to the proper
-      //    place of the About page, describing corresponding repository ?
+      //    place of the About page, describing corresponding repository?
+      //    Yes, I think that's sounds reasonable, once we have about.
       //
       // @@ In most cases package location will be the same for all versions
       //    of the same package. Shouldn't we put package location to the
       //    package summary part and display it here only if it differes
       //    from the one in the summary ?
+      //
+      //    Hm, I am not so sure about this. Consider: stable/testing/unstable.
       //
       s <<     TR_LOCATION (p->internal_repository.object_id ())
         <<     TR_DEPENDS (p->dependencies)
@@ -213,11 +217,11 @@ namespace brep
         <<   ~TBODY
         << ~TABLE;
     }
+    s << ~DIV;
 
     t.commit ();
 
-    s <<       ~DIV
-      <<       DIV_PAGER (pg, pc, rp, options_->pages_in_pager (), url (f, sq))
+    s <<       DIV_PAGER (pg, pc, rp, options_->pages_in_pager (), url (f, sq))
       <<     ~DIV
       <<   ~BODY
       << ~HTML;

@@ -1,4 +1,19 @@
 : 1
+name: libstudxml
+version: 1.0.0-1
+summary: Modern C++ XML API
+license: MIT
+tags: c++, xml, parser, serializer, pull, streaming, modern
+description-file: README
+changes-file: NEWS
+url: http://www.codesynthesis.com/projects/libstudxml/
+email: studxml-users@codesynthesis.com; Public mailing list, posts by\
+ non-members are allowed but moderated.
+package-email: boris@codesynthesis.com; Direct email to the author.
+depends: libexpat >= 2.0.0
+depends: libgenx
+location: libstudxml-1.0.0-1.tar.gz
+:
 name: libexp
 version: 1+1.2
 summary: The exponent
@@ -31,6 +46,7 @@ email: foo-users@example.com; Public mailing list. Read FAQ before posting.
 package-url: http://www.example.com/foo/pack; Package details.
 package-email: pack@example.com; Current packager.
 depends: libmisc < 1.1 | libmisc > 2.3.0; Crashes with 1.1.0-2.3.0.
+depends: libexp >= 1.0
 depends: ? libstudxml | libexpat; The newer the better.
 requires: linux | windows | macosx; Symbian support is coming.
 requires: c++11

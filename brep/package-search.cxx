@@ -10,6 +10,7 @@
 
 #include <xml/serializer>
 
+#include <odb/session.hxx>
 #include <odb/database.hxx>
 #include <odb/transaction.hxx>
 
@@ -92,6 +93,7 @@ namespace brep
       <<     DIV_HEADER ()
       <<     DIV(ID="content");
 
+    session sn;
     transaction t (db_->begin ());
 
     auto pc (
@@ -105,13 +107,12 @@ namespace brep
         "OFFSET" + to_string (pg * rp) +
         "LIMIT" + to_string (rp)));
 
-    s << FORM_SEARCH (sq.c_str ())
-      << DIV_COUNTER (pc, "Package", "Packages")
+    s << FORM_SEARCH (sq)
+      << DIV_COUNTER (pc, "Package", "Packages");
 
-      // Enclose the subsequent tables to be able to use nth-child CSS selector.
-      //
-      <<   DIV;
-
+    // Enclose the subsequent tables to be able to use nth-child CSS selector.
+    //
+    s << DIV;
     for (const auto& pr: r)
     {
       shared_ptr<package> p (db_->load<package> (pr.id));
@@ -127,13 +128,13 @@ namespace brep
         <<   ~TBODY
         << ~TABLE;
     }
+    s << ~DIV;
 
     t.commit ();
 
     string url (qp.empty () ? "/" : ("/?" + qp));
 
-    s <<       ~DIV
-      <<       DIV_PAGER (pg, pc, rp, options_->pages_in_pager (), url)
+    s <<       DIV_PAGER (pg, pc, rp, options_->pages_in_pager (), url)
       <<     ~DIV
       <<   ~BODY
       << ~HTML;

@@ -11,6 +11,7 @@
 
 #include <xml/serializer>
 
+#include <odb/session.hxx>
 #include <odb/database.hxx>
 #include <odb/transaction.hxx>
 
@@ -63,7 +64,7 @@ namespace brep
     }
 
     assert (i != rq.path ().rend ());
-    const string& n (*i);
+    const string& n (*i); // Package name.
 
     params::package_version_details pr;
 
@@ -120,6 +121,7 @@ namespace brep
     bool not_found (false);
     shared_ptr<package> p;
 
+    session sn;
     transaction t (db_->begin ());
 
     try
@@ -152,8 +154,6 @@ namespace brep
     assert (p->location);
     const string du (p->internal_repository.load ()->location.string () +
                      "/" + p->location->string ());
-
-    t.commit ();
 
     s << TABLE(CLASS="proplist", ID="version")
       <<   TBODY
@@ -209,7 +209,32 @@ namespace brep
           if (&d != &da[0])
             s << " | ";
 
-          s << d; // @@ Should it be a link ?
+          shared_ptr<package> p (d.package.load ());
+          string en (mime_url_encode (p->id.name));
+
+          if (p->internal_repository != nullptr)
+            s << A << HREF << "/go/" << en << ~HREF << p->id.name << ~A;
+          else
+            // @@ Refer to package repository URL when supported in repository
+            //    manifest.
+            //
+            s << p->id.name;
+
+          if (d.constraint)
+          {
+            s << ' ';
+
+            if (p->internal_repository != nullptr)
+              s << A
+                << HREF << "/go/" << en << "/" << p->version.string () << ~HREF
+                <<   *d.constraint
+                << ~A;
+            else
+              // @@ Refer to package repository URL when supported in
+              //    repository manifest.
+              //
+              s << *d.constraint;
+          }
         }
 
         s <<     ~SPAN
@@ -221,6 +246,8 @@ namespace brep
       s <<   ~TBODY
         << ~TABLE;
     }
+
+    t.commit ();
 
     const auto& rt (p->requirements);
 

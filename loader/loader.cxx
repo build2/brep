@@ -12,7 +12,9 @@
 #include <fstream>
 #include <iostream>
 #include <stdexcept> // runtime_error, invalid_argument
+#include <algorithm> // find(), find_if()
 
+#include <odb/session.hxx>
 #include <odb/database.hxx>
 #include <odb/transaction.hxx>
 
@@ -319,6 +321,22 @@ load_packages (const shared_ptr<repository>& rp, database& db)
           }
         }
 
+        dependencies ds;
+        for (auto& pda: pm.dependencies)
+        {
+          ds.emplace_back (pda.conditional, move (pda.comment));
+
+          for (auto& pd: pda)
+            // Proper version will be assigned during dependency resolution
+            // procedure. Here we rely on the fact the foreign key constraint
+            // check is deferred until the current transaction commit.
+            //
+            ds.back ().push_back ({
+                lazy_shared_ptr<package> (
+                  db, package_id (move (pd.name), version ())),
+                move (pd.constraint)});
+        }
+
         p = make_shared<package> (
           move (pm.name),
           move (pm.version),
@@ -332,7 +350,7 @@ load_packages (const shared_ptr<repository>& rp, database& db)
           move (pm.package_url),
           move (pm.email),
           move (pm.package_email),
-          move (pm.dependencies),
+          move (ds),
           move (pm.requirements),
           move (pm.location),
           rp);
@@ -351,21 +369,13 @@ load_packages (const shared_ptr<repository>& rp, database& db)
       //    for this purpose.
       //
 
-      if (rp->internal)
-      {
-        // Just skip the duplicate.
-        //
+      // As soon as internal repositories get loaded first, the internal
+      // package can duplicate an internal package only.
+      //
+      assert (!rp->internal || p->internal_repository != nullptr);
 
-        // As soon as internal repositories get loaded first, the internal
-        // package can duplicate an internal package only.
-        //
-        assert (p->internal_repository != nullptr);
-      }
-      else
-      {
-        p->external_repositories.push_back (rp);
-        db.update (p);
-      }
+      p->other_repositories.push_back (rp);
+      db.update (p);
     }
   }
 
@@ -374,7 +384,8 @@ load_packages (const shared_ptr<repository>& rp, database& db)
 
 // Load the prerequsite repositories and their complements state from the
 // 'repositories' file. Update the repository persistent state to save
-// repositories_timestamp member. Should be called once per internal repository.
+// repositories_timestamp, prerequsites, and complements members.
+// Should be called once per persisted internal repository.
 //
 static void
 load_prerequisites (const shared_ptr<repository>& rp, database& db)
@@ -389,13 +400,16 @@ load_prerequisites (const shared_ptr<repository>& rp, database& db)
   //
   assert (!rp->local_path.empty ());
 
+  // Repository is already persisted by the load_packages() function call.
+  //
+  assert (db.find<repository> (rp->name) != nullptr);
+
   repository_manifests rpm;
 
   {
     ifstream ifs;
     path p (rp->local_path / path ("repositories"));
     rp->repositories_timestamp = manifest_stream (p, ifs);
-    db.update (rp);
 
     manifest_parser mp (ifs, p.string ());
     rpm = repository_manifests (mp);
@@ -407,6 +421,8 @@ load_prerequisites (const shared_ptr<repository>& rp, database& db)
         (!rp->internal &&
          rm.effective_role () == repository_role::prerequisite))
       continue; // Ignore entry for this repository.
+
+    assert (rm.effective_role () != repository_role::base);
 
     repository_location rl;
 
@@ -438,7 +454,18 @@ load_prerequisites (const shared_ptr<repository>& rp, database& db)
       bad_location ();
     }
 
-    shared_ptr<repository> pr (db.find<repository> (rl.canonical_name ()));
+    const auto& cn (rl.canonical_name ());
+
+    // Add repository to prerequisites or complements member of the dependent
+    // repository.
+    //
+    auto& rs (rm.effective_role () == repository_role::prerequisite
+              ? rp->prerequisites
+              : rp->complements);
+
+    rs.emplace_back (db, cn);
+
+    shared_ptr<repository> pr (db.find<repository> (cn));
 
     if (pr != nullptr)
       // The prerequisite repository is already loaded.
@@ -473,6 +500,189 @@ load_prerequisites (const shared_ptr<repository>& rp, database& db)
     load_packages (pr, db);
     load_prerequisites (pr, db);
   }
+
+  db.update (rp);
+}
+
+static ostream&
+operator<< (ostream& o,
+            const brep::dependency& d) // Ambiguity with bpkg::dependency.
+{
+  o << d.name ();
+
+  if (d.constraint)
+    o << ' ' << *d.constraint;
+
+  return o;
+}
+
+// Check if the package is available from the specified repository,
+// its prerequisite repositories, or one of their complements,
+// recursively.
+//
+static bool
+find (const lazy_shared_ptr<repository>& r,
+      const package& p,
+      bool prereq = true)
+{
+  assert (r != nullptr);
+
+  const auto& o (p.other_repositories);
+  if (r == p.internal_repository || find (o.begin (), o.end (), r) != o.end ())
+    return true;
+
+  auto rp (r.load ());
+  for (const auto& cr: rp->complements)
+  {
+    if (find (lazy_shared_ptr<repository> (cr), p, false))
+      return true;
+  }
+
+  if (prereq)
+  {
+    for (auto pr: rp->prerequisites)
+    {
+      if (find (lazy_shared_ptr<repository> (pr), p, false))
+        return true;
+    }
+  }
+
+  return false;
+}
+
+// Resolve package dependencies. Ensure that the best matching dependency
+// belongs to the package repositories, their immediate prerequisite
+// repositories, or their complements, recursively. Should be called once per
+// internal package.
+//
+static void
+resolve_dependencies (package& p, database& db)
+{
+  // Resolve dependencies for internal packages only.
+  //
+  // @@ add package::internal() predicate? Lots of place where you do
+  //    (p.internal_repository != nullptr).
+  //
+  assert (p.internal_repository != nullptr);
+
+  if (p.dependencies.empty ())
+    return;
+
+  for (auto& da: p.dependencies)
+  {
+    for (auto& d: da)
+    {
+      // Dependency should not be resolved yet.
+      //
+      assert (d.package.object_id ().version.empty ());
+
+      using query = query<package>;
+      query q (query::id.name == d.name ());
+
+      if (d.constraint)
+      {
+        auto c (*d.constraint);
+        switch (c.operation)
+        {
+        case comparison::eq: q = q && query::id.version == c.version; break;
+        case comparison::lt: q = q && query::id.version < c.version; break;
+        case comparison::gt: q = q && query::id.version > c.version; break;
+        case comparison::le: q = q && query::id.version <= c.version; break;
+        case comparison::ge: q = q && query::id.version >= c.version; break;
+        }
+      }
+
+      auto r (
+        db.query<package> (q + order_by_version_desc (query::id.version)));
+
+      for (const auto& pp: r)
+      {
+        if (find (p.internal_repository, pp))
+        {
+          d.package.reset (db, pp.id);
+          break;
+        }
+      }
+
+      if (d.package.object_id ().version.empty ())
+      {
+        ostringstream o;
+        o << "can't resolve dependency " << d << " of the package "
+          << p.id.name << " " << p.version.string ()
+          << " (" << p.internal_repository.load ()->name << ")";
+
+        // Practically it is enough to resolve at least one dependency
+        // alternative to build a package. Meanwhile here we consider an error
+        // specifying in the manifest file an alternative which can't be
+        // resolved.
+        //
+        throw runtime_error (o.str ());
+      }
+    }
+  }
+
+  db.update (p); // Update the package state.
+}
+
+using package_ids = vector<package_id>;
+
+// Ensure the package dependency chain do not contain the package id. Throw
+// runtime_error otherwise. Continue the chain with the package id and call
+// itself recursively for each prerequisite of the package. Should be called
+// once per internal package.
+//
+// @@ This should probably be eventually moved to bpkg.
+//
+static void
+detect_dependency_cycle (const package_id& id, package_ids& chain, database& db)
+{
+  // Package of one version depending on the same package of another version
+  // is something obscure. So the comparison is made up to a package name.
+  //
+  auto pr ([&id](const package_id& i) -> bool {return i.name == id.name;});
+  auto i (find_if (chain.begin (), chain.end (), pr));
+
+  if (i != chain.end ())
+  {
+    ostringstream o;
+    o << "package dependency cycle: ";
+
+    auto prn (
+      [&o, &db](const package_id& id)
+      {
+        shared_ptr<package> p (db.load<package> (id));
+
+        assert (p->internal_repository != nullptr ||
+                !p->other_repositories.empty ());
+
+        shared_ptr<repository> r (
+          p->internal_repository != nullptr
+          ? p->internal_repository.load ()
+          : p->other_repositories[0].load ());
+
+        o << id.name << " " << p->version.string () << " (" << r->name << ")";
+      });
+
+    for (; i != chain.end (); ++i)
+    {
+      prn (*i);
+      o << " -> ";
+    }
+
+    prn (id);
+    throw runtime_error (o.str ());
+  }
+
+  chain.push_back (id);
+
+  shared_ptr<package> p (db.load<package> (id));
+  for (const auto& da: p->dependencies)
+  {
+    for (const auto& d: da)
+      detect_dependency_cycle (d.package.object_id (), chain, db);
+  }
+
+  chain.pop_back ();
 }
 
 int
@@ -580,6 +790,26 @@ main (int argc, char* argv[])
           db.load<repository> (ir.location.canonical_name ()));
 
         load_prerequisites (r, db);
+      }
+
+      session s;
+      using query = query<package>;
+
+      // Resolve internal packages dependencies.
+      //
+      {
+        auto r (db.query<package> (query::internal_repository.is_not_null ()));
+        for (auto& p: r)
+          resolve_dependencies (p, db);
+      }
+
+      // Ensure there is no package dependency cycles.
+      //
+      {
+        package_ids chain;
+        auto r (db.query<package> (query::internal_repository.is_not_null ()));
+        for (const auto& p: r)
+          detect_dependency_cycle (p.id, chain, db);
       }
     }
 

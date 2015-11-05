@@ -10,6 +10,7 @@
 #include <vector>
 #include <chrono>
 #include <memory>  // shared_ptr
+#include <cassert>
 #include <cstddef> // size_t
 #include <utility> // move()
 #include <cstdint> // uint16
@@ -75,13 +76,11 @@ namespace brep
   class package;
 
   using strings = std::vector<std::string>;
-
-  template <typename T>
-  using optional = butl::optional<T>;
+  using butl::optional;
 
   // path
   //
-  using path = butl::path;
+  using butl::path;
 
   #pragma db map type(path) as(std::string)  \
     to((?).string ()) from(brep::path (?))
@@ -93,14 +92,14 @@ namespace brep
     to((?) ? (?)->string () : brep::optional_string ())        \
     from((?) ? brep::path (*(?)) : brep::optional_path ())
 
-  using dir_path = butl::dir_path;
+  using butl::dir_path;
 
   #pragma db map type(dir_path) as(std::string)  \
     to((?).string ()) from(brep::dir_path (?))
 
   // timestamp
   //
-  using timestamp = butl::timestamp;
+  using butl::timestamp;
 
   #pragma db map type(timestamp) as(std::uint64_t)   \
     to(std::chrono::system_clock::to_time_t (?))     \
@@ -108,7 +107,7 @@ namespace brep
 
   // version
   //
-  using version = bpkg::version;
+  using bpkg::version;
 
   #pragma db value
   struct canonical_version
@@ -116,6 +115,18 @@ namespace brep
     std::uint16_t epoch;
     std::string   canonical_upstream;
     std::uint16_t revision;
+
+    bool
+    empty () const noexcept
+    {
+      // No sense to test epoch and revision for 0 as a valid canonical_version
+      // object can not have them different from 0 if canonical_upstream is
+      // empty. The predicate semantics is equal to the one of the
+      // bpkg::version class.
+      //
+      assert (!canonical_upstream.empty () || (epoch == 0 && revision == 0));
+      return canonical_upstream.empty ();
+    }
   };
 
   #pragma db value transient
@@ -140,14 +151,14 @@ namespace brep
 
   // priority
   //
-  using priority = bpkg::priority;
+  using bpkg::priority;
 
   #pragma db value(priority) definition
   #pragma db member(priority::value) column("")
 
   // url
   //
-  using url = bpkg::url;
+  using bpkg::url;
 
   #pragma db value(url) definition
   #pragma db member(url::value) virtual(std::string) before access(this) \
@@ -155,7 +166,7 @@ namespace brep
 
   // email
   //
-  using email = bpkg::email;
+  using bpkg::email;
 
   #pragma db value(email) definition
   #pragma db member(email::value) virtual(std::string) before access(this) \
@@ -163,17 +174,33 @@ namespace brep
 
   // licenses
   //
-  using licenses = bpkg::licenses;
+  using bpkg::licenses;
   using license_alternatives = std::vector<licenses>;
 
   #pragma db value(licenses) definition
 
   // dependencies
   //
-  using comparison = bpkg::comparison;
-  using dependency_constraint = bpkg::dependency_constraint;
+  using bpkg::comparison;
+  using bpkg::dependency_constraint;
 
   #pragma db value(dependency_constraint) definition
+  #pragma db member(dependency_constraint::operation) column("")
+  #pragma db member(dependency_constraint::version) column("")
+
+  #pragma db value
+  struct package_id
+  {
+    std::string name;
+    canonical_version version;
+
+    package_id () = default;
+    package_id (std::string n, const brep::version& v)
+        : name (std::move (n)),
+          version {v.epoch, v.canonical_upstream, v.revision}
+    {
+    }
+  };
 
   // Notes:
   //
@@ -215,24 +242,51 @@ namespace brep
   //    * No need to complicate persisted object model with repository
   //      relations otherwise required just for dependency resolution.
   //
-  using dependency = bpkg::dependency;
-  using dependency_alternatives = bpkg::dependency_alternatives;
-  using dependencies = std::vector<dependency_alternatives>;
 
-  #pragma db value(dependency) definition
-  #pragma db member(dependency::constraint) column("")
-  #pragma db value(dependency_alternatives) definition
+  #pragma db value
+  struct dependency
+  {
+    using package_type = brep::package;
+
+    odb::lazy_shared_ptr<package_type> package;
+    optional<dependency_constraint> constraint;
+
+    // Prerequisite package name.
+    //
+    std::string
+    name () const;
+
+    // Database mapping.
+    //
+    #pragma db member(package) column("") not_null
+  };
+
+  #pragma db value
+  class dependency_alternatives: public std::vector<dependency>
+  {
+  public:
+    bool conditional;
+    std::string comment;
+
+    dependency_alternatives () = default;
+
+    explicit
+    dependency_alternatives (bool d, std::string c)
+        : conditional (d), comment (std::move (c)) {}
+  };
+
+  using dependencies = std::vector<dependency_alternatives>;
 
   // requirements
   //
-  using requirement_alternatives = bpkg::requirement_alternatives;
+  using bpkg::requirement_alternatives;
   using requirements = std::vector<requirement_alternatives>;
 
   #pragma db value(requirement_alternatives) definition
 
   // repository_location
   //
-  using repository_location = bpkg::repository_location;
+  using bpkg::repository_location;
 
   #pragma db map type(repository_location) as(std::string) \
     to((?).string ()) from(brep::repository_location (?))
@@ -270,6 +324,8 @@ namespace brep
     timestamp repositories_timestamp;
 
     bool internal;
+    std::vector<odb::lazy_weak_ptr<repository>> complements;
+    std::vector<odb::lazy_weak_ptr<repository>> prerequisites;
 
     // Database mapping.
     //
@@ -279,23 +335,15 @@ namespace brep
       set(this.location = std::move (?);                         \
           assert (this.name == this.location.canonical_name ()))
 
+    #pragma db member(complements) id_column("repository") \
+      value_column("complement") value_not_null
+
+    #pragma db member(prerequisites) id_column("repository") \
+      value_column("prerequisite") value_not_null
+
   private:
     friend class odb::access;
     repository () = default;
-  };
-
-  #pragma db value
-  struct package_id
-  {
-    std::string name;
-    canonical_version version;
-
-    package_id () = default;
-    package_id (std::string n, const brep::version& v)
-        : name (std::move (n)),
-          version {v.epoch, v.canonical_upstream, v.revision}
-    {
-    }
   };
 
   // The 'to' expression calls the PostgreSQL to_tsvector(weighted_text)
@@ -382,7 +430,7 @@ namespace brep
     //
     optional<path> location;
 
-    std::vector<odb::lazy_shared_ptr<repository_type>> external_repositories;
+    std::vector<odb::lazy_shared_ptr<repository_type>> other_repositories;
 
     // Database mapping.
     //
@@ -446,9 +494,9 @@ namespace brep
       set(odb::nested_set (this.requirements, move (?))) \
       id_column("") key_column("") value_column("id")
 
-    // external_repositories
+    // other_repositories
     //
-    #pragma db member(external_repositories)                  \
+    #pragma db member(other_repositories)                  \
       id_column("") value_column("repository") value_not_null
 
     // search_index

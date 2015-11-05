@@ -30,7 +30,7 @@ using namespace brep;
 static inline bool
 operator== (const dependency& a, const dependency& b)
 {
-  return a.name == b.name && !a.constraint == !b.constraint &&
+  return a.name () == b.name () && !a.constraint == !b.constraint &&
     (!a.constraint || (a.constraint->operation == b.constraint->operation &&
                       a.constraint->version == b.constraint->version));
 }
@@ -45,9 +45,22 @@ check_location (shared_ptr<package>& p)
       path (p->id.name + "-" + p->version.string () + ".tar.gz");
 }
 
+static bool
+check_external (const package& p)
+{
+  return p.summary.empty () && p.tags.empty () && !p.description &&
+    p.url.empty () && !p.package_url && p.email.empty () && !p.package_email &&
+    p.internal_repository == nullptr && p.other_repositories.size () > 0 &&
+    p.priority == priority () && p.changes.empty () &&
+    p.license_alternatives.empty () && p.dependencies.empty () &&
+    p.requirements.empty ();
+}
+
 int
 main (int argc, char* argv[])
 {
+  using brep::optional; // Ambiguity with butl::optional.
+
   if (argc != 7)
   {
     cerr << "usage: " << argv[0]
@@ -90,7 +103,7 @@ main (int argc, char* argv[])
       transaction t (db.begin ());
 
       assert (db.query<repository> ().size () == 5);
-      assert (db.query<package> ().size () == 12);
+      assert (db.query<package> ().size () == 14);
 
       shared_ptr<repository> sr (db.load<repository> ("cppget.org/stable"));
       shared_ptr<repository> mr (db.load<repository> ("cppget.org/math"));
@@ -129,48 +142,10 @@ main (int argc, char* argv[])
         db.load<package> (package_id ("libfoo", version ("1.2.4"))));
       assert (check_location (fpv4));
 
-      shared_ptr<package> xpv (
-        db.load<package> (package_id ("libstudxml", version ("1.0.0-1"))));
-      assert (check_location (xpv));
-
-      // Verify libstudxml package version.
-      //
-      assert (xpv->summary == "Modern C++ XML API");
-      assert (xpv->tags == strings ({"c++", "xml", "parser", "serializer",
-              "pull", "streaming", "modern"}));
-      assert (!xpv->description);
-      assert (xpv->url == "http://www.codesynthesis.com/projects/libstudxml/");
-      assert (!xpv->package_url);
-      assert (xpv->email ==
-              email ("studxml-users@codesynthesis.com",
-                     "Public mailing list, posts by  non-members "
-                     "are allowed but moderated."));
-      assert (xpv->package_email &&
-              *xpv->package_email == email ("boris@codesynthesis.com",
-                                            "Direct email to the author."));
-
-      assert (xpv->internal_repository.load () == sr);
-      assert (xpv->external_repositories.empty ());
-      assert (xpv->priority == priority::low);
-      assert (xpv->changes.empty ());
-
-      assert (xpv->license_alternatives.size () == 1);
-      assert (xpv->license_alternatives[0].size () == 1);
-      assert (xpv->license_alternatives[0][0] == "MIT");
-
-      assert (xpv->dependencies.size () == 2);
-      assert (xpv->dependencies[0].size () == 1);
-      assert (xpv->dependencies[0][0] ==
-              (dependency {
-                 "libexpat",
-                 brep::optional<dependency_constraint> (
-                   dependency_constraint{
-                     comparison::ge, version ("2.0.0")})}));
-
-      assert (xpv->dependencies[1].size () == 1);
-      assert (xpv->dependencies[1][0] == (dependency {"libgenx", nullopt}));
-
-      assert (xpv->requirements.empty ());
+      assert (sr->complements.empty ());
+      assert (sr->prerequisites.size () == 2);
+      assert (sr->prerequisites[0].load () == cr);
+      assert (sr->prerequisites[1].load () == mr);
 
       // Verify libfoo package versions.
       //
@@ -185,8 +160,10 @@ main (int argc, char* argv[])
       assert (!fpv1->package_email);
 
       assert (fpv1->internal_repository.load () == sr);
-      assert (fpv1->external_repositories.size () == 1);
-      assert (fpv1->external_repositories[0].load () == cr);
+      assert (fpv1->other_repositories.size () == 2);
+      assert (fpv1->other_repositories[0].load () == mr);
+      assert (fpv1->other_repositories[1].load () == cr);
+
       assert (fpv1->priority == priority::low);
       assert (fpv1->changes.empty ());
 
@@ -208,7 +185,7 @@ main (int argc, char* argv[])
       assert (!fpv2->package_email);
 
       assert (fpv2->internal_repository.load () == sr);
-      assert (fpv2->external_repositories.empty ());
+      assert (fpv2->other_repositories.empty ());
       assert (fpv2->priority == priority::low);
       assert (fpv2->changes.empty ());
 
@@ -220,17 +197,24 @@ main (int argc, char* argv[])
       assert (fpv2->dependencies[0].size () == 1);
       assert (fpv2->dependencies[1].size () == 1);
 
+      auto dep (
+        [&db](const char* n,
+              const optional<dependency_constraint>& c) -> dependency
+        {
+          return {lazy_shared_ptr<package> (db, package_id (n, version ())), c};
+        });
+
       assert (fpv2->dependencies[0][0] ==
-              (dependency {
-                 "libbar",
-                 brep::optional<dependency_constraint> (
-                   dependency_constraint{comparison::le, version ("2.4.0")})}));
+              dep (
+                "libbar",
+                optional<dependency_constraint> (
+                  dependency_constraint{comparison::le, version ("2.4.0")})));
 
       assert (fpv2->dependencies[1][0] ==
-              (dependency {
-                 "libexp",
-                 brep::optional<dependency_constraint> (
-                   dependency_constraint{comparison::eq, version ("1+1.2")})}));
+              dep (
+                "libexp",
+                brep::optional<dependency_constraint> (
+                  dependency_constraint{comparison::eq, version ("1+1.2")})));
 
       assert (fpv2->requirements.empty ());
 
@@ -245,7 +229,7 @@ main (int argc, char* argv[])
       assert (!fpv3->package_email);
 
       assert (fpv3->internal_repository.load () == sr);
-      assert (fpv3->external_repositories.empty ());
+      assert (fpv3->other_repositories.empty ());
       assert (fpv3->priority == priority::low);
 
       assert (fpv3->changes.empty ());
@@ -257,10 +241,10 @@ main (int argc, char* argv[])
       assert (fpv3->dependencies.size () == 1);
       assert (fpv3->dependencies[0].size () == 1);
       assert (fpv3->dependencies[0][0] ==
-              (dependency {
-                 "libmisc",
-                 brep::optional<dependency_constraint> (
-                   dependency_constraint{comparison::ge, version ("2.0.0")})}));
+              dep (
+                "libmisc",
+                brep::optional<dependency_constraint> (
+                  dependency_constraint{comparison::ge, version ("2.0.0")})));
 
       // libfoo-1.2.4
       //
@@ -273,7 +257,7 @@ main (int argc, char* argv[])
       assert (!fpv4->package_email);
 
       assert (fpv4->internal_repository.load () == sr);
-      assert (fpv4->external_repositories.empty ());
+      assert (fpv4->other_repositories.empty ());
       assert (fpv4->priority == priority::low);
       assert (fpv4->changes == "some changes 1\nsome changes 2");
 
@@ -286,10 +270,10 @@ main (int argc, char* argv[])
       assert (fpv4->dependencies.size () == 1);
       assert (fpv4->dependencies[0].size () == 1);
       assert (fpv4->dependencies[0][0] ==
-              (dependency {
-                 "libmisc",
-                 brep::optional<dependency_constraint> (
-                   dependency_constraint{comparison::ge, version ("2.0.0")})}));
+              dep (
+                "libmisc",
+                brep::optional<dependency_constraint> (
+                  dependency_constraint{comparison::ge, version ("2.0.0")})));
 
       // Verify 'math' repository.
       //
@@ -315,6 +299,52 @@ main (int argc, char* argv[])
         db.load<package> (package_id ("libfoo", version ("1.2.4-1"))));
       assert (check_location (fpv5));
 
+      shared_ptr<package> xpv (
+        db.load<package> (package_id ("libstudxml", version ("1.0.0-1"))));
+      assert (check_location (xpv));
+
+      assert (mr->complements.empty ());
+      assert (mr->prerequisites.size () == 1);
+      assert (mr->prerequisites[0].load () == cr);
+
+      // Verify libstudxml package version.
+      //
+      assert (xpv->summary == "Modern C++ XML API");
+      assert (xpv->tags == strings ({"c++", "xml", "parser", "serializer",
+              "pull", "streaming", "modern"}));
+      assert (!xpv->description);
+      assert (xpv->url == "http://www.codesynthesis.com/projects/libstudxml/");
+      assert (!xpv->package_url);
+      assert (xpv->email ==
+              email ("studxml-users@codesynthesis.com",
+                     "Public mailing list, posts by  non-members "
+                     "are allowed but moderated."));
+      assert (xpv->package_email &&
+              *xpv->package_email == email ("boris@codesynthesis.com",
+                                            "Direct email to the author."));
+
+      assert (xpv->internal_repository.load () == mr);
+      assert (xpv->other_repositories.empty ());
+      assert (xpv->priority == priority::low);
+      assert (xpv->changes.empty ());
+
+      assert (xpv->license_alternatives.size () == 1);
+      assert (xpv->license_alternatives[0].size () == 1);
+      assert (xpv->license_alternatives[0][0] == "MIT");
+
+      assert (xpv->dependencies.size () == 2);
+      assert (xpv->dependencies[0].size () == 1);
+      assert (xpv->dependencies[0][0] ==
+              dep (
+                "libexpat",
+                optional<dependency_constraint> (
+                  dependency_constraint{comparison::ge, version ("2.0.0")})));
+
+      assert (xpv->dependencies[1].size () == 1);
+      assert (xpv->dependencies[1][0] == dep ("libgenx", nullopt));
+
+      assert (xpv->requirements.empty ());
+
       // Verify libfoo package versions.
       //
       // libfoo-1.2.4-1
@@ -335,8 +365,8 @@ main (int argc, char* argv[])
               *fpv5->package_email == "pack@example.com");
 
       assert (fpv5->internal_repository.load () == mr);
-      assert (fpv5->external_repositories.size () == 1);
-      assert (fpv5->external_repositories[0].load () == cr);
+      assert (fpv5->other_repositories.size () == 1);
+      assert (fpv5->other_repositories[0].load () == cr);
 
       assert (fpv5->priority == priority::high);
       assert (fpv5->priority.comment ==
@@ -362,28 +392,36 @@ main (int argc, char* argv[])
       assert (fpv5->license_alternatives[1].size () == 1);
       assert (fpv5->license_alternatives[1][0] == "BSD");
 
-      assert (fpv5->dependencies.size () == 2);
+      assert (fpv5->dependencies.size () == 3);
       assert (fpv5->dependencies[0].size () == 2);
       assert (fpv5->dependencies[0].comment ==
               "Crashes with 1.1.0-2.3.0.");
 
       assert (fpv5->dependencies[0][0] ==
-              (dependency {
-                 "libmisc",
-                 brep::optional<dependency_constraint> (
-                   dependency_constraint{comparison::lt, version ("1.1")})}));
+              dep (
+                "libmisc",
+                brep::optional<dependency_constraint> (
+                  dependency_constraint{comparison::lt, version ("1.1")})));
 
       assert (fpv5->dependencies[0][1] ==
-              (dependency {
-                 "libmisc",
-                 brep::optional<dependency_constraint> (
-                   dependency_constraint{comparison::gt, version ("2.3.0")})}));
+              dep (
+                "libmisc",
+                brep::optional<dependency_constraint> (
+                  dependency_constraint{comparison::gt, version ("2.3.0")})));
 
-      assert (fpv5->dependencies[1].size () == 2);
-      assert (fpv5->dependencies[1].comment == "The newer the better.");
+      assert (fpv5->dependencies[1].size () == 1);
+      assert (fpv5->dependencies[1].comment.empty ());
 
-      assert (fpv5->dependencies[1][0] == (dependency {"libstudxml", nullopt}));
-      assert (fpv5->dependencies[1][1] == (dependency {"libexpat", nullopt}));
+      assert (fpv5->dependencies[1][0] ==
+              dep ("libexp",
+                   brep::optional<dependency_constraint> (
+                     dependency_constraint{comparison::ge, version ("1.0")})));
+
+      assert (fpv5->dependencies[2].size () == 2);
+      assert (fpv5->dependencies[2].comment == "The newer the better.");
+
+      assert (fpv5->dependencies[2][0] == dep ("libstudxml", nullopt));
+      assert (fpv5->dependencies[2][1] == dep ("libexpat", nullopt));
 
       requirements& fpvr5 (fpv5->requirements);
       assert (fpvr5.size () == 4);
@@ -419,7 +457,7 @@ main (int argc, char* argv[])
       assert (!epv->package_email);
 
       assert (epv->internal_repository.load () == mr);
-      assert (epv->external_repositories.empty ());
+      assert (epv->other_repositories.empty ());
       assert (epv->priority == priority (priority::low));
       assert (epv->changes.empty ());
 
@@ -429,7 +467,7 @@ main (int argc, char* argv[])
 
       assert (epv->dependencies.size () == 1);
       assert (epv->dependencies[0].size () == 1);
-      assert (epv->dependencies[0][0] == (dependency {"libmisc", nullopt}));
+      assert (epv->dependencies[0][0] == dep ("libmisc", nullopt));
 
       assert (epv->requirements.empty ());
 
@@ -461,72 +499,31 @@ main (int argc, char* argv[])
         db.load<package> (package_id ("libfoo", version ("1.2.4-2"))));
       assert (check_location (fpv6));
 
+      assert (cr->prerequisites.empty ());
+      assert (cr->complements.size () == 1);
+      assert (cr->complements[0].load () == tr);
+
       // Verify libbar package version.
       //
       // libbar-2.3.5
       //
-      assert (bpv->summary.empty ());
-      assert (bpv->tags.empty ());
-      assert (!bpv->description);
-      assert (bpv->url.empty ());
-      assert (!bpv->package_url);
-      assert (bpv->email.empty ());
-      assert (!bpv->package_email);
-
-      assert (bpv->internal_repository == nullptr);
-      assert (bpv->external_repositories.size () == 1);
-      assert (bpv->external_repositories[0].load () == cr);
-
-      assert (bpv->priority == priority ());
-      assert (bpv->changes.empty ());
-
-      assert (bpv->license_alternatives.empty ());
-      assert (bpv->dependencies.empty ());
-      assert (bpv->requirements.empty ());
+      assert (check_external (*bpv));
+      assert (bpv->other_repositories.size () == 1);
+      assert (bpv->other_repositories[0].load () == cr);
 
       // Verify libfoo package versions.
       //
       // libfoo-0.1
       //
-      assert (fpv0->summary.empty ());
-      assert (fpv0->tags.empty ());
-      assert (!fpv0->description);
-      assert (fpv0->url.empty ());
-      assert (!fpv0->package_url);
-      assert (fpv0->email.empty ());
-      assert (!fpv0->package_email);
-
-      assert (fpv0->internal_repository == nullptr);
-      assert (fpv0->external_repositories.size () == 1);
-      assert (fpv0->external_repositories[0].load () == cr);
-      assert (fpv0->priority == priority::low);
-      assert (fpv0->changes.empty ());
-
-      assert (fpv0->license_alternatives.empty ());
-
-      assert (fpv0->dependencies.empty ());
-      assert (fpv0->requirements.empty ());
+      assert (check_external (*fpv0));
+      assert (fpv0->other_repositories.size () == 1);
+      assert (fpv0->other_repositories[0].load () == cr);
 
       // libfoo-1.2.4-2
       //
-      assert (fpv6->summary.empty ());
-      assert (fpv6->tags.empty ());
-      assert (!fpv6->description);
-      assert (fpv6->url.empty ());
-      assert (!fpv6->package_url);
-      assert (fpv6->email.empty ());
-      assert (!fpv6->package_email);
-
-      assert (fpv6->internal_repository == nullptr);
-      assert (fpv6->external_repositories.size () == 1);
-      assert (fpv6->external_repositories[0].load () == cr);
-      assert (fpv6->priority == priority::low);
-      assert (fpv6->changes.empty ());
-
-      assert (fpv6->license_alternatives.empty ());
-
-      assert (fpv6->dependencies.empty ());
-      assert (fpv6->requirements.empty ());
+      assert (check_external (*fpv6));
+      assert (fpv6->other_repositories.size () == 1);
+      assert (fpv6->other_repositories[0].load () == cr);
 
       // Verify 'testing' repository.
       //
@@ -544,59 +541,76 @@ main (int argc, char* argv[])
               file_mtime (dir_path (tr->local_path) / path ("repositories")));
       assert (!tr->internal);
 
-      shared_ptr<package> mpv (
-        db.load<package> (package_id ("libmisc", version ("1.1"))));
-      assert (check_location (mpv));
+      shared_ptr<package> mpv0 (
+        db.load<package> (package_id ("libmisc", version ("2.4.0"))));
+      assert (check_location (mpv0));
+
+      assert (tr->prerequisites.empty ());
+      assert (tr->complements.size () == 1);
+      assert (tr->complements[0].load () == gr);
+
+      // Verify libmisc package version.
+      //
+      // libmisc-2.4.0
+      //
+      assert (check_external (*mpv0));
+      assert (mpv0->other_repositories.size () == 1);
+      assert (mpv0->other_repositories[0].load () == tr);
+
+      // Verify 'staging' repository.
+      //
+      assert (gr->location.canonical_name () == "cppget.org/staging");
+      assert (gr->location.string () ==
+              "http://pkg.cppget.org/external/1/staging");
+      assert (gr->display_name.empty ());
+
+      dir_path grp (cp.directory () / dir_path ("external/1/staging"));
+      assert (gr->local_path == grp.normalize ());
+
+      assert (gr->packages_timestamp ==
+              file_mtime (dir_path (gr->local_path) / path ("packages")));
+      assert (gr->repositories_timestamp ==
+              file_mtime (dir_path (gr->local_path) / path ("repositories")));
+      assert (!gr->internal);
 
       shared_ptr<package> tpv (
         db.load<package> (package_id ("libexpat", version ("5.1"))));
       assert (check_location (tpv));
 
-      // Verify libmisc package version.
-      //
-      // libmisc-1.1
-      //
-      assert (mpv->summary.empty ());
-      assert (mpv->tags.empty ());
-      assert (!mpv->description);
-      assert (mpv->url.empty ());
-      assert (!mpv->package_url);
-      assert (mpv->email.empty ());
-      assert (!mpv->package_email);
+      shared_ptr<package> gpv (
+        db.load<package> (package_id ("libgenx", version ("1.0"))));
+      assert (check_location (gpv));
 
-      assert (mpv->internal_repository == nullptr);
-      assert (mpv->external_repositories.size () == 1);
-      assert (mpv->external_repositories[0].load () == tr);
+      shared_ptr<package> mpv1 (
+        db.load<package> (package_id ("libmisc", version ("1.0"))));
+      assert (check_location (mpv1));
 
-      assert (mpv->priority == priority ());
-      assert (mpv->changes.empty ());
-
-      assert (mpv->license_alternatives.empty ());
-      assert (mpv->dependencies.empty ());
-      assert (mpv->requirements.empty ());
+      assert (gr->prerequisites.empty ());
+      assert (gr->complements.empty ());
 
       // Verify libexpat package version.
       //
       // libexpat-5.1
       //
-      assert (tpv->summary.empty ());
-      assert (tpv->tags.empty ());
-      assert (!tpv->description);
-      assert (tpv->url.empty ());
-      assert (!tpv->package_url);
-      assert (tpv->email.empty ());
-      assert (!tpv->package_email);
+      assert (check_external (*tpv));
+      assert (tpv->other_repositories.size () == 1);
+      assert (tpv->other_repositories[0].load () == gr);
 
-      assert (tpv->internal_repository == nullptr);
-      assert (tpv->external_repositories.size () == 1);
-      assert (tpv->external_repositories[0].load () == gr);
+      // Verify libgenx package version.
+      //
+      // libgenx-1.0
+      //
+      assert (check_external (*gpv));
+      assert (gpv->other_repositories.size () == 1);
+      assert (gpv->other_repositories[0].load () == gr);
 
-      assert (tpv->priority == priority ());
-      assert (tpv->changes.empty ());
-
-      assert (tpv->license_alternatives.empty ());
-      assert (tpv->dependencies.empty ());
-      assert (tpv->requirements.empty ());
+      // Verify libmisc package version.
+      //
+      // libmisc-1.0
+      //
+      assert (check_external (*mpv1));
+      assert (mpv1->other_repositories.size () == 1);
+      assert (mpv1->other_repositories[0].load () == gr);
 
       // Change package summary, update the object persistent state, rerun
       // loader and ensure the model were not rebuilt.

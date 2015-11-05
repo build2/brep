@@ -6,6 +6,7 @@
 
 #include <set>
 #include <string>
+#include <memory>    // shared_ptr
 #include <cassert>
 #include <utility>   // move()
 #include <algorithm> // min()
@@ -16,6 +17,7 @@
 #include <web/mime-url-encoding>
 
 #include <brep/package>
+#include <brep/package-odb>
 
 using namespace std;
 using namespace xml;
@@ -51,7 +53,7 @@ namespace brep
   void FORM_SEARCH::
   operator() (serializer& s) const
   {
-    // The 'action' attribute is optional in HTML5. While the standard don't
+    // The 'action' attribute is optional in HTML5. While the standard doesn't
     // specify browser behavior explicitly for the case the attribute is
     // ommited, the only reasonable behavior is to default it to the current
     // document URL.
@@ -260,26 +262,35 @@ namespace brep
       //
       set<string> ds;
       for (const auto& da: d)
-        ds.emplace (da.name);
+        ds.emplace (da.name ());
 
       bool m (ds.size () > 1);
 
       if (m)
         s << "(";
 
-      bool first (true);
+      bool f (true); // First dependency alternative.
       for (const auto& da: d)
       {
-        if (ds.find (da.name) != ds.end ())
+        string n (da.name ());
+        if (ds.find (n) != ds.end ())
         {
-          ds.erase (da.name);
+          ds.erase (n);
 
-          if (first)
-            first = false;
+          if (f)
+            f = false;
           else
             s << " | ";
 
-          s << da.name; // @@ Make it a link.
+          shared_ptr<package> p (da.package.load ());
+
+          if (p->internal_repository != nullptr)
+            s << A << HREF << "/go/" << mime_url_encode (n) << ~HREF << n << ~A;
+          else
+            // @@ Refer to package repository URL when supported in repository
+            //    manifest.
+            //
+            s << n;
         }
       }
 
