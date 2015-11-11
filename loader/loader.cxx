@@ -372,7 +372,7 @@ load_packages (const shared_ptr<repository>& rp, database& db)
       // As soon as internal repositories get loaded first, the internal
       // package can duplicate an internal package only.
       //
-      assert (!rp->internal || p->internal_repository != nullptr);
+      assert (!rp->internal || p->internal ());
 
       p->other_repositories.push_back (rp);
       db.update (p);
@@ -560,10 +560,7 @@ resolve_dependencies (package& p, database& db)
 {
   // Resolve dependencies for internal packages only.
   //
-  // @@ add package::internal() predicate? Lots of place where you do
-  //    (p.internal_repository != nullptr).
-  //
-  assert (p.internal_repository != nullptr);
+  assert (p.internal ());
 
   if (p.dependencies.empty ())
     return;
@@ -651,12 +648,10 @@ detect_dependency_cycle (const package_id& id, package_ids& chain, database& db)
       [&o, &db](const package_id& id)
       {
         shared_ptr<package> p (db.load<package> (id));
-
-        assert (p->internal_repository != nullptr ||
-                !p->other_repositories.empty ());
+        assert (p->internal () || !p->other_repositories.empty ());
 
         shared_ptr<repository> r (
-          p->internal_repository != nullptr
+          p->internal ()
           ? p->internal_repository.load ()
           : p->other_repositories[0].load ());
 

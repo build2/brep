@@ -38,11 +38,11 @@ operator== (const dependency& a, const dependency& b)
 static bool
 check_location (shared_ptr<package>& p)
 {
-  if (p->internal_repository == nullptr)
-    return !p->location;
-  else
+  if (p->internal ())
     return p->location && *p->location ==
       path (p->id.name + "-" + p->version.string () + ".tar.gz");
+  else
+    return !p->location;
 }
 
 static bool
@@ -50,7 +50,7 @@ check_external (const package& p)
 {
   return p.summary.empty () && p.tags.empty () && !p.description &&
     p.url.empty () && !p.package_url && p.email.empty () && !p.package_email &&
-    p.internal_repository == nullptr && p.other_repositories.size () > 0 &&
+    !p.internal () && p.other_repositories.size () > 0 &&
     p.priority == priority () && p.changes.empty () &&
     p.license_alternatives.empty () && p.dependencies.empty () &&
     p.requirements.empty ();

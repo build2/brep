@@ -77,7 +77,7 @@ namespace brep
   weighted_text package::
   search_text () const
   {
-    if (internal_repository == nullptr)
+    if (!internal ())
       return weighted_text ();
 
     // Derive keywords from the basic package information: name,

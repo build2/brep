@@ -407,6 +407,9 @@ namespace brep
     //
     package (std::string name, version_type, std::shared_ptr<repository_type>);
 
+    bool
+    internal () const noexcept {return internal_repository != nullptr;}
+
     // Manifest data.
     //
     package_id id;

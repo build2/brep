@@ -198,7 +198,7 @@ namespace brep
       if (p->license_alternatives != ll)
         s << TR_LICENSE (p->license_alternatives);
 
-      assert (p->internal_repository != nullptr);
+      assert (p->internal ());
 
       // @@ Shouldn't we make package location to be a link to the proper
       //    place of the About page, describing corresponding repository?

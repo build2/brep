@@ -284,7 +284,7 @@ namespace brep
 
           shared_ptr<package> p (da.package.load ());
 
-          if (p->internal_repository != nullptr)
+          if (p->internal ())
             s << A << HREF << "/go/" << mime_url_encode (n) << ~HREF << n << ~A;
           else
             // @@ Refer to package repository URL when supported in repository

@@ -131,7 +131,7 @@ namespace brep
       // If the requested package turned up to be an "external" one just
       // respond that no "internal" package is present.
       //
-      not_found = p->internal_repository == nullptr;
+      not_found = !p->internal ();
     }
     catch (const object_not_persistent& )
     {
@@ -212,7 +212,7 @@ namespace brep
           shared_ptr<package> p (d.package.load ());
           string en (mime_url_encode (p->id.name));
 
-          if (p->internal_repository != nullptr)
+          if (p->internal ())
             s << A << HREF << "/go/" << en << ~HREF << p->id.name << ~A;
           else
             // @@ Refer to package repository URL when supported in repository
@@ -224,7 +224,7 @@ namespace brep
           {
             s << ' ';
 
-            if (p->internal_repository != nullptr)
+            if (p->internal ())
               s << A
                 << HREF << "/go/" << en << "/" << p->version.string () << ~HREF
                 <<   *d.constraint
