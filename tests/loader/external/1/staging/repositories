@@ -1,3 +1,4 @@
 : 1
 # Local repository manifest (this repository).
 #
+url: http://stage.cppget.org

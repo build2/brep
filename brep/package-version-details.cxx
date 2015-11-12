@@ -212,29 +212,36 @@ namespace brep
           shared_ptr<package> p (d.package.load ());
           string en (mime_url_encode (p->id.name));
 
-          if (p->internal ())
-            s << A << HREF << "/go/" << en << ~HREF << p->id.name << ~A;
-          else
-            // @@ Refer to package repository URL when supported in repository
-            //    manifest.
-            //
-            s << p->id.name;
+          assert (p->internal () || !p->other_repositories.empty ());
+          shared_ptr<repository> r (
+            p->internal ()
+            ? p->internal_repository.load ()
+            : p->other_repositories[0].load ());
 
-          if (d.constraint)
+          optional<string> u (r->url); // Repository web interface URL.
+          if (!u && p->internal ())
+            u = ""; // Make URL to reference the current web interface.
+
+          if (u)
           {
-            s << ' ';
+            s << A << HREF << *u << "/go/" << en << ~HREF << p->id.name << ~A;
 
-            if (p->internal ())
-              s << A
-                << HREF << "/go/" << en << "/" << p->version.string () << ~HREF
+            if (d.constraint)
+            {
+              s << ' '
+                << A
+                << HREF
+                <<   *u << "/go/" << en << "/" << p->version.string ()
+                << ~HREF
                 <<   *d.constraint
                 << ~A;
-            else
-              // @@ Refer to package repository URL when supported in
-              //    repository manifest.
-              //
-              s << *d.constraint;
+            }
           }
+          else
+            // Display the dependency as a plain text in no repository URL
+            // available.
+            //
+            s << d;
         }
 
         s <<     ~SPAN

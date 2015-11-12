@@ -117,6 +117,7 @@ main (int argc, char* argv[])
       assert (sr->location.string () ==
               "http://pkg.cppget.org/internal/1/stable");
       assert (sr->display_name == "stable");
+      assert (!sr->url);
 
       dir_path srp (cp.directory () / dir_path ("internal/1/stable"));
       assert (sr->local_path == srp.normalize ());
@@ -281,6 +282,7 @@ main (int argc, char* argv[])
       assert (mr->location.string () ==
               "http://pkg.cppget.org/internal/1/math");
       assert (mr->display_name == "math");
+      assert (!mr->url);
 
       dir_path mrp (cp.directory () / dir_path ("internal/1/math"));
       assert (mr->local_path == mrp.normalize ());
@@ -477,6 +479,7 @@ main (int argc, char* argv[])
       assert (cr->location.string () ==
               "http://pkg.cppget.org/external/1/misc");
       assert (cr->display_name.empty ());
+      assert (cr->url && *cr->url == "http://misc.cppget.org");
 
       dir_path crp (cp.directory () / dir_path ("external/1/misc"));
       assert (cr->local_path == crp.normalize ());
@@ -531,6 +534,7 @@ main (int argc, char* argv[])
       assert (tr->location.string () ==
               "http://pkg.cppget.org/external/1/testing");
       assert (tr->display_name.empty ());
+      assert (tr->url && *tr->url == "http://test.cppget.org");
 
       dir_path trp (cp.directory () / dir_path ("external/1/testing"));
       assert (tr->local_path == trp.normalize ());
@@ -563,6 +567,7 @@ main (int argc, char* argv[])
       assert (gr->location.string () ==
               "http://pkg.cppget.org/external/1/staging");
       assert (gr->display_name.empty ());
+      assert (gr->url && *gr->url == "http://stage.cppget.org");
 
       dir_path grp (cp.directory () / dir_path ("external/1/staging"));
       assert (gr->local_path == grp.normalize ());

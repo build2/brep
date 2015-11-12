@@ -14,6 +14,7 @@
 #include <cstddef> // size_t
 #include <utility> // move()
 #include <cstdint> // uint16
+#include <ostream>
 
 #include <odb/core.hxx>
 #include <odb/forward.hxx>  // database
@@ -261,6 +262,9 @@ namespace brep
     #pragma db member(package) column("") not_null
   };
 
+  std::ostream&
+  operator<< (std::ostream&, const dependency&);
+
   #pragma db value
   class dependency_alternatives: public std::vector<dependency>
   {
@@ -309,6 +313,14 @@ namespace brep
     std::string name; // Object id (canonical name).
     repository_location location;
     std::string display_name;
+
+    optional<std::string> url;
+
+    // Set only for internal repositories.
+    //
+    optional<std::string> email;
+    optional<std::string> summary;
+    optional<std::string> description;
 
     // Non empty for internal repositories and external ones with a filesystem
     // path location.
@@ -428,8 +440,7 @@ namespace brep
     requirements_type requirements;
     odb::lazy_shared_ptr<repository_type> internal_repository;
 
-    // Path to the package file. Set only for packages present in internal
-    // repository.
+    // Path to the package file. Set only for internal packages.
     //
     optional<path> location;
 

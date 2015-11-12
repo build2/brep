@@ -6,6 +6,7 @@
 
 #include <utility> // move()
 #include <cassert>
+#include <ostream>
 
 #include <odb/database.hxx>
 
@@ -22,6 +23,17 @@ namespace brep
   name () const
   {
     return package.object_id ().name;
+  }
+
+  ostream&
+  operator<< (ostream& o, const dependency& d)
+  {
+    o << d.name ();
+
+    if (d.constraint)
+      o << ' ' << *d.constraint;
+
+    return o;
   }
 
   // package
@@ -120,19 +132,19 @@ namespace brep
   //
   repository::
   repository (repository_location l, string d, dir_path p)
-      : location (move (l)),
+      : name (l.canonical_name ()),
+        location (move (l)),
         display_name (move (d)),
         local_path (move (p)),
         internal (true)
   {
-    name = location.canonical_name ();
   }
 
   repository::
   repository (repository_location l)
-      : location (move (l)),
+      : name (l.canonical_name ()),
+        location (move (l)),
         internal (false)
   {
-    name = location.canonical_name ();
   }
 }

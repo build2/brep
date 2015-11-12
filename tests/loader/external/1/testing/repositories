@@ -6,3 +6,4 @@ role: complement
 :
 # Local repository manifest (this repository).
 #
+url: http://test.cppget.org

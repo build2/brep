@@ -382,13 +382,13 @@ load_packages (const shared_ptr<repository>& rp, database& db)
   db.persist (rp); // Save the repository state.
 }
 
-// Load the prerequsite repositories and their complements state from the
-// 'repositories' file. Update the repository persistent state to save
-// repositories_timestamp, prerequsites, and complements members.
-// Should be called once per persisted internal repository.
+// Load the repository manifest values, prerequsite repositories, and their
+// complements state from the 'repositories' file. Update the repository
+// persistent state to save changed members. Should be called once per
+// persisted internal repository.
 //
 static void
-load_prerequisites (const shared_ptr<repository>& rp, database& db)
+load_repositories (const shared_ptr<repository>& rp, database& db)
 {
   // repositories_timestamp other than timestamp_nonexistent signals that
   // repository prerequisites are already loaded.
@@ -417,12 +417,28 @@ load_prerequisites (const shared_ptr<repository>& rp, database& db)
 
   for (auto& rm: rpm)
   {
-    if (rm.location.empty () ||
-        (!rp->internal &&
-         rm.effective_role () == repository_role::prerequisite))
-      continue; // Ignore entry for this repository.
+    if (rm.effective_role () == repository_role::prerequisite && !rp->internal)
+      continue; // Ignore the external repository prerequisite entry.
 
-    assert (rm.effective_role () != repository_role::base);
+    if (rm.effective_role () == repository_role::base)
+    {
+      // Update the base repository with manifest values.
+      //
+      rp->url = move (rm.url);
+
+      if (rp->internal)
+      {
+        rp->email = move (rm.email);
+        rp->summary = move (rm.summary);
+        rp->description = move (rm.description);
+      }
+
+      continue;
+    }
+
+    // Load prerequisite or complement repository.
+    //
+    assert (!rm.location.empty ());
 
     repository_location rl;
 
@@ -498,22 +514,10 @@ load_prerequisites (const shared_ptr<repository>& rp, database& db)
     }
 
     load_packages (pr, db);
-    load_prerequisites (pr, db);
+    load_repositories (pr, db);
   }
 
   db.update (rp);
-}
-
-static ostream&
-operator<< (ostream& o,
-            const brep::dependency& d) // Ambiguity with bpkg::dependency.
-{
-  o << d.name ();
-
-  if (d.constraint)
-    o << ' ' << *d.constraint;
-
-  return o;
 }
 
 // Check if the package is available from the specified repository,
@@ -749,8 +753,8 @@ main (int argc, char* argv[])
       throw;
     }
 
-    // Load the description of all the internal repositories from
-    // the configuration file.
+    // Load the description of all the internal repositories from the
+    // configuration file.
     //
     internal_repositories irs (load_repositories (path (argv[1])));
 
@@ -776,15 +780,16 @@ main (int argc, char* argv[])
         load_packages (r, db);
       }
 
-      // On the second pass over the internal repositories we
-      // load their (not yet loaded) prerequisite repositories.
+      // On the second pass over the internal repositories we load their
+      // (not yet loaded) manifest values, complement, and prerequisite
+      // repositories.
       //
       for (const auto& ir: irs)
       {
         shared_ptr<repository> r (
           db.load<repository> (ir.location.canonical_name ()));
 
-        load_prerequisites (r, db);
+        load_repositories (r, db);
       }
 
       session s;
