@@ -66,6 +66,13 @@ h1, h2, h3
   text-overflow: ellipsis;
 }
 
+/* Re-styling for full page variant. */
+
+.full h2
+{
+  white-space: normal;
+}
+
 /* 
  * Version details table. 
  */

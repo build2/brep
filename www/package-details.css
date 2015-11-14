@@ -51,6 +51,13 @@ h1, h2
   text-overflow: ellipsis;
 }
 
+/* Re-styling for full page variant. */
+
+.full h2
+{
+  white-space: normal;
+}
+
 /* 
  * Package details table.
  */
