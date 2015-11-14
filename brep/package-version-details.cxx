@@ -26,11 +26,12 @@
 #include <brep/shared-database>
 
 using namespace std;
-using namespace cli;
 using namespace odb::core;
 
 namespace brep
 {
+  using namespace cli;
+
   void package_version_details::
   init (scanner& s)
   {
@@ -51,6 +52,11 @@ namespace brep
 
     MODULE_DIAG;
 
+    // The module options object is not changed after being created once per
+    // server process.
+    //
+    static const dir_path& rt (options_->root ());
+
     auto i (rq.path ().rbegin ());
     version v;
 
@@ -63,8 +69,11 @@ namespace brep
       throw invalid_request (400, "invalid package version format");
     }
 
+    const string& vs (v.string ());
+
     assert (i != rq.path ().rend ());
     const string& n (*i); // Package name.
+    const string name (n + " " + vs);
 
     params::package_version_details pr;
 
@@ -80,7 +89,6 @@ namespace brep
     }
 
     bool f (pr.full ());
-    const string& vs (v.string ());
 
     auto url ([&vs](bool f = false, const string& a = "") -> string
       {
@@ -91,27 +99,25 @@ namespace brep
         return u;
       });
 
-    const string name (n + " " + vs);
     serializer s (rs.content (), name);
+    static const path go ("go");
+    static const path sp ("package-version-details.css");
 
     s << HTML
       <<   HEAD
       <<     TITLE << name << ~TITLE
-      <<     CSS_LINKS ("/package-version-details.css")
+      <<     CSS_LINKS (sp, rt)
       <<   ~HEAD
       <<   BODY
-      <<     DIV_HEADER ()
+      <<     DIV_HEADER (rt)
       <<     DIV(ID="content");
 
     if (f)
-      s << CLASS << "full" << ~CLASS;
+      s << CLASS("full");
 
     s <<       DIV(ID="heading")
       <<         H1
-      <<           A
-      <<           HREF << "/go/" << mime_url_encode (n) << ~HREF
-      <<             n
-      <<           ~A
+      <<           A(HREF=rt / go / path (mime_url_encode (n))) << n << ~A
       <<           "/"
       <<           A(HREF=url ()) << vs << ~A
       <<         ~H1
@@ -143,17 +149,18 @@ namespace brep
 
     s << H2 << p->summary << ~H2;
 
+    static const size_t dl (options_->description_length ());
+
     if (const auto& d = p->description)
       s << (f
             ? P_DESCRIPTION (*d)
-            : P_DESCRIPTION (
-                *d, options_->description_length (), url (!f, "description")));
+            : P_DESCRIPTION (*d, dl, url (!f, "description")));
 
     // Link to download from the internal repository.
     //
     assert (p->location);
-    const string du (p->internal_repository.load ()->location.string () +
-                     "/" + p->location->string ());
+    const string du (p->internal_repository.load ()->location.string () + "/" +
+                     p->location->string ());
 
     s << TABLE(CLASS="proplist", ID="version")
       <<   TBODY
@@ -180,7 +187,7 @@ namespace brep
     if (p->package_email && *p->package_email != p->email)
       s << TR_EMAIL (*p->package_email, "pkg-email");
 
-    s <<     TR_TAGS (p->tags)
+    s <<     TR_TAGS (p->tags, rt)
       <<   ~TBODY
       << ~TABLE;
 
@@ -210,32 +217,36 @@ namespace brep
             s << " | ";
 
           shared_ptr<package> p (d.package.load ());
-          string en (mime_url_encode (p->id.name));
-
           assert (p->internal () || !p->other_repositories.empty ());
+
           shared_ptr<repository> r (
             p->internal ()
             ? p->internal_repository.load ()
             : p->other_repositories[0].load ());
 
-          optional<string> u (r->url); // Repository web interface URL.
-          if (!u && p->internal ())
-            u = ""; // Make URL to reference the current web interface.
+          const auto& dc (d.constraint);
+          const string& dn (p->id.name);
+          string en (mime_url_encode (dn));
 
-          if (u)
+          if (r->url)
           {
-            s << A << HREF << *u << "/go/" << en << ~HREF << p->id.name << ~A;
+            string u (*r->url + "go/" + en);
+            s << A(HREF=u) << dn << ~A;
 
-            if (d.constraint)
-            {
+            if (dc)
               s << ' '
                 << A
-                << HREF
-                <<   *u << "/go/" << en << "/" << p->version.string ()
-                << ~HREF
-                <<   *d.constraint
+                << HREF << u << "/" << p->version.string () << ~HREF
+                <<   *dc
                 << ~A;
-            }
+          }
+          else if (p->internal ())
+          {
+            path u (rt / go / path (en));
+            s << A(HREF=u) << dn << ~A;
+
+            if (dc)
+              s << ' ' << A(HREF=u / path (p->version.string ())) << *dc << ~A;
           }
           else
             // Display the dependency as a plain text in no repository URL
@@ -256,15 +267,15 @@ namespace brep
 
     t.commit ();
 
-    const auto& rt (p->requirements);
+    const auto& rm (p->requirements);
 
-    if (!rt.empty ())
+    if (!rm.empty ())
     {
       s << H3 << "Requires" << ~H3
         << TABLE(CLASS="proplist", ID="requires")
         <<   TBODY;
 
-      for (const auto& ra: rt)
+      for (const auto& ra: rm)
       {
         s << TR(CLASS="requires")
           <<   TH;
@@ -294,14 +305,14 @@ namespace brep
         << ~TABLE;
     }
 
-    const string& ch (p->changes);
+    static const size_t cl (options_->changes_length ());
+    const auto& ch (p->changes);
 
     if (!ch.empty ())
       s << H3 << "Changes" << ~H3
         << (f
             ? PRE_CHANGES (ch)
-            : PRE_CHANGES (
-                ch, options_->changes_length (), url (!f, "changes")));
+            : PRE_CHANGES (ch, cl, url (!f, "changes")));
 
     s <<     ~DIV
       <<   ~BODY

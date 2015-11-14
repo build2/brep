@@ -10,4 +10,4 @@ role: complement
 :
 # Local repository manifest (this repository).
 #
-url: http://misc.cppget.org
+url: http://misc.cppget.org/

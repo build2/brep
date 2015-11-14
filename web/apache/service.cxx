@@ -10,8 +10,10 @@
 #include <httpd.h>
 #include <http_config.h>
 
-#include <memory> // unique_ptr
+#include <memory>  // unique_ptr
 #include <string>
+#include <cassert>
+#include <cstring> // strlen()
 #include <exception>
 
 using namespace std;
@@ -47,7 +49,10 @@ namespace web
             reinterpret_cast<cmd_func> (add_option),
             this,
             RSRC_CONF,
-            TAKE1,
+            // Move away from TAKE1 to be able to handle empty string and
+            // no-value.
+            //
+            RAW_ARGS,
             nullptr
           };
       }
@@ -58,19 +63,31 @@ namespace web
     }
 
     const char* service::
-    add_option (cmd_parms* parms, void*, const char* value) noexcept
+    add_option (cmd_parms* parms, void*, const char* args) noexcept
     {
       service& srv (*reinterpret_cast<service*> (parms->cmd->cmd_data));
       string name (parms->cmd->name + srv.name_.length () + 1);
+      optional<string> value;
+
+      // 'args' is an optionally double-quoted string. Use double quotes to
+      // distinguish empty string from no-value case.
+      //
+      assert (args != nullptr);
+      if (auto l = strlen (args))
+        value = l >= 2 && args[0] == '"' && args[l - 1] == '"'
+          ? string (args + 1, l - 2)
+          : args;
 
       for (auto& v: srv.options_)
+      {
         if (v.name == name)
         {
           v.value = value;
           return 0;
         }
+      }
 
-      srv.options_.emplace_back (name, string (value));
+      srv.options_.emplace_back (name, value);
       return 0;
     }
 

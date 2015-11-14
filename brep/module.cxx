@@ -22,10 +22,11 @@
 
 using namespace std;
 using namespace placeholders; // For std::bind's _1, etc.
-using namespace cli;
 
 namespace brep
 {
+  using namespace cli;
+
   // module
   //
   void module::

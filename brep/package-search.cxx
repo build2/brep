@@ -5,7 +5,7 @@
 #include <brep/package-search>
 
 #include <string>
-#include <memory>  // make_shared()
+#include <memory>  // make_shared(), shared_ptr
 #include <cstddef> // size_t
 
 #include <xml/serializer>
@@ -25,11 +25,12 @@
 #include <brep/shared-database>
 
 using namespace std;
-using namespace cli;
 using namespace odb::core;
 
 namespace brep
 {
+  using namespace cli;
+
   void package_search::
   init (scanner& s)
   {
@@ -62,6 +63,12 @@ namespace brep
 
     MODULE_DIAG;
 
+    // The module options object is not changed after being created once per
+    // server process.
+    //
+    static const size_t rp (options_->results_on_page ());
+    static const dir_path& rt (options_->root ());
+
     params::package_search pr;
 
     try
@@ -75,22 +82,23 @@ namespace brep
     }
 
     const string& sq (pr.query ()); // Search query.
-    size_t pg (pr.page ());
     string qp (sq.empty () ? "" : "q=" + mime_url_encode (sq));
-    size_t rp (options_->results_on_page ());
+    size_t pg (pr.page ());
 
     serializer s (rs.content (), "Packages");
 
     const string& title (
       sq.empty () ? s.output_name () : s.output_name () + " " + sq);
 
+    static const path sp ("package-search.css");
+
     s << HTML
       <<   HEAD
       <<     TITLE << title << ~TITLE
-      <<     CSS_LINKS ("/package-search.css")
+      <<     CSS_LINKS (sp, rt)
       <<   ~HEAD
       <<   BODY
-      <<     DIV_HEADER ()
+      <<     DIV_HEADER (rt)
       <<     DIV(ID="content");
 
     session sn;
@@ -119,11 +127,11 @@ namespace brep
 
       s << TABLE(CLASS="proplist package")
         <<   TBODY
-        <<     TR_NAME (p->id.name, qp)
+        <<     TR_NAME (p->id.name, qp, rt)
         <<     TR_SUMMARY (p->summary)
         <<     TR_LICENSE (p->license_alternatives)
-        <<     TR_TAGS (p->tags)
-        <<     TR_DEPENDS (p->dependencies)
+        <<     TR_TAGS (p->tags, rt)
+        <<     TR_DEPENDS (p->dependencies, rt)
         <<     TR_REQUIRES (p->requirements)
         <<   ~TBODY
         << ~TABLE;
@@ -132,9 +140,10 @@ namespace brep
 
     t.commit ();
 
-    string url (qp.empty () ? "/" : ("/?" + qp));
+    static const size_t pp (options_->pages_in_pager ());
+    const string& u (qp.empty () ? rt.string () : (rt.string () + "?" + qp));
 
-    s <<       DIV_PAGER (pg, pc, rp, options_->pages_in_pager (), url)
+    s <<       DIV_PAGER (pg, pc, rp, pp, u)
       <<     ~DIV
       <<   ~BODY
       << ~HTML;

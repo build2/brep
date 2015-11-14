@@ -426,6 +426,20 @@ load_repositories (const shared_ptr<repository>& rp, database& db)
       //
       rp->url = move (rm.url);
 
+      // @@ Should we throw if url is not available for external repository ?
+      //    Can, basically, repository be available on the web but have no web
+      //    interface associated ?
+      //
+      if (rp->url)
+      {
+        // Normalize web interface url adding trailing '/' if not present.
+        //
+        auto& u (*rp->url);
+        assert (!u.empty ());
+        if (u.back () != '/')
+          u += '/';
+      }
+
       if (rp->internal)
       {
         rp->email = move (rm.email);

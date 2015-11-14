@@ -7,8 +7,8 @@
 #include <set>
 #include <string>
 #include <memory>    // shared_ptr
+#include <cstddef>   // size_t
 #include <cassert>
-#include <utility>   // move()
 #include <algorithm> // min()
 
 #include <xml/serializer>
@@ -26,13 +26,17 @@ using namespace web::xhtml;
 
 namespace brep
 {
+  static const path go ("go");
+
   // CSS_LINKS
   //
   void CSS_LINKS::
   operator() (serializer& s) const
   {
-    s << *LINK(REL="stylesheet", TYPE="text/css", HREF="/common.css")
-      << *LINK(REL="stylesheet", TYPE="text/css", HREF=url_);
+    static const path c ("common.css");
+
+    s << *LINK(REL="stylesheet", TYPE="text/css", HREF=root_ / c)
+      << *LINK(REL="stylesheet", TYPE="text/css", HREF=root_ / path_);
   }
 
   // DIV_HEADER
@@ -40,10 +44,12 @@ namespace brep
   void DIV_HEADER::
   operator() (serializer& s) const
   {
+    static const path a ("about");
+
     s << DIV(ID="header")
       <<   DIV(ID="header-menu")
-      <<     A(HREF="/") << "packages" << ~A
-      <<     A(HREF="/about") << "about" << ~A
+      <<     A(HREF=root_) << "packages" << ~A
+      <<     A(HREF=root_ / a) << "about" << ~A
       <<   ~DIV
       << ~DIV;
   }
@@ -97,7 +103,7 @@ namespace brep
       <<     SPAN(CLASS="value")
       <<       A
       <<       HREF
-      <<         "/go/" << mime_url_encode (name_);
+      <<         root_ / go / path (mime_url_encode (name_));
 
     // Propagate search criteria to the package details page.
     //
@@ -123,12 +129,11 @@ namespace brep
     if (package_ == nullptr)
       s << version_;
     else
-      s << A
-        << HREF
-        <<   "/go/" << mime_url_encode (*package_) << "/" << version_
-        << ~HREF
-        <<   version_
-        << ~A;
+    {
+      assert (root_ != nullptr);
+      path p (mime_url_encode (*package_));
+      s << A(HREF=*root_ / go / p / path (version_)) << version_ << ~A;
+    }
 
     s <<     ~SPAN
       <<   ~TD
@@ -156,27 +161,27 @@ namespace brep
       <<   TD
       <<     SPAN(CLASS="value");
 
-      for (const auto& la: licenses_)
+    for (const auto& la: licenses_)
+    {
+      if (&la != &licenses_[0])
+        s << " " << EM << "or" << ~EM << " ";
+
+      bool m (la.size () > 1);
+
+      if (m)
+        s << "(";
+
+      for (const auto& l: la)
       {
-        if (&la != &licenses_[0])
-          s << " " << EM << "or" << ~EM << " ";
+        if (&l != &la[0])
+          s << " " << EM << "and" << ~EM << " ";
 
-        bool m (la.size () > 1);
-
-        if (m)
-          s << "(";
-
-        for (const auto& l: la)
-        {
-          if (&l != &la[0])
-            s << " " << EM << "and" << ~EM << " ";
-
-          s << l;
-        }
-
-        if (m)
-          s << ")";
+        s << l;
       }
+
+      if (m)
+        s << ")";
+    }
 
     s <<     ~SPAN
       <<   ~TD
@@ -227,7 +232,10 @@ namespace brep
         if (&t != &tags_[0])
           s << " ";
 
-        s << A << HREF << "/?q=" << mime_url_encode (t) << ~HREF << t << ~A;
+        s << A
+          << HREF << root_ << "?q=" << mime_url_encode (t) << ~HREF
+          <<   t
+          << ~A;
       }
 
       s <<     ~SPAN
@@ -283,22 +291,19 @@ namespace brep
             s << " | ";
 
           shared_ptr<package> p (da.package.load ());
-
           assert (p->internal () || !p->other_repositories.empty ());
+
           shared_ptr<repository> r (
             p->internal ()
             ? p->internal_repository.load ()
             : p->other_repositories[0].load ());
 
-          optional<string> u (r->url); // Repository web interface URL.
-          if (!u && p->internal ())
-            u = ""; // Make URL to reference the current web interface.
+          auto en (mime_url_encode (n));
 
-          if (u)
-            s << A
-              << HREF << *u << "/go/" << mime_url_encode (n) << ~HREF
-              <<   n
-              << ~A;
+          if (r->url)
+            s << A << HREF << *r->url << "go/" << en << ~HREF << n << ~A;
+          else if (p->internal ())
+            s << A(HREF=root_ / go / path (en)) << n << ~A;
           else
             // Display the dependency as a plain text in no repository URL
             // available.
@@ -471,7 +476,7 @@ namespace brep
     if (description_.empty ())
       return;
 
-    string::size_type n (description_.find_first_of (" \t\n", length_));
+    auto n (description_.find_first_of (" \t\n", length_));
     bool f (n == string::npos); // Description length is below the limit.
 
     // Truncate description if length exceed the limit.
@@ -525,7 +530,7 @@ namespace brep
     if (changes_.empty ())
       return;
 
-    string::size_type n (changes_.find_first_of (" \t\n", length_));
+    auto n (changes_.find_first_of (" \t\n", length_));
     bool f (n == string::npos); // Changes length is below the limit.
 
     // Truncate changes if length exceed the limit.
@@ -577,7 +582,7 @@ namespace brep
           return page == 0
             ? url_
             : url_ + (url_.find ('?') == string::npos ? "?p=" : "&p=") +
-            to_string (page);
+                to_string (page);
         });
 
       s << DIV(ID="pager");
@@ -596,7 +601,7 @@ namespace brep
           s << A(HREF=u (p));
 
           if (p == current_page_)
-            s << ID << "curr" << ~ID;
+            s << ID("curr");
 
           s <<   p + 1
             << ~A;

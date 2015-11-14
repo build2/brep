@@ -15,6 +15,6 @@ loader = cxx{loader} cli.cxx{options}
 exe{brep-loader}: $loader ../brep/libso{brep} $libs
 
 cli.options += -I $src_root --include-with-brackets --include-prefix loader \
---guard-prefix LOADER
+--guard-prefix LOADER --cli-namespace brep::cli
 
 cli.cxx{options}: cli{options}

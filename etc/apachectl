@@ -26,10 +26,11 @@
 
 ARGV="$@"
 
-export AP_LOG_LEVEL
-export AP_ADMIN_EMAIL
 export AP_PORT
 export AP_SERVER_NAME
+export AP_ROOT
+export AP_ADMIN_EMAIL
+export AP_LOG_LEVEL
 export AP_DB_HOST
 export AP_DB_PORT
 export AP_MODULE_DIR

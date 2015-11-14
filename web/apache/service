@@ -112,7 +112,7 @@ namespace web
       init_worker (log& l) noexcept;
 
       static const char*
-      add_option (cmd_parms *parms, void *mconfig, const char *value) noexcept;
+      add_option (cmd_parms* parms, void* mconfig, const char* args) noexcept;
 
       template <typename M>
       int handle (request& r, log& l) noexcept;

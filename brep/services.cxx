@@ -17,16 +17,16 @@ static package_search package_search_mod;
 service AP_MODULE_DECLARE_DATA package_search_srv (
   "package-search",
   package_search_mod,
-  {"db-host", "db-port", "conf"});
+  {"root", "db-host", "db-port", "conf"});
 
 static package_details package_details_mod;
 service AP_MODULE_DECLARE_DATA package_details_srv (
   "package-details",
   package_details_mod,
-  {"db-host", "db-port", "conf"});
+  {"root", "db-host", "db-port", "conf"});
 
 static package_version_details package_version_details_mod;
 service AP_MODULE_DECLARE_DATA package_version_details_srv (
   "package-version-details",
   package_version_details_mod,
-  {"db-host", "db-port", "conf"});
+  {"root", "db-host", "db-port", "conf"});

@@ -5,6 +5,8 @@
 include <string>;
 include <cstdint>; // uint16_t
 
+include <butl/path>;
+
 namespace brep
 {
   // Web module configuration options.
@@ -14,6 +16,7 @@ namespace brep
     class module
     {
       std::uint16_t verb = 0;
+      butl::dir_path root = "/";
     };
 
     class db

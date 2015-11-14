@@ -22,7 +22,9 @@ libso{brep}: cxx.export.poptions = -I$out_root -I$src_root
 import libs += libstudxml%lib{studxml}
 
 brep = cxx{diagnostics module services package-search package-details \
-       package-version-details shared-database page} cli.cxx{options}
+       package-version-details shared-database page types-parsers} \
+       cli.cxx{options}
+
 web = ../web/apache/cxx{request service} ../web/cxx{mime-url-encoding}
 
 libso{brep-apache}: $brep $web libso{brep} $libs
@@ -36,6 +38,8 @@ libso{brep-apache}: $brep $web libso{brep} $libs
 #             ::cli::unknown_mode opt_mode,
 #
 cli.options += -I $src_root --include-with-brackets --include-prefix brep \
---guard-prefix BREP --generate-file-scanner --suppress-usage --option-prefix ""
+--guard-prefix BREP --cxx-prologue "#include <brep/types-parsers>" \
+--cli-namespace brep::cli --generate-file-scanner --suppress-usage \
+--option-prefix ""
 
 cli.cxx{options}: cli{options}

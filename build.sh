@@ -27,7 +27,8 @@ g++ -shared $DEBUG -std=c++11 -I.. -I../../libbpkg \
 echo "cli brep-apache options"
 
 cli --include-with-brackets --include-prefix brep  --hxx-suffix "" \
-    --guard-prefix BREP --generate-file-scanner --suppress-usage \
+    --guard-prefix BREP  --cxx-prologue "#include <brep/types-parsers>" \
+    --cli-namespace brep::cli --generate-file-scanner --suppress-usage \
     --option-prefix "" ./options.cli
 
 echo "g++ libbrep-apache.so"
@@ -46,7 +47,7 @@ cd ../loader
 
 echo "cli loader options"
 
-cli --hxx-suffix "" ./options.cli
+cli --hxx-suffix "" --cli-namespace brep::cli ./options.cli
 
 echo "g++ brep-loader"
 

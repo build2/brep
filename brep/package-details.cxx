@@ -7,6 +7,7 @@
 #include <string>
 #include <memory>  // make_shared(), shared_ptr
 #include <cstddef> // size_t
+#include <cassert>
 
 #include <xml/serializer>
 
@@ -25,11 +26,12 @@
 #include <brep/shared-database>
 
 using namespace std;
-using namespace cli;
 using namespace odb::core;
 
 namespace brep
 {
+  using namespace cli;
+
   void package_details::
   init (scanner& s)
   {
@@ -65,7 +67,15 @@ namespace brep
 
     MODULE_DIAG;
 
+    // The module options object is not changed after being created once per
+    // server process.
+    //
+    static const size_t rp (options_->results_on_page ());
+    static const dir_path& rt (options_->root ());
+
     const string& name (*rq.path ().rbegin ());
+    const string en (mime_url_encode (name));
+
     params::package_details pr;
 
     try
@@ -81,8 +91,6 @@ namespace brep
     const string& sq (pr.query ()); // Search query.
     size_t pg (pr.page ());
     bool f (pr.full ());
-    string en (mime_url_encode (name));
-    size_t rp (options_->results_on_page ());
 
     auto url (
       [&en](bool f = false,
@@ -101,19 +109,20 @@ namespace brep
       });
 
     serializer s (rs.content (), name);
-    const string title (sq.empty () ? name : name + " " + sq);
+    const string& title (sq.empty () ? name : name + " " + sq);
+    static const path sp ("package-details.css");
 
     s << HTML
       <<   HEAD
       <<     TITLE << title << ~TITLE
-      <<     CSS_LINKS ("/package-details.css")
+      <<     CSS_LINKS (sp, rt)
       <<   ~HEAD
       <<   BODY
-      <<     DIV_HEADER ()
+      <<     DIV_HEADER (rt)
       <<     DIV(ID="content");
 
     if (f)
-      s << CLASS << "full" << ~CLASS;
+      s << CLASS("full");
 
     s <<       DIV(ID="heading")
       <<         H1 << A(HREF=url ()) << name << ~A << ~H1
@@ -136,7 +145,7 @@ namespace brep
       p = db_->load<package> (lp.id);
     }
 
-    const license_alternatives& ll (p->license_alternatives);
+    const auto& ll (p->license_alternatives);
 
     if (pg == 0)
     {
@@ -144,20 +153,19 @@ namespace brep
       //
       s << H2 << p->summary << ~H2;
 
+      static const size_t dl (options_->description_length ());
+
       if (const auto& d = p->description)
         s << (f
               ? P_DESCRIPTION (*d)
-              : P_DESCRIPTION (
-                  *d,
-                  options_->description_length (),
-                  url (!f, sq, pg, "description")));
+              : P_DESCRIPTION (*d, dl, url (!f, sq, pg, "description")));
 
       s << TABLE(CLASS="proplist", ID="package")
         <<   TBODY
         <<     TR_LICENSE (ll)
         <<     TR_URL (p->url)
         <<     TR_EMAIL (p->email)
-        <<     TR_TAGS (p->tags)
+        <<     TR_TAGS (p->tags, rt)
         <<   ~TBODY
         << ~TABLE;
     }
@@ -186,7 +194,7 @@ namespace brep
 
       s << TABLE(CLASS="proplist version")
         <<   TBODY
-        <<     TR_VERSION (name, p->version.string ())
+        <<     TR_VERSION (name, p->version.string (), rt)
 
         // @@ Shouldn't we skip low priority row ? Don't think so, why?
         //
@@ -212,7 +220,7 @@ namespace brep
       //    Hm, I am not so sure about this. Consider: stable/testing/unstable.
       //
       s <<     TR_LOCATION (p->internal_repository.object_id ())
-        <<     TR_DEPENDS (p->dependencies)
+        <<     TR_DEPENDS (p->dependencies, rt)
         <<     TR_REQUIRES (p->requirements)
         <<   ~TBODY
         << ~TABLE;
@@ -221,7 +229,9 @@ namespace brep
 
     t.commit ();
 
-    s <<       DIV_PAGER (pg, pc, rp, options_->pages_in_pager (), url (f, sq))
+    static const size_t pp (options_->pages_in_pager ());
+
+    s <<       DIV_PAGER (pg, pc, rp, pp, url (f, sq))
       <<     ~DIV
       <<   ~BODY
       << ~HTML;
