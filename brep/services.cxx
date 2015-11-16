@@ -8,6 +8,7 @@
 
 #include <brep/package-search>
 #include <brep/package-details>
+#include <brep/repository-root>
 #include <brep/repository-details>
 #include <brep/package-version-details>
 
@@ -37,3 +38,9 @@ service AP_MODULE_DECLARE_DATA repository_details_srv (
   "repository-details",
   repository_details_mod,
   {"root", "db-host", "db-port", "conf"});
+
+static repository_root repository_root_mod (
+  package_search_mod, repository_details_mod);
+service AP_MODULE_DECLARE_DATA repository_root_srv (
+  "repository-root",
+  repository_root_mod);

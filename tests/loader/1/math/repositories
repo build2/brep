@@ -1,7 +1,7 @@
 : 1
 # Foreign repository manifest.
 #
-location: ../../../external/1/misc
+location: ../misc
 :
 # Local repository manifest (this repository).
 #

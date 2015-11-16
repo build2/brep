@@ -2,13 +2,7 @@
 // copyright : Copyright (c) 2014-2015 Code Synthesis Ltd
 // license   : MIT; see accompanying LICENSE file
 
-#include <vector>
-#include <memory>    // shared_ptr, make_shared()
-#include <string>
-#include <utility>   // move()
-#include <cstdint>   // uint64_t
 #include <sstream>
-#include <cassert>
 #include <fstream>
 #include <iostream>
 #include <stdexcept> // runtime_error, invalid_argument
@@ -23,11 +17,12 @@
 #include <odb/pgsql/connection.hxx>
 #include <odb/pgsql/transaction.hxx>
 
-#include <butl/timestamp>  // timestamp_nonexistent
 #include <butl/filesystem>
 
 #include <bpkg/manifest-parser> // manifest_parsing
 
+#include <brep/types>
+#include <brep/utility>
 #include <brep/package>
 #include <brep/package-odb>
 
@@ -225,11 +220,10 @@ changed (const internal_repositories& repos, database& db)
   // Check if there is an internal repository not being listed in the
   // configuration file.
   //
-  auto rs (
-    db.query<repository> (
-      query::internal && !query::name.in_range (names.begin (), names.end ())));
-
-  return !rs.empty ();
+  return
+    !db.query<repository> (
+      query::internal && !query::name.in_range (names.begin (), names.end ())).
+    empty ();
 }
 
 static timestamp
@@ -249,8 +243,6 @@ manifest_stream (const path& p, ifstream& f)
 static void
 load_packages (const shared_ptr<repository>& rp, database& db)
 {
-  using brep::optional; // Ambiguity with butl::optional.
-
   // packages_timestamp other than timestamp_nonexistent signals the
   // repository packages are already loaded.
   //
@@ -430,6 +422,9 @@ load_repositories (const shared_ptr<repository>& rp, database& db)
       //    Can, basically, repository be available on the web but have no web
       //    interface associated ?
       //
+      //    Yes, there can be no web interface. So we should just not form
+      //    links to packages from such repos.
+      //
       if (rp->url)
       {
         // Normalize web interface url adding trailing '/' if not present.
@@ -607,10 +602,8 @@ resolve_dependencies (package& p, database& db)
         }
       }
 
-      auto r (
-        db.query<package> (q + order_by_version_desc (query::id.version)));
-
-      for (const auto& pp: r)
+      for (const auto& pp:
+             db.query<package> (q + order_by_version_desc (query::id.version)))
       {
         if (find (p.internal_repository, pp))
         {
@@ -784,12 +777,14 @@ main (int argc, char* argv[])
       // On the first pass over the internal repositories we load their
       // packages.
       //
+      uint16_t priority (1);
       for (const auto& ir: irs)
       {
         shared_ptr<repository> r (
           make_shared<repository> (ir.location,
                                    move (ir.display_name),
-                                   move (ir.local_path)));
+                                   move (ir.local_path),
+                                   priority++));
 
         load_packages (r, db);
       }
@@ -811,20 +806,16 @@ main (int argc, char* argv[])
 
       // Resolve internal packages dependencies.
       //
-      {
-        auto r (db.query<package> (query::internal_repository.is_not_null ()));
-        for (auto& p: r)
-          resolve_dependencies (p, db);
-      }
+      for (auto& p:
+             db.query<package> (query::internal_repository.is_not_null ()))
+        resolve_dependencies (p, db);
 
       // Ensure there is no package dependency cycles.
       //
-      {
-        package_ids chain;
-        auto r (db.query<package> (query::internal_repository.is_not_null ()));
-        for (const auto& p: r)
-          detect_dependency_cycle (p.id, chain, db);
-      }
+      package_ids chain;
+      for (const auto& p:
+             db.query<package> (query::internal_repository.is_not_null ()))
+        detect_dependency_cycle (p.id, chain, db);
     }
 
     t.commit ();

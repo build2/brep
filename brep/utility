@@ -1,0 +1,20 @@
+// file      : brep/utility -*- C++ -*-
+// copyright : Copyright (c) 2014-2015 Code Synthesis Ltd
+// license   : MIT; see accompanying LICENSE file
+
+#ifndef BREP_UTILITY
+#define BREP_UTILITY
+
+#include <string>  // to_string()
+#include <memory>  // make_shared()
+#include <cassert>
+#include <utility> // move()
+
+namespace brep
+{
+  using std::move;
+  using std::make_shared;
+  using std::to_string;
+};
+
+#endif // BREP_UTILITY

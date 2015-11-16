@@ -37,6 +37,7 @@ export AP_MODULE_DIR
 export AP_WWW_DIR
 export AP_CONFIG_DIR
 export AP_WORKSPACE_DIR
+export AP_REPOSITORY_DIR
 
 if test -n "$AP_LIB_DIRS"; then
     export LD_LIBRARY_PATH=$AP_LIB_DIRS:$LD_LIBRARY_PATH
@@ -44,6 +45,7 @@ fi
 
 mkdir -p "$AP_WORKSPACE_DIR"
 mkdir -p "$AP_LOG_DIR"
+mkdir -p "$AP_REPOSITORY_DIR"
 
 # the path to your httpd binary, including options if necessary
 

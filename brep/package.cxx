@@ -4,12 +4,12 @@
 
 #include <brep/package>
 
-#include <utility> // move()
-#include <cassert>
 #include <ostream>
 
 #include <odb/database.hxx>
 
+#include <brep/types>
+#include <brep/utility>
 #include <brep/package-odb>
 
 using namespace std;
@@ -131,10 +131,11 @@ namespace brep
   // repository
   //
   repository::
-  repository (repository_location l, string d, dir_path p)
+  repository (repository_location l, string d, dir_path p, uint16_t r)
       : name (l.canonical_name ()),
         location (move (l)),
         display_name (move (d)),
+        priority (r),
         local_path (move (p)),
         internal (true)
   {
@@ -144,6 +145,7 @@ namespace brep
   repository (repository_location l)
       : name (l.canonical_name ()),
         location (move (l)),
+        priority (0),
         internal (false)
   {
   }

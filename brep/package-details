@@ -5,10 +5,9 @@
 #ifndef BREP_PACKAGE_DETAILS
 #define BREP_PACKAGE_DETAILS
 
-#include <memory> // shared_ptr
-
 #include <odb/forward.hxx> // database
 
+#include <brep/types>
 #include <brep/module>
 #include <brep/options>
 
@@ -24,8 +23,8 @@ namespace brep
     init (cli::scanner&);
 
   private:
-    std::shared_ptr<options::package_details> options_;
-    std::shared_ptr<odb::core::database> db_;
+    shared_ptr<options::package_details> options_;
+    shared_ptr<odb::core::database> db_;
   };
 }
 

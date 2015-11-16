@@ -7,17 +7,17 @@
 #include <httpd.h>
 #include <http_log.h>
 
-#include <vector>
-#include <string>
 #include <ostream>
 #include <sstream>
-#include <cstring>    // strncmp()
+#include <cstring>    // strchr()
 #include <stdexcept>
 #include <functional> // bind()
 
 #include <web/module>
 #include <web/apache/log>
 
+#include <brep/types>
+#include <brep/utility>
 #include <brep/options>
 
 using namespace std;
@@ -32,6 +32,8 @@ namespace brep
   void module::
   handle (request& rq, response& rs, log& l)
   {
+    assert (loaded_);
+
     log_ = &l;
 
     try
@@ -84,6 +86,8 @@ namespace brep
   void module::
   init (const name_values& options, log& log)
   {
+    assert (!loaded_);
+
     log_ = &log;
     vector<const char*> argv;
 
@@ -119,6 +123,7 @@ namespace brep
 
       options::module o (s, unknown_mode::skip, unknown_mode::skip);
       verb_ = o.verb ();
+      loaded_ = true;
     }
     catch (const server_error& e)
     {
@@ -139,7 +144,7 @@ namespace brep
   // Custom copy constructor is required to initialize log_writer_ properly.
   //
   module::
-  module (const module& m): module ()  {verb_ = m.verb_;}
+  module (const module& m): module () {verb_ = m.verb_; loaded_ = m.loaded_;}
 
 // For function func declared like this:
 // using B = std::string (*)(int);

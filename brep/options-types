@@ -1,0 +1,19 @@
+// file      : brep/options-types -*- C++ -*-
+// copyright : Copyright (c) 2014-2015 Code Synthesis Ltd
+// license   : MIT; see accompanying LICENSE file
+
+#ifndef BREP_OPTIONS_TYPES
+#define BREP_OPTIONS_TYPES
+
+namespace brep
+{
+  // brep types
+  //
+  enum class page_form
+  {
+    full,
+    brief
+  };
+}
+
+#endif // BREP_OPTIONS_TYPES

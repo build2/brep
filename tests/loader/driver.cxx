@@ -2,10 +2,6 @@
 // copyright : Copyright (c) 2014-2015 Code Synthesis Ltd
 // license   : MIT; see accompanying LICENSE file
 
-#include <vector>
-#include <memory>    // shared_ptr
-#include <string>
-#include <cassert>
 #include <iostream>
 #include <exception>
 #include <algorithm> // sort(), find()
@@ -16,9 +12,10 @@
 #include <odb/pgsql/database.hxx>
 
 #include <butl/process>
-#include <butl/timestamp>  // timestamp_nonexistent
 #include <butl/filesystem>
 
+#include <brep/types>
+#include <brep/utility>
 #include <brep/package>
 #include <brep/package-odb>
 
@@ -59,8 +56,6 @@ check_external (const package& p)
 int
 main (int argc, char* argv[])
 {
-  using brep::optional; // Ambiguity with butl::optional.
-
   if (argc != 7)
   {
     cerr << "usage: " << argv[0]
@@ -83,7 +78,7 @@ main (int argc, char* argv[])
     // Update packages file timestamp to enforce loader to update
     // persistent state.
     //
-    path p (cp.directory () / path ("internal/1/stable/packages"));
+    path p (cp.directory () / path ("1/stable/packages"));
     char const* args[] = {"touch", p.string ().c_str (), nullptr};
     assert (process (args).wait ());
 
@@ -115,8 +110,9 @@ main (int argc, char* argv[])
       //
       assert (sr->location.canonical_name () == "cppget.org/stable");
       assert (sr->location.string () ==
-              "http://pkg.cppget.org/internal/1/stable");
+              "http://pkg.cppget.org/1/stable");
       assert (sr->display_name == "stable");
+      assert (sr->priority == 1);
       assert (!sr->url);
       assert (sr->email && *sr->email == "repoman@cppget.org");
       assert (sr->summary &&
@@ -125,7 +121,7 @@ main (int argc, char* argv[])
               "This is the awesome C++ package repository full of exciting "
               "stuff.");
 
-      dir_path srp (cp.directory () / dir_path ("internal/1/stable"));
+      dir_path srp (cp.directory () / dir_path ("1/stable"));
       assert (sr->local_path == srp.normalize ());
 
       assert (sr->packages_timestamp == srt);
@@ -220,7 +216,7 @@ main (int argc, char* argv[])
       assert (fpv2->dependencies[1][0] ==
               dep (
                 "libexp",
-                brep::optional<dependency_constraint> (
+                optional<dependency_constraint> (
                   dependency_constraint{comparison::eq, version ("1+1.2")})));
 
       assert (fpv2->requirements.empty ());
@@ -250,7 +246,7 @@ main (int argc, char* argv[])
       assert (fpv3->dependencies[0][0] ==
               dep (
                 "libmisc",
-                brep::optional<dependency_constraint> (
+                optional<dependency_constraint> (
                   dependency_constraint{comparison::ge, version ("2.0.0")})));
 
       // libfoo-1.2.4
@@ -279,15 +275,16 @@ main (int argc, char* argv[])
       assert (fpv4->dependencies[0][0] ==
               dep (
                 "libmisc",
-                brep::optional<dependency_constraint> (
+                optional<dependency_constraint> (
                   dependency_constraint{comparison::ge, version ("2.0.0")})));
 
       // Verify 'math' repository.
       //
       assert (mr->location.canonical_name () == "cppget.org/math");
       assert (mr->location.string () ==
-              "http://pkg.cppget.org/internal/1/math");
+              "http://pkg.cppget.org/1/math");
       assert (mr->display_name == "math");
+      assert (mr->priority == 2);
       assert (!mr->url);
       assert (mr->email && *mr->email == "repoman@cppget.org");
       assert (mr->summary && *mr->summary == "Math C++ package repository");
@@ -295,7 +292,7 @@ main (int argc, char* argv[])
               "This is the awesome C++ package repository full of remarkable "
               "algorithms and\nAPIs.");
 
-      dir_path mrp (cp.directory () / dir_path ("internal/1/math"));
+      dir_path mrp (cp.directory () / dir_path ("1/math"));
       assert (mr->local_path == mrp.normalize ());
 
       assert (mr->packages_timestamp ==
@@ -413,13 +410,13 @@ main (int argc, char* argv[])
       assert (fpv5->dependencies[0][0] ==
               dep (
                 "libmisc",
-                brep::optional<dependency_constraint> (
+                optional<dependency_constraint> (
                   dependency_constraint{comparison::lt, version ("1.1")})));
 
       assert (fpv5->dependencies[0][1] ==
               dep (
                 "libmisc",
-                brep::optional<dependency_constraint> (
+                optional<dependency_constraint> (
                   dependency_constraint{comparison::gt, version ("2.3.0")})));
 
       assert (fpv5->dependencies[1].size () == 1);
@@ -427,7 +424,7 @@ main (int argc, char* argv[])
 
       assert (fpv5->dependencies[1][0] ==
               dep ("libexp",
-                   brep::optional<dependency_constraint> (
+                   optional<dependency_constraint> (
                      dependency_constraint{comparison::ge, version ("1.0")})));
 
       assert (fpv5->dependencies[2].size () == 2);
@@ -488,14 +485,15 @@ main (int argc, char* argv[])
       //
       assert (cr->location.canonical_name () == "cppget.org/misc");
       assert (cr->location.string () ==
-              "http://pkg.cppget.org/external/1/misc");
+              "http://pkg.cppget.org/1/misc");
       assert (cr->display_name.empty ());
+      assert (cr->priority == 0);
       assert (cr->url && *cr->url == "http://misc.cppget.org/");
       assert (!cr->email);
       assert (!cr->summary);
       assert (!cr->description);
 
-      dir_path crp (cp.directory () / dir_path ("external/1/misc"));
+      dir_path crp (cp.directory () / dir_path ("1/misc"));
       assert (cr->local_path == crp.normalize ());
 
       assert (cr->packages_timestamp ==
@@ -546,14 +544,15 @@ main (int argc, char* argv[])
       //
       assert (tr->location.canonical_name () == "cppget.org/testing");
       assert (tr->location.string () ==
-              "http://pkg.cppget.org/external/1/testing");
+              "http://pkg.cppget.org/1/testing");
       assert (tr->display_name.empty ());
+      assert (tr->priority == 0);
       assert (tr->url && *tr->url == "http://test.cppget.org/hello/");
       assert (!tr->email);
       assert (!tr->summary);
       assert (!tr->description);
 
-      dir_path trp (cp.directory () / dir_path ("external/1/testing"));
+      dir_path trp (cp.directory () / dir_path ("1/testing"));
       assert (tr->local_path == trp.normalize ());
 
       assert (tr->packages_timestamp ==
@@ -582,14 +581,15 @@ main (int argc, char* argv[])
       //
       assert (gr->location.canonical_name () == "cppget.org/staging");
       assert (gr->location.string () ==
-              "http://pkg.cppget.org/external/1/staging");
+              "http://pkg.cppget.org/1/staging");
       assert (gr->display_name.empty ());
+      assert (gr->priority == 0);
       assert (gr->url && *gr->url == "http://stage.cppget.org/");
       assert (!gr->email);
       assert (!gr->summary);
       assert (!gr->description);
 
-      dir_path grp (cp.directory () / dir_path ("external/1/staging"));
+      dir_path grp (cp.directory () / dir_path ("1/staging"));
       assert (gr->local_path == grp.normalize ());
 
       assert (gr->packages_timestamp ==

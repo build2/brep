@@ -6,10 +6,6 @@
 
 #include <set>
 #include <ios>       // hex, uppercase, right
-#include <string>
-#include <memory>    // shared_ptr
-#include <cstddef>   // size_t
-#include <cassert>
 #include <sstream>
 #include <iomanip>   // setw(), setfill()
 #include <algorithm> // min()
@@ -19,6 +15,8 @@
 #include <web/xhtml>
 #include <web/mime-url-encoding>
 
+#include <brep/types>
+#include <brep/utility>
 #include <brep/package>
 #include <brep/package-odb>
 
@@ -29,18 +27,16 @@ using namespace web::xhtml;
 
 namespace brep
 {
-  static const path go ("go");
-  static const path about ("about");
-
   // CSS_LINKS
   //
   void CSS_LINKS::
   operator() (serializer& s) const
   {
-    static const path c ("common.css");
+    static const path css ("@");
 
-    s << *LINK(REL="stylesheet", TYPE="text/css", HREF=root_ / c)
-      << *LINK(REL="stylesheet", TYPE="text/css", HREF=root_ / path_);
+    s << *LINK(REL="stylesheet", TYPE="text/css",
+               HREF=root_ / css / path ("common.css"))
+      << *LINK(REL="stylesheet", TYPE="text/css", HREF=root_ / css / path_);
   }
 
   // DIV_HEADER
@@ -51,7 +47,7 @@ namespace brep
     s << DIV(ID="header")
       <<   DIV(ID="header-menu")
       <<     A(HREF=root_) << "packages" << ~A
-      <<     A(HREF=root_ / about) << "about" << ~A
+      <<     A(HREF=root_.string () + "?about") << "about" << ~A
       <<   ~DIV
       << ~DIV;
   }
@@ -105,14 +101,12 @@ namespace brep
       <<     SPAN(CLASS="value")
       <<       A
       <<       HREF
-      <<         root_ / go / path (mime_url_encode (name_));
 
-    // Propagate search criteria to the package details page.
-    //
-    if (!query_param_.empty ())
-      s << "?" << query_param_;
+      // Propagate search criteria to the package details page.
+      //
+      <<         root_ / path (mime_url_encode (name_)) << query_param_
 
-    s <<       ~HREF
+      <<       ~HREF
       <<          name_
       <<       ~A
       <<     ~SPAN
@@ -133,8 +127,9 @@ namespace brep
     else
     {
       assert (root_ != nullptr);
-      path p (mime_url_encode (*package_));
-      s << A(HREF=*root_ / go / p / path (version_)) << version_ << ~A;
+      s << A(HREF=*root_ / path (mime_url_encode (*package_)) / path (version_))
+        <<   version_
+        << ~A;
     }
 
     s <<     ~SPAN
@@ -234,8 +229,7 @@ namespace brep
         if (&t != &tags_[0])
           s << " ";
 
-        s << A
-          << HREF << root_ << "?q=" << mime_url_encode (t) << ~HREF
+        s << A << HREF << root_ << "?q=" << mime_url_encode (t) << ~HREF
           <<   t
           << ~A;
       }
@@ -270,25 +264,25 @@ namespace brep
 
       // Suppress package name duplicates.
       //
-      set<string> ds;
+      set<string> names;
       for (const auto& da: d)
-        ds.emplace (da.name ());
+        names.emplace (da.name ());
 
-      bool m (ds.size () > 1);
+      bool mult (names.size () > 1);
 
-      if (m)
+      if (mult)
         s << "(";
 
-      bool f (true); // First dependency alternative.
+      bool first (true);
       for (const auto& da: d)
       {
         string n (da.name ());
-        if (ds.find (n) != ds.end ())
+        if (names.find (n) != names.end ())
         {
-          ds.erase (n);
+          names.erase (n);
 
-          if (f)
-            f = false;
+          if (first)
+            first = false;
           else
             s << " | ";
 
@@ -303,9 +297,9 @@ namespace brep
           auto en (mime_url_encode (n));
 
           if (r->url)
-            s << A << HREF << *r->url << "go/" << en << ~HREF << n << ~A;
+            s << A(HREF=*r->url + en) << n << ~A;
           else if (p->internal ())
-            s << A(HREF=root_ / go / path (en)) << n << ~A;
+            s << A(HREF=root_ / path (en)) << n << ~A;
           else
             // Display the dependency as a plain text if no repository URL
             // available.
@@ -314,7 +308,7 @@ namespace brep
         }
       }
 
-      if (m)
+      if (mult)
         s << ")";
     }
 
@@ -365,9 +359,9 @@ namespace brep
       }
       else
       {
-        bool m (r.size () > 1);
+        bool mult (r.size () > 1);
 
-        if (m)
+        if (mult)
           s << "(";
 
         for (const auto& ra: r)
@@ -378,7 +372,7 @@ namespace brep
           s << ra;
         }
 
-        if (m)
+        if (mult)
           s << ")";
       }
     }
@@ -411,7 +405,7 @@ namespace brep
       <<   TH << label_ << ~TH
       <<   TD
       <<     SPAN(CLASS="value")
-      <<       A << HREF << "mailto:" << email_ << ~HREF << email_ << ~A
+      <<       A(HREF="mailto:" + email_) << email_ << ~A
       <<     ~SPAN
       <<     SPAN_COMMENT (email_.comment)
       <<   ~TD
@@ -446,7 +440,7 @@ namespace brep
       <<     SPAN(CLASS="value")
       <<       A
       <<       HREF
-      <<         root_ / about << "#" << mime_url_encode (id_attribute (name_))
+      <<         root_ << "?about#" << mime_url_encode (html_id (name_))
       <<       ~HREF
       <<         name_
       <<       ~A
@@ -475,7 +469,7 @@ namespace brep
   {
     if (size_t l = comment_.size ())
       s << SPAN(CLASS="comment")
-        <<   (comment_[l - 1] == '.' ? string (comment_, 0, l - 1) : comment_)
+        <<   (comment_.back () == '.' ? string (comment_, 0, l - 1) : comment_)
         << ~SPAN;
   }
 
@@ -488,19 +482,19 @@ namespace brep
       return;
 
     auto n (description_.find_first_of (" \t\n", length_));
-    bool f (n == string::npos); // Description length is below the limit.
+    bool full (n == string::npos); // Description length is below the limit.
 
     // Truncate description if length exceed the limit.
     //
-    const string& d (f ? description_ : string (description_, 0, n));
+    const string& d (full ? description_ : string (description_, 0, n));
 
     // Format the description into paragraphs, recognizing a blank line as
     // paragraph separator, and replacing single newlines with a space.
     //
     s << P;
 
-    if (unique_)
-      s << ID("description");
+    if (!id_.empty ())
+      s << ID(id_);
 
     bool nl (false); // The previous character is '\n'.
     for (const auto& c: d)
@@ -527,7 +521,7 @@ namespace brep
       }
     }
 
-    if (!f)
+    if (!full)
     {
       assert (url_ != nullptr);
       s << "... " << A(HREF=*url_) << "More" << ~A;
@@ -545,14 +539,14 @@ namespace brep
       return;
 
     auto n (changes_.find_first_of (" \t\n", length_));
-    bool f (n == string::npos); // Changes length is below the limit.
+    bool full (n == string::npos); // Changes length is below the limit.
 
     // Truncate changes if length exceed the limit.
     //
-    const string& c (f ? changes_ : string (changes_, 0, n));
+    const string& c (full ? changes_ : string (changes_, 0, n));
     s << PRE(ID="changes") << c;
 
-    if (!f)
+    if (!full)
     {
       assert (url_ != nullptr);
       s << "... " << A(HREF=*url_) << "More" << ~A;
@@ -583,14 +577,14 @@ namespace brep
     if (item_count_ == 0 || item_per_page_ == 0)
       return;
 
-    size_t pc (item_count_ / item_per_page_); // Page count.
+    size_t pcount (item_count_ / item_per_page_); // Page count.
 
     if (item_count_ % item_per_page_)
-      ++pc;
+      ++pcount;
 
-    if (pc > 1)
+    if (pcount > 1)
     {
-      auto u (
+      auto url (
         [this](size_t page) -> string
         {
           return page == 0
@@ -602,17 +596,17 @@ namespace brep
       s << DIV(ID="pager");
 
       if (current_page_ > 0)
-        s << A(ID="prev", HREF=u (current_page_ - 1)) << "Prev" << ~A;
+        s << A(ID="prev", HREF=url (current_page_ - 1)) << "Prev" << ~A;
 
       if (page_number_count_)
       {
         size_t offset (page_number_count_ / 2);
-        size_t fp (current_page_ > offset ? current_page_ - offset : 0);
-        size_t tp (min (fp + page_number_count_, pc));
+        size_t from (current_page_ > offset ? current_page_ - offset : 0);
+        size_t to (min (from + page_number_count_, pcount));
 
-        for (size_t p (fp); p < tp; ++p)
+        for (size_t p (from); p < to; ++p)
         {
-          s << A(HREF=u (p));
+          s << A(HREF=url (p));
 
           if (p == current_page_)
             s << ID("curr");
@@ -622,8 +616,8 @@ namespace brep
         }
       }
 
-      if (current_page_ < pc - 1)
-        s << A(ID="next", HREF=u (current_page_ + 1)) << "Next" << ~A;
+      if (current_page_ < pcount - 1)
+        s << A(ID="next", HREF=url (current_page_ + 1)) << "Next" << ~A;
 
       s << ~DIV;
     }
@@ -634,7 +628,7 @@ namespace brep
   // http://www.w3.org/TR/html5/dom.html#the-id-attribute.
   //
   string
-  id_attribute (const string& v)
+  html_id (const string& v)
   {
     ostringstream o;
     o << hex << uppercase << right << setfill ('0');
@@ -654,9 +648,8 @@ namespace brep
       case '\f':
       case '~':
         {
-          // Intentionally use '~' as an escape character to leave it unescaped
-          // being a part of URL. For example
-          // http://cppget.org/about#cppget.org%2Fmath~20lab
+          // We use '~' as an escape character because it doesn't require
+          // escaping in URLs.
           //
           o << "~" << setw (2) << static_cast<unsigned short> (c);
           break;

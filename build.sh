@@ -34,12 +34,12 @@ cli --include-with-brackets --include-prefix brep  --hxx-suffix "" \
 echo "g++ libbrep-apache.so"
 
 s="package-search.cxx package-details.cxx package-version-details.cxx \
-repository-details.cxx module.cxx diagnostics.cxx page.cxx services.cxx \
-options.cxx shared-database.cxx \
+repository-details.cxx repository-root.cxx module.cxx page.cxx services.cxx \
+options.cxx shared-database.cxx diagnostics.cxx \
 ../web/apache/request.cxx ../web/apache/service.cxx \
 ../web/mime-url-encoding.cxx"
 
-g++ -shared $DEBUG -std=c++11 -I. -I/usr/include/apr-1 -I/usr/include/httpd \
+g++ -shared $DEBUG -std=c++11 -I/usr/include/apr-1 -I/usr/include/httpd \
     -I.. -I../../libbpkg -I../../libbutl -L. -L../../libbpkg/bpkg \
     -fPIC -o libbrep-apache.so $s -lbrep -lbpkg -lodb-pgsql -lodb -lstudxml
 
@@ -53,7 +53,7 @@ echo "g++ brep-loader"
 
 s="loader.cxx options.cxx"
 
-g++ $DEBUG -std=c++11 -I. -I.. -I../../libbpkg \
+g++ $DEBUG -std=c++11 -I.. -I../../libbpkg \
     -I../../libbutl -L../brep -L../../libbpkg/bpkg -L../../libbutl/butl \
     -o brep-loader $s -lbrep -lbpkg -lbutl -lodb-pgsql -lodb
 
@@ -63,7 +63,7 @@ echo "g++ tests/loader"
 
 s="driver.cxx"
 
-g++ $DEBUG -std=c++11 -I. -I../.. -I../../../libbpkg \
+g++ $DEBUG -std=c++11 -I../.. -I../../../libbpkg \
     -I../../../libbutl -L../../brep -L../../../libbpkg/bpkg \
     -L../../../libbutl/butl \
     -o driver $s -lbrep -lbpkg -lbutl -lodb-pgsql -lodb

@@ -4,12 +4,12 @@
 
 #include <brep/shared-database>
 
-#include <memory>    // weak_ptr, shared_ptr, make_shared()
 #include <stdexcept> // runtime_error
 
 #include <odb/pgsql/database.hxx>
 
-using namespace std;
+#include <brep/types>
+#include <brep/utility>
 
 namespace brep
 {
@@ -27,7 +27,7 @@ namespace brep
     if (shared_ptr<database> d = db.lock ())
     {
       if (h != d->host () || p != d->port ())
-        throw runtime_error ("shared database host/port mismatch");
+        throw std::runtime_error ("shared database host/port mismatch");
 
       return d;
     }

@@ -5,11 +5,9 @@
 #ifndef BREP_PAGE
 #define BREP_PAGE
 
-#include <string>
-#include <cstddef>    // size_t
-
 #include <xml/forward>
 
+#include <brep/types>
 #include <brep/package>
 
 namespace brep
@@ -51,13 +49,13 @@ namespace brep
   class FORM_SEARCH
   {
   public:
-    FORM_SEARCH (const std::string& q): query_ (q) {}
+    FORM_SEARCH (const string& q): query_ (q) {}
 
     void
     operator() (xml::serializer& s) const;
 
   private:
-    const std::string& query_;
+    const string& query_;
   };
 
   // Generates counter element.
@@ -69,14 +67,14 @@ namespace brep
   class DIV_COUNTER
   {
   public:
-    DIV_COUNTER (std::size_t c, const char* s, const char* p)
+    DIV_COUNTER (size_t c, const char* s, const char* p)
         : count_ (c), singular_ (s), plural_ (p) {}
 
     void
     operator() (xml::serializer& s) const;
 
   private:
-    std::size_t count_;
+    size_t count_;
     const char* singular_;
     const char* plural_;
   };
@@ -86,15 +84,15 @@ namespace brep
   class TR_NAME
   {
   public:
-    TR_NAME (const std::string& n, const std::string& q, const dir_path& r)
+    TR_NAME (const string& n, const string& q, const dir_path& r)
         : name_ (n), query_param_ (q), root_ (r) {}
 
     void
     operator() (xml::serializer& s) const;
 
   private:
-    const std::string& name_;
-    const std::string& query_param_;
+    const string& name_;
+    const string& query_param_;
     const dir_path& root_;
   };
 
@@ -105,22 +103,20 @@ namespace brep
   public:
     // Display the version as a link to the package version details page.
     //
-    TR_VERSION (const std::string& p,
-                const std::string& v,
-                const dir_path& r)
+    TR_VERSION (const string& p, const string& v, const dir_path& r)
         : package_ (&p), version_ (v), root_ (&r) {}
 
     // Display the version as a regular text.
     //
-    TR_VERSION (const std::string& v)
+    TR_VERSION (const string& v)
         : package_ (nullptr), version_ (v), root_ (nullptr) {}
 
     void
     operator() (xml::serializer& s) const;
 
   private:
-    const std::string* package_;
-    const std::string& version_;
+    const string* package_;
+    const string& version_;
     const dir_path* root_;
   };
 
@@ -129,13 +125,13 @@ namespace brep
   class TR_SUMMARY
   {
   public:
-    TR_SUMMARY (const std::string& s): summary_ (s) {}
+    TR_SUMMARY (const string& s): summary_ (s) {}
 
     void
     operator() (xml::serializer& s) const;
 
   private:
-    const std::string& summary_;
+    const string& summary_;
   };
 
   // Generates package license alternatives element.
@@ -262,14 +258,14 @@ namespace brep
   class TR_LOCATION
   {
   public:
-    TR_LOCATION (const std::string& n, const dir_path& r)
+    TR_LOCATION (const string& n, const dir_path& r)
         : name_ (n), root_ (r) {}
 
     void
     operator() (xml::serializer& s) const;
 
   private:
-    const std::string& name_;
+    const string& name_;
     const dir_path& root_;
   };
 
@@ -278,13 +274,13 @@ namespace brep
   class TR_DOWNLOAD
   {
   public:
-    TR_DOWNLOAD (const std::string& u): url_ (u) {}
+    TR_DOWNLOAD (const string& u): url_ (u) {}
 
     void
     operator() (xml::serializer& s) const;
 
   private:
-    const std::string& url_;
+    const string& url_;
   };
 
   // Generates comment element.
@@ -292,13 +288,13 @@ namespace brep
   class SPAN_COMMENT
   {
   public:
-    SPAN_COMMENT (const std::string& c): comment_ (c) {}
+    SPAN_COMMENT (const string& c): comment_ (c) {}
 
     void
     operator() (xml::serializer& s) const;
 
   private:
-    const std::string& comment_;
+    const string& comment_;
   };
 
   // Generates package description element.
@@ -308,22 +304,22 @@ namespace brep
   public:
     // Genereate full description.
     //
-    P_DESCRIPTION (const std::string& d, bool u = true)
-        : description_ (d), length_ (d.size ()), url_ (nullptr), unique_ (u) {}
+    P_DESCRIPTION (const string& d, const string& id = "")
+        : description_ (d), length_ (d.size ()), url_ (nullptr), id_ (id) {}
 
     // Genereate brief description.
     //
-    P_DESCRIPTION (const std::string& d, size_t l, const std::string& u)
-        : description_ (d), length_ (l), url_ (&u), unique_ (false) {}
+    P_DESCRIPTION (const string& d, size_t l, const string& u)
+        : description_ (d), length_ (l), url_ (&u) {}
 
     void
     operator() (xml::serializer& s) const;
 
   private:
-    const std::string& description_;
-    std::size_t length_;
-    const std::string* url_; // Full page url.
-    bool unique_;
+    const string& description_;
+    size_t length_;
+    const string* url_; // Full page url.
+    string id_;
   };
 
   // Generates package description element.
@@ -333,21 +329,21 @@ namespace brep
   public:
     // Genereate full changes info.
     //
-    PRE_CHANGES (const std::string& c)
+    PRE_CHANGES (const string& c)
         : changes_ (c), length_ (c.size ()), url_ (nullptr) {}
 
     // Genereate brief changes info.
     //
-    PRE_CHANGES (const std::string& c, size_t l, const std::string& u)
+    PRE_CHANGES (const string& c, size_t l, const string& u)
         : changes_ (c), length_ (l), url_ (&u) {}
 
     void
     operator() (xml::serializer& s) const;
 
   private:
-    const std::string& changes_;
-    std::size_t length_;
-    const std::string* url_; // Full page url.
+    const string& changes_;
+    size_t length_;
+    const string* url_; // Full page url.
   };
 
   // Generates paging element.
@@ -355,28 +351,28 @@ namespace brep
   class DIV_PAGER
   {
   public:
-    DIV_PAGER (std::size_t current_page,
-               std::size_t item_count,
-               std::size_t item_per_page,
-               std::size_t page_number_count,
-               const std::string& url);
+    DIV_PAGER (size_t current_page,
+               size_t item_count,
+               size_t item_per_page,
+               size_t page_number_count,
+               const string& url);
 
     void
     operator() (xml::serializer& s) const;
 
   private:
-    std::size_t current_page_;
-    std::size_t item_count_;
-    std::size_t item_per_page_;
-    std::size_t page_number_count_;
-    const std::string& url_;
+    size_t current_page_;
+    size_t item_count_;
+    size_t item_per_page_;
+    size_t page_number_count_;
+    const string& url_;
   };
 
   // Convert the argument to a string representing the valid HTML 5 'id'
   // attribute value.
   //
-  std::string
-  id_attribute (const std::string& v);
+  string
+  html_id (const string&);
 }
 
 #endif // BREP_PAGE

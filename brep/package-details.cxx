@@ -4,11 +4,6 @@
 
 #include <brep/package-details>
 
-#include <string>
-#include <memory>  // make_shared(), shared_ptr
-#include <cstddef> // size_t
-#include <cassert>
-
 #include <xml/serializer>
 
 #include <odb/session.hxx>
@@ -20,222 +15,225 @@
 #include <web/mime-url-encoding>
 
 #include <brep/page>
+#include <brep/types>
+#include <brep/utility>
 #include <brep/options>
 #include <brep/package>
 #include <brep/package-odb>
 #include <brep/shared-database>
 
-using namespace std;
 using namespace odb::core;
+using namespace brep::cli;
 
-namespace brep
+void brep::package_details::
+init (scanner& s)
 {
-  using namespace cli;
+  MODULE_DIAG;
 
-  void package_details::
-  init (scanner& s)
+  options_ = make_shared<options::package_details> (
+    s, unknown_mode::fail, unknown_mode::fail);
+
+  db_ = shared_database (options_->db_host (), options_->db_port ());
+}
+
+template <typename T>
+static inline query<T>
+search_params (const brep::string& n, const brep::string& q)
+{
+  using query = query<T>;
+
+  return "(" +
+    (q.empty ()
+     ? query ("NULL")
+     : "plainto_tsquery (" + query::_val (q) + ")") +
+    "," +
+    query::_val (n) +
+    ")";
+}
+
+void brep::package_details::
+handle (request& rq, response& rs)
+{
+  using namespace web;
+  using namespace web::xhtml;
+
+  MODULE_DIAG;
+
+  // The module options object is not changed after being created once per
+  // server process.
+  //
+  static const size_t res_page (options_->results_on_page ());
+  static const dir_path& root (
+    options_->root ().empty ()
+    ? dir_path ("/")
+    : options_->root ());
+
+  const string& name (*rq.path ().rbegin ());
+  const string ename (mime_url_encode (name));
+
+  params::package_details params;
+  bool full;
+
+  try
   {
-    MODULE_DIAG;
-
-    options_ = make_shared<options::package_details> (
+    param_scanner s (rq.parameters ());
+    params = params::package_details (
       s, unknown_mode::fail, unknown_mode::fail);
 
-    db_ = shared_database (options_->db_host (), options_->db_port ());
+    full = params.form () == page_form::full;
   }
-
-  template <typename T>
-  static inline query<T>
-  search_params (const string& n, const string& q)
+  catch (const cli::exception& e)
   {
-    using query = query<T>;
-
-    return "(" +
-      (q.empty ()
-       ? query ("NULL")
-       : "plainto_tsquery (" + query::_val (q) + ")") +
-      "," +
-      query::_val (n) +
-      ")";
+    throw invalid_request (400, e.what ());
   }
 
-  void package_details::
-  handle (request& rq, response& rs)
+  size_t page (params.page ());
+  const string& squery (params.query ());
+
+  auto url (
+    [&ename](bool f = false,
+             const string& q = "",
+             size_t p = 0,
+             const string& a = "") -> string
+    {
+      string s ("?");
+      string u (ename);
+
+      if (f)           { u += "?f=full"; s = "&"; }
+      if (!q.empty ()) { u += s + "q=" +  mime_url_encode (q); s = "&"; }
+      if (p > 0)       { u += s + "p=" + to_string (p); s = "&"; }
+      if (!a.empty ()) { u += '#' + a; }
+      return u;
+    });
+
+  xml::serializer s (rs.content (), name);
+
+  s << HTML
+    <<   HEAD
+    <<     TITLE
+    <<       name;
+
+  if (!squery.empty ())
+    s << " " << squery;
+
+  s <<     ~TITLE
+    <<     CSS_LINKS (path ("package-details.css"), root)
+    <<   ~HEAD
+    <<   BODY
+    <<     DIV_HEADER (root)
+    <<     DIV(ID="content");
+
+  if (full)
+    s << CLASS("full");
+
+  s <<       DIV(ID="heading")
+    <<         H1 << A(HREF=url ()) << name << ~A << ~H1
+    <<         A(HREF=url (!full, squery, page))
+    <<           (full ? "[brief]" : "[full]")
+    <<         ~A
+    <<       ~DIV;
+
+  session sn;
+  transaction t (db_->begin ());
+
+  shared_ptr<package> pkg;
   {
-    using namespace web;
-    using namespace web::xhtml;
+    latest_package lp;
+    if (!db_->query_one<latest_package> (
+          query<latest_package>(
+            "(" + query<latest_package>::_val (name) + ")"), lp))
+      throw invalid_request (404, "Package '" + name + "' not found");
 
-    MODULE_DIAG;
-
-    // The module options object is not changed after being created once per
-    // server process.
-    //
-    static const size_t rp (options_->results_on_page ());
-    static const dir_path& rt (
-      options_->root ().empty ()
-      ? dir_path ("/")
-      : options_->root ());
-
-    const string& name (*rq.path ().rbegin ());
-    const string en (mime_url_encode (name));
-
-    params::package_details pr;
-
-    try
-    {
-      param_scanner s (rq.parameters ());
-      pr = params::package_details (s, unknown_mode::fail, unknown_mode::fail);
-    }
-    catch (const unknown_argument& e)
-    {
-      throw invalid_request (400, e.what ());
-    }
-
-    const string& sq (pr.query ()); // Search query.
-    size_t pg (pr.page ());
-    bool f (pr.full ());
-
-    auto url (
-      [&en](bool f = false,
-            const string& q = "",
-            size_t p = 0,
-            const string& a = "") -> string
-      {
-        string s ("?");
-        string u (en);
-
-        if (f)           { u += "?full"; s = "&"; }
-        if (!q.empty ()) { u += s + "q=" +  mime_url_encode (q); s = "&"; }
-        if (p > 0)       { u += s + "p=" + to_string (p); s = "&"; }
-        if (!a.empty ()) { u += '#' + a; }
-        return u;
-      });
-
-    xml::serializer s (rs.content (), name);
-    const string& title (sq.empty () ? name : name + " " + sq);
-    static const path sp ("package-details.css");
-
-    s << HTML
-      <<   HEAD
-      <<     TITLE << title << ~TITLE
-      <<     CSS_LINKS (sp, rt)
-      <<   ~HEAD
-      <<   BODY
-      <<     DIV_HEADER (rt)
-      <<     DIV(ID="content");
-
-    if (f)
-      s << CLASS("full");
-
-    s <<       DIV(ID="heading")
-      <<         H1 << A(HREF=url ()) << name << ~A << ~H1
-      <<         A(HREF=url (!f, sq, pg)) << (f ? "[brief]" : "[full]") << ~A
-      <<       ~DIV;
-
-    session sn;
-    transaction t (db_->begin ());
-
-    shared_ptr<package> p;
-    {
-      latest_package lp;
-      if (!db_->query_one<latest_package> (
-            query<latest_package>(
-              "(" + query<latest_package>::_val (name) + ")"), lp))
-      {
-        throw invalid_request (404, "Package '" + name + "' not found");
-      }
-
-      p = db_->load<package> (lp.id);
-    }
-
-    const auto& ll (p->license_alternatives);
-
-    if (pg == 0)
-    {
-      // Display package details on the first page only.
-      //
-      s << H2 << p->summary << ~H2;
-
-      static const size_t dl (options_->description_length ());
-
-      if (const auto& d = p->description)
-        s << (f
-              ? P_DESCRIPTION (*d)
-              : P_DESCRIPTION (*d, dl, url (!f, sq, pg, "description")));
-
-      s << TABLE(CLASS="proplist", ID="package")
-        <<   TBODY
-        <<     TR_LICENSE (ll)
-        <<     TR_URL (p->url)
-        <<     TR_EMAIL (p->email)
-        <<     TR_TAGS (p->tags, rt)
-        <<   ~TBODY
-        << ~TABLE;
-    }
-
-    auto pc (
-      db_->query_value<package_count> (
-        search_params<package_count> (name, sq)));
-
-    auto r (
-      db_->query<package_search_rank> (
-        search_params<package_search_rank> (name, sq) +
-        "ORDER BY rank DESC, version_epoch DESC, "
-        "version_canonical_upstream DESC, version_revision DESC" +
-        "OFFSET" + to_string (pg * rp) +
-        "LIMIT" + to_string (rp)));
-
-    s << FORM_SEARCH (sq)
-      << DIV_COUNTER (pc, "Version", "Versions");
-
-    // Enclose the subsequent tables to be able to use nth-child CSS selector.
-    //
-    s << DIV;
-    for (const auto& pr: r)
-    {
-      shared_ptr<package> p (db_->load<package> (pr.id));
-
-      s << TABLE(CLASS="proplist version")
-        <<   TBODY
-        <<     TR_VERSION (name, p->version.string (), rt)
-
-        // @@ Shouldn't we skip low priority row ? Don't think so, why?
-        //
-        <<     TR_PRIORITY (p->priority);
-
-      // Comparing objects of the license_alternatives class as being of the
-      // vector<vector<string>> class, so comments are not considered.
-      //
-      if (p->license_alternatives != ll)
-        s << TR_LICENSE (p->license_alternatives);
-
-      assert (p->internal ());
-
-      // @@ Shouldn't we make package location to be a link to the proper
-      //    place of the About page, describing corresponding repository?
-      //    Yes, I think that's sounds reasonable, once we have about.
-      //
-      // @@ In most cases package location will be the same for all versions
-      //    of the same package. Shouldn't we put package location to the
-      //    package summary part and display it here only if it differes
-      //    from the one in the summary ?
-      //
-      //    Hm, I am not so sure about this. Consider: stable/testing/unstable.
-      //
-      s <<     TR_LOCATION (p->internal_repository.object_id (), rt)
-        <<     TR_DEPENDS (p->dependencies, rt)
-        <<     TR_REQUIRES (p->requirements)
-        <<   ~TBODY
-        << ~TABLE;
-    }
-    s << ~DIV;
-
-    t.commit ();
-
-    static const size_t pp (options_->pages_in_pager ());
-
-    s <<       DIV_PAGER (pg, pc, rp, pp, url (f, sq))
-      <<     ~DIV
-      <<   ~BODY
-      << ~HTML;
+    pkg = db_->load<package> (lp.id);
   }
+
+  const auto& licenses (pkg->license_alternatives);
+
+  if (page == 0)
+  {
+    // Display package details on the first page only.
+    //
+    s << H2 << pkg->summary << ~H2;
+
+    static const string id ("description");
+    if (const auto& d = pkg->description)
+      s << (full
+            ? P_DESCRIPTION (*d, id)
+            : P_DESCRIPTION (*d, options_->description_length (),
+                             url (!full, squery, page, id)));
+
+    s << TABLE(CLASS="proplist", ID="package")
+      <<   TBODY
+      <<     TR_LICENSE (licenses)
+      <<     TR_URL (pkg->url)
+      <<     TR_EMAIL (pkg->email)
+      <<     TR_TAGS (pkg->tags, root)
+      <<   ~TBODY
+      << ~TABLE;
+  }
+
+  auto pkg_count (
+    db_->query_value<package_count> (
+      search_params<package_count> (name, squery)));
+
+  s << FORM_SEARCH (squery)
+    << DIV_COUNTER (pkg_count, "Version", "Versions");
+
+  // Enclose the subsequent tables to be able to use nth-child CSS selector.
+  //
+  s << DIV;
+  for (const auto& pr:
+         db_->query<package_search_rank> (
+           search_params<package_search_rank> (name, squery) +
+           "ORDER BY rank DESC, version_epoch DESC, "
+           "version_canonical_upstream DESC, version_revision DESC" +
+           "OFFSET" + to_string (page * res_page) +
+           "LIMIT" + to_string (res_page)))
+  {
+    shared_ptr<package> p (db_->load<package> (pr.id));
+
+    s << TABLE(CLASS="proplist version")
+      <<   TBODY
+      <<     TR_VERSION (name, p->version.string (), root)
+
+      // @@ Shouldn't we skip low priority row ? Don't think so, why?
+      //
+      <<     TR_PRIORITY (p->priority);
+
+    // Comparing objects of the license_alternatives class as being of the
+    // vector<vector<string>> class, so comments are not considered.
+    //
+    if (p->license_alternatives != licenses)
+      s << TR_LICENSE (p->license_alternatives);
+
+    assert (p->internal ());
+
+    // @@ Shouldn't we make package location to be a link to the proper
+    //    place of the About page, describing corresponding repository?
+    //    Yes, I think that's sounds reasonable, once we have about.
+    //    Or maybe it can be something more valuable like a link to the
+    //    repository package search page ?
+    //
+    // @@ In most cases package location will be the same for all versions
+    //    of the same package. Shouldn't we put package location to the
+    //    package summary part and display it here only if it differs
+    //    from the one in the summary ?
+    //
+    //    Hm, I am not so sure about this. Consider: stable/testing/unstable.
+    //
+    s <<     TR_LOCATION (p->internal_repository.object_id (), root)
+      <<     TR_DEPENDS (p->dependencies, root)
+      <<     TR_REQUIRES (p->requirements)
+      <<   ~TBODY
+      << ~TABLE;
+  }
+  s << ~DIV;
+
+  t.commit ();
+
+  s <<       DIV_PAGER (page, pkg_count, res_page, options_->pages_in_pager (),
+                        url (full, squery))
+    <<     ~DIV
+    <<   ~BODY
+    << ~HTML;
 }

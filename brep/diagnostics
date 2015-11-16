@@ -5,23 +5,24 @@
 #ifndef BREP_DIAGNOSTICS
 #define BREP_DIAGNOSTICS
 
-#include <vector>
-#include <cstdint>  // uint64_t
-#include <utility>  // move()
+#include <utility>    // forward()
 #include <sstream>
 #include <functional>
+
+#include <brep/types>
+#include <brep/utility>
 
 namespace brep
 {
   struct location
   {
     location (): line (0), column (0) {}
-    location (std::string f, std::uint64_t l, std::uint64_t c)
-        : file (std::move (f)), line (l), column (c) {}
+    location (string f, uint64_t l, uint64_t c)
+        : file (move (f)), line (l), column (c) {}
 
-    std::string file;
-    std::uint64_t line;
-    std::uint64_t column;
+    string file;
+    uint64_t line;
+    uint64_t column;
   };
 
   enum class severity {error, warning, info, trace};
@@ -31,10 +32,10 @@ namespace brep
     severity sev;
     const char* name {nullptr}; // E.g., a function name in tracing.
     location loc;
-    std::string msg;
+    string msg;
   };
 
-  using diag_data = std::vector<diag_entry>;
+  using diag_data = vector<diag_entry>;
 
   //
   //
@@ -93,15 +94,14 @@ namespace brep
     @@ libstdc++ doesn't yet have the ostringstream move support.
 
     diag_record (diag_record&& r)
-        : data_ (std::move (r.data_)), os_ (std::move (r.os_))
+        : data_ (move (r.data_)), os_ (move (r.os_))
     {
       epilogue_ = r.epilogue_;
       r.data_.clear (); // Empty.
     }
     */
 
-    diag_record (diag_record&& r)
-        : data_ (std::move (r.data_))
+    diag_record (diag_record&& r): data_ (move (r.data_))
     {
       if (!data_.empty ())
         os_ << r.os_.str ();
@@ -293,7 +293,7 @@ namespace brep
     }
 
     static void
-    epilogue (diag_data&& d) {throw E (std::move (d));}
+    epilogue (diag_data&& d) {throw E (move (d));}
 
   private:
     const diag_epilogue epilogue_ {&epilogue};

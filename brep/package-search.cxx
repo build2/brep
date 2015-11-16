@@ -4,10 +4,6 @@
 
 #include <brep/package-search>
 
-#include <string>
-#include <memory>  // make_shared(), shared_ptr
-#include <cstddef> // size_t
-
 #include <xml/serializer>
 
 #include <odb/session.hxx>
@@ -19,134 +15,131 @@
 #include <web/mime-url-encoding>
 
 #include <brep/page>
+#include <brep/types>
+#include <brep/utility>
 #include <brep/options>
 #include <brep/package>
 #include <brep/package-odb>
 #include <brep/shared-database>
 
-using namespace std;
 using namespace odb::core;
+using namespace brep::cli;
 
-namespace brep
+void brep::package_search::
+init (scanner& s)
 {
-  using namespace cli;
+  MODULE_DIAG;
 
-  void package_search::
-  init (scanner& s)
+  options_ = make_shared<options::package_search> (
+    s, unknown_mode::fail, unknown_mode::fail);
+
+  db_ = shared_database (options_->db_host (), options_->db_port ());
+}
+
+template <typename T>
+static inline query<T>
+search_param (const brep::string& q)
+{
+  using query = query<T>;
+  return "(" +
+    (q.empty ()
+     ? query ("NULL")
+     : "plainto_tsquery (" + query::_val (q) + ")") +
+    ")";
+}
+
+void brep::package_search::
+handle (request& rq, response& rs)
+{
+  using namespace web::xhtml;
+
+  MODULE_DIAG;
+
+  // The module options object is not changed after being created once per
+  // server process.
+  //
+  static const size_t res_page (options_->results_on_page ());
+  static const dir_path& root (
+    options_->root ().empty ()
+    ? dir_path ("/")
+    : options_->root ());
+
+  params::package_search params;
+
+  try
   {
-    MODULE_DIAG;
-
-    options_ = make_shared<options::package_search> (
-      s, unknown_mode::fail, unknown_mode::fail);
-
-    db_ = shared_database (options_->db_host (), options_->db_port ());
+    param_scanner s (rq.parameters ());
+    params = params::package_search (s, unknown_mode::fail, unknown_mode::fail);
+  }
+  catch (const unknown_argument& e)
+  {
+    throw invalid_request (400, e.what ());
   }
 
-  template <typename T>
-  static inline query<T>
-  search_param (const string& q)
+  size_t page (params.page ());
+  const string& squery (params.query ());
+  string squery_param (squery.empty ()
+                       ? ""
+                       : "?q=" + web::mime_url_encode (squery));
+
+  static const string title ("Packages");
+  xml::serializer s (rs.content (), title);
+
+  s << HTML
+    <<   HEAD
+    <<     TITLE
+    <<       title;
+
+  if (!squery.empty ())
+    s << " " << squery.empty ();
+
+  s <<     ~TITLE
+    <<     CSS_LINKS (path ("package-search.css"), root)
+    <<   ~HEAD
+    <<   BODY
+    <<     DIV_HEADER (root)
+    <<     DIV(ID="content");
+
+  session sn;
+  transaction t (db_->begin ());
+
+  auto pkg_count (
+    db_->query_value<latest_package_count> (
+      search_param<latest_package_count> (squery)));
+
+  s << FORM_SEARCH (squery)
+    << DIV_COUNTER (pkg_count, "Package", "Packages");
+
+  // Enclose the subsequent tables to be able to use nth-child CSS selector.
+  //
+  s << DIV;
+    for (const auto& pr:
+           db_->query<latest_package_search_rank> (
+             search_param<latest_package_search_rank> (squery) +
+             "ORDER BY rank DESC, name" +
+             "OFFSET" + to_string (page * res_page) +
+             "LIMIT" + to_string (res_page)))
   {
-    using query = query<T>;
-    return "(" +
-      (q.empty ()
-       ? query ("NULL")
-       : "plainto_tsquery (" + query::_val (q) + ")") +
-      ")";
+    shared_ptr<package> p (db_->load<package> (pr.id));
+
+    s << TABLE(CLASS="proplist package")
+      <<   TBODY
+      <<     TR_NAME (p->id.name, squery_param, root)
+      <<     TR_SUMMARY (p->summary)
+      <<     TR_LICENSE (p->license_alternatives)
+      <<     TR_TAGS (p->tags, root)
+      <<     TR_DEPENDS (p->dependencies, root)
+      <<     TR_REQUIRES (p->requirements)
+      <<   ~TBODY
+      << ~TABLE;
   }
+  s << ~DIV;
 
-  void package_search::
-  handle (request& rq, response& rs)
-  {
-    using namespace web::xhtml;
+  t.commit ();
 
-    MODULE_DIAG;
-
-    // The module options object is not changed after being created once per
-    // server process.
-    //
-    static const size_t rp (options_->results_on_page ());
-    static const dir_path& rt (
-      options_->root ().empty ()
-      ? dir_path ("/")
-      : options_->root ());
-
-    params::package_search pr;
-
-    try
-    {
-      param_scanner s (rq.parameters ());
-      pr = params::package_search (s, unknown_mode::fail, unknown_mode::fail);
-    }
-    catch (const unknown_argument& e)
-    {
-      throw invalid_request (400, e.what ());
-    }
-
-    const string& sq (pr.query ()); // Search query.
-    string qp (sq.empty () ? "" : "q=" + web::mime_url_encode (sq));
-    size_t pg (pr.page ());
-
-    xml::serializer s (rs.content (), "Packages");
-
-    const string& title (
-      sq.empty () ? s.output_name () : s.output_name () + " " + sq);
-
-    static const path sp ("package-search.css");
-
-    s << HTML
-      <<   HEAD
-      <<     TITLE << title << ~TITLE
-      <<     CSS_LINKS (sp, rt)
-      <<   ~HEAD
-      <<   BODY
-      <<     DIV_HEADER (rt)
-      <<     DIV(ID="content");
-
-    session sn;
-    transaction t (db_->begin ());
-
-    auto pc (
-      db_->query_value<latest_package_count> (
-        search_param<latest_package_count> (sq)));
-
-    auto r (
-      db_->query<latest_package_search_rank> (
-        search_param<latest_package_search_rank> (sq) +
-        "ORDER BY rank DESC, name" +
-        "OFFSET" + to_string (pg * rp) +
-        "LIMIT" + to_string (rp)));
-
-    s << FORM_SEARCH (sq)
-      << DIV_COUNTER (pc, "Package", "Packages");
-
-    // Enclose the subsequent tables to be able to use nth-child CSS selector.
-    //
-    s << DIV;
-    for (const auto& pr: r)
-    {
-      shared_ptr<package> p (db_->load<package> (pr.id));
-
-      s << TABLE(CLASS="proplist package")
-        <<   TBODY
-        <<     TR_NAME (p->id.name, qp, rt)
-        <<     TR_SUMMARY (p->summary)
-        <<     TR_LICENSE (p->license_alternatives)
-        <<     TR_TAGS (p->tags, rt)
-        <<     TR_DEPENDS (p->dependencies, rt)
-        <<     TR_REQUIRES (p->requirements)
-        <<   ~TBODY
-        << ~TABLE;
-    }
-    s << ~DIV;
-
-    t.commit ();
-
-    static const size_t pp (options_->pages_in_pager ());
-    const string& u (qp.empty () ? rt.string () : (rt.string () + "?" + qp));
-
-    s <<       DIV_PAGER (pg, pc, rp, pp, u)
-      <<     ~DIV
-      <<   ~BODY
-      << ~HTML;
-  }
+  s <<       DIV_PAGER (page, pkg_count, res_page, options_->pages_in_pager (),
+                        root.string () + squery_param)
+    <<     ~DIV
+    <<   ~BODY
+    << ~HTML;
 }

@@ -8,7 +8,8 @@
 #ifndef BREP_TYPES_PARSERS
 #define BREP_TYPES_PARSERS
 
-#include <butl/path>
+#include <brep/types>
+#include <brep/options-types>
 
 namespace brep
 {
@@ -20,10 +21,17 @@ namespace brep
     struct parser;
 
     template <>
-    struct parser<butl::dir_path>
+    struct parser<dir_path>
     {
       static void
-      parse (butl::dir_path&, scanner&);
+      parse (dir_path&, scanner&);
+    };
+
+    template <>
+    struct parser<page_form>
+    {
+      static void
+      parse (page_form&, scanner&);
     };
   }
 }

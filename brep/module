@@ -5,12 +5,10 @@
 #ifndef BREP_MODULE
 #define BREP_MODULE
 
-#include <string>
-#include <utility> // move()
-#include <cstdint>
-
 #include <web/module>
 
+#include <brep/types>
+#include <brep/utility>
 #include <brep/options>
 #include <brep/diagnostics>
 
@@ -40,7 +38,7 @@ namespace brep
   {
     diag_data data;
 
-    server_error (diag_data&& d): data (std::move (d)) {}
+    server_error (diag_data&& d): data (move (d)) {}
   };
 
   // Every module member function that needs to produce any diagnostics
@@ -81,10 +79,14 @@ namespace brep
     //
     // While uint8 is more than enough, use uint16 for the ease of printing.
     //
-    std::uint16_t verb_ {0};
+    uint16_t verb_ {0};
 
     template <class F> void level1 (const F& f) const {if (verb_ >= 1) f ();}
     template <class F> void level2 (const F& f) const {if (verb_ >= 2) f ();}
+
+    // Set to true when the module is successfully initialized.
+    //
+    bool loaded_ {false};
 
     // Implementation details.
     //
@@ -117,12 +119,19 @@ namespace brep
       bool name_;
     };
 
+  public:
+    // Can be called normally by the web server or our custom request
+    // dispatching mechanism.
+    //
+    virtual void
+    handle (request&, response&) = 0;
+
+    bool
+    loaded () const noexcept {return loaded_;}
+
   private:
     virtual void
     handle (request&, response&, log&);
-
-    virtual void
-    handle (request&, response&) = 0;
 
     virtual void
     init (const name_values&, log&);
@@ -147,7 +156,7 @@ namespace brep
     // Extract function name from a __PRETTY_FUNCTION__.
     // Throw std::invalid_argument if fail to parse.
     //
-    static std::string
+    static string
     func_name (const char* pretty_name);
 
     void

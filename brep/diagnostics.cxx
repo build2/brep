@@ -4,8 +4,9 @@
 
 #include <brep/diagnostics>
 
-#include <cassert>
 #include <exception>
+
+#include <brep/utility>
 
 using namespace std;
 

@@ -5,10 +5,9 @@
 #ifndef BREP_SHARED_DATABASE
 #define BREP_SHARED_DATABASE
 
-#include <string>
-#include <memory> // shared_ptr
-
 #include <odb/forward.hxx> // database
+
+#include <brep/types>
 
 namespace brep
 {
@@ -17,8 +16,8 @@ namespace brep
   // to ones of the existing database instance throwing runtime_error
   // otherwise. Is not thread-safe.
   //
-  std::shared_ptr<odb::core::database>
-  shared_database (const std::string& host, unsigned int port);
+  shared_ptr<odb::core::database>
+  shared_database (const string& host, unsigned int port);
 }
 
 #endif // BREP_SHARED_DATABASE

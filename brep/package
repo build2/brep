@@ -6,25 +6,15 @@
 #define BREP_PACKAGE
 
 #include <map>
-#include <string>
-#include <vector>
 #include <chrono>
-#include <memory>  // shared_ptr
-#include <cassert>
-#include <cstddef> // size_t
-#include <utility> // move()
-#include <cstdint> // uint16
-#include <ostream>
+#include <iosfwd>  // ostream
 
 #include <odb/core.hxx>
 #include <odb/forward.hxx>  // database
-#include <odb/lazy-ptr.hxx>
 #include <odb/nested-container.hxx>
 
-#include <butl/path>
-#include <butl/path-io>
-#include <butl/optional>
-#include <butl/timestamp>
+#include <brep/types>
+#include <brep/utility>
 
 namespace brep
 {
@@ -34,10 +24,10 @@ namespace brep
   #pragma db value
   struct _version
   {
-    std::uint16_t epoch;
-    std::string canonical_upstream;
-    std::uint16_t revision;
-    std::string upstream;
+    uint16_t epoch;
+    string canonical_upstream;
+    uint16_t revision;
+    string upstream;
   };
 }
 
@@ -55,9 +45,9 @@ namespace brep
                     (?).upstream})                                        \
   from(bpkg::version ((?).epoch, std::move ((?).upstream), (?).revision))
 
-#pragma db map type(bpkg::comparison) as(std::string) \
-    to(bpkg::to_string (?))                           \
-    from(bpkg::to_comparison (?))
+#pragma db map type(bpkg::comparison) as(brep::string) \
+  to(bpkg::to_string (?))                              \
+  from(bpkg::to_comparison (?))
 
 namespace brep
 {
@@ -76,33 +66,21 @@ namespace brep
   class repository;
   class package;
 
-  using strings = std::vector<std::string>;
-  using butl::optional;
-
   // path
   //
-  using butl::path;
-
-  #pragma db map type(path) as(std::string)  \
-    to((?).string ()) from(brep::path (?))
+  #pragma db map type(path) as(string) to((?).string ()) from(brep::path (?))
 
   using optional_path = optional<path>;
-  using optional_string = optional<std::string>;
+  using optional_string = optional<string>;
 
   #pragma db map type(optional_path) as(brep::optional_string) \
     to((?) ? (?)->string () : brep::optional_string ())        \
     from((?) ? brep::path (*(?)) : brep::optional_path ())
 
-  using butl::dir_path;
-
-  #pragma db map type(dir_path) as(std::string)  \
+  #pragma db map type(dir_path) as(string)     \
     to((?).string ()) from(brep::dir_path (?))
 
-  // timestamp
-  //
-  using butl::timestamp;
-
-  #pragma db map type(timestamp) as(std::uint64_t)   \
+  #pragma db map type(timestamp) as(uint64_t)        \
     to(std::chrono::system_clock::to_time_t (?))     \
     from(std::chrono::system_clock::from_time_t (?))
 
@@ -113,9 +91,9 @@ namespace brep
   #pragma db value
   struct canonical_version
   {
-    std::uint16_t epoch;
-    std::string   canonical_upstream;
-    std::uint16_t revision;
+    uint16_t epoch;
+    string   canonical_upstream;
+    uint16_t revision;
 
     bool
     empty () const noexcept
@@ -133,12 +111,12 @@ namespace brep
   #pragma db value transient
   struct upstream_version: version
   {
-    #pragma db member(upstream_) virtual(std::string) \
+    #pragma db member(upstream_) virtual(string)      \
       get(this.upstream)                              \
       set(this = brep::version (0, std::move (?), 0))
 
     upstream_version () = default;
-    upstream_version (version v): version (std::move (v)) {}
+    upstream_version (version v): version (move (v)) {}
     upstream_version&
     operator= (version v) {version& b (*this); b = v; return *this;}
 
@@ -162,21 +140,19 @@ namespace brep
   using bpkg::url;
 
   #pragma db value(url) definition
-  #pragma db member(url::value) virtual(std::string) before access(this) \
-          column("")
+  #pragma db member(url::value) virtual(string) before access(this) column("")
 
   // email
   //
   using bpkg::email;
 
   #pragma db value(email) definition
-  #pragma db member(email::value) virtual(std::string) before access(this) \
-          column("")
+  #pragma db member(email::value) virtual(string) before access(this) column("")
 
   // licenses
   //
   using bpkg::licenses;
-  using license_alternatives = std::vector<licenses>;
+  using license_alternatives = vector<licenses>;
 
   #pragma db value(licenses) definition
 
@@ -192,12 +168,12 @@ namespace brep
   #pragma db value
   struct package_id
   {
-    std::string name;
+    string name;
     canonical_version version;
 
     package_id () = default;
-    package_id (std::string n, const brep::version& v)
-        : name (std::move (n)),
+    package_id (string n, const brep::version& v)
+        : name (move (n)),
           version {v.epoch, v.canonical_upstream, v.revision}
     {
     }
@@ -249,12 +225,12 @@ namespace brep
   {
     using package_type = brep::package;
 
-    odb::lazy_shared_ptr<package_type> package;
+    lazy_shared_ptr<package_type> package;
     optional<dependency_constraint> constraint;
 
     // Prerequisite package name.
     //
-    std::string
+    string
     name () const;
 
     // Database mapping.
@@ -266,25 +242,25 @@ namespace brep
   operator<< (std::ostream&, const dependency&);
 
   #pragma db value
-  class dependency_alternatives: public std::vector<dependency>
+  class dependency_alternatives: public vector<dependency>
   {
   public:
     bool conditional;
-    std::string comment;
+    string comment;
 
     dependency_alternatives () = default;
 
     explicit
-    dependency_alternatives (bool d, std::string c)
-        : conditional (d), comment (std::move (c)) {}
+    dependency_alternatives (bool d, string c)
+        : conditional (d), comment (move (c)) {}
   };
 
-  using dependencies = std::vector<dependency_alternatives>;
+  using dependencies = vector<dependency_alternatives>;
 
   // requirements
   //
   using bpkg::requirement_alternatives;
-  using requirements = std::vector<requirement_alternatives>;
+  using requirements = vector<requirement_alternatives>;
 
   #pragma db value(requirement_alternatives) definition
 
@@ -292,35 +268,41 @@ namespace brep
   //
   using bpkg::repository_location;
 
-  #pragma db map type(repository_location) as(std::string) \
+  #pragma db map type(repository_location) as(string)     \
     to((?).string ()) from(brep::repository_location (?))
 
-  #pragma db object pointer(std::shared_ptr) session
+  #pragma db object pointer(shared_ptr) session
   class repository
   {
   public:
     // Create internal repository.
     //
     repository (repository_location,
-                std::string display_name,
-                dir_path local_path);
+                string display_name,
+                dir_path local_path,
+                uint16_t priority);
 
     // Create external repository.
     //
     explicit
     repository (repository_location);
 
-    std::string name; // Object id (canonical name).
+    string name; // Object id (canonical name).
     repository_location location;
-    std::string display_name;
+    string display_name;
 
-    optional<std::string> url;
-
-    // Set only for internal repositories.
+    // The order in the internal repositories configuration file, starting from
+    // 1. 0 for external repositories.
     //
-    optional<std::string> email;
-    optional<std::string> summary;
-    optional<std::string> description;
+    uint16_t priority;
+
+    optional<string> url;
+
+    // Present only for internal repositories.
+    //
+    optional<string> email;
+    optional<string> summary;
+    optional<string> description;
 
     // Non empty for internal repositories and external ones with a filesystem
     // path location.
@@ -336,8 +318,8 @@ namespace brep
     timestamp repositories_timestamp;
 
     bool internal;
-    std::vector<odb::lazy_weak_ptr<repository>> complements;
-    std::vector<odb::lazy_weak_ptr<repository>> prerequisites;
+    vector<lazy_weak_ptr<repository>> complements;
+    vector<lazy_weak_ptr<repository>> prerequisites;
 
     // Database mapping.
     //
@@ -372,13 +354,13 @@ namespace brep
   #pragma db value type("tsvector")
   struct weighted_text
   {
-    std::string a;
-    std::string b;
-    std::string c;
-    std::string d;
+    string a;
+    string b;
+    string c;
+    string d;
   };
 
-  #pragma db object pointer(std::shared_ptr) session
+  #pragma db object pointer(shared_ptr) session
   class package
   {
   public:
@@ -393,14 +375,14 @@ namespace brep
 
     // Create internal package object.
     //
-    package (std::string name,
+    package (string name,
              version_type,
              priority_type,
-             std::string summary,
+             string summary,
              license_alternatives_type,
              strings tags,
-             optional<std::string> description,
-             std::string changes,
+             optional<string> description,
+             string changes,
              url_type,
              optional<url_type> package_url,
              email_type,
@@ -408,7 +390,7 @@ namespace brep
              dependencies_type,
              requirements_type,
              optional<path> location,
-             std::shared_ptr<repository_type>);
+             shared_ptr<repository_type>);
 
     // Create external package object.
     //
@@ -417,7 +399,7 @@ namespace brep
     // The only package information required to compose such a link is the
     // package name, version, and repository location.
     //
-    package (std::string name, version_type, std::shared_ptr<repository_type>);
+    package (string name, version_type, shared_ptr<repository_type>);
 
     bool
     internal () const noexcept {return internal_repository != nullptr;}
@@ -427,24 +409,24 @@ namespace brep
     package_id id;
     upstream_version version;
     priority_type priority;
-    std::string summary;
+    string summary;
     license_alternatives_type license_alternatives;
     strings tags;
-    optional<std::string> description;
-    std::string changes;
+    optional<string> description;
+    string changes;
     url_type url;
     optional<url_type> package_url;
     email_type email;
     optional<email_type> package_email;
     dependencies_type dependencies;
     requirements_type requirements;
-    odb::lazy_shared_ptr<repository_type> internal_repository;
+    lazy_shared_ptr<repository_type> internal_repository;
 
-    // Path to the package file. Set only for internal packages.
+    // Path to the package file. Present only for internal packages.
     //
     optional<path> location;
 
-    std::vector<odb::lazy_shared_ptr<repository_type>> other_repositories;
+    vector<lazy_shared_ptr<repository_type>> other_repositories;
 
     // Database mapping.
     //
@@ -454,7 +436,7 @@ namespace brep
     // license
     //
     using _license_key = odb::nested_key<licenses>;
-    using _licenses_type = std::map<_license_key, std::string>;
+    using _licenses_type = std::map<_license_key, string>;
 
     #pragma db value(_license_key)
     #pragma db member(_license_key::outer) column("alternative_index")
@@ -494,18 +476,18 @@ namespace brep
     //
     using _requirement_key = odb::nested_key<requirement_alternatives>;
     using _requirement_alternatives_type =
-               std::map<_requirement_key, std::string>;
+               std::map<_requirement_key, string>;
 
     #pragma db value(_requirement_key)
     #pragma db member(_requirement_key::outer) column("requirement_index")
     #pragma db member(_requirement_key::inner) column("index")
 
     #pragma db member(requirements) id_column("") value_column("")
-    #pragma db member(requirement_alternatives)          \
-      virtual(_requirement_alternatives_type)            \
-      after(requirements)                                \
-      get(odb::nested_get (this.requirements))           \
-      set(odb::nested_set (this.requirements, move (?))) \
+    #pragma db member(requirement_alternatives)               \
+      virtual(_requirement_alternatives_type)                 \
+      after(requirements)                                     \
+      get(odb::nested_get (this.requirements))                \
+      set(odb::nested_set (this.requirements, std::move (?))) \
       id_column("") key_column("") value_column("id")
 
     // other_repositories
@@ -550,9 +532,9 @@ namespace brep
     query("/*CALL*/ SELECT count(*) FROM search_latest_packages(?)")
   struct latest_package_count
   {
-    std::size_t result;
+    size_t result;
 
-    operator std::size_t () const {return result;}
+    operator size_t () const {return result;}
   };
 
   #pragma db view query("/*CALL*/ SELECT * FROM search_packages(?)")
@@ -565,9 +547,9 @@ namespace brep
   #pragma db view  query("/*CALL*/ SELECT count(*) FROM search_packages(?)")
   struct package_count
   {
-    std::size_t result;
+    size_t result;
 
-    operator std::size_t () const {return result;}
+    operator size_t () const {return result;}
   };
 
   #pragma db view query("/*CALL*/ SELECT * FROM latest_package(?)")

@@ -2,10 +2,8 @@
 // copyright : Copyright (c) 2014-2015 Code Synthesis Ltd
 // license   : MIT; see accompanying LICENSE file
 
-include <string>;
-include <cstdint>; // uint16_t
-
-include <butl/path>;
+include <brep/types>;
+include <brep/options-types>;
 
 namespace brep
 {
@@ -15,33 +13,33 @@ namespace brep
   {
     class module
     {
-      std::uint16_t verb = 0;
-      butl::dir_path root = "";
+      uint16_t verb;
+      dir_path root;
     };
 
     class db
     {
-      std::string db-host = "localhost";
-      std::uint16_t db-port = 5432;
+      string db-host = "localhost";
+      uint16_t db-port = 5432;
     };
 
     class package_search: module, db
     {
-      std::uint16_t results-on-page = 10;
-      std::uint16_t pages-in-pager = 10;
+      uint16_t results-on-page = 10;
+      uint16_t pages-in-pager = 5;
     };
 
     class package_details: module, db
     {
-      std::uint16_t results-on-page = 10;
-      std::uint16_t pages-in-pager = 10;
-      std::uint16_t description-length = 400;
+      uint16_t results-on-page = 10;
+      uint16_t pages-in-pager = 5;
+      uint16_t description-length = 500; // ~ 80 chars x 6 lines.
     };
 
     class package_version_details: module, db
     {
-      std::uint16_t description-length = 400;
-      std::uint16_t changes-length = 800;
+      uint16_t description-length = 500; // ~ 80 chars x 6 lines.
+      uint16_t changes-length = 5000; // ~ 80 chars x 60 lines.
     };
 
     class repository_details: module, db
@@ -60,36 +58,39 @@ namespace brep
     {
       // Display package search result list starting from this page.
       //
-      std::uint16_t page | p = 0;
+      uint16_t page | p;
 
       // Package search criteria.
       //
-      std::string query | q = "";
+      string query | q;
     };
 
     class package_details
     {
       // Display package version search result list starting from this page.
       //
-      std::uint16_t page | p = 0;
+      uint16_t page | p;
 
       // Package version search criteria.
       //
-      std::string query | q = "";
+      string query | q;
 
-      // Full page variant.
+      // Page form.
       //
-      // @@ Shouldn't we use one letter alias for URL as well ?
-      //    I like full. It is descriptive. q= is kind now a convention.
-      //
-      bool full = false;
+      page_form form | f = page_form::brief;
     };
 
     class package_version_details
     {
-      // Full page variant.
+      // Page form.
       //
-      bool full = false;
+      page_form form | f = page_form::brief;
+    };
+
+    class repository_details
+    {
+      // No parameters so far.
+      //
     };
   }
 }

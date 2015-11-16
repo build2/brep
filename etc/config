@@ -29,6 +29,7 @@ AP_WWW_DIR="$PROJECT_DIR/www"
 AP_CONFIG_DIR="$CONFIG_DIR"
 AP_LOG_DIR="$WORKSPACE_DIR/log/httpd"
 AP_WORKSPACE_DIR="$WORKSPACE_DIR/run/httpd"
+AP_REPOSITORY_DIR="$WORKSPACE_DIR/www"
 
 # brep-loader settings (used in loader)
 #
