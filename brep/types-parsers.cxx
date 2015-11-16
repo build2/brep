@@ -28,9 +28,6 @@ namespace brep
       try
       {
         x = T (v);
-
-        if (x.empty ())
-          throw invalid_value (o, v);
       }
       catch (const invalid_path&)
       {

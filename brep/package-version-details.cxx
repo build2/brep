@@ -54,7 +54,10 @@ namespace brep
     // The module options object is not changed after being created once per
     // server process.
     //
-    static const dir_path& rt (options_->root ());
+    static const dir_path& rt (
+      options_->root ().empty ()
+      ? dir_path ("/")
+      : options_->root ());
 
     auto i (rq.path ().rbegin ());
     version v;

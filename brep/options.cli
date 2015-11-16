@@ -16,7 +16,7 @@ namespace brep
     class module
     {
       std::uint16_t verb = 0;
-      butl::dir_path root = "/";
+      butl::dir_path root = "";
     };
 
     class db

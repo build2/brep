@@ -50,7 +50,10 @@ namespace brep
     // The module options object is not changed after being created once per
     // server process.
     //
-    static const dir_path& rt (options_->root ());
+    static const dir_path& rt (
+      options_->root ().empty ()
+      ? dir_path ("/")
+      : options_->root ());
 
     xml::serializer s (rs.content (), "About");
     const string& title (s.output_name ());

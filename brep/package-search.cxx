@@ -65,7 +65,10 @@ namespace brep
     // server process.
     //
     static const size_t rp (options_->results_on_page ());
-    static const dir_path& rt (options_->root ());
+    static const dir_path& rt (
+      options_->root ().empty ()
+      ? dir_path ("/")
+      : options_->root ());
 
     params::package_search pr;
 
