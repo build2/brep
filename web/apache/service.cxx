@@ -94,7 +94,7 @@ namespace web
     void service::
     init_worker (log& l) noexcept
     {
-      static const string func_name (
+      const string func_name (
         "web::apache::service<" + name_ + ">::init_worker");
 
       try
