@@ -22,8 +22,7 @@ namespace brep
   class CSS_LINKS
   {
   public:
-    CSS_LINKS (const path& p, const dir_path& r):
-        path_ (p), root_ (r) {}
+    CSS_LINKS (const path& p, const dir_path& r): path_ (p), root_ (r) {}
 
     void
     operator() (xml::serializer& s) const;
@@ -263,13 +262,15 @@ namespace brep
   class TR_LOCATION
   {
   public:
-    TR_LOCATION (const std::string& l): location_ (l) {}
+    TR_LOCATION (const std::string& n, const dir_path& r)
+        : name_ (n), root_ (r) {}
 
     void
     operator() (xml::serializer& s) const;
 
   private:
-    const std::string& location_;
+    const std::string& name_;
+    const dir_path& root_;
   };
 
   // Generates package download URL element.
@@ -307,13 +308,13 @@ namespace brep
   public:
     // Genereate full description.
     //
-    P_DESCRIPTION (const std::string& d)
-        : description_ (d), length_ (d.size ()), url_ (nullptr) {}
+    P_DESCRIPTION (const std::string& d, bool u = true)
+        : description_ (d), length_ (d.size ()), url_ (nullptr), unique_ (u) {}
 
     // Genereate brief description.
     //
     P_DESCRIPTION (const std::string& d, size_t l, const std::string& u)
-        : description_ (d), length_ (l), url_ (&u) {}
+        : description_ (d), length_ (l), url_ (&u), unique_ (false) {}
 
     void
     operator() (xml::serializer& s) const;
@@ -322,6 +323,7 @@ namespace brep
     const std::string& description_;
     std::size_t length_;
     const std::string* url_; // Full page url.
+    bool unique_;
   };
 
   // Generates package description element.
@@ -369,6 +371,12 @@ namespace brep
     std::size_t page_number_count_;
     const std::string& url_;
   };
+
+  // Convert the argument to a string representing the valid HTML 5 'id'
+  // attribute value.
+  //
+  std::string
+  id_attribute (const std::string& v);
 }
 
 #endif // BREP_PAGE

@@ -6,7 +6,7 @@
 
 #include <ios>       // hex, uppercase, right
 #include <string>
-#include <iomanip>   // setw(), setfill ()
+#include <iomanip>   // setw(), setfill()
 #include <ostream>
 #include <sstream>
 #include <cstring>   // size_t, strspn()

@@ -118,6 +118,12 @@ main (int argc, char* argv[])
               "http://pkg.cppget.org/internal/1/stable");
       assert (sr->display_name == "stable");
       assert (!sr->url);
+      assert (sr->email && *sr->email == "repoman@cppget.org");
+      assert (sr->summary &&
+              *sr->summary == "General C++ package stable repository");
+      assert (sr->description && *sr->description ==
+              "This is the awesome C++ package repository full of exciting "
+              "stuff.");
 
       dir_path srp (cp.directory () / dir_path ("internal/1/stable"));
       assert (sr->local_path == srp.normalize ());
@@ -283,6 +289,11 @@ main (int argc, char* argv[])
               "http://pkg.cppget.org/internal/1/math");
       assert (mr->display_name == "math");
       assert (!mr->url);
+      assert (mr->email && *mr->email == "repoman@cppget.org");
+      assert (mr->summary && *mr->summary == "Math C++ package repository");
+      assert (mr->description && *mr->description ==
+              "This is the awesome C++ package repository full of remarkable "
+              "algorithms and\nAPIs.");
 
       dir_path mrp (cp.directory () / dir_path ("internal/1/math"));
       assert (mr->local_path == mrp.normalize ());
@@ -480,6 +491,9 @@ main (int argc, char* argv[])
               "http://pkg.cppget.org/external/1/misc");
       assert (cr->display_name.empty ());
       assert (cr->url && *cr->url == "http://misc.cppget.org/");
+      assert (!cr->email);
+      assert (!cr->summary);
+      assert (!cr->description);
 
       dir_path crp (cp.directory () / dir_path ("external/1/misc"));
       assert (cr->local_path == crp.normalize ());
@@ -535,6 +549,9 @@ main (int argc, char* argv[])
               "http://pkg.cppget.org/external/1/testing");
       assert (tr->display_name.empty ());
       assert (tr->url && *tr->url == "http://test.cppget.org/hello/");
+      assert (!tr->email);
+      assert (!tr->summary);
+      assert (!tr->description);
 
       dir_path trp (cp.directory () / dir_path ("external/1/testing"));
       assert (tr->local_path == trp.normalize ());
@@ -568,6 +585,9 @@ main (int argc, char* argv[])
               "http://pkg.cppget.org/external/1/staging");
       assert (gr->display_name.empty ());
       assert (gr->url && *gr->url == "http://stage.cppget.org/");
+      assert (!gr->email);
+      assert (!gr->summary);
+      assert (!gr->description);
 
       dir_path grp (cp.directory () / dir_path ("external/1/staging"));
       assert (gr->local_path == grp.normalize ());

@@ -46,7 +46,6 @@ namespace brep
   void package_version_details::
   handle (request& rq, response& rs)
   {
-    using namespace xml;
     using namespace web;
     using namespace web::xhtml;
 
@@ -99,7 +98,7 @@ namespace brep
         return u;
       });
 
-    serializer s (rs.content (), name);
+    xml::serializer s (rs.content (), name);
     static const path go ("go");
     static const path sp ("package-version-details.css");
 
@@ -171,7 +170,7 @@ namespace brep
 
       <<     TR_PRIORITY (p->priority)
       <<     TR_LICENSES (p->license_alternatives)
-      <<     TR_LOCATION (p->internal_repository.object_id ())
+      <<     TR_LOCATION (p->internal_repository.object_id (), rt)
       <<     TR_DOWNLOAD (du)
       <<   ~TBODY
       << ~TABLE
@@ -249,7 +248,7 @@ namespace brep
               s << ' ' << A(HREF=u / path (p->version.string ())) << *dc << ~A;
           }
           else
-            // Display the dependency as a plain text in no repository URL
+            // Display the dependency as a plain text if no repository URL
             // available.
             //
             s << d;

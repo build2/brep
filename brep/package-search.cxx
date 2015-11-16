@@ -57,8 +57,6 @@ namespace brep
   void package_search::
   handle (request& rq, response& rs)
   {
-    using namespace xml;
-    using namespace web;
     using namespace web::xhtml;
 
     MODULE_DIAG;
@@ -82,10 +80,10 @@ namespace brep
     }
 
     const string& sq (pr.query ()); // Search query.
-    string qp (sq.empty () ? "" : "q=" + mime_url_encode (sq));
+    string qp (sq.empty () ? "" : "q=" + web::mime_url_encode (sq));
     size_t pg (pr.page ());
 
-    serializer s (rs.content (), "Packages");
+    xml::serializer s (rs.content (), "Packages");
 
     const string& title (
       sq.empty () ? s.output_name () : s.output_name () + " " + sq);

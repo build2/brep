@@ -9,3 +9,6 @@ location: ../math
 :
 # Local repository manifest (this repository).
 #
+email: repoman@cppget.org
+summary: General C++ package stable repository
+description: This is the awesome C++ package repository full of exciting stuff.

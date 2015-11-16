@@ -61,7 +61,6 @@ namespace brep
   void package_details::
   handle (request& rq, response& rs)
   {
-    using namespace xml;
     using namespace web;
     using namespace web::xhtml;
 
@@ -108,7 +107,7 @@ namespace brep
         return u;
       });
 
-    serializer s (rs.content (), name);
+    xml::serializer s (rs.content (), name);
     const string& title (sq.empty () ? name : name + " " + sq);
     static const path sp ("package-details.css");
 
@@ -219,7 +218,7 @@ namespace brep
       //
       //    Hm, I am not so sure about this. Consider: stable/testing/unstable.
       //
-      s <<     TR_LOCATION (p->internal_repository.object_id ())
+      s <<     TR_LOCATION (p->internal_repository.object_id (), rt)
         <<     TR_DEPENDS (p->dependencies, rt)
         <<     TR_REQUIRES (p->requirements)
         <<   ~TBODY

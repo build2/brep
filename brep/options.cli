@@ -43,6 +43,10 @@ namespace brep
       std::uint16_t description-length = 400;
       std::uint16_t changes-length = 800;
     };
+
+    class repository_details: module, db
+    {
+    };
   }
 
   // Web module HTTP request parameters.

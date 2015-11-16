@@ -8,6 +8,7 @@
 
 #include <brep/package-search>
 #include <brep/package-details>
+#include <brep/repository-details>
 #include <brep/package-version-details>
 
 using namespace brep;
@@ -29,4 +30,10 @@ static package_version_details package_version_details_mod;
 service AP_MODULE_DECLARE_DATA package_version_details_srv (
   "package-version-details",
   package_version_details_mod,
+  {"root", "db-host", "db-port", "conf"});
+
+static repository_details repository_details_mod;
+service AP_MODULE_DECLARE_DATA repository_details_srv (
+  "repository-details",
+  repository_details_mod,
   {"root", "db-host", "db-port", "conf"});

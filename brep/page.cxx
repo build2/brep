@@ -5,10 +5,13 @@
 #include <brep/page>
 
 #include <set>
+#include <ios>       // hex, uppercase, right
 #include <string>
 #include <memory>    // shared_ptr
 #include <cstddef>   // size_t
 #include <cassert>
+#include <sstream>
+#include <iomanip>   // setw(), setfill()
 #include <algorithm> // min()
 
 #include <xml/serializer>
@@ -27,6 +30,7 @@ using namespace web::xhtml;
 namespace brep
 {
   static const path go ("go");
+  static const path about ("about");
 
   // CSS_LINKS
   //
@@ -44,12 +48,10 @@ namespace brep
   void DIV_HEADER::
   operator() (serializer& s) const
   {
-    static const path a ("about");
-
     s << DIV(ID="header")
       <<   DIV(ID="header-menu")
       <<     A(HREF=root_) << "packages" << ~A
-      <<     A(HREF=root_ / a) << "about" << ~A
+      <<     A(HREF=root_ / about) << "about" << ~A
       <<   ~DIV
       << ~DIV;
   }
@@ -305,7 +307,7 @@ namespace brep
           else if (p->internal ())
             s << A(HREF=root_ / go / path (en)) << n << ~A;
           else
-            // Display the dependency as a plain text in no repository URL
+            // Display the dependency as a plain text if no repository URL
             // available.
             //
             s << n;
@@ -440,7 +442,16 @@ namespace brep
   {
     s << TR(CLASS="location")
       <<   TH << "location" << ~TH
-      <<   TD << SPAN(CLASS="value") << location_ << ~SPAN << ~TD
+      <<   TD
+      <<     SPAN(CLASS="value")
+      <<       A
+      <<       HREF
+      <<         root_ / about << "#" << mime_url_encode (id_attribute (name_))
+      <<       ~HREF
+      <<         name_
+      <<       ~A
+      <<     ~SPAN
+      <<   ~TD
       << ~TR;
   }
 
@@ -486,7 +497,10 @@ namespace brep
     // Format the description into paragraphs, recognizing a blank line as
     // paragraph separator, and replacing single newlines with a space.
     //
-    s << P(ID="description");
+    s << P;
+
+    if (unique_)
+      s << ID("description");
 
     bool nl (false); // The previous character is '\n'.
     for (const auto& c: d)
@@ -613,5 +627,44 @@ namespace brep
 
       s << ~DIV;
     }
+  }
+
+  // Convert the argument to a string conformant to the section
+  // "3.2.5.1 The id attribute" of the HTML 5 specification at
+  // http://www.w3.org/TR/html5/dom.html#the-id-attribute.
+  //
+  string
+  id_attribute (const string& v)
+  {
+    ostringstream o;
+    o << hex << uppercase << right << setfill ('0');
+
+    // Replace space characters (as specified at
+    // http://www.w3.org/TR/html5/infrastructure.html#space-character) with
+    // the respective escape sequences.
+    //
+    for (auto c: v)
+    {
+      switch (c)
+      {
+      case ' ':
+      case '\t':
+      case '\n':
+      case '\r':
+      case '\f':
+      case '~':
+        {
+          // Intentionally use '~' as an escape character to leave it unescaped
+          // being a part of URL. For example
+          // http://cppget.org/about#cppget.org%2Fmath~20lab
+          //
+          o << "~" << setw (2) << static_cast<unsigned short> (c);
+          break;
+        }
+      default: o << c; break;
+      }
+    }
+
+    return o.str ();
   }
 }
