@@ -77,14 +77,16 @@ namespace brep
         <<   A(HREF="#" + web::mime_url_encode (id)) << r.name << ~A
         << ~H1;
 
-      if (r.email)
-        s << A << HREF << "mailto:" << *r.email << ~HREF << *r.email << ~A;
-
       if (r.summary)
         s << H2 << *r.summary << ~H2;
 
       if (r.description)
         s << P_DESCRIPTION (*r.description, false);
+
+      if (r.email)
+        s << P
+          <<   A << HREF << "mailto:" << *r.email << ~HREF << *r.email << ~A
+          << ~P;
     }
 
     t.commit ();
