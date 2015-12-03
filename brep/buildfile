@@ -33,11 +33,6 @@ libso{brep-apache}: $brep $web libso{brep} $libs
 # Set option prefix to the empty value to handle all unknown request parameters
 # uniformly with a single catch block.
 #
-# @@ Adding --option-prefix "" leads to appearing the following warnings
-#    related to options _parse methed:
-# brep/options.cxx:663:33: warning: unused parameter ‘opt_mode’ [-Wunused-parameter]
-#             ::cli::unknown_mode opt_mode,
-#
 cli.options += -I $src_root --include-with-brackets --include-prefix brep \
 --guard-prefix BREP --cxx-prologue "#include <brep/types-parsers>" \
 --cli-namespace brep::cli --generate-file-scanner --suppress-usage \
