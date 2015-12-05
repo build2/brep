@@ -33,6 +33,16 @@ namespace brep
 
 #include <bpkg/manifest>
 
+// Prevent assert() macro expansion in get/set expressions. This should
+// appear after all #include directives since the assert() macro is
+// redefined in each <assert.h> inclusion.
+//
+#ifdef ODB_COMPILER
+#  undef assert
+#  define assert assert
+void assert (int);
+#endif
+
 // We have to keep these mappings at the global scope instead of inside
 // the brep namespace because they need to be also effective in the
 // bpkg namespace from which we "borrow" types (and some of them use
