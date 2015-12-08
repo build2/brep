@@ -8,6 +8,7 @@
 #include <odb/forward.hxx> // database
 
 #include <brep/types>
+
 #include <brep/module>
 #include <brep/options>
 
@@ -15,10 +16,14 @@ namespace brep
 {
   class package_search: public module
   {
-  private:
-    virtual void
+  public:
+    virtual bool
     handle (request&, response&);
 
+    virtual const cli::options&
+    cli_options () const {return options::package_search::description ();}
+
+  private:
     virtual void
     init (cli::scanner&);
 

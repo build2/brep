@@ -19,10 +19,9 @@ namespace brep
     using odb::pgsql::database;
     static weak_ptr<database> db;
 
-    // In C++11, function-static variable initialization is
-    // guaranteed to be thread-safe, thought this doesn't
-    // seem to be enough in our case (because we are re-
-    // initializing the weak pointer).
+    // In C++11, function-static variable initialization is guaranteed to be
+    // thread-safe, thought this doesn't seem to be enough in our case
+    // (because we are re-initializing the weak pointer).
     //
     if (shared_ptr<database> d = db.lock ())
     {

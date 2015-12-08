@@ -9,6 +9,7 @@
 
 #include <brep/types>
 #include <brep/utility>
+
 #include <brep/options>
 #include <brep/diagnostics>
 
@@ -23,6 +24,7 @@ namespace brep
   using web::status_code;
   using web::invalid_request;
   using web::sequence_error;
+  using web::option_descriptions;
   using web::name_value;
   using web::name_values;
   using web::request;
@@ -94,12 +96,24 @@ namespace brep
     module ();
     module (const module& );
 
+    static name_values
+    filter (const name_values&, const option_descriptions&);
+
+    static option_descriptions
+    convert (const cli::options&);
+
+    static void
+    append (option_descriptions& dst, const cli::options& src);
+
+    static void
+    append (option_descriptions& dst, const option_descriptions& src);
+
     // Can be used by module implementation to parse HTTP request parameters.
     //
-    class param_scanner: public cli::scanner
+    class name_value_scanner: public cli::scanner
     {
     public:
-      param_scanner (const name_values&) noexcept;
+      name_value_scanner (const name_values&) noexcept;
 
       virtual bool
       more ();
@@ -120,36 +134,43 @@ namespace brep
     };
 
   public:
-    // Can be called normally by the web server or our custom request
-    // dispatching mechanism.
+    virtual const cli::options&
+    cli_options () const = 0;
+
+    virtual void
+    init (cli::scanner&) = 0;
+
+    // Can be overriden by custom request dispatcher to initialize sub-modules.
     //
     virtual void
-    handle (request&, response&) = 0;
-
-    bool
-    loaded () const noexcept {return loaded_;}
-
-  private:
-    virtual void
-    handle (request&, response&, log&);
+    init (const name_values&);
 
     virtual void
     init (const name_values&, log&);
 
-    // Can be overriden by module implementation which has configuration
-    // options.
+    virtual bool
+    handle (request&, response&) = 0;
+
+    // web::module interface.
     //
-    virtual void
-    init (cli::scanner& s)
-    {
-      // Just scan options to ensure there is no misspelled ones.
-      //
-      options::module o (s, cli::unknown_mode::fail, cli::unknown_mode::fail);
-    }
+  public:
+    // Custom request dispatcher can aggregate its own option descriptions with
+    // sub-modules option descriptions. In this case it should still call the
+    // base implementation in order to include the brep::module's options.
+    //
+    virtual option_descriptions
+    options ();
+
+  private:
+    virtual bool
+    handle (request&, response&, log&);
+
+    name_values
+    expand_options (const name_values&);
 
     // Diagnostics implementation details.
     //
-  private:
+  protected:
     log* log_ {nullptr}; // Diagnostics backend provided by the web server.
 
   private:

@@ -16,9 +16,10 @@
 #include <web/module>
 #include <web/mime-url-encoding>
 
-#include <brep/page>
 #include <brep/types>
 #include <brep/utility>
+
+#include <brep/page>
 #include <brep/options>
 #include <brep/package>
 #include <brep/package-odb>
@@ -36,10 +37,13 @@ init (scanner& s)
   options_ = make_shared<options::package_version_details> (
     s, unknown_mode::fail, unknown_mode::fail);
 
+  if (options_->root ().empty ())
+    options_->root (dir_path ("/"));
+
   db_ = shared_database (options_->db_host (), options_->db_port ());
 }
 
-void brep::package_version_details::
+bool brep::package_version_details::
 handle (request& rq, response& rs)
 {
   using namespace web;
@@ -50,10 +54,7 @@ handle (request& rq, response& rs)
   // The module options object is not changed after being created once per
   // server process.
   //
-  static const dir_path& root (
-    options_->root ().empty ()
-    ? dir_path ("/")
-    : options_->root ());
+  static const dir_path& root (options_->root ());
 
   auto i (rq.path ().rbegin ());
   version ver;
@@ -77,7 +78,7 @@ handle (request& rq, response& rs)
 
   try
   {
-    param_scanner s (rq.parameters ());
+    name_value_scanner s (rq.parameters ());
     params = params::package_version_details (
       s, unknown_mode::fail, unknown_mode::fail);
 
@@ -151,7 +152,7 @@ handle (request& rq, response& rs)
   if (const auto& d = pkg->description)
     s << (full
           ? P_DESCRIPTION (*d, id)
-          : P_DESCRIPTION (*d, options_->description_length (),
+          : P_DESCRIPTION (*d, options_->description_len (),
                            url (!full, id)));
 
   assert (pkg->location);
@@ -301,10 +302,11 @@ handle (request& rq, response& rs)
     s << H3 << "Changes" << ~H3
       << (full
           ? PRE_CHANGES (ch)
-          : PRE_CHANGES (ch, options_->description_length (),
-                         url (!full, "changes")));
+          : PRE_CHANGES (ch, options_->changes_len (), url (!full, "changes")));
 
   s <<     ~DIV
     <<   ~BODY
     << ~HTML;
+
+  return true;
 }

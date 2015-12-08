@@ -5,6 +5,7 @@
 #ifndef WEB_MODULE
 #define WEB_MODULE
 
+#include <map>
 #include <string>
 #include <vector>
 #include <iosfwd>
@@ -18,6 +19,8 @@
 
 namespace web
 {
+  using butl::optional;
+
   // HTTP status code.
   //
   // @@ Define some commonly used constants?
@@ -58,7 +61,10 @@ namespace web
     sequence_error (std::string d): std::runtime_error (std::move (d)) {}
   };
 
-  using butl::optional;
+  // Map of module configuration option names to the boolean flag indicating
+  // whether the value is expected for the option.
+  //
+  using option_descriptions = std::map<std::string, bool>;
 
   struct name_value
   {
@@ -182,27 +188,36 @@ namespace web
   class module
   {
   public:
-    // During startup the web server calls this function on the
-    // module exemplar passing a list of configuration name-value
-    // pairs. The place these configuration pairs come from is
-    // implementation-specific (normally a configuration file).
-    // Any exception thrown by this function terminates the web
+    // Description of configuration options supported by this module. Note:
+    // should be callable during static initialization.
+    //
+    virtual option_descriptions
+    options () = 0;
+
+    // During startup the web server calls this function on the module
+    // exemplar passing a list of configuration options. The place these
+    // configuration options come from is implementation-specific (normally
+    // a configuration file). The web server guarantees that only options
+    // listed in the map returned by the options() function above can be
+    // present. Any exception thrown by this function terminates the web
     // server.
     //
     virtual void
     init (const name_values&, log&) = 0;
 
-    // Any exception other than invalid_request described above that
-    // leaves this function is treated by the web server implementation
-    // as an internal server error (500). Similar to invalid_request,
-    // it will try to return the status and description (obtained by
-    // calling what() on std::exception) to the client, if possible.
-    // The description is assume to be encoded in UTF-8. The
-    // implementation may provide a configuration option to omit
-    // the description from the response, for security/privacy
-    // reasons.
+    // Return false if decline to handle the request. If handling have been
+    // declined after any unbuffered content has been written, then the
+    // implementation shall terminate the response in a suitable but
+    // unspecified manner. Any exception other than invalid_request described
+    // above that leaves this function is treated by the web server
+    // implementation as an internal server error (500). Similar to
+    // invalid_request, it will try to return the status and description
+    // (obtained by calling what() on std::exception) to the client, if
+    // possible. The description is assume to be encoded in UTF-8. The
+    // implementation may provide a configuration option to omit the
+    // description from the response, for security/privacy reasons.
     //
-    virtual void
+    virtual bool
     handle (request&, response&, log&) = 0;
   };
 }

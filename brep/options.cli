@@ -3,6 +3,7 @@
 // license   : MIT; see accompanying LICENSE file
 
 include <brep/types>;
+
 include <brep/options-types>;
 
 namespace brep
@@ -11,10 +12,12 @@ namespace brep
   //
   namespace options
   {
+    // Option groups.
+    //
     class module
     {
-      uint16_t verb;
-      dir_path root;
+      uint16_t log-verbosity;
+      dir_path root = "/";
     };
 
     class db
@@ -23,26 +26,37 @@ namespace brep
       uint16_t db-port = 5432;
     };
 
-    class package_search: module, db
+    class search
     {
-      uint16_t results-on-page = 10;
-      uint16_t pages-in-pager = 5;
+      uint16_t search-results = 10;
+      uint16_t pager-pages = 5;
     };
 
-    class package_details: module, db
+    class package
     {
-      uint16_t results-on-page = 10;
-      uint16_t pages-in-pager = 5;
-      uint16_t description-length = 500; // ~ 80 chars x 6 lines.
+      uint16_t description-len = 500; // ~ 80 chars x 6 lines.
+      uint16_t changes-len = 5000; // ~ 80 chars x 60 lines.
     };
 
-    class package_version_details: module, db
+    // Module options.
+    //
+    class package_search: module, db, search
     {
-      uint16_t description-length = 500; // ~ 80 chars x 6 lines.
-      uint16_t changes-length = 5000; // ~ 80 chars x 60 lines.
+    };
+
+    class package_details: module, db, search, package
+    {
+    };
+
+    class package_version_details: module, db, package
+    {
     };
 
     class repository_details: module, db
+    {
+    };
+
+    class repository_root: module
     {
     };
   }

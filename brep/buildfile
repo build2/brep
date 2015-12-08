@@ -4,7 +4,10 @@
 
 using cli
 
-.: libso{brep brep-apache}
+# @@ The target should actually be mod_brep.so, not libmod_brep.so. Such
+#    customization is not supported yet.
+#
+.: libso{brep mod_brep}
 
 # brep library build rules.
 #
@@ -17,25 +20,26 @@ brep = cxx{package package-traits package-odb}
 libso{brep}: $brep $libs
 libso{brep}: cxx.export.poptions = -I$out_root -I$src_root
 
-# brep-apache library build rules.
+# mod_brep library build rules.
 #
 import libs += libstudxml%lib{studxml}
 
-brep = cxx{diagnostics module services repository-root package-search \
-           package-details package-version-details repository-details \
-           shared-database page types-parsers} \
+brep = cxx{services diagnostics module repository-root package-search \
+       package-details package-version-details repository-details \
+       shared-database page types-parsers} \
        cli.cxx{options}
 
 web = ../web/apache/cxx{request service} ../web/cxx{mime-url-encoding}
 
-libso{brep-apache}: $brep $web libso{brep} $libs
+libso{mod_brep}: $brep $web libso{brep} $libs
 
 # Set option prefix to the empty value to handle all unknown request parameters
 # uniformly with a single catch block.
 #
-cli.options += -I $src_root --include-with-brackets --include-prefix brep \
---guard-prefix BREP --cxx-prologue "#include <brep/types-parsers>" \
+cli.options += --std c++11 -I $src_root --include-with-brackets \
+--include-prefix brep --guard-prefix BREP \
+--cxx-prologue "#include <brep/types-parsers>" \
 --cli-namespace brep::cli --generate-file-scanner --suppress-usage \
---option-prefix ""
+--generate-modifier --generate-description --option-prefix ""
 
 cli.cxx{options}: cli{options}

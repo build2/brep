@@ -4,17 +4,22 @@
 
 #include <brep/repository-root>
 
-#include <map>
-#include <functional>
+#include <sstream>
 
 #include <web/module>
 
 #include <brep/types>
 #include <brep/utility>
+
+#include <brep/module>
+#include <brep/options>
 #include <brep/package-search>
+#include <brep/package-details>
 #include <brep/repository-details>
+#include <brep/package-version-details>
 
 using namespace std;
+using namespace brep::cli;
 
 namespace brep
 {
@@ -45,75 +50,141 @@ namespace brep
 
   // repository_root
   //
+  repository_root::
+  repository_root ()
+      : package_search_ (make_shared<package_search> ()),
+        package_details_ (make_shared<package_details> ()),
+        package_version_details_ (make_shared<package_version_details> ()),
+        repository_details_ (make_shared<repository_details> ())
+  {
+  }
+
+  // Return amalgamation of repository_root and all its sub-modules option
+  // descriptions.
+  //
+  option_descriptions repository_root::
+  options ()
+  {
+    option_descriptions r (module::options ());
+    append (r, package_search_->options ());
+    append (r, package_details_->options ());
+    append (r, package_version_details_->options ());
+    append (r, repository_details_->options ());
+    return r;
+  }
+
+  // Initialize sub-modules and parse own configuration options.
+  //
   void repository_root::
+  init (const name_values& v)
+  {
+    auto sub_init ([this, &v](module& m)
+      {
+        m.init (filter (v, m.options ()), *log_);
+      });
+
+    // Initialize sub-modules.
+    //
+    sub_init (*package_search_);
+    sub_init (*package_details_);
+    sub_init (*package_version_details_);
+    sub_init (*repository_details_);
+
+    // Parse own configuration options.
+    //
+    module::init (
+      filter (v, convert (options::repository_root::description ())));
+  }
+
+  void repository_root::
+  init (scanner& s)
+  {
+    MODULE_DIAG;
+
+    options_ = make_shared<options::repository_root> (
+      s, unknown_mode::fail, unknown_mode::fail);
+
+    if (options_->root ().empty ())
+      options_->root (dir_path ("/"));
+  }
+
+  bool repository_root::
   handle (request& rq, response& rs)
   {
     MODULE_DIAG;
 
-    // Dispatch request handling to the appropriate module depending on the
-    // function name passed as a first HTTP request parameter. The parameter
-    // should have no value specified. If no function name is passed,
-    // the default handler is selected. Example: cppget.org/?about
-    //
+    static const dir_path& root (options_->root ());
 
-    string func;
-    name_values params (rq.parameters ());
+    const path& rpath (rq.path ());
+    if (!rpath.sub (root))
+      return false;
 
-    // Obtain the function name.
+    const path& lpath (rpath.leaf (root));
+
+    // @@ An exception thrown by the selected module handle () function call
+    //    will be attributed to the repository-root service while being logged.
+    //    Could intercept exception handling to add some sub-module attribution,
+    //    but let's not complicate the code for the time being.
     //
-    if (!params.empty () && !params.front ().value)
+    if (lpath.empty ())
     {
-      func = move (params.front ().name);
-
-      // Cleanup not to confuse the selected handler with the unknown parameter.
+      // Dispatch request handling to the repository_details or the
+      // package_search module depending on the function name passed as a
+      // first HTTP request parameter. The parameter should have no value
+      // specified. Example: cppget.org/?about
       //
-      params.erase (params.begin ());
-    }
-
-    // To handle the request a new module instance is created as a copy of
-    // the corresponsing exemplar.
-    //
-    using module_ptr = unique_ptr<module>;
-
-    // Function name to module factory map.
-    //
-    const map<string, function<module_ptr()>>
-      handlers ({
+      const name_values& params (rq.parameters ());
+      if (!params.empty () && !params.front ().value)
+      {
+        if (params.front ().name == "about")
         {
-          "about",
-          [this]() -> module_ptr
-          {return module_ptr (new repository_details (repository_details_));}
-        },
-        {
-          string (), // The default handler.
-          [this]() -> module_ptr
-          {return module_ptr (new package_search (package_search_));}
-        }});
+          // Cleanup not to confuse the selected module with the unknown
+          // parameter.
+          //
+          name_values p (params);
+          p.erase (p.begin ());
 
-    // Find proper handler.
-    //
-    auto i (handlers.find (func));
-    if (i == handlers.end ())
-      throw invalid_request (400, "unknown function");
+          request_proxy rp (rq, p);
+          repository_details m (*repository_details_);
+          return m.handle (rp, rs);
+        }
 
-    module_ptr m (i->second ());
-    if (m->loaded ())
-    {
-      // Delegate request handling.
-      //
-      // @@ An exception thrown by the handler will be attributed to the
-      //    repository-root service while being logged. Could intercept
-      //    exception handling to fix that, but let's not complicate the
-      //    code for the time being.
-      //
-      //
-      request_proxy rqp (rq, params);
-      m->handle (rqp, rs);
+        throw invalid_request (400, "unknown function");
+      }
+      else
+      {
+        package_search m (*package_search_);
+        return m.handle (rq, rs);
+      }
     }
     else
-      // The module is not loaded, presumably being disabled in the web server
-      // configuration file.
+    {
+      // Dispatch request handling to the package_details or the
+      // package_version_details module depending on the HTTP request URL path.
       //
-      throw invalid_request (404, "handler not available");
+      auto i (lpath.begin ());
+      assert (i != lpath.end ());
+
+      const string& n (*i++); // Package name.
+
+      // Check if this is a package name and not a brep static content files
+      // (CSS) directory name or a repository directory name.
+      //
+      if (n != "@" && n.find_first_not_of ("0123456789") != string::npos)
+      {
+        if (i == lpath.end ())
+        {
+          package_details m (*package_details_);
+          return m.handle (rq, rs);
+        }
+        else if (++i == lpath.end ())
+        {
+          package_version_details m (*package_version_details_);
+          return m.handle (rq, rs);
+        }
+      }
+    }
+
+    return false;
   }
 }

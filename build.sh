@@ -24,24 +24,24 @@ g++ -shared $DEBUG -std=c++11 -I.. -I../../libbpkg \
     -I../../libbutl -L../../libbpkg/bpkg -L../../libbutl/butl \
     -fPIC -o libbrep.so $s -lbpkg -lbutl -lodb-pgsql -lodb
 
-echo "cli brep-apache options"
+echo "cli mod_brep options"
 
 cli --include-with-brackets --include-prefix brep  --hxx-suffix "" \
     --guard-prefix BREP  --cxx-prologue "#include <brep/types-parsers>" \
     --cli-namespace brep::cli --generate-file-scanner --suppress-usage \
-    --option-prefix "" ./options.cli
+    --generate-modifier --generate-description --option-prefix "" ./options.cli
 
-echo "g++ libbrep-apache.so"
+echo "g++ libmod_brep.so"
 
-s="package-search.cxx package-details.cxx package-version-details.cxx \
-repository-details.cxx repository-root.cxx module.cxx page.cxx services.cxx \
-options.cxx shared-database.cxx diagnostics.cxx \
+s="options.cxx services.cxx package-search.cxx package-details.cxx \
+package-version-details.cxx repository-details.cxx repository-root.cxx \
+module.cxx page.cxx shared-database.cxx diagnostics.cxx \
 ../web/apache/request.cxx ../web/apache/service.cxx \
 ../web/mime-url-encoding.cxx"
 
 g++ -shared $DEBUG -std=c++11 -I/usr/include/apr-1 -I/usr/include/httpd \
     -I.. -I../../libbpkg -I../../libbutl -L. -L../../libbpkg/bpkg \
-    -fPIC -o libbrep-apache.so $s -lbrep -lbpkg -lodb-pgsql -lodb -lstudxml
+    -fPIC -o libmod_brep.so $s -lbrep -lbpkg -lodb-pgsql -lodb -lstudxml
 
 cd ../loader
 

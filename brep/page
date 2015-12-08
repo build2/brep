@@ -8,6 +8,7 @@
 #include <xml/forward>
 
 #include <brep/types>
+
 #include <brep/package>
 
 namespace brep

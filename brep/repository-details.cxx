@@ -13,9 +13,10 @@
 #include <web/module>
 #include <web/mime-url-encoding>
 
-#include <brep/page>
 #include <brep/types>
 #include <brep/utility>
+
+#include <brep/page>
 #include <brep/options>
 #include <brep/package>
 #include <brep/package-odb>
@@ -32,10 +33,13 @@ init (scanner& s)
   options_ = make_shared<options::repository_details> (
     s, unknown_mode::fail, unknown_mode::fail);
 
+  if (options_->root ().empty ())
+    options_->root (dir_path ("/"));
+
   db_ = shared_database (options_->db_host (), options_->db_port ());
 }
 
-void brep::repository_details::
+bool brep::repository_details::
 handle (request& rq, response& rs)
 {
   using namespace web::xhtml;
@@ -45,16 +49,13 @@ handle (request& rq, response& rs)
   // The module options object is not changed after being created once per
   // server process.
   //
-  static const dir_path& root (
-    options_->root ().empty ()
-    ? dir_path ("/")
-    : options_->root ());
+  static const dir_path& root (options_->root ());
 
   // Make sure no parameters passed.
   //
   try
   {
-    param_scanner s (rq.parameters ());
+    name_value_scanner s (rq.parameters ());
     params::repository_details (s, unknown_mode::fail, unknown_mode::fail);
   }
   catch (const unknown_argument& e)
@@ -106,4 +107,6 @@ handle (request& rq, response& rs)
   s <<     ~DIV
     <<   ~BODY
     << ~HTML;
+
+  return true;
 }

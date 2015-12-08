@@ -5,26 +5,45 @@
 #ifndef BREP_REPOSITORY_ROOT
 #define BREP_REPOSITORY_ROOT
 
+#include <brep/types>
+
 #include <brep/module>
+#include <brep/options>
 
 namespace brep
 {
   class package_search;
+  class package_details;
+  class package_version_details;
   class repository_details;
 
   class repository_root: public module
   {
   public:
-    repository_root (package_search& ps, repository_details& rd)
-        : package_search_ (ps), repository_details_ (rd) {}
+    repository_root ();
 
   private:
-    virtual void
+    virtual bool
     handle (request&, response&);
 
+    virtual const cli::options&
+    cli_options () const {return options::repository_root::description ();}
+
+    virtual option_descriptions
+    options ();
+
+    virtual void
+    init (const name_values&);
+
+    virtual void
+    init (cli::scanner&);
+
   private:
-    package_search& package_search_;
-    repository_details& repository_details_;
+    shared_ptr<package_search> package_search_;
+    shared_ptr<package_details> package_details_;
+    shared_ptr<package_version_details> package_version_details_;
+    shared_ptr<repository_details> repository_details_;
+    shared_ptr<options::repository_root> options_;
   };
 }
 

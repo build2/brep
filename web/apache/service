@@ -8,9 +8,7 @@
 #include <httpd.h>
 
 #include <string>
-#include <vector>
 #include <cassert>
-#include <utility>   // move()
 
 #include <web/module>
 #include <web/apache/log>
@@ -23,14 +21,10 @@ namespace web
     class service: ::module
     {
     public:
-      using option_names = std::vector<std::string>;
-
       // Note that the module exemplar is stored by-reference.
       //
       template <typename M>
-      service (const std::string& name,
-               M& exemplar,
-               option_names opts = option_names ())
+      service (const std::string& name, M& exemplar)
           : ::module
             {
               STANDARD20_MODULE_STUFF,
@@ -42,8 +36,7 @@ namespace web
               &register_hooks<M>
             },
             name_ (name),
-            exemplar_ (exemplar),
-            option_names_ (std::move (opts))
+            exemplar_ (exemplar)
       {
         init_directives ();
 
@@ -74,14 +67,28 @@ namespace web
       static void
       register_hooks (apr_pool_t*) noexcept
       {
-        // The registered function is called right after apache worker
-        // process is started. Called for every new process spawned.
+        // The config_finalizer() function is called at the end of Apache
+        // server configuration parsing.
+        //
+        ap_hook_post_config (&config_finalizer<M>, NULL, NULL, APR_HOOK_LAST);
+
+        // The worker_initializer() function is called right after Apache
+        // worker process is started. Called for every new process spawned.
         //
         ap_hook_child_init (&worker_initializer<M>, NULL, NULL, APR_HOOK_LAST);
 
-        // The registered function is called for each client request.
+        // The request_handler () function is called for each client request.
         //
         ap_hook_handler (&request_handler<M>, NULL, NULL, APR_HOOK_LAST);
+      }
+
+      template <typename M>
+      static int
+      config_finalizer (apr_pool_t*, apr_pool_t*, apr_pool_t*, server_rec*)
+        noexcept
+      {
+        instance<M> ()->options_parsed_ = true;
+        return OK;
       }
 
       template <typename M>
@@ -112,7 +119,10 @@ namespace web
       init_worker (log& l) noexcept;
 
       static const char*
-      add_option (cmd_parms* parms, void* mconfig, const char* args) noexcept;
+      parse_option (cmd_parms* parms, void* mconfig, const char* args) noexcept;
+
+      const char*
+      add_option (const char* name, optional<std::string> value);
 
       template <typename M>
       int handle (request& r, log& l) noexcept;
@@ -120,8 +130,9 @@ namespace web
     private:
       std::string name_;
       module& exemplar_;
-      option_names option_names_;
+      option_descriptions option_descriptions_;
       name_values options_;
+      bool options_parsed_ = false;
     };
   }
 }

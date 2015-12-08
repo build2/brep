@@ -14,9 +14,10 @@
 #include <web/module>
 #include <web/mime-url-encoding>
 
-#include <brep/page>
 #include <brep/types>
 #include <brep/utility>
+
+#include <brep/page>
 #include <brep/options>
 #include <brep/package>
 #include <brep/package-odb>
@@ -32,6 +33,9 @@ init (scanner& s)
 
   options_ = make_shared<options::package_details> (
     s, unknown_mode::fail, unknown_mode::fail);
+
+  if (options_->root ().empty ())
+    options_->root (dir_path ("/"));
 
   db_ = shared_database (options_->db_host (), options_->db_port ());
 }
@@ -51,7 +55,7 @@ search_params (const brep::string& n, const brep::string& q)
     ")";
 }
 
-void brep::package_details::
+bool brep::package_details::
 handle (request& rq, response& rs)
 {
   using namespace web;
@@ -62,11 +66,8 @@ handle (request& rq, response& rs)
   // The module options object is not changed after being created once per
   // server process.
   //
-  static const size_t res_page (options_->results_on_page ());
-  static const dir_path& root (
-    options_->root ().empty ()
-    ? dir_path ("/")
-    : options_->root ());
+  static const size_t res_page (options_->search_results ());
+  static const dir_path& root (options_->root ());
 
   const string& name (*rq.path ().rbegin ());
   const string ename (mime_url_encode (name));
@@ -76,7 +77,7 @@ handle (request& rq, response& rs)
 
   try
   {
-    param_scanner s (rq.parameters ());
+    name_value_scanner s (rq.parameters ());
     params = params::package_details (
       s, unknown_mode::fail, unknown_mode::fail);
 
@@ -159,7 +160,7 @@ handle (request& rq, response& rs)
     if (const auto& d = pkg->description)
       s << (full
             ? P_DESCRIPTION (*d, id)
-            : P_DESCRIPTION (*d, options_->description_length (),
+            : P_DESCRIPTION (*d, options_->description_len (),
                              url (!full, squery, page, id)));
 
     s << TABLE(CLASS="proplist", ID="package")
@@ -231,9 +232,11 @@ handle (request& rq, response& rs)
 
   t.commit ();
 
-  s <<       DIV_PAGER (page, pkg_count, res_page, options_->pages_in_pager (),
+  s <<       DIV_PAGER (page, pkg_count, res_page, options_->pager_pages (),
                         url (full, squery))
     <<     ~DIV
     <<   ~BODY
     << ~HTML;
+
+  return true;
 }

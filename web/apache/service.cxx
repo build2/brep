@@ -10,11 +10,14 @@
 #include <httpd.h>
 #include <http_config.h>
 
-#include <memory>  // unique_ptr
+#include <memory>    // unique_ptr
 #include <string>
 #include <cassert>
-#include <cstring> // strlen()
+#include <utility>   // move()
+#include <cstring>   // strlen()
 #include <exception>
+
+#include <web/module>
 
 using namespace std;
 
@@ -34,19 +37,19 @@ namespace web
       // bar of module foo the corresponding directive will appear in apache
       // configuration file as foo-bar.
       //
-      unique_ptr<command_rec[]> directives (
-        new command_rec[option_names_.size () + 1]);
-
+      const option_descriptions& od (exemplar_.options ());
+      unique_ptr<command_rec[]> directives (new command_rec[od.size () + 1]);
       command_rec* d (directives.get ());
 
-      for (auto& o: option_names_)
+      for (const auto& o: od)
       {
-        o = name_ + "-" + o;
+        auto i (option_descriptions_.emplace (name_ + "-" + o.first, o.second));
+        assert (i.second);
 
         *d++ =
           {
-            o.c_str (),
-            reinterpret_cast<cmd_func> (add_option),
+            i.first->first.c_str (),
+            reinterpret_cast<cmd_func> (parse_option),
             this,
             RSRC_CONF,
             // Move away from TAKE1 to be able to handle empty string and
@@ -58,36 +61,51 @@ namespace web
       }
 
       *d = {nullptr, nullptr, nullptr, 0, RAW_ARGS, nullptr};
-
       cmds = directives.release ();
     }
 
     const char* service::
-    add_option (cmd_parms* parms, void*, const char* args) noexcept
+    parse_option (cmd_parms* parms, void*, const char* args) noexcept
     {
+      // @@ Current implementation does not consider configuration context
+      //    (server config, virtual host, directory) for directive parsing, nor
+      //    for request handling.
+      //
       service& srv (*reinterpret_cast<service*> (parms->cmd->cmd_data));
-      string name (parms->cmd->name + srv.name_.length () + 1);
-      optional<string> value;
 
-      // 'args' is an optionally double-quoted string. Use double quotes to
-      // distinguish empty string from no-value case.
+      if (srv.options_parsed_)
+        // Apache is inside the second pass of its messy initialization cycle
+        // (more details at http://wiki.apache.org/httpd/ModuleLife). Just
+        // ignore it.
+        //
+        return 0;
+
+      // 'args' is an optionally double-quoted string. It uses double quotes
+      // to distinguish empty string from no-value case.
       //
       assert (args != nullptr);
+
+      optional<string> value;
       if (auto l = strlen (args))
         value = l >= 2 && args[0] == '"' && args[l - 1] == '"'
           ? string (args + 1, l - 2)
           : args;
 
-      for (auto& v: srv.options_)
-      {
-        if (v.name == name)
-        {
-          v.value = value;
-          return 0;
-        }
-      }
+      return srv.add_option (parms->cmd->name, move (value));
+    }
 
-      srv.options_.emplace_back (name, value);
+    const char* service::
+    add_option (const char* name, optional<string> value)
+    {
+      auto i (option_descriptions_.find (name));
+      assert (i != option_descriptions_.end ());
+
+      // Check that option value presense is expected.
+      //
+      if (i->second != static_cast<bool> (value))
+        return value ? "unexpected value" : "value expected";
+
+      options_.emplace_back (name + name_.length () + 1, move (value));
       return 0;
     }
 

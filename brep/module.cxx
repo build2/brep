@@ -18,6 +18,7 @@
 
 #include <brep/types>
 #include <brep/utility>
+
 #include <brep/options>
 
 using namespace std;
@@ -29,7 +30,7 @@ namespace brep
 
   // module
   //
-  void module::
+  bool module::
   handle (request& rq, response& rs, log& l)
   {
     assert (loaded_);
@@ -38,7 +39,7 @@ namespace brep
 
     try
     {
-      handle (rq, rs);
+      return handle (rq, rs);
     }
     catch (const server_error& e)
     {
@@ -74,24 +75,77 @@ namespace brep
         // it.
       }
     }
+
+    return true;
   }
 
-  // Parse options with a cli-generated scanner. Options verb and conf are
-  // recognized by brep::module::init while others to be interpreted by the
-  // derived class init method. If there is an option which can not be
-  // interpreted not by brep::module::init nor by derived class init method
-  // then web server is terminated with a corresponding error message being
-  // logged.
-  //
-  void module::
-  init (const name_values& options, log& log)
+  option_descriptions module::
+  convert (const cli::options& o)
   {
-    assert (!loaded_);
+    option_descriptions r;
+    append (r, o);
+    return r;
+  }
 
-    log_ = &log;
+  void module::
+  append (option_descriptions& dst, const cli::options& src)
+  {
+    for (const auto& o: src)
+    {
+      bool v (!o.flag ());
+      auto i (dst.emplace (o.name (), v));
+      assert (i.first->second == v); // Consistent option/flag.
+
+      for (const auto& a: o.aliases ())
+      {
+        i = dst.emplace (a, v);
+        assert (i.first->second == v);
+      }
+    }
+  }
+
+  void module::
+  append (option_descriptions& dst, const option_descriptions& src)
+  {
+    for (const auto& o: src)
+    {
+      auto i (dst.emplace (o));
+      assert (i.first->second == o.second); // Consistent option/flag.
+    }
+  }
+
+  name_values module::
+  filter (const name_values& v, const option_descriptions& d)
+  {
+    name_values r;
+    for (const auto& nv: v)
+    {
+      if (d.find (nv.name) != d.end ())
+        r.push_back (nv);
+    }
+
+    return r;
+  }
+
+  // Convert CLI option descriptions to the general interface of option
+  // descriptions, extend with brep::module own option descriptions.
+  //
+  option_descriptions module::
+  options ()
+  {
+    option_descriptions r ({{"conf", true}});
+    append (r, options::module::description ());
+    append (r, cli_options ());
+    return r;
+  }
+
+  // Expand option list parsing configuration files.
+  //
+  name_values module::
+  expand_options (const name_values& v)
+  {
     vector<const char*> argv;
-
-    for (const auto& nv: options)
+    for (const auto& nv: v)
     {
       argv.push_back (nv.name.c_str ());
 
@@ -100,29 +154,60 @@ namespace brep
     }
 
     int argc (argv.size ());
+    argv_file_scanner s (0, argc, const_cast<char**> (argv.data ()), "conf");
+
+    name_values r;
+    const option_descriptions& o (options ());
+
+    while (s.more ())
+    {
+      string n (s.next ());
+      auto i (o.find (n));
+
+      if (i == o.end ())
+        throw unknown_argument (n);
+
+      optional<string> v;
+      if (i->second)
+        v = s.next ();
+
+      r.emplace_back (move (n), move (v));
+    }
+
+    return r;
+  }
+
+  // Parse options with a cli-generated scanner. Options verb and conf are
+  // recognized by brep::module::init while others to be interpreted by the
+  // derived init(). If there is an option which can not be interpreted
+  // neither by brep::module nor by the derived class, then the web server
+  // is terminated with a corresponding error message being logged. Though
+  // this should not happen if the options() function returned the correct
+  // set of options.
+  //
+  void module::
+  init (const name_values& options, log& log)
+  {
+    assert (!loaded_);
+
+    log_ = &log;
 
     try
     {
-      {
-        // Read module implementation configuration.
-        //
-        argv_file_scanner s (0,
-                             argc,
-                             const_cast<char**> (argv.data ()),
-                             "conf");
+      name_values opts (expand_options (options));
 
-        init (s);
-      }
+      // Read module implementation configuration.
+      //
+      init (opts);
 
       // Read brep::module configuration.
       //
-      argv_file_scanner s (0,
-                           argc,
-                           const_cast<char**> (argv.data ()),
-                           "conf");
+      static option_descriptions od (convert (options::module::description ()));
+      name_values mo (filter (opts, od));
+      name_value_scanner s (mo);
+      options::module o (s, unknown_mode::fail, unknown_mode::fail);
 
-      options::module o (s, unknown_mode::skip, unknown_mode::skip);
-      verb_ = o.verb ();
+      verb_ = o.log_verbosity ();
       loaded_ = true;
     }
     catch (const server_error& e)
@@ -136,6 +221,14 @@ namespace brep
       e.print (o);
       throw runtime_error (o.str ());
     }
+  }
+
+  void module::
+  init (const name_values& options)
+  {
+    name_value_scanner s (options);
+    init (s);
+    assert (!s.more ()); // Module didn't handle its options.
   }
 
   module::
@@ -208,7 +301,7 @@ namespace brep
 
     //@@ Cast log_ to apache::log and write the records.
     //
-    auto al (dynamic_cast<::web::apache::log*> (log_));
+    auto al (dynamic_cast<web::apache::log*> (log_));
 
     if (al)
     {
@@ -240,23 +333,23 @@ namespace brep
     }
   }
 
-  // module::param_scanner
+  // module::name_value_scanner
   //
-  module::param_scanner::
-  param_scanner (const name_values& nv) noexcept
+  module::name_value_scanner::
+  name_value_scanner (const name_values& nv) noexcept
       : name_values_ (nv),
         i_ (nv.begin ()),
         name_ (true)
   {
   }
 
-  bool module::param_scanner::
+  bool module::name_value_scanner::
   more ()
   {
     return i_ != name_values_.end ();
   }
 
-  const char* module::param_scanner::
+  const char* module::name_value_scanner::
   peek ()
   {
     if (i_ != name_values_.end ())
@@ -265,7 +358,7 @@ namespace brep
       throw eos_reached ();
   }
 
-  const char* module::param_scanner::
+  const char* module::name_value_scanner::
   next ()
   {
     if (i_ != name_values_.end ())
@@ -278,7 +371,7 @@ namespace brep
       throw eos_reached ();
   }
 
-  void module::param_scanner::
+  void module::name_value_scanner::
   skip ()
   {
     if (i_ != name_values_.end ())

@@ -14,9 +14,10 @@
 #include <web/module>
 #include <web/mime-url-encoding>
 
-#include <brep/page>
 #include <brep/types>
 #include <brep/utility>
+
+#include <brep/page>
 #include <brep/options>
 #include <brep/package>
 #include <brep/package-odb>
@@ -33,6 +34,9 @@ init (scanner& s)
   options_ = make_shared<options::package_search> (
     s, unknown_mode::fail, unknown_mode::fail);
 
+  if (options_->root ().empty ())
+    options_->root (dir_path ("/"));
+
   db_ = shared_database (options_->db_host (), options_->db_port ());
 }
 
@@ -48,7 +52,7 @@ search_param (const brep::string& q)
     ")";
 }
 
-void brep::package_search::
+bool brep::package_search::
 handle (request& rq, response& rs)
 {
   using namespace web::xhtml;
@@ -58,17 +62,14 @@ handle (request& rq, response& rs)
   // The module options object is not changed after being created once per
   // server process.
   //
-  static const size_t res_page (options_->results_on_page ());
-  static const dir_path& root (
-    options_->root ().empty ()
-    ? dir_path ("/")
-    : options_->root ());
+  static const size_t res_page (options_->search_results ());
+  static const dir_path& root (options_->root ());
 
   params::package_search params;
 
   try
   {
-    param_scanner s (rq.parameters ());
+    name_value_scanner s (rq.parameters ());
     params = params::package_search (s, unknown_mode::fail, unknown_mode::fail);
   }
   catch (const unknown_argument& e)
@@ -137,9 +138,11 @@ handle (request& rq, response& rs)
 
   t.commit ();
 
-  s <<       DIV_PAGER (page, pkg_count, res_page, options_->pages_in_pager (),
+  s <<       DIV_PAGER (page, pkg_count, res_page, options_->pager_pages (),
                         root.string () + squery_param)
     <<     ~DIV
     <<   ~BODY
     << ~HTML;
+
+  return true;
 }

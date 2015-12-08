@@ -20,8 +20,15 @@ namespace web
       try
       {
         M m (static_cast<const M&> (exemplar_));
-        static_cast<module&> (m).handle (r, r, l);
-        return r.flush ();
+
+        if (static_cast<module&> (m).handle (r, r, l))
+          return r.flush ();
+
+        if (!r.get_write_state ())
+          return DECLINED;
+
+        l.write (nullptr, 0, func_name.c_str (), APLOG_ERR,
+                 "handling declined while unbuffered content has been written");
       }
       catch (const invalid_request& e)
       {

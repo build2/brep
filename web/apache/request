@@ -43,6 +43,11 @@ namespace web
       int
       flush ();
 
+      // Return true if content have been sent to the client, false otherwise.
+      //
+      bool
+      get_write_state () const noexcept {return write_state_;}
+
       // Get request path.
       //
       virtual const path_type&
@@ -97,9 +102,6 @@ namespace web
 
       void
       parse_parameters (const char* args);
-
-      bool
-      get_write_state () const noexcept {return write_state_;}
 
       virtual void
       set_write_state ()

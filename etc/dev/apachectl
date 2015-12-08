@@ -20,14 +20,16 @@
 #	8 - configuration syntax error
 #
 # When multiple arguments are given, only the error from the _last_
-# one is reported.  Run "apachectl help" for usage info
+# one is reported. Run "apachectl help" for usage info.
+#
 
 . `dirname $0`/config
 
 ARGV="$@"
 
 export AP_PORT
-export AP_SERVER_NAME
+export AP_GLOBAL_SERVER_NAME
+export AP_BREP_SERVER_NAME
 export AP_ROOT
 export AP_ADMIN_EMAIL
 export AP_LOG_LEVEL
@@ -36,41 +38,55 @@ export AP_DB_PORT
 export AP_MODULE_DIR
 export AP_WWW_DIR
 export AP_CONFIG_DIR
+export AP_LOG_DIR
 export AP_WORKSPACE_DIR
 export AP_REPOSITORY_DIR
 
-if test -n "$AP_LIB_DIRS"; then
-    export LD_LIBRARY_PATH=$AP_LIB_DIRS:$LD_LIBRARY_PATH
+if [ -n "$AP_LIB_DIRS" ] ; then
+  export LD_LIBRARY_PATH=$AP_LIB_DIRS:$LD_LIBRARY_PATH
 fi
 
 mkdir -p "$AP_WORKSPACE_DIR"
 mkdir -p "$AP_LOG_DIR"
 mkdir -p "$AP_REPOSITORY_DIR"
 
-# the path to your httpd binary, including options if necessary
+cat "$AP_CONFIG_DIR/../brep.conf" | \
+sed -e 's%modules\(/mod_brep.so\)%${AP_MODULE_DIR}\1%g' \
+    -e 's%/pkg/%${AP_ROOT}%g' \
+    -e 's%^\(brep-db-port\s*\).*%\1${AP_DB_PORT}%g' \
+    -e 's%^\(brep-db-host\s*\).*%\1${AP_DB_HOST}%g' \
+    -e 's%^#\(brep-conf\s*\)/path/to%\1${AP_CONFIG_DIR}%g' \
+    -e 's%/usr/share/brep/static%${AP_WWW_DIR}%g' \
+    -e 's%^#\(AliasMatch.*\)/path/to/repo%\1${AP_REPOSITORY_DIR}%g' \
+> "$AP_CONFIG_DIR/brep.conf"
 
-HTTPD="/usr/sbin/httpd -d $AP_LOG_DIR -f $AP_CONFIG_DIR/httpd.conf"
+# The path to your httpd binary, including options if necessary.
+#
+HTTPD="/usr/sbin/httpd -f $AP_CONFIG_DIR/httpd.conf"
 
-# a command that outputs a formatted text version of the HTML at the
-# url given on the command line.  Designed for lynx, however other
-# programs may work.
+# The command that outputs a formatted text version of the HTML at the url
+# given on the command line. Designed for lynx, however other programs may work.
+#
 LYNX="lynx -dump"
 
-# the URL to your server's mod_status status page.  If you do not
-# have one, then status and fullstatus will not work.
+# The URL to your server's mod_status status page. If you do not have one,
+# then status and fullstatus will not work.
+#
 STATUSURL="http://localhost:$AP_PORT/server-status"
 
-# Set this variable to a command that increases the maximum
-# number of file descriptors allowed per child process. This is
-# critical for configurations that use many file descriptors,
-# such as mass vhosting, or a multithreaded server.
+# Set this variable to a command that increases the maximum number of file
+# descriptors allowed per child process. This is critical for configurations
+# that use many file descriptors, such as mass vhosting, or a multithreaded
+# server.
+#
 ULIMIT_MAX_FILES="ulimit -S -n `ulimit -H -n`"
 # --------------------                              --------------------
 # ||||||||||||||||||||   END CONFIGURATION SECTION  ||||||||||||||||||||
 
 # Set the maximum number of file descriptors allowed per child process.
+#
 if [ "x$ULIMIT_MAX_FILES" != "x" ] ; then
-    $ULIMIT_MAX_FILES
+  $ULIMIT_MAX_FILES
 fi
 
 ERROR=0
