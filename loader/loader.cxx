@@ -704,7 +704,7 @@ main (int argc, char* argv[])
     //
     if (ops.version ())
     {
-      cout << "brep-loader 0.0.0" << endl
+      cout << "brep-loader 0.1.0" << endl
            << "Copyright (c) 2014-2015 Code Synthesis Ltd" << endl
            << "MIT; see accompanying LICENSE file" << endl;
 

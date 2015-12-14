@@ -1,7 +1,10 @@
-# file      : buildfile
+# file      : build/export.build
 # copyright : Copyright (c) 2014-2015 Code Synthesis Ltd
 # license   : MIT; see accompanying LICENSE file
 
-d = brep/ loader/ tests/
-./: $d doc{LICENSE version}
-include $d
+$out_root/:
+{
+  include brep/
+}
+
+export $out_root/brep/lib{brep}

@@ -1,3 +1,14 @@
+# file      : build/bootstrap.build
+# copyright : Copyright (c) 2014-2015 Code Synthesis Ltd
+# license   : MIT; see accompanying LICENSE file
+
 project = brep
+version = 0.1.0
+
+using build@0.1.0
 using config
+using dist
 using test
+using install
+
+dist.package = $project-$version

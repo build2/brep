@@ -2,12 +2,10 @@
 # copyright : Copyright (c) 2014-2015 Code Synthesis Ltd
 # license   : MIT; see accompanying LICENSE file
 
-using cli
-
 define mod: libso
 mod{*}: bin.libprefix = mod_
 
-./: libso{brep} mod{brep}
+./: lib{brep} mod{brep}
 
 # lib{brep}
 #
@@ -15,23 +13,50 @@ import libs += libodb%lib{odb}
 import libs += libodb-pgsql%lib{odb-pgsql}
 import libs += libbpkg%lib{bpkg}
 
-brep = cxx{package package-traits package-odb}
+lib{brep}:                          \
+{hxx         cxx}{ package        } \
+{hxx         cxx}{ package-traits } \
+{hxx ixx     cxx}{ package-odb    } \
+$libs
 
-libso{brep}: $brep $libs
 libso{brep}: cxx.export.poptions = -I$out_root -I$src_root
+
+# Install into the brep/ subdirectory of, say, /usr/include/.
+#
+install.include = $install.include/brep
 
 # mod{brep}
 #
 import libs += libstudxml%lib{studxml}
 
-brep = cxx{services diagnostics module repository-root package-search \
-       package-details package-version-details repository-details \
-       shared-database page types-parsers} \
-       cli.cxx{options}
-
-web = ../web/apache/cxx{request service} ../web/cxx{mime-url-encoding}
-
-mod{brep}: $brep $web libso{brep} $libs
+mod{brep}:                                                 \
+              {hxx         cxx}{ diagnostics             } \
+              {hxx         cxx}{ module                  } \
+              {hxx ixx     cxx}{ options                 } \
+              {hxx            }{ options-types           } \
+              {hxx         cxx}{ package                 } \
+              {hxx         cxx}{ package-details         } \
+              {hxx ixx     cxx}{ package-odb             } \
+              {hxx         cxx}{ package-search          } \
+              {hxx         cxx}{ package-traits          } \
+              {hxx         cxx}{ package-version-details } \
+              {hxx         cxx}{ page                    } \
+              {hxx         cxx}{ repository-details      } \
+              {hxx         cxx}{ repository-root         } \
+              {            cxx}{ services                } \
+              {hxx         cxx}{ shared-database         } \
+              {hxx            }{ types                   } \
+              {hxx         cxx}{ types-parsers           } \
+              {hxx            }{ utility                 } \
+              {hxx            }{ wrapper-traits          } \
+       ../web/{hxx         cxx}{ mime-url-encoding       } \
+       ../web/{hxx            }{ module                  } \
+       ../web/{hxx            }{ xhtml                   } \
+../web/apache/{hxx            }{ log                     } \
+../web/apache/{hxx ixx     cxx}{ request                 } \
+../web/apache/{hxx     txx cxx}{ service                 } \
+../web/apache/{hxx            }{ stream                  } \
+lib{brep} $libs
 
 # Set option prefix to the empty value to handle all unknown request parameters
 # uniformly with a single catch block.
@@ -42,4 +67,4 @@ cli.options += --std c++11 -I $src_root --include-with-brackets \
 --cli-namespace brep::cli --generate-file-scanner --suppress-usage \
 --generate-modifier --generate-description --option-prefix ""
 
-cli.cxx{options}: cli{options}
+{hxx ixx cxx}{options}: cli{options}

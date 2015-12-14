@@ -9,7 +9,7 @@ import libs += libodb%lib{odb}
 
 include ../../brep/
 
-exe{driver}: cxx{driver} ../../brep/libso{brep} $libs
+exe{driver}: cxx{driver} ../../brep/lib{brep} $libs
 
 # Disable for now until build2 test module supports running custom
 # commands, pre/post steps.

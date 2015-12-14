@@ -1,3 +1,7 @@
+# file      : build/root.build
+# copyright : Copyright (c) 2014-2015 Code Synthesis Ltd
+# license   : MIT; see accompanying LICENSE file
+
 using cxx
 
 hxx{*}: extension =
@@ -7,6 +11,23 @@ cxx{*}: extension = cxx
 
 cxx.std = 11
 cxx.poptions =+ -I$out_root -I$src_root
+
+# Load the cli module but only if it's available. This way a distribution
+# that includes pre-generated files can be built without installing cli.
+#
+using? cli
+
+if! $cli.loaded
+{
+  define cli: file
+  cli{*}: extension = cli
+}
+
+# Include generated cli files into the distribution.
+#
+hxx{*options}: dist = true
+ixx{*options}: dist = true
+cxx{*options}: dist = true
 
 # All exe{} in tests/ are, well, tests.
 #
