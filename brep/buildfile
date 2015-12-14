@@ -4,12 +4,12 @@
 
 using cli
 
-# @@ The target should actually be mod_brep.so, not libmod_brep.so. Such
-#    customization is not supported yet.
-#
-./: libso{brep mod_brep}
+define mod: libso
+mod{*}: bin.libprefix = mod_
 
-# brep library build rules.
+./: libso{brep} mod{brep}
+
+# lib{brep}
 #
 import libs += libodb%lib{odb}
 import libs += libodb-pgsql%lib{odb-pgsql}
@@ -20,7 +20,7 @@ brep = cxx{package package-traits package-odb}
 libso{brep}: $brep $libs
 libso{brep}: cxx.export.poptions = -I$out_root -I$src_root
 
-# mod_brep library build rules.
+# mod{brep}
 #
 import libs += libstudxml%lib{studxml}
 
@@ -31,7 +31,7 @@ brep = cxx{services diagnostics module repository-root package-search \
 
 web = ../web/apache/cxx{request service} ../web/cxx{mime-url-encoding}
 
-libso{mod_brep}: $brep $web libso{brep} $libs
+mod{brep}: $brep $web libso{brep} $libs
 
 # Set option prefix to the empty value to handle all unknown request parameters
 # uniformly with a single catch block.
