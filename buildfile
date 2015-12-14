@@ -3,5 +3,5 @@
 # license   : MIT; see accompanying LICENSE file
 
 d = brep/ loader/ tests/
-.: $d
+./: $d
 include $d

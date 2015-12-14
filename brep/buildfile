@@ -7,7 +7,7 @@ using cli
 # @@ The target should actually be mod_brep.so, not libmod_brep.so. Such
 #    customization is not supported yet.
 #
-.: libso{brep mod_brep}
+./: libso{brep mod_brep}
 
 # brep library build rules.
 #

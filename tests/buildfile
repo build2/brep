@@ -3,5 +3,5 @@
 # license   : MIT; see accompanying LICENSE file
 
 d = loader/ web/
-.: $d
+./: $d
 include $d

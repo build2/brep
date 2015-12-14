@@ -3,5 +3,5 @@
 # license   : MIT; see accompanying LICENSE file
 
 d = xhtml/
-.: $d
+./: $d
 include $d
