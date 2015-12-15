@@ -38,13 +38,13 @@ using namespace brep;
 namespace pgsql = odb::pgsql;
 
 static void
-usage ()
+usage (ostream& os)
 {
-  cout << "Usage: brep-loader [options] <file>" << endl
-       << "File lists internal repositories." << endl
-       << "Options:" << endl;
+  os << "Usage: brep-loader [options] <file>" << endl
+     << "File lists internal repositories." << endl
+     << "Options:" << endl;
 
-  options::print_usage (cout);
+  options::print_usage (os);
 }
 
 static inline bool
@@ -715,25 +715,29 @@ main (int argc, char* argv[])
     //
     if (ops.help ())
     {
-      usage ();
+      usage (cout);
       return 0;
     }
 
     if (argc < 2)
     {
-      cout << "<file> argument not provided" << endl;
-      usage ();
+      cerr << "<file> argument not provided" << endl;
+      usage (cerr);
       return 1;
     }
 
     if (argc > 2)
     {
-      cout << "unexpected argument encountered" << endl;
-      usage ();
+      cerr << "unexpected argument encountered" << endl;
+      usage (cerr);
       return 1;
     }
 
-    pgsql::database db ("", "", "brep", ops.db_host (), ops.db_port ());
+    pgsql::database db (ops.db_user (),
+                        ops.db_password (),
+                        ops.db_name (),
+                        ops.db_host (),
+                        ops.db_port ());
 
     // Prevent several loader instances from updating DB simultaneously.
     //
@@ -825,7 +829,7 @@ main (int argc, char* argv[])
   catch (const cli::exception& e)
   {
     cerr << e << endl;
-    usage ();
+    usage (cerr);
     return 1;
   }
   // Fully qualified to avoid ambiguity with odb exception.

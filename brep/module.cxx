@@ -207,7 +207,7 @@ namespace brep
       name_value_scanner s (mo);
       options::module o (s, unknown_mode::fail, unknown_mode::fail);
 
-      verb_ = o.log_verbosity ();
+      verb_ = o.verbosity ();
       loaded_ = true;
     }
     catch (const server_error& e)

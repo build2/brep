@@ -1,0 +1,71 @@
+1. Create PostgreSQL User and Database
+
+$ sudo su postgres
+$ psql
+
+Replace <user> with your login and "www-data" with the user under which
+apache2 is running.
+
+CREATE DATABASE brep;
+CREATE USER <user>;
+GRANT ALL PRIVILEGES ON DATABASE brep TO <user>;
+CREATE USER "www-data" INHERIT IN ROLE <user>;
+
+Make sure the logins work:
+
+$ psql -d brep
+$ sudo sudo -u www-data psql -d brep
+
+To troubleshooting, see logs:
+
+$ sudo tail -f /var/log/postgresql/*.log
+
+
+2. Create Database Schema and Load the Data
+
+All the commands are executed from brep project root.
+
+$ psql --quiet -d brep -f brep/package.sql
+$ loader/brep-loader tests/loader/r.conf # Or some other loader config.
+
+To verify:
+
+$ psql -d brep -c 'SELECT name, summary FROM repository'
+
+
+3. Setup Apache2 Module
+
+Here we assume apache2 is installed and you have an appropriate VirtualServer
+ready (the one for the default site is usually a good candidate). Open the
+corresponding apache2 .conf file and add the following inside VirtualServer,
+replacing <BREP-OUT-ROOT> and <BREP-SRC-ROOT> with the actual absolute paths
+(if you built brep in the source tree, then the two would be the same).
+
+        # brep module configuration.
+        #
+        LoadModule brep_module <BREP-OUT-ROOT>/brep/mod_brep.so
+        SetHandler brep
+
+        brep-conf <BREP-SRC-ROOT>/etc/brep.conf
+
+        # brep static content (CSS files).
+        #
+        # Note: trailing slashes are important!
+        #
+        Alias /pkg/@/ <BREP-SRC-ROOT>/www/
+
+        <Directory "<BREP-SRC-ROOT>/www">
+            Require all granted
+        </Directory>
+
+You may want to replace <BREP-SRC-ROOT>/etc/brep.conf with a custom
+configuration file if you often need to modify it.
+
+Restart apache2 (use the second version for systemd):
+
+$ sudo /etc/init.d/apache2 restart
+$ sudo systemctl restart apache2
+
+To verify, visit the repository root. To troubleshooting, see logs:
+
+$ sudo tail -f /var/log/apache2/error.log

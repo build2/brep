@@ -16,43 +16,107 @@ namespace brep
     //
     class module
     {
-      uint16_t log-verbosity;
-      dir_path root = "/";
+      dir_path root = "/"
+      {
+        "<path>"
+        "Repository root. That is, this is the part of the URL from the host
+         name and until the start of the repository. For example, root value
+         '\cb{/pkg/}' means the repository URL is http://example.org/pkg/.
+         Specify '\cb{/}' to use the web server root (http://example.org/)."
+      }
+
+      uint16_t verbosity = 0
+      {
+        "<level>",
+        "Trace verbosity level. Level 0 disables tracing, which is also the
+         default."
+      }
     };
 
     class db
     {
-      string db-host = "localhost";
-      uint16_t db-port = 5432;
+      string db-user
+      {
+        "<user>",
+        "Database user name. If not specified, then operating system (login)
+         name is used."
+      }
+
+      string db-password
+      {
+        "<pass>",
+        "Database password. If not specified, then login without password is
+         expected to work."
+      }
+
+      string db-name = "brep"
+      {
+        "<name>",
+        "Database name. If not specified, then '\cb{brep}' is used by default."
+      }
+
+      string db-host
+      {
+        "<host>",
+        "Database host name, address, or socket. If not specified, then connect
+         to \cb{localhost} using the operating system-default mechanism
+         (Unix-domain socket, etc)."
+      }
+
+      uint16_t db-port = 0
+      {
+        "<port>",
+        "Database port number. If not specified, the default port is used."
+      }
     };
 
     class search
     {
-      uint16_t search-results = 10;
-      uint16_t pager-pages = 5;
+      uint16_t search-results = 10
+      {
+        "<num>",
+        "Number of results per page. The default is 10."
+      }
+
+      uint16_t search-pages = 5
+      {
+        "<num>",
+        "Number of pages in navigation (pager). The default is 5."
+      }
     };
 
     class package
     {
-      uint16_t description-len = 500; // ~ 80 chars x 6 lines.
-      uint16_t changes-len = 5000; // ~ 80 chars x 60 lines.
+      uint16_t package-description = 500
+      {
+        "<len>",
+        "Number of package description characters to display in brief pages.
+         The default is 500 (~ 80 characters * 6 lines)."
+      }
+
+      uint16_t package-changes = 5000;
+      {
+        "<len>",
+        "Number of package changes characters to display in brief pages. The
+         default is 5000 (~ 80 chars x 60 lines)."
+      }
     };
 
     // Module options.
     //
-    class package_search: module, db, search
+    class package_search: search, db, module
     {
     };
 
-    class package_details: module, db, search, package
+    class package_details: package, search, db, module
     {
     };
 
-    class package_version_details: module, db, package
+    class package_version_details: package, db, module
     {
     };
 
-    class repository_details: module, db
+    class repository_details: db, module
     {
     };
 

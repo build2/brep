@@ -37,7 +37,7 @@ init (scanner& s)
   if (options_->root ().empty ())
     options_->root (dir_path ("/"));
 
-  db_ = shared_database (options_->db_host (), options_->db_port ());
+  db_ = shared_database (*options_);
 }
 
 template <typename T>
@@ -160,7 +160,7 @@ handle (request& rq, response& rs)
     if (const auto& d = pkg->description)
       s << (full
             ? P_DESCRIPTION (*d, id)
-            : P_DESCRIPTION (*d, options_->description_len (),
+            : P_DESCRIPTION (*d, options_->package_description (),
                              url (!full, squery, page, id)));
 
     s << TABLE(CLASS="proplist", ID="package")
@@ -232,7 +232,7 @@ handle (request& rq, response& rs)
 
   t.commit ();
 
-  s <<       DIV_PAGER (page, pkg_count, res_page, options_->pager_pages (),
+  s <<       DIV_PAGER (page, pkg_count, res_page, options_->search_pages (),
                         url (full, squery))
     <<     ~DIV
     <<   ~BODY

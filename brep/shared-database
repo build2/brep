@@ -9,6 +9,8 @@
 
 #include <brep/types>
 
+#include <brep/options>
+
 namespace brep
 {
   // Returns pointer to the shared database instance, creating one on the
@@ -17,7 +19,7 @@ namespace brep
   // otherwise. Is not thread-safe.
   //
   shared_ptr<odb::core::database>
-  shared_database (const string& host, unsigned int port);
+  shared_database (const options::db&);
 }
 
 #endif // BREP_SHARED_DATABASE

@@ -36,7 +36,7 @@ init (scanner& s)
   if (options_->root ().empty ())
     options_->root (dir_path ("/"));
 
-  db_ = shared_database (options_->db_host (), options_->db_port ());
+  db_ = shared_database (*options_);
 }
 
 bool brep::repository_details::

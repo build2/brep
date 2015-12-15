@@ -40,7 +40,7 @@ init (scanner& s)
   if (options_->root ().empty ())
     options_->root (dir_path ("/"));
 
-  db_ = shared_database (options_->db_host (), options_->db_port ());
+  db_ = shared_database (*options_);
 }
 
 bool brep::package_version_details::
@@ -152,7 +152,7 @@ handle (request& rq, response& rs)
   if (const auto& d = pkg->description)
     s << (full
           ? P_DESCRIPTION (*d, id)
-          : P_DESCRIPTION (*d, options_->description_len (),
+          : P_DESCRIPTION (*d, options_->package_description (),
                            url (!full, id)));
 
   assert (pkg->location);
@@ -302,7 +302,9 @@ handle (request& rq, response& rs)
     s << H3 << "Changes" << ~H3
       << (full
           ? PRE_CHANGES (ch)
-          : PRE_CHANGES (ch, options_->changes_len (), url (!full, "changes")));
+          : PRE_CHANGES (ch,
+                         options_->package_changes (),
+                         url (!full, "changes")));
 
   s <<     ~DIV
     <<   ~BODY

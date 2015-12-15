@@ -14,7 +14,7 @@
 namespace brep
 {
   shared_ptr<odb::database>
-  shared_database (const string& h, unsigned int p)
+  shared_database (const options::db& o)
   {
     using odb::pgsql::database;
     static weak_ptr<database> db;
@@ -25,14 +25,22 @@ namespace brep
     //
     if (shared_ptr<database> d = db.lock ())
     {
-      if (h != d->host () || p != d->port ())
+      if (o.db_user ()     != d->user ()     ||
+          o.db_password () != d->password () ||
+          o.db_name ()     != d->db ()       ||
+          o.db_host ()     != d->host ()     ||
+          o.db_port ()     != d->port ())
         throw std::runtime_error ("shared database host/port mismatch");
 
       return d;
     }
     else
     {
-      d = make_shared<database> ("", "", "brep", h, p);
+      d = make_shared<database> (o.db_user (),
+                                 o.db_password (),
+                                 o.db_name (),
+                                 o.db_host (),
+                                 o.db_port ());
       db = d;
       return d;
     }

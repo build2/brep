@@ -81,7 +81,7 @@ namespace brep
     //
     // While uint8 is more than enough, use uint16 for the ease of printing.
     //
-    uint16_t verb_ {0};
+    uint16_t verb_ = 0;
 
     template <class F> void level1 (const F& f) const {if (verb_ >= 1) f ();}
     template <class F> void level2 (const F& f) const {if (verb_ >= 2) f ();}
