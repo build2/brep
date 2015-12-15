@@ -1,0 +1,10 @@
+# file      : www/buildfile
+# copyright : Copyright (c) 2014-2015 Code Synthesis Ltd
+# license   : MIT; see accompanying LICENSE file
+
+define css: file
+css{*}: extension = css
+css{*}: install = data/www
+
+./: css{common package-details package-search package-version-details \
+repository-details}

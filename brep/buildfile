@@ -4,6 +4,7 @@
 
 define mod: libso
 mod{*}: bin.libprefix = mod_
+mod{*}: install = libexec
 
 ./: lib{brep} mod{brep}
 
@@ -15,8 +16,10 @@ import libs += libbpkg%lib{bpkg}
 
 lib{brep}:                          \
 {hxx         cxx}{ package        } \
-{hxx         cxx}{ package-traits } \
 {hxx ixx     cxx}{ package-odb    } \
+{hxx         cxx}{ package-traits } \
+{hxx            }{ types          } \
+{hxx            }{ utility        } \
 $libs
 
 libso{brep}: cxx.export.poptions = -I$out_root -I$src_root
@@ -34,20 +37,15 @@ mod{brep}:                                                 \
               {hxx         cxx}{ module                  } \
               {hxx ixx     cxx}{ options                 } \
               {hxx            }{ options-types           } \
-              {hxx         cxx}{ package                 } \
               {hxx         cxx}{ package-details         } \
-              {hxx ixx     cxx}{ package-odb             } \
               {hxx         cxx}{ package-search          } \
-              {hxx         cxx}{ package-traits          } \
               {hxx         cxx}{ package-version-details } \
               {hxx         cxx}{ page                    } \
               {hxx         cxx}{ repository-details      } \
               {hxx         cxx}{ repository-root         } \
               {            cxx}{ services                } \
               {hxx         cxx}{ shared-database         } \
-              {hxx            }{ types                   } \
               {hxx         cxx}{ types-parsers           } \
-              {hxx            }{ utility                 } \
               {hxx            }{ wrapper-traits          } \
        ../web/{hxx         cxx}{ mime-url-encoding       } \
        ../web/{hxx            }{ module                  } \
