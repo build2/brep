@@ -2,6 +2,8 @@
 # copyright : Copyright (c) 2014-2015 Code Synthesis Ltd
 # license   : MIT; see accompanying LICENSE file
 
-d = brep/ loader/ tests/ www/
-./: $d doc{LICENSE version}
+d = brep/ etc/ loader/ tests/ www/
+./: $d doc{INSTALL INSTALL-DEV LICENSE version} file{manifest}
 include $d
+
+$src_base/doc{INSTALL INSTALL-DEV}: install = false

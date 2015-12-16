@@ -1,0 +1,11 @@
+Debian/Ubuntu:
+  libapr1-dev /usr/include/apr-1.0
+  apache2-dev /usr/include/apache2
+
+Fedora/RHEL:
+  apr-devel   /usr/include/apr-1
+  httpd-devel /usr/include/httpd
+
+FreeBSD:
+  apr         /usr/local/include/apr-1
+  apache24    /usr/local/include/apache24

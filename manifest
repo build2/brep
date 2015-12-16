@@ -1,0 +1,23 @@
+: 1
+name: brep
+version: 0.1.0
+summary: build2 package repository web interface
+license: MIT
+tags: build2, c++, package, repository, web, interface, apache, module
+description-file: README
+changes-file: NEWS
+url: http://build2.org
+email: build2-users@build2.org
+requires: c++11
+requires: build2 >= 0.1.0
+requires: libstudxml >= 1.1.0-a3
+requires: libodb >= 2.5.0-a3
+requires: libodb-pgsql >= 2.5.0-a3
+requires: postgresql >= 9.0
+requires: apache2; Including development files (httpd.h header, etc).
+requires: libapr
+# @@ Should probably become conditional dependency.
+requires: ? cli ; Only required if changing .cli files.
+# @@ Need libb* [0.1.0 0.2.0-].
+depends: libbutl == 0.1.0
+depends: libbpkg == 0.1.0
