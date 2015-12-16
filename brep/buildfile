@@ -55,7 +55,7 @@ src =                                                      \
 ../web/apache/{hxx     txx cxx}{ service                 } \
 ../web/apache/{hxx            }{ stream                  } \
 
-mod{brep}: $gen $src lib{brep} $libs
+mod{brep}: $src $gen lib{brep} $libs
 
 # Don't install any of the mod{brep} headers.
 #
