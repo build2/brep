@@ -32,10 +32,10 @@ install.include = $install.include/brep
 #
 import libs += libstudxml%lib{studxml}
 
-mod{brep}:                                                 \
+gen =         {hxx ixx     cxx}{ options                 }
+src =                                                      \
               {hxx         cxx}{ diagnostics             } \
               {hxx         cxx}{ module                  } \
-              {hxx ixx     cxx}{ options                 } \
               {hxx            }{ options-types           } \
               {hxx         cxx}{ package-details         } \
               {hxx         cxx}{ package-search          } \
@@ -54,7 +54,13 @@ mod{brep}:                                                 \
 ../web/apache/{hxx ixx     cxx}{ request                 } \
 ../web/apache/{hxx     txx cxx}{ service                 } \
 ../web/apache/{hxx            }{ stream                  } \
-lib{brep} $libs
+
+mod{brep}: $gen $src lib{brep} $libs
+
+# Don't install any of the mod{brep} headers.
+#
+$out_base/{$gen}: install = false
+$src_base/{$src}: install = false
 
 # Set option prefix to the empty value to handle all unknown request parameters
 # uniformly with a single catch block.
