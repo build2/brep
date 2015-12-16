@@ -11,12 +11,12 @@ CREATE USER <user>;
 GRANT ALL PRIVILEGES ON DATABASE brep TO <user>;
 CREATE USER "www-data" INHERIT IN ROLE <user>;
 
-Make sure the logins work:
+Exit psql (^D) and postgres login (^D), then make sure the logins work:
 
 $ psql -d brep
 $ sudo sudo -u www-data psql -d brep
 
-To troubleshooting, see logs:
+To troubleshooting, see PostgreSQL logs, for example:
 
 $ sudo tail -f /var/log/postgresql/*.log
 
@@ -66,6 +66,7 @@ Restart apache2 (use the second version for systemd):
 $ sudo /etc/init.d/apache2 restart
 $ sudo systemctl restart apache2
 
-To verify, visit the repository root. To troubleshooting, see logs:
+To verify, visit the repository root. To troubleshoote, see Apache logs,
+for example:
 
 $ sudo tail -f /var/log/apache2/error.log
