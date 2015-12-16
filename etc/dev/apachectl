@@ -50,7 +50,7 @@ mkdir -p "$AP_WORKSPACE_DIR"
 mkdir -p "$AP_LOG_DIR"
 mkdir -p "$AP_REPOSITORY_DIR"
 
-cat "$AP_CONFIG_DIR/../brep.conf" | \
+cat "$AP_CONFIG_DIR/../brep-apache2.conf" | \
 sed -e 's%modules\(/mod_brep.so\)%${AP_MODULE_DIR}\1%g' \
     -e 's%/pkg/%${AP_ROOT}%g' \
     -e 's%^\(brep-db-port\s*\).*%\1${AP_DB_PORT}%g' \
