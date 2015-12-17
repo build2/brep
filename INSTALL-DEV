@@ -7,7 +7,7 @@ user under which Apache2 is running (See the "User" directive in the Apache2
 .conf file).
 
 
-0. Checking Permissions
+0. Check Permissions
 
 Check that the files in the brep/ directory are readable by "others". If they
 are not, then run the following two commands to grant Apache2 read access:
