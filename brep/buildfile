@@ -6,7 +6,11 @@ define mod: libso
 mod{*}: bin.libprefix = mod_
 mod{*}: install = libexec
 
-./: lib{brep} mod{brep}
+define sql: file
+sql{*}: extension = sql
+sql{*}: install = data
+
+./: lib{brep} mod{brep} sql{package}
 
 # lib{brep}
 #

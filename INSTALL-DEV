@@ -75,7 +75,7 @@ replacing <BREP-OUT-ROOT> and <BREP-SRC-ROOT> with the actual absolute paths
 
         # Brep module configuration.
         #
-        brep-conf <BREP-SRC-ROOT>/etc/brep.conf
+        brep-conf <BREP-SRC-ROOT>/etc/brep-module.conf
 
         # Static brep content (CSS files).
         #
@@ -87,7 +87,7 @@ replacing <BREP-OUT-ROOT> and <BREP-SRC-ROOT> with the actual absolute paths
             Require all granted
         </Directory>
 
-You may want to replace <BREP-SRC-ROOT>/etc/brep.conf with a custom
+You may want to replace <BREP-SRC-ROOT>/etc/brep-module.conf with a custom
 configuration file if you often need to modify it.
 
 Restart Apache2 (use the second version for systemd):

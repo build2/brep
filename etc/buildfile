@@ -6,4 +6,4 @@ define conf: file
 conf{*}: extension = conf
 conf{*}: install = data/etc
 
-./: conf{brep}
+./: conf{brep-module brep-apache2}

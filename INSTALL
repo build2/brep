@@ -1,22 +1,25 @@
 This guide shows how to install and configure brep on a "deployment" machine as
-opposed to a "development" one (see INSTALL-DEV for latter). Here we assume you
-are using a systemd-based installation. If not, then you will need to replace
-systemctl commands with the equivalend init.d ones.
+opposed to a "development" one (see INSTALL-DEV for the latter). Here we assume
+you are using a systemd-based distribution. If not, then you will need to
+replace systemctl commands with the equivalend init.d ones.
 
 1. Create 'brep' User
 
 This user will be used to run the brep repository loader. We will also use its
 home directory to build and install the brep module, store its configuration,
 etc. We create this user with a disabled password so only root will be able to
-operate as brep. Because of this restriction we can allow brep to run sudo
+operate as brep. Because of this restriction we will allow brep to run sudo
 without a password:
 
 # adduser --disabled-password brep
 # echo "brep ALL=(ALL) NOPASSWD:ALL" >/etc/sudoers.d/brep
 # chmod 0440 /etc/sudoers.d/brep
 
+@@ TODO ACL
+
 In the rest of this guide commands that start with the $ shell prompt are
-assumed to be executed as the brep user and in its home directory.
+expected to be executed as the brep user and in its home directory.
+
 
 2. Install Prerequisites
 
@@ -55,8 +58,8 @@ e) Install libodb-pgsql and libstudxml
 
 3. Build and Install brep
 
-$ mkdir build
-$ cd build
+$ mkdir brep install
+$ cd brep
 
 In the following command line, replace <apr> and <apache> with directories
 that contain the apr.h and httpd.h headers, respectively. Below are their
@@ -92,7 +95,7 @@ CREATE USER "www-data" INHERIT IN ROLE brep;
 
 Exit psql (^D), then make sure the logins work:
 
-$ psql -d brep
+$ psql
 $ sudo sudo -u www-data psql -d brep
 
 To troubleshoot, see PostgreSQL logs.
@@ -101,10 +104,10 @@ To troubleshoot, see PostgreSQL logs.
 5. Create Database Schema and Load Repositories
 
 $ mkdir config
-$ edit config/loader.conf # Capture loader configuration, see brep-loader(1).
+$ edit config/brep-loader.conf # Loader configuration, see brep-loader(1).
 
-$ psql --quiet -f brep/package.sql
-$ install/bin/brep-loader tests/loader/r.conf
+$ psql --quiet -f install/share/brep/package.sql
+$ install/bin/brep-loader config/brep-loader.conf
 
 To verify:
 
@@ -113,11 +116,12 @@ $ psql -c 'SELECT name, summary FROM repository'
 
 6. Setup Apache2 Module
 
-$ cp install/share/brep/etc/brep.conf config/module.conf
-$ edit config/module.conf # Adjust default values if required.
+$ cp install/share/brep/etc/brep-module.conf config/
+$ edit config/brep-module.conf # Adjust default values if required.
 
 Here we assume you have setup an appropriate Apache2 virtual server. Open the
-corresponding Apache2 .conf file and add the following inside VirtualServer:
+corresponding Apache2 .conf file and add the following inside VirtualHost (you
+can also find this fragment in install/share/brep/etc/brep-apache2.conf):
 
         # Load the brep module.
         #
@@ -136,7 +140,7 @@ corresponding Apache2 .conf file and add the following inside VirtualServer:
         # of this file here. However, you will need to prefix every option with
         # 'brep-'.
         #
-        brep-conf /home/brep/config/module.conf
+        brep-conf /home/brep/config/brep-module.conf
 
         # Static brep content (CSS files).
         #
