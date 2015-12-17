@@ -1,11 +1,186 @@
-Debian/Ubuntu:
-  libapr1-dev /usr/include/apr-1.0
-  apache2-dev /usr/include/apache2
+This guide shows how to install and configure brep on a "deployment" machine as
+opposed to a "development" one (see INSTALL-DEV for latter). Here we assume you
+are using a systemd-based installation. If not, then you will need to replace
+systemctl commands with the equivalend init.d ones.
 
-Fedora/RHEL:
-  apr-devel   /usr/include/apr-1
-  httpd-devel /usr/include/httpd
+1. Create 'brep' User
 
-FreeBSD:
-  apr         /usr/local/include/apr-1
-  apache24    /usr/local/include/apache24
+This user will be used to run the brep repository loader. We will also use its
+home directory to build and install the brep module, store its configuration,
+etc. We create this user with a disabled password so only root will be able to
+operate as brep. Because of this restriction we can allow brep to run sudo
+without a password:
+
+# adduser --disabled-password brep
+# echo "brep ALL=(ALL) NOPASSWD:ALL" >/etc/sudoers.d/brep
+# chmod 0440 /etc/sudoers.d/brep
+
+In the rest of this guide commands that start with the $ shell prompt are
+assumed to be executed as the brep user and in its home directory.
+
+2. Install Prerequisites
+
+a) Install a C++ compiler using your distribution's package.
+
+b) Install PostgreSQL 9.x and Apache2 using your distribution's packages.
+
+c) Install PostgreSQL and Apache2 development files. Specifically, we need
+   PostgreSQL's libpq and Apache's libapr and web server development files.
+   Below are the names of their packages for some distributions:
+
+   Debian/Ubuntu: libpq-dev            libapr1-dev  apache2-dev
+   Fedora/RHEL:   posqtgresql-devel    apr-devel    httpd-devel
+   FreeBSD:       postgresql94-client  apr          apache24
+
+d) Install build2-toolchain by following its INSTALL file instructions. You
+   can build build2-toolchain using brep's login and in its home directory.
+
+e) Install libodb-pgsql and libstudxml
+
+   [Currently we use pre-release versions of these libraries so they have to
+   be built from source.]
+
+   Download source packages for the two libraries from the same location as
+   build2-toolchain. Then unpack, build, and install:
+
+   $ cd libXXX-X.Y.Z
+   $ ./configure CPPFLAGS=-I/usr/local/include LDFLAGS=-L/usr/local/lib \
+     --prefix=/usr/local
+   $ make
+   $ sudo make install
+
+   Again, you can use brep's login/home directory for this. See the INSTALL
+   file for each library for more information.
+
+
+3. Build and Install brep
+
+$ mkdir build
+$ cd build
+
+In the following command line, replace <apr> and <apache> with directories
+that contain the apr.h and httpd.h headers, respectively. Below are their
+locations for some distributions:
+
+Debian/Ubuntu: /usr/include/apr-1.0      /usr/include/apache2
+Fedora/RHEL:   /usr/include/apr-1        /usr/include/httpd
+FreeBSD:       /usr/local/include/apr-1  /usr/local/include/apache24
+
+$ bpkg create                                                   \
+  cxx                                                           \
+  config.cxx.poptions="-I/usr/local/include -I<apr> -I<apache>" \
+  config.cxx.loptions=-L/usr/local/lib                          \
+  config.bin.rpath="/home/brep/install/lib /usr/local/lib"      \
+  config.install.root=/home/brep/install
+
+$ bpkg add http://pkg.cppget.org/1/alpha
+$ bpkg fetch
+$ bpkg build brep
+$ bpkg install brep
+
+$ cd .. # Back to brep home.
+
+
+4. Create PostgreSQL User and Database
+
+$ sudo sudo -u postgres psql # Note: double sudo is not a mistake.
+
+CREATE DATABASE brep;
+CREATE USER brep;
+GRANT ALL PRIVILEGES ON DATABASE brep TO brep;
+CREATE USER "www-data" INHERIT IN ROLE brep;
+
+Exit psql (^D), then make sure the logins work:
+
+$ psql -d brep
+$ sudo sudo -u www-data psql -d brep
+
+To troubleshoot, see PostgreSQL logs.
+
+
+5. Create Database Schema and Load Repositories
+
+$ mkdir config
+$ edit config/loader.conf # Capture loader configuration, see brep-loader(1).
+
+$ psql --quiet -f brep/package.sql
+$ install/bin/brep-loader tests/loader/r.conf
+
+To verify:
+
+$ psql -c 'SELECT name, summary FROM repository'
+
+
+6. Setup Apache2 Module
+
+$ cp install/share/brep/etc/brep.conf config/module.conf
+$ edit config/module.conf # Adjust default values if required.
+
+Here we assume you have setup an appropriate Apache2 virtual server. Open the
+corresponding Apache2 .conf file and add the following inside VirtualServer:
+
+        # Load the brep module.
+        #
+        LoadModule brep_module /home/brep/install/libexec/brep/mod_brep.so
+        SetHandler brep
+
+        # Repository root. This is the part of the URL between the host name
+        # and the start of the repository. For example, root value /pkg/ means
+	# the repository URL is http://example.org/pkg/. Specify / to use the
+        # web server root (e.g., http://example.org/). If using a different
+        # repository root, don't forget to also change Alias directives below.
+        #
+        brep-root /pkg/
+
+        # Brep module configuration. If you prefer, you can paste the contents
+        # of this file here. However, you will need to prefix every option with
+        # 'brep-'.
+        #
+        brep-conf /home/brep/config/module.conf
+
+        # Static brep content (CSS files).
+        #
+        <IfModule !alias_module>
+          Error "mod_alias is not enabled"
+        </IfModule>
+
+	# Note: trailing slashes are important!
+        #
+        Alias /pkg/@/ /home/brep/install/share/brep/www/
+
+        <Directory "/home/brep/install/share/brep/www">
+            Require all granted
+        </Directory>
+
+        # You can also serve the repository files from the repository root.
+        # For example:
+        #
+        #   http://example.org/pkg/1/...  -> /path/to/repo/1/...
+        #
+        #AliasMatch ^/pkg/(\d+)/(.+) /path/to/repo/$1/$2
+        #
+        #<Directory "/path/to/repo">
+        #    Require all granted
+        #</Directory>
+
+Restart Apache2:
+
+$ sudo systemctl restart apache2
+
+To verify, visit the repository root. To troubleshoot, see Apache logs.
+
+
+7. Setup Periodic Loader Execution
+
+@@ TODO
+
+
+8. Upgrade procedure
+
+@@ TODO
+
+   - stop apache
+   - suspend periodic loader
+   - migrate schema
+   - resume loader, force a run
+   - start apache

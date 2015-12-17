@@ -19,8 +19,8 @@ namespace brep
       dir_path root = "/"
       {
         "<path>"
-        "Repository root. That is, this is the part of the URL from the host
-         name and until the start of the repository. For example, root value
+        "Repository root. That is, this is the part of the URL between the
+         host name and the start of the repository. For example, root value
          '\cb{/pkg/}' means the repository URL is http://example.org/pkg/.
          Specify '\cb{/}' to use the web server root (http://example.org/)."
       }

@@ -13,7 +13,12 @@ Check that the files in the brep/ directory are readable by "others". If they
 are not, then run the following two commands to grant Apache2 read access:
 
 setfacl -Rdm g:www-data:rx brep
-setfacl --no-mask -Rm g:www-data:rx brep
+setfacl -n -Rm g:www-data:rx brep
+
+And also for all the directories leading up to brep/, for example, if you have
+~/projects/brep/, then:
+
+setfacl -m g:www-data:rx ~/ ~/projects
 
 [Note that strictly speaking www-data in the above two commands is the Apache2
 group, not user. However, most installations use the same name for both.]
@@ -21,25 +26,24 @@ group, not user. However, most installations use the same name for both.]
 
 1. Create PostgreSQL User and Database
 
-$ sudo su postgres
-$ psql
+$ sudo sudo -u postgres psql # Note: double sudo is not a mistake.
 
 CREATE DATABASE brep;
 CREATE USER <user>;
 GRANT ALL PRIVILEGES ON DATABASE brep TO <user>;
 CREATE USER "www-data" INHERIT IN ROLE <user>;
 
-Exit psql (^D) and postgres login (^D), then make sure the logins work:
+Exit psql (^D), then make sure the logins work:
 
 $ psql -d brep
 $ sudo sudo -u www-data psql -d brep
 
-To troubleshooting, see PostgreSQL logs, for example:
+To troubleshoot, see PostgreSQL logs, for example:
 
 $ sudo tail -f /var/log/postgresql/*.log
 
 
-2. Create Database Schema and Load the Data
+2. Create Database Schema and Load the Repository
 
 All the commands are executed from brep project root.
 
@@ -59,14 +63,21 @@ corresponding Apache2 .conf file and add the following inside VirtualServer,
 replacing <BREP-OUT-ROOT> and <BREP-SRC-ROOT> with the actual absolute paths
 (if you built brep in the source tree, then the two would be the same).
 
-        # brep module configuration.
+        # Load the brep module.
         #
         LoadModule brep_module <BREP-OUT-ROOT>/brep/mod_brep.so
         SetHandler brep
 
+        # Repository root. Use / for web server root. And don't forget to also
+        # update the Alias directives below.
+        #
+        root /pkg/
+
+        # Brep module configuration.
+        #
         brep-conf <BREP-SRC-ROOT>/etc/brep.conf
 
-        # brep static content (CSS files).
+        # Static brep content (CSS files).
         #
         # Note: trailing slashes are important!
         #
@@ -84,7 +95,7 @@ Restart Apache2 (use the second version for systemd):
 $ sudo /etc/init.d/apache2 restart
 $ sudo systemctl restart apache2
 
-To verify, visit the repository root. To troubleshoote, see Apache logs,
-for example:
+To verify, visit the repository root. To troubleshoot, see Apache logs, for
+example:
 
 $ sudo tail -f /var/log/apache2/error.log
