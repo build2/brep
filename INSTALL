@@ -15,8 +15,6 @@ without a password:
 # echo "brep ALL=(ALL) NOPASSWD:ALL" >/etc/sudoers.d/brep
 # chmod 0440 /etc/sudoers.d/brep
 
-@@ TODO ACL
-
 In the rest of this guide commands that start with the $ shell prompt are
 expected to be executed as the brep user and in its home directory.
 
@@ -26,6 +24,19 @@ expected to be executed as the brep user and in its home directory.
 a) Install a C++ compiler using your distribution's package.
 
 b) Install PostgreSQL 9.x and Apache2 using your distribution's packages.
+
+   Also check that the files in /home/brep are readable by "others". If they
+   are not, then run the following command to grant Apache2 read access:
+
+   $ setfacl -dm g:www-data:rx /home/brep
+
+   In the above command and in the rest of this guide replace www-data with
+   the user name under which Apache2 is running (See the "User" directive in
+   the Apache2 .conf file).
+
+   [Note that strictly speaking www-data in the above command is the Apache2
+   group, not user. However, most installations use the same name for both.]
+
 
 c) Install PostgreSQL and Apache2 development files. Specifically, we need
    PostgreSQL's libpq and Apache's libapr and web server development files.
@@ -188,3 +199,5 @@ To verify, visit the repository root. To troubleshoot, see Apache logs.
    - migrate schema
    - resume loader, force a run
    - start apache
+
+   - save old config, install
