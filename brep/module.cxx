@@ -33,12 +33,16 @@ namespace brep
   bool module::
   handle (request& rq, response& rs, log& l)
   {
-    assert (loaded_);
-
     log_ = &l;
 
     try
     {
+      if (!loaded_)
+      {
+        MODULE_DIAG;
+        fail << "not initialized, presumably due to misconfiguration";
+      }
+
       return handle (rq, rs);
     }
     catch (const server_error& e)
