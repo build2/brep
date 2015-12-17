@@ -1,10 +1,28 @@
+The goal of this setup is to run the brep Apache2 modules from the development
+build while still being as close to the real deployment as possible. To this
+end, we use default, system-wide installations of both Apache2 and Postgres.
+
+In the below instructions replace <user> with your login and www-data with the
+user under which Apache2 is running (See the "User" directive in the Apache2
+.conf file).
+
+
+0. Checking Permissions
+
+Check that the files in the brep/ directory are readable by "others". If they
+are not, then run the following two commands to grant Apache2 read access:
+
+setfacl -Rdm g:www-data:rx brep
+setfacl --no-mask -Rm g:www-data:rx brep
+
+[Note that strictly speaking www-data in the above two commands is the Apache2
+group, not user. However, most installations use the same name for both.]
+
+
 1. Create PostgreSQL User and Database
 
 $ sudo su postgres
 $ psql
-
-Replace <user> with your login and "www-data" with the user under which
-apache2 is running.
 
 CREATE DATABASE brep;
 CREATE USER <user>;
@@ -35,9 +53,9 @@ $ psql -d brep -c 'SELECT name, summary FROM repository'
 
 3. Setup Apache2 Module
 
-Here we assume apache2 is installed and you have an appropriate VirtualServer
+Here we assume Apache2 is installed and you have an appropriate VirtualServer
 ready (the one for the default site is usually a good candidate). Open the
-corresponding apache2 .conf file and add the following inside VirtualServer,
+corresponding Apache2 .conf file and add the following inside VirtualServer,
 replacing <BREP-OUT-ROOT> and <BREP-SRC-ROOT> with the actual absolute paths
 (if you built brep in the source tree, then the two would be the same).
 
@@ -61,7 +79,7 @@ replacing <BREP-OUT-ROOT> and <BREP-SRC-ROOT> with the actual absolute paths
 You may want to replace <BREP-SRC-ROOT>/etc/brep.conf with a custom
 configuration file if you often need to modify it.
 
-Restart apache2 (use the second version for systemd):
+Restart Apache2 (use the second version for systemd):
 
 $ sudo /etc/init.d/apache2 restart
 $ sudo systemctl restart apache2
