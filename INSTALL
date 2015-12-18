@@ -130,6 +130,10 @@ $ psql -c 'SELECT name, summary FROM repository'
 $ cp install/share/brep/etc/brep-module.conf config/
 $ edit config/brep-module.conf # Adjust default values if required.
 
+If you happy to run with the default values, you can instead do:
+
+$ ln -s install/share/brep/etc/brep-module.conf config/
+
 Here we assume you have setup an appropriate Apache2 virtual server. Open the
 corresponding Apache2 .conf file and add the following inside VirtualHost (you
 can also find this fragment in install/share/brep/etc/brep-apache2.conf):
@@ -223,16 +227,56 @@ If everything looks good, enable the timer to be started at boot time:
 $ systemctl --user enable brep-loader.timer
 
 
-8. Upgrade procedure
+8. Upgrade Procedure
 
-@@ TODO
+During upgrade we will stop apache for what should normally be a short period
+of time. To ensure that there are no surprises, for production environments it
+is generally recommended to first perform the upgrade on a staging machine, for
+example, a VM with an identical setup.
 
-   - stop apache
-   - suspend periodic loader
-   - migrate schema
-   - resume loader, force a run
-   - start apache
+Save the previous installation and configuration, for example, using the
+brep version as a suffix:
 
-   - save old config, install
+$ cp -r config config-`cat install/share/doc/brep/version`
+$ cp -r install install-`cat install/share/doc/brep/version`
 
-systemctl --user daemon-reload
+Build new version of brep:
+
+$ bpkg -d brep build brep
+
+Stop and disable loader:
+
+$ systemctl --user disable --now brep-loader.timer
+$ systemctl --user stop brep-loader.service
+
+Stop apache:
+
+$ sudo systemctl stop apache2
+
+Install new brep:
+
+$ rm -rf install/*
+$ bpkg -d brep install brep
+
+Review brep-module.conf changes that may need to be merged:
+
+$ diff -u install/share/brep/etc/brep-module.conf config/brep-module.conf
+
+Update database schema:
+
+$ psql --quiet -f install/share/brep/package.sql
+
+Start and enable loader:
+
+$ systemctl --user start brep-loader.service
+$ systemctl --user status brep-loader.service
+
+If everything looks good, enable periodic execution:
+
+$ systemctl --user enable --now brep-loader.timer
+
+Start apache:
+
+$ sudo systemctl start apache2
+
+To verify, visit the repository root. To troubleshoot, see Apache logs.
