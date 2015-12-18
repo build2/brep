@@ -23,6 +23,7 @@
 
 #include <brep/types>
 #include <brep/utility>
+#include <brep/version>
 
 #include <brep/package>
 #include <brep/package-odb>
@@ -704,7 +705,10 @@ main (int argc, char* argv[])
     //
     if (ops.version ())
     {
-      cout << "brep-loader 0.1.0" << endl
+      cout << "brep-loader " << BREP_VERSION_STR << endl
+           << "libbrep " << LIBBREP_VERSION_STR << endl
+           << "libbpkg " << LIBBPKG_VERSION_STR << endl
+           << "libbutl " << LIBBUTL_VERSION_STR << endl
            << "Copyright (c) 2014-2015 Code Synthesis Ltd" << endl
            << "MIT; see accompanying LICENSE file" << endl;
 

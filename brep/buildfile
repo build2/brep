@@ -24,6 +24,7 @@ lib{brep}:                          \
 {hxx         cxx}{ package-traits } \
 {hxx            }{ types          } \
 {hxx            }{ utility        } \
+{hxx            }{ version        } \
 $libs
 
 libso{brep}: cxx.export.poptions = -I$out_root -I$src_root
