@@ -2,8 +2,8 @@
 # copyright : Copyright (c) 2014-2015 Code Synthesis Ltd
 # license   : MIT; see accompanying LICENSE file
 
-define conf: file
-conf{*}: extension = conf
-conf{*}: install = data/etc
+./: file{brep-module.conf brep-apache2.conf} \
+systemd/file{brep-loader.service brep-loader.timer}
 
-./: conf{brep-module brep-apache2}
+install = data/etc
+systemd/: install = data/etc/systemd

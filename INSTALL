@@ -187,7 +187,40 @@ To verify, visit the repository root. To troubleshoot, see Apache logs.
 
 7. Setup Periodic Loader Execution
 
-@@ TODO
+In this guide we will use the systemd user session to periodically run loader
+as the brep user. If your installation doesn't use systemd, then a cron job
+would be a natural alternative.
+
+As the first step, make sure systemd user sessions support is working for the
+brep user:
+
+$ systemctl --user status
+
+If there are any errors, make sure the dbus and libpam-systemd packages are
+installed, relogin as brep, and try again. If it still doesn't work, google
+for the error message and your distribution name.
+
+Next enable the brep's systemd session to remain running after logging off
+since we want the loader to run even when we are not logged in:
+
+$ sudo loginctl enable-linger brep
+
+$ mkdir -p .config/systemd/user
+$ cp install/share/brep/etc/systemd/brep-loader.* .config/systemd/user/
+
+Start the service to make sure there are no issues:
+
+$ systemctl --user start brep-loader.service
+$ journalctl
+
+Start the timer and monitor it to make sure it fires:
+
+$ systemctl --user start brep-loader.timer
+$ journalctl -f
+
+If everything looks good, enable the timer to be started at boot time:
+
+$ systemctl --user enable brep-loader.timer
 
 
 8. Upgrade procedure
@@ -201,3 +234,5 @@ To verify, visit the repository root. To troubleshoot, see Apache logs.
    - start apache
 
    - save old config, install
+
+systemctl --user daemon-reload

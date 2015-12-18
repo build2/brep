@@ -1,0 +1,23 @@
+[Unit]
+Description=brep repository loader timer
+RefuseManualStart=no
+RefuseManualStop=no
+
+[Timer]
+Unit=brep-loader.service
+
+# Don't keep track of the timer across reboots.
+#
+Persistent=false
+
+# Wait 20 seconds until the first run.
+#
+OnBootSec=20
+
+# Then wait 5 minutes until the next run.
+#
+OnUnitInactiveSec=5m
+
+
+[Install]
+WantedBy=timers.target
