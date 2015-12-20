@@ -92,7 +92,7 @@ handle (request& rq, response& rs)
     <<       title;
 
   if (!squery.empty ())
-    s << " " << squery.empty ();
+    s << " " << squery;
 
   s <<     ~TITLE
     <<     CSS_LINKS (path ("package-search.css"), root)
