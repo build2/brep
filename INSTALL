@@ -140,7 +140,6 @@ can also find this fragment in install/share/brep/etc/brep-apache2.conf):
         # Load the brep module.
         #
         LoadModule brep_module /home/brep/install/libexec/brep/mod_brep.so
-        SetHandler brep
 
         # Repository root. This is the part of the URL between the host name
         # and the start of the repository. For example, root value /pkg/ means
@@ -149,6 +148,15 @@ can also find this fragment in install/share/brep/etc/brep-apache2.conf):
         # repository root, don't forget to also change Alias directives below.
         #
         brep-root /pkg/
+
+        <Location "/pkg/">
+          SetHandler brep
+
+          <IfModule dir_module>
+  	    DirectoryIndex disabled
+  	    DirectorySlash Off
+          </IfModule>
+        </Location>
 
         # Brep module configuration. If you prefer, you can paste the contents
         # of this file here. However, you will need to prefix every option with
