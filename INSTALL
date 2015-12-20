@@ -37,7 +37,6 @@ b) Install PostgreSQL 9.x and Apache2 using your distribution's packages.
    [Note that strictly speaking www-data in the above command is the Apache2
    group, not user. However, most installations use the same name for both.]
 
-
 c) Install PostgreSQL and Apache2 development files. Specifically, we need
    PostgreSQL's libpq and Apache's libapr and web server development files.
    Below are the names of their packages for some distributions:
@@ -132,7 +131,7 @@ $ edit config/brep-module.conf # Adjust default values if required.
 
 If you happy to run with the default values, you can instead do:
 
-$ ln -s install/share/brep/etc/brep-module.conf config/
+$ ln -s ../install/share/brep/etc/brep-module.conf config/
 
 Here we assume you have setup an appropriate Apache2 virtual server. Open the
 corresponding Apache2 .conf file and add the following inside VirtualHost (you
