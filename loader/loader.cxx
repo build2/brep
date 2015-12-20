@@ -94,8 +94,12 @@ load_repositories (path p)
 
       // Skip until first non-space (true) or space (false).
       //
-      auto skip ([&i, &e](bool s = true) -> decltype (i) {
-          for (; i != e && space (*i) == s; ++i); return i;});
+      auto skip = [&i, &e](bool s = true) -> decltype (i)
+      {
+        for (; i != e && space (*i) == s; ++i)
+          ;
+        return i;
+      };
 
       skip (); // Skip leading spaces.
 

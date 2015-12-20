@@ -26,8 +26,6 @@ using namespace placeholders; // For std::bind's _1, etc.
 
 namespace brep
 {
-  using namespace cli;
-
   // module
   //
   bool module::
@@ -148,6 +146,8 @@ namespace brep
   name_values module::
   expand_options (const name_values& v)
   {
+    using namespace cli;
+
     vector<const char*> argv;
     for (const auto& nv: v)
     {
@@ -209,7 +209,7 @@ namespace brep
       static option_descriptions od (convert (options::module::description ()));
       name_values mo (filter (opts, od));
       name_value_scanner s (mo);
-      options::module o (s, unknown_mode::fail, unknown_mode::fail);
+      options::module o (s, cli::unknown_mode::fail, cli::unknown_mode::fail);
 
       verb_ = o.verbosity ();
       loaded_ = true;
@@ -359,7 +359,7 @@ namespace brep
     if (i_ != name_values_.end ())
       return name_ ? i_->name.c_str () : i_->value->c_str ();
     else
-      throw eos_reached ();
+      throw cli::eos_reached ();
   }
 
   const char* module::name_value_scanner::
@@ -372,7 +372,7 @@ namespace brep
       return r;
     }
     else
-      throw eos_reached ();
+      throw cli::eos_reached ();
   }
 
   void module::name_value_scanner::
@@ -394,6 +394,6 @@ namespace brep
       }
     }
     else
-      throw eos_reached ();
+      throw cli::eos_reached ();
   }
 }

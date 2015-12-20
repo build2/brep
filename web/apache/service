@@ -108,7 +108,7 @@ namespace web
 
         request req (r);
         log l (r->server);
-        return srv->handle<M> (req, l);
+        return srv->template handle<M> (req, l);
       }
 
     private:
