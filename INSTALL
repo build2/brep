@@ -163,7 +163,7 @@ can also find this fragment in install/share/brep/etc/brep-apache2.conf):
           Error "mod_alias is not enabled"
         </IfModule>
 
-	# Note: trailing slashes are important!
+        # Note: trailing slashes are important!
         #
         Alias /pkg/@/ /home/brep/install/share/brep/www/
 
