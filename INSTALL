@@ -152,16 +152,17 @@ can also find this fragment in install/share/brep/etc/brep-apache2.conf):
         # and the start of the repository. For example, root value /pkg/ means
 	# the repository URL is http://example.org/pkg/. Specify / to use the
         # web server root (e.g., http://example.org/). If using a different
-        # repository root, don't forget to also change Alias directives below.
+        # repository root, don't forget to also change Location and Alias
+	# directives below.
         #
         brep-root /pkg/
 
-        <Location "/pkg/">
+        <Location "/pkg">
           SetHandler brep
 
           <IfModule dir_module>
-  	    DirectoryIndex disabled
-  	    DirectorySlash Off
+            DirectoryIndex disabled
+            DirectorySlash Off
           </IfModule>
         </Location>
 
