@@ -4,10 +4,17 @@
 
 #include <brep/mod-repository-details>
 
+#include <time.h> // tzset()
+
+#include <sstream>
+#include <algorithm> // max()
+
 #include <xml/serializer>
 
 #include <odb/database.hxx>
 #include <odb/transaction.hxx>
+
+#include <butl/timestamp>
 
 #include <web/xhtml>
 #include <web/module>
@@ -22,6 +29,7 @@
 #include <brep/database>
 #include <brep/package-odb>
 
+using namespace std;
 using namespace odb::core;
 using namespace brep::cli;
 
@@ -37,6 +45,8 @@ init (scanner& s)
     options_->root (dir_path ("/"));
 
   db_ = shared_database (*options_);
+
+  tzset(); // To use butl::to_stream() later on.
 }
 
 bool brep::repository_details::
@@ -100,6 +110,15 @@ handle (request& rq, response& rs)
 
     if (r.email)
       s << P << A(HREF="mailto:" + *r.email) << *r.email << ~A << ~P;
+
+    ostringstream o;
+    butl::to_stream (o,
+                     max (r.packages_timestamp, r.repositories_timestamp),
+                     "%Y-%m-%d %H:%M:%S%[.N] %Z",
+                     true,
+                     true);
+
+    s << P << o.str () << ~P;
   }
 
   t.commit ();
