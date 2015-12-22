@@ -10,6 +10,7 @@
 
 #include <brep/types>
 #include <brep/utility>
+#include <brep/version>
 
 #include <brep/module>
 #include <brep/options>
@@ -186,5 +187,16 @@ namespace brep
     }
 
     return false;
+  }
+
+  void repository_root::
+  version ()
+  {
+    MODULE_DIAG;
+
+    info << "module " << BREP_VERSION_STR
+         << ", libbrep " << LIBBREP_VERSION_STR
+         << ", libbpkg " << LIBBPKG_VERSION_STR
+         << ", libbutl " << LIBBUTL_VERSION_STR;
   }
 }

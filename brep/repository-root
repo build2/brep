@@ -38,6 +38,9 @@ namespace brep
     virtual void
     init (cli::scanner&);
 
+    virtual void
+    version ();
+
   private:
     shared_ptr<package_search> package_search_;
     shared_ptr<package_details> package_details_;

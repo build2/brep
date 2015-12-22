@@ -84,18 +84,27 @@ namespace web
 
       template <typename M>
       static int
-      config_finalizer (apr_pool_t*, apr_pool_t*, apr_pool_t*, server_rec*)
+      config_finalizer (apr_pool_t*, apr_pool_t*, apr_pool_t*, server_rec* s)
         noexcept
       {
-        instance<M> ()->options_parsed_ = true;
+        auto srv (instance<M> ());
+        bool& parsed (srv->options_parsed_);
+
+        if (!parsed)
+        {
+          log l (s);
+          srv->exemplar_.version (l);
+          parsed = true;
+        }
+
         return OK;
       }
 
       template <typename M>
       static void
-      worker_initializer (apr_pool_t*, server_rec* server) noexcept
+      worker_initializer (apr_pool_t*, server_rec* s) noexcept
       {
-        log l (server);
+        log l (s);
         instance<M> ()->init_worker (l);
       }
 
@@ -125,7 +134,8 @@ namespace web
       add_option (const char* name, optional<std::string> value);
 
       template <typename M>
-      int handle (request& r, log& l) noexcept;
+      int
+      handle (request& r, log& l) noexcept;
 
     private:
       std::string name_;

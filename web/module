@@ -195,6 +195,15 @@ namespace web
     options () = 0;
 
     // During startup the web server calls this function on the module
+    // exemplar to log the module version information. It is up to the web
+    // server whether to call this function once per module implementation
+    // type. Therefore, it is expected that this function will log the same
+    // information for all the module exemplars.
+    //
+    virtual void
+    version (log&) = 0;
+
+    // During startup the web server calls this function on the module
     // exemplar passing a list of configuration options. The place these
     // configuration options come from is implementation-specific (normally
     // a configuration file). The web server guarantees that only options

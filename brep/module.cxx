@@ -337,6 +337,13 @@ namespace brep
     }
   }
 
+  void module::
+  version (log& l)
+  {
+    log_ = &l;
+    version ();
+  }
+
   // module::name_value_scanner
   //
   module::name_value_scanner::

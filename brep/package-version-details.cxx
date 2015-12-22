@@ -48,6 +48,7 @@ handle (request& rq, response& rs)
 {
   using namespace web;
   using namespace web::xhtml;
+  using brep::version; // Not to confuse with module::version.
 
   MODULE_DIAG;
 

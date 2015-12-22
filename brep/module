@@ -165,6 +165,14 @@ namespace brep
     virtual bool
     handle (request&, response&, log&);
 
+    virtual void
+    version (log&);
+
+    // Can be overriden by the module implementation to log version, etc.
+    //
+    virtual void
+    version () {}
+
     name_values
     expand_options (const name_values&);
 
