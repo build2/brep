@@ -1,8 +1,8 @@
-// file      : brep/repository-details.cxx -*- C++ -*-
+// file      : brep/mod-repository-details.cxx -*- C++ -*-
 // copyright : Copyright (c) 2014-2015 Code Synthesis Ltd
 // license   : MIT; see accompanying LICENSE file
 
-#include <brep/repository-details>
+#include <brep/mod-repository-details>
 
 #include <xml/serializer>
 
@@ -19,8 +19,8 @@
 #include <brep/page>
 #include <brep/options>
 #include <brep/package>
+#include <brep/database>
 #include <brep/package-odb>
-#include <brep/shared-database>
 
 using namespace odb::core;
 using namespace brep::cli;

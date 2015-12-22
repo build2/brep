@@ -1,8 +1,8 @@
-// file      : brep/package-version-details.cxx -*- C++ -*-
+// file      : brep/mod-package-version-details.cxx -*- C++ -*-
 // copyright : Copyright (c) 2014-2015 Code Synthesis Ltd
 // license   : MIT; see accompanying LICENSE file
 
-#include <brep/package-version-details>
+#include <brep/mod-package-version-details>
 
 #include <stdexcept> // invalid_argument
 
@@ -22,8 +22,8 @@
 #include <brep/page>
 #include <brep/options>
 #include <brep/package>
+#include <brep/database>
 #include <brep/package-odb>
-#include <brep/shared-database>
 
 using namespace std;
 using namespace odb::core;

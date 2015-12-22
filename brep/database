@@ -1,9 +1,9 @@
-// file      : brep/shared-database -*- C++ -*-
+// file      : brep/database -*- C++ -*-
 // copyright : Copyright (c) 2014-2015 Code Synthesis Ltd
 // license   : MIT; see accompanying LICENSE file
 
-#ifndef BREP_SHARED_DATABASE
-#define BREP_SHARED_DATABASE
+#ifndef BREP_DATABASE
+#define BREP_DATABASE
 
 #include <odb/forward.hxx> // database
 
@@ -22,4 +22,4 @@ namespace brep
   shared_database (const options::db&);
 }
 
-#endif // BREP_SHARED_DATABASE
+#endif // BREP_DATABASE

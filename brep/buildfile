@@ -38,27 +38,27 @@ install.include = $install.include/brep
 import libs += libstudxml%lib{studxml}
 
 gen =         {hxx ixx     cxx}{ options                 }
-src =                                                      \
-              {hxx         cxx}{ diagnostics             } \
-              {hxx         cxx}{ module                  } \
-              {hxx            }{ options-types           } \
-              {hxx         cxx}{ package-details         } \
-              {hxx         cxx}{ package-search          } \
-              {hxx         cxx}{ package-version-details } \
-              {hxx         cxx}{ page                    } \
-              {hxx         cxx}{ repository-details      } \
-              {hxx         cxx}{ repository-root         } \
-              {            cxx}{ services                } \
-              {hxx         cxx}{ shared-database         } \
-              {hxx         cxx}{ types-parsers           } \
-              {hxx            }{ wrapper-traits          } \
-       ../web/{hxx         cxx}{ mime-url-encoding       } \
-       ../web/{hxx            }{ module                  } \
-       ../web/{hxx            }{ xhtml                   } \
-../web/apache/{hxx            }{ log                     } \
-../web/apache/{hxx ixx     cxx}{ request                 } \
-../web/apache/{hxx     txx cxx}{ service                 } \
-../web/apache/{hxx            }{ stream                  } \
+src =                                                          \
+              {hxx         cxx}{ diagnostics                 } \
+              {hxx         cxx}{ module                      } \
+              {hxx            }{ options-types               } \
+              {hxx         cxx}{ mod-package-details         } \
+              {hxx         cxx}{ mod-package-search          } \
+              {hxx         cxx}{ mod-package-version-details } \
+              {hxx         cxx}{ page                        } \
+              {hxx         cxx}{ mod-repository-details      } \
+              {hxx         cxx}{ mod-repository-root         } \
+              {            cxx}{ services                    } \
+              {hxx         cxx}{ database                    } \
+              {hxx         cxx}{ types-parsers               } \
+              {hxx            }{ wrapper-traits              } \
+       ../web/{hxx         cxx}{ mime-url-encoding           } \
+       ../web/{hxx            }{ module                      } \
+       ../web/{hxx            }{ xhtml                       } \
+../web/apache/{hxx            }{ log                         } \
+../web/apache/{hxx ixx     cxx}{ request                     } \
+../web/apache/{hxx     txx cxx}{ service                     } \
+../web/apache/{hxx            }{ stream                      }
 
 mod{brep}: $src $gen lib{brep} $libs
 

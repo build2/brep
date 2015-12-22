@@ -1,9 +1,9 @@
-// file      : brep/repository-root -*- C++ -*-
+// file      : brep/mod-repository-root -*- C++ -*-
 // copyright : Copyright (c) 2014-2015 Code Synthesis Ltd
 // license   : MIT; see accompanying LICENSE file
 
-#ifndef BREP_REPOSITORY_ROOT
-#define BREP_REPOSITORY_ROOT
+#ifndef BREP_MOD_REPOSITORY_ROOT
+#define BREP_MOD_REPOSITORY_ROOT
 
 #include <brep/types>
 
@@ -50,4 +50,4 @@ namespace brep
   };
 }
 
-#endif // BREP_REPOSITORY_ROOT
+#endif // BREP_MOD_REPOSITORY_ROOT

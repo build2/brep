@@ -1,8 +1,8 @@
-// file      : brep/shared-database.cxx -*- C++ -*-
+// file      : brep/database.cxx -*- C++ -*-
 // copyright : Copyright (c) 2014-2015 Code Synthesis Ltd
 // license   : MIT; see accompanying LICENSE file
 
-#include <brep/shared-database>
+#include <brep/database>
 
 #include <stdexcept> // runtime_error
 
@@ -30,7 +30,7 @@ namespace brep
           o.db_name ()     != d->db ()       ||
           o.db_host ()     != d->host ()     ||
           o.db_port ()     != d->port ())
-        throw std::runtime_error ("shared database host/port mismatch");
+        throw std::runtime_error ("shared database options mismatch");
 
       return d;
     }

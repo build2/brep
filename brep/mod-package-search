@@ -1,9 +1,9 @@
-// file      : brep/repository-details -*- C++ -*-
+// file      : brep/mod-package-search -*- C++ -*-
 // copyright : Copyright (c) 2014-2015 Code Synthesis Ltd
 // license   : MIT; see accompanying LICENSE file
 
-#ifndef BREP_REPOSITORY_DETAILS
-#define BREP_REPOSITORY_DETAILS
+#ifndef BREP_MOD_PACKAGE_SEARCH
+#define BREP_MOD_PACKAGE_SEARCH
 
 #include <odb/forward.hxx> // database
 
@@ -14,23 +14,23 @@
 
 namespace brep
 {
-  class repository_details: public module
+  class package_search: public module
   {
   public:
     virtual bool
     handle (request&, response&);
 
     virtual const cli::options&
-    cli_options () const {return options::repository_details::description ();}
+    cli_options () const {return options::package_search::description ();}
 
   private:
     virtual void
     init (cli::scanner&);
 
   private:
-    shared_ptr<options::repository_details> options_;
+    shared_ptr<options::package_search> options_;
     shared_ptr<odb::core::database> db_;
   };
 }
 
-#endif // BREP_REPOSITORY_DETAILS
+#endif // BREP_MOD_PACKAGE_SEARCH

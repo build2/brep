@@ -6,7 +6,7 @@
 
 #include <web/apache/service>
 
-#include <brep/repository-root>
+#include <brep/mod-repository-root>
 
 static brep::repository_root mod;
 web::apache::service AP_MODULE_DECLARE_DATA brep_module ("brep", mod);
