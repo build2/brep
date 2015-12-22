@@ -15,6 +15,6 @@ exe{brep-loader}:            \
 ../brep/lib{brep} $libs
 
 cli.options += -I $src_root --include-with-brackets --include-prefix loader \
---guard-prefix LOADER --cli-namespace brep::cli
+--guard-prefix LOADER
 
 {hxx ixx cxx}{options}: cli{options}

@@ -2,47 +2,45 @@
 // copyright : Copyright (c) 2014-2015 Code Synthesis Ltd
 // license   : MIT; see accompanying LICENSE file
 
-include <brep/types>;
+include <string>;
+include <cstdint>; // uint16_t
 
-namespace brep
+class options
 {
-  class options
+  bool --help {"Print usage information and exit."}
+  bool --version {"Print version and exit."}
+
+  std::string --db-user|-u
   {
-    bool --help {"Print usage information and exit."}
-    bool --version {"Print version and exit."}
+    "<user>",
+    "Database user name. If not specified, then operating system (login)
+     name is used."
+  }
 
-    string --db-user|-u
-    {
-      "<user>",
-      "Database user name. If not specified, then operating system (login)
-       name is used."
-    }
+  std::string --db-password
+  {
+    "<pass>",
+    "Database password. If not specified, then login without password is
+     expected to work."
+  }
 
-    string --db-password
-    {
-      "<pass>",
-      "Database password. If not specified, then login without password is
-       expected to work."
-    }
+  std::string --db-name|-n = "brep"
+  {
+    "<name>",
+    "Database name. If not specified, then '\cb{brep}' is used by default."
+  }
 
-    string --db-name|-n = "brep"
-    {
-      "<name>",
-      "Database name. If not specified, then '\cb{brep}' is used by default."
-    }
+  std::string --db-host|-h
+  {
+    "<host>",
+    "Database host name, address, or socket. If not specified, then connect
+     to \cb{localhost} using the operating system-default mechanism
+     (Unix-domain socket, etc)."
+  }
 
-    string --db-host|-h
-    {
-      "<host>",
-      "Database host name, address, or socket. If not specified, then connect
-       to \cb{localhost} using the operating system-default mechanism
-       (Unix-domain socket, etc)."
-    }
-
-    uint16_t --db-port|-p = 0
-    {
-      "<port>",
-      "Database port number. If not specified, the default port is used."
-    }
-  };
-}
+  std::uint16_t --db-port|-p = 0
+  {
+    "<port>",
+    "Database port number. If not specified, the default port is used."
+  }
+};
