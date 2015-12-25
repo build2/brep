@@ -20,7 +20,9 @@ RETURNS SETOF package AS $$
      p1.version_epoch = p2.version_epoch AND
      (p1.version_canonical_upstream < p2.version_canonical_upstream OR
       p1.version_canonical_upstream = p2.version_canonical_upstream AND
-      p1.version_revision < p2.version_revision)))
+      (p1.version_canonical_release < p2.version_canonical_release OR
+       p1.version_canonical_release = p2.version_canonical_release AND
+       p1.version_revision < p2.version_revision))))
   WHERE
     p1.internal_repository IS NOT NULL AND p2.name IS NULL;
 $$ LANGUAGE SQL STABLE;
@@ -33,9 +35,11 @@ CREATE FUNCTION
 latest_package(INOUT name TEXT,
                OUT version_epoch SMALLINT,
                OUT version_canonical_upstream TEXT,
+               OUT version_canonical_release TEXT,
                OUT version_revision SMALLINT)
 RETURNS SETOF record AS $$
-  SELECT name, version_epoch, version_canonical_upstream, version_revision
+  SELECT name, version_epoch, version_canonical_upstream,
+         version_canonical_release, version_revision
   FROM latest_packages()
   WHERE name = latest_package.name;
 $$ LANGUAGE SQL STABLE;
@@ -50,10 +54,12 @@ search_latest_packages(IN query tsquery,
                        OUT name TEXT,
                        OUT version_epoch SMALLINT,
                        OUT version_canonical_upstream TEXT,
+                       OUT version_canonical_release TEXT,
                        OUT version_revision SMALLINT,
                        OUT rank real)
 RETURNS SETOF record AS $$
-  SELECT name, version_epoch, version_canonical_upstream, version_revision,
+  SELECT name, version_epoch, version_canonical_upstream,
+         version_canonical_release, version_revision,
          CASE
 	   WHEN query IS NULL THEN 0
 -- Weight mapping:           D     C    B    A
@@ -72,10 +78,12 @@ search_packages(IN query tsquery,
                 INOUT name TEXT,
                 OUT version_epoch SMALLINT,
                 OUT version_canonical_upstream TEXT,
+                OUT version_canonical_release TEXT,
                 OUT version_revision SMALLINT,
                 OUT rank real)
 RETURNS SETOF record AS $$
-  SELECT name, version_epoch, version_canonical_upstream, version_revision,
+  SELECT name, version_epoch, version_canonical_upstream,
+         version_canonical_release, version_revision,
          CASE
 	   WHEN query IS NULL THEN 0
 -- Weight mapping:           D     C    B    A

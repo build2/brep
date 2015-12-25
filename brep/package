@@ -9,6 +9,7 @@
 #include <ratio>
 #include <chrono>
 #include <iosfwd>      // ostream
+#include <cassert>
 #include <type_traits> // static_assert
 
 #include <odb/core.hxx>
@@ -28,8 +29,10 @@ namespace brep
   {
     uint16_t epoch;
     string canonical_upstream;
+    string canonical_release;
     uint16_t revision;
     string upstream;
+    string release;
   };
 }
 
@@ -50,12 +53,17 @@ void assert (int);
 // bpkg namespace from which we "borrow" types (and some of them use
 // version and comparison).
 //
-#pragma db map type(bpkg::version) as(brep::_version)                     \
-  to(brep::_version{(?).epoch,                                            \
-                    (?).canonical_upstream,                               \
-                    (?).revision,                                         \
-                    (?).upstream})                                        \
-  from(bpkg::version ((?).epoch, std::move ((?).upstream), (?).revision))
+#pragma db map type(bpkg::version) as(brep::_version) \
+  to(brep::_version{(?).epoch,                        \
+                    (?).canonical_upstream,           \
+                    (?).canonical_release,            \
+                    (?).revision,                     \
+                    (?).upstream,                     \
+                    (?).release})                     \
+  from(bpkg::version ((?).epoch,                      \
+                      std::move ((?).upstream),       \
+                      std::move ((?).release),        \
+                      (?).revision))
 
 #pragma db map type(bpkg::comparison) as(brep::string) \
   to(bpkg::to_string (?))                              \
@@ -119,27 +127,58 @@ namespace brep
   {
     uint16_t epoch;
     string   canonical_upstream;
+    string   canonical_release;
     uint16_t revision;
 
+    // @@ The following function will fail the assertion for versions like
+    //    0.0.0 (canonical_upstream is empty, canonical_release set to "~").
+    //    The problem here is that it's possible to specify such a version
+    //    which canonical representation is indistinguishable from that of
+    //    the empty version. Example: 0.0.0-
+    //    This effectivelly make it impossible to use canonical_version as a
+    //    primary key. Need to think on fixing that problem on the version
+    //    specification level. Probably canonical upstream (and release) for
+    //    non-empty version should always start with '.'.
+    //    Examples: ".00000001.a" for "1.A", ".", for "0.0.0"
+    //
+    // @@ Also version spec do not mention that trailing zero-only components
+    //    get removed.
+    //
+    // @@ If by some reason decide to leave canonical upstream representation
+    //    as is, then need to drop the function below, make the loader not
+    //    using it.
+    //
     bool
     empty () const noexcept
     {
-      // No sense to test epoch and revision for 0 as a valid canonical_version
-      // object can not have them different from 0 if canonical_upstream is
-      // empty. The predicate semantics is equal to the one of the
-      // bpkg::version class.
-      //
-      assert (!canonical_upstream.empty () || (epoch == 0 && revision == 0));
-      return canonical_upstream.empty ();
+      bool e (canonical_upstream.empty ());
+      assert (!e ||
+              (epoch == 0 && canonical_release.empty () && revision == 0));
+      return e;
     }
+
+    // Change collation to ensure the proper comparison of the "absent" release
+    // with a specified one.
+    //
+    // The default collation for UTF8-encoded TEXT columns in PostgreSQL is
+    // UCA-compliant. This makes the statement 'a' < '~' to be false, which
+    // in turn makes the statement 2.1.alpha < 2.1 to be false as well.
+    //
+    // Unicode Collation Algorithm (UCA): http://unicode.org/reports/tr10/
+    //
+    #pragma db member(canonical_release) options("COLLATE \"C\"")
   };
 
   #pragma db value transient
   struct upstream_version: version
   {
-    #pragma db member(upstream_) virtual(string)      \
-      get(this.upstream)                              \
-      set(this = brep::version (0, std::move (?), 0))
+    #pragma db member(upstream_) virtual(string)           \
+      get(this.upstream)                                   \
+      set(this = brep::version (0, std::move (?), "~", 0))
+
+    #pragma db member(release_) virtual(string)                      \
+      get(this.release)                                              \
+      set(this = brep::version (0, this.upstream, std::move (?), 0))
 
     upstream_version () = default;
     upstream_version (version v): version (move (v)) {}
@@ -149,8 +188,9 @@ namespace brep
     void
     init (const canonical_version& cv, const upstream_version& uv)
     {
-      *this = version (cv.epoch, uv.upstream, cv.revision);
-      assert (cv.canonical_upstream == canonical_upstream);
+      *this = version (cv.epoch, uv.upstream, uv.release, cv.revision);
+      assert (cv.canonical_upstream == canonical_upstream &&
+              cv.canonical_release == canonical_release);
     }
   };
 
@@ -200,7 +240,8 @@ namespace brep
     package_id () = default;
     package_id (string n, const brep::version& v)
         : name (move (n)),
-          version {v.epoch, v.canonical_upstream, v.revision}
+          version {
+            v.epoch, v.canonical_upstream, v.canonical_release, v.revision}
     {
     }
   };
@@ -586,8 +627,8 @@ namespace brep
 
   // Version comparison operators.
   //
-  // They allow comparing objects that have epoch, canonical_upstream
-  // and revision data members.
+  // They allow comparing objects that have epoch, canonical_upstream,
+  // canonical_release, and revision data members.
   //
   template <typename T1, typename T2>
   inline auto
@@ -595,6 +636,7 @@ namespace brep
   {
     return x.epoch == y.epoch &&
       x.canonical_upstream == y.canonical_upstream &&
+      x.canonical_release == y.canonical_release &&
       x.revision == y.revision;
   }
 
@@ -604,6 +646,7 @@ namespace brep
   {
     return x.epoch != y.epoch ||
       x.canonical_upstream != y.canonical_upstream ||
+      x.canonical_release != y.canonical_release ||
       x.revision != y.revision;
   }
 
@@ -614,7 +657,9 @@ namespace brep
     return x.epoch < y.epoch ||
       (x.epoch == y.epoch && x.canonical_upstream < y.canonical_upstream) ||
       (x.epoch == y.epoch && x.canonical_upstream == y.canonical_upstream &&
-       x.revision < y.revision);
+       x.canonical_release < y.canonical_release) ||
+      (x.epoch == y.epoch && x.canonical_upstream == y.canonical_upstream &&
+       x.canonical_release == y.canonical_release && x.revision < y.revision);
   }
 
   template <typename T1, typename T2>
@@ -624,7 +669,9 @@ namespace brep
     return x.epoch < y.epoch ||
       (x.epoch == y.epoch && x.canonical_upstream < y.canonical_upstream) ||
       (x.epoch == y.epoch && x.canonical_upstream == y.canonical_upstream &&
-       x.revision <= y.revision);
+       x.canonical_release < y.canonical_release) ||
+      (x.epoch == y.epoch && x.canonical_upstream == y.canonical_upstream &&
+       x.canonical_release == y.canonical_release && x.revision <= y.revision);
   }
 
   template <typename T1, typename T2>
@@ -634,7 +681,9 @@ namespace brep
     return x.epoch > y.epoch ||
       (x.epoch == y.epoch && x.canonical_upstream > y.canonical_upstream) ||
       (x.epoch == y.epoch && x.canonical_upstream == y.canonical_upstream &&
-       x.revision > y.revision);
+       x.canonical_release > y.canonical_release) ||
+      (x.epoch == y.epoch && x.canonical_upstream == y.canonical_upstream &&
+       x.canonical_release == y.canonical_release && x.revision > y.revision);
   }
 
   template <typename T1, typename T2>
@@ -644,7 +693,9 @@ namespace brep
     return x.epoch > y.epoch ||
       (x.epoch == y.epoch && x.canonical_upstream > y.canonical_upstream) ||
       (x.epoch == y.epoch && x.canonical_upstream == y.canonical_upstream &&
-       x.revision >= y.revision);
+       x.canonical_release > y.canonical_release) ||
+      (x.epoch == y.epoch && x.canonical_upstream == y.canonical_upstream &&
+       x.canonical_release == y.canonical_release && x.revision >= y.revision);
   }
 
   template <typename T>
@@ -655,6 +706,7 @@ namespace brep
     return "ORDER BY"
       + x.epoch + "DESC,"
       + x.canonical_upstream + "DESC,"
+      + x.canonical_release + "DESC,"
       + x.revision + "DESC";
   }
 

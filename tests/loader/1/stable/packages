@@ -1,13 +1,13 @@
 : 1
 name: libfoo
-version: 1.2.3-4
+version: 1.2.3+4
 summary: The Foo library
 license: MIT
 tags: c++, foo
 url: http://www.example.com/foo/
 email: foo-users@example.com
 depends: libmisc >= 2.0.0
-location: libfoo-1.2.3-4.tar.gz
+location: libfoo-1.2.3+4.tar.gz
 :
 name: libfoo
 version: 1.2.2
@@ -17,8 +17,17 @@ tags: c++, foo
 url: http://www.example.com/foo/
 email: foo-users@example.com
 depends: libbar <= 2.4.0
-depends: libexp == 1+1.2
+depends: libexp == 1~1.2
 location: libfoo-1.2.2.tar.gz
+:
+name: libfoo
+version: 1.2.2-alpha.1
+summary: The Foo library
+license: MIT
+tags: c++, foo
+url: http://www.example.com/foo/
+email: foo-users@example.com
+location: libfoo-1.2.2-alpha.1.tar.gz
 :
 name: libfoo
 version: 1.2.4

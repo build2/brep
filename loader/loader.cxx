@@ -280,6 +280,7 @@ load_packages (const shared_ptr<repository>& rp, database& db)
           {
             pm.version.epoch,
             pm.version.canonical_upstream,
+            pm.version.canonical_release,
             pm.version.revision
           }
         }));

@@ -99,7 +99,7 @@ main (int argc, char* argv[])
       transaction t (db.begin ());
 
       assert (db.query<repository> ().size () == 5);
-      assert (db.query<package> ().size () == 14);
+      assert (db.query<package> ().size () == 15);
 
       shared_ptr<repository> sr (db.load<repository> ("cppget.org/stable"));
       shared_ptr<repository> mr (db.load<repository> ("cppget.org/math"));
@@ -138,8 +138,12 @@ main (int argc, char* argv[])
         db.load<package> (package_id ("libfoo", version ("1.2.2"))));
       assert (check_location (fpv2));
 
+      shared_ptr<package> fpv2a (
+        db.load<package> (package_id ("libfoo", version ("1.2.2-alpha.1"))));
+      assert (check_location (fpv2a));
+
       shared_ptr<package> fpv3 (
-        db.load<package> (package_id ("libfoo", version ("1.2.3-4"))));
+        db.load<package> (package_id ("libfoo", version ("1.2.3+4"))));
       assert (check_location (fpv3));
 
       shared_ptr<package> fpv4 (
@@ -218,9 +222,29 @@ main (int argc, char* argv[])
               dep (
                 "libexp",
                 optional<dependency_constraint> (
-                  dependency_constraint{comparison::eq, version ("1+1.2")})));
+                  dependency_constraint{comparison::eq, version ("1~1.2")})));
 
-      assert (fpv2->requirements.empty ());
+      // libfoo-1.2.2-alpha.1
+      //
+      assert (fpv2a->summary == "The Foo library");
+      assert (fpv2a->tags == strings ({"c++", "foo"}));
+      assert (!fpv2a->description);
+      assert (fpv2a->url == "http://www.example.com/foo/");
+      assert (!fpv2a->package_url);
+      assert (fpv2a->email == "foo-users@example.com");
+      assert (!fpv2a->package_email);
+
+      assert (fpv2a->internal_repository.load () == sr);
+      assert (fpv2a->other_repositories.empty ());
+      assert (fpv2a->priority == priority::low);
+      assert (fpv2a->changes.empty ());
+
+      assert (fpv2a->license_alternatives.size () == 1);
+      assert (fpv2a->license_alternatives[0].size () == 1);
+      assert (fpv2a->license_alternatives[0][0] == "MIT");
+
+      assert (fpv2a->dependencies.empty ());
+      assert (fpv2a->requirements.empty ());
 
       // libfoo-1.2.3-4
       //
@@ -303,15 +327,15 @@ main (int argc, char* argv[])
       assert (mr->internal);
 
       shared_ptr<package> epv (
-        db.load<package> (package_id ("libexp", version ("1+1.2"))));
+        db.load<package> (package_id ("libexp", version ("1~1.2"))));
       assert (check_location (epv));
 
       shared_ptr<package> fpv5 (
-        db.load<package> (package_id ("libfoo", version ("1.2.4-1"))));
+        db.load<package> (package_id ("libfoo", version ("1.2.4+1"))));
       assert (check_location (fpv5));
 
       shared_ptr<package> xpv (
-        db.load<package> (package_id ("libstudxml", version ("1.0.0-1"))));
+        db.load<package> (package_id ("libstudxml", version ("1.0.0+1"))));
       assert (check_location (xpv));
 
       assert (mr->complements.empty ());
@@ -383,7 +407,7 @@ main (int argc, char* argv[])
       assert (fpv5->priority.comment ==
               "Critical bug fixes, performance improvement.");
 
-      const char ch[] = R"DLM(1.2.4-1
+      const char ch[] = R"DLM(1.2.4+1
  * applied patch for critical bug-219
  * regenerated documentation
 
@@ -512,7 +536,7 @@ main (int argc, char* argv[])
       assert (check_location (fpv0));
 
       shared_ptr<package> fpv6 (
-        db.load<package> (package_id ("libfoo", version ("1.2.4-2"))));
+        db.load<package> (package_id ("libfoo", version ("1.2.4+2"))));
       assert (check_location (fpv6));
 
       assert (cr->prerequisites.empty ());

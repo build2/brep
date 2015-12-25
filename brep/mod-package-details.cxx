@@ -187,7 +187,8 @@ handle (request& rq, response& rs)
          db_->query<package_search_rank> (
            search_params<package_search_rank> (name, squery) +
            "ORDER BY rank DESC, version_epoch DESC, "
-           "version_canonical_upstream DESC, version_revision DESC" +
+           "version_canonical_upstream DESC, version_canonical_release DESC, "
+           "version_revision DESC" +
            "OFFSET" + to_string (page * res_page) +
            "LIMIT" + to_string (res_page)))
   {

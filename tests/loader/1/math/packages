@@ -1,6 +1,6 @@
 : 1
 name: libstudxml
-version: 1.0.0-1
+version: 1.0.0+1
 summary: Modern C++ XML API
 license: MIT
 tags: c++, xml, parser, serializer, pull, streaming, modern
@@ -12,10 +12,10 @@ email: studxml-users@codesynthesis.com; Public mailing list, posts by\
 package-email: boris@codesynthesis.com; Direct email to the author.
 depends: libexpat >= 2.0.0
 depends: libgenx
-location: libstudxml-1.0.0-1.tar.gz
+location: libstudxml-1.0.0+1.tar.gz
 :
 name: libexp
-version: 1+1.2
+version: 1~1.2
 summary: The exponent
 description: The exponent math function.
 license: MIT
@@ -23,10 +23,10 @@ tags: c++, exponent
 url: http://www.exp.com
 email: users@exp.com
 depends: libmisc
-location: libexp-1+1.2.tar.gz
+location: libexp-1~1.2.tar.gz
 :
 name: libfoo
-version: 1.2.4-1
+version: 1.2.4+1
 summary: The Foo Math Library
 description:\
 A modern C++ library with easy to use linear algebra and lot of optimization
@@ -52,9 +52,9 @@ requires: linux | windows | macosx; Symbian support is coming.
 requires: c++11
 requires: ? ; libc++ standard library if using Clang on Mac OS X.
 requires: ? vc++ >= 12.0; Only if using VC++ on Windows.
-location: libfoo-1.2.4-1.tar.gz
+location: libfoo-1.2.4+1.tar.gz
 changes:\
-1.2.4-1
+1.2.4+1
  * applied patch for critical bug-219
  * regenerated documentation
 
