@@ -46,7 +46,7 @@ init (scanner& s)
 
   db_ = shared_database (*options_);
 
-  tzset(); // To use butl::to_stream() later on.
+  tzset (); // To use butl::to_stream() later on.
 }
 
 bool brep::repository_details::

@@ -33,10 +33,10 @@ $$ LANGUAGE SQL STABLE;
 --
 CREATE FUNCTION
 latest_package(INOUT name TEXT,
-               OUT version_epoch SMALLINT,
+               OUT version_epoch INTEGER,
                OUT version_canonical_upstream TEXT,
                OUT version_canonical_release TEXT,
-               OUT version_revision SMALLINT)
+               OUT version_revision INTEGER)
 RETURNS SETOF record AS $$
   SELECT name, version_epoch, version_canonical_upstream,
          version_canonical_release, version_revision
@@ -52,10 +52,10 @@ $$ LANGUAGE SQL STABLE;
 CREATE FUNCTION
 search_latest_packages(IN query tsquery,
                        OUT name TEXT,
-                       OUT version_epoch SMALLINT,
+                       OUT version_epoch INTEGER,
                        OUT version_canonical_upstream TEXT,
                        OUT version_canonical_release TEXT,
-                       OUT version_revision SMALLINT,
+                       OUT version_revision INTEGER,
                        OUT rank real)
 RETURNS SETOF record AS $$
   SELECT name, version_epoch, version_canonical_upstream,
@@ -76,10 +76,10 @@ $$ LANGUAGE SQL STABLE;
 CREATE FUNCTION
 search_packages(IN query tsquery,             
                 INOUT name TEXT,
-                OUT version_epoch SMALLINT,
+                OUT version_epoch INTEGER,
                 OUT version_canonical_upstream TEXT,
                 OUT version_canonical_release TEXT,
-                OUT version_revision SMALLINT,
+                OUT version_revision INTEGER,
                 OUT rank real)
 RETURNS SETOF record AS $$
   SELECT name, version_epoch, version_canonical_upstream,

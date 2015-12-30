@@ -25,12 +25,30 @@ using namespace odb::core;
 using namespace butl;
 using namespace brep;
 
+// @@ Rather add this to optional in libbutl. See:
+//
+// http://en.cppreference.com/w/cpp/experimental/optional/operator_cmp
+
+template <typename T>
+static inline auto
+operator== (const optional<T>& a, const optional<T>& b) -> decltype (*a == *b)
+{
+  return !a == !b && (!a || *a == *b);
+}
+
+// @@ Add it to libbrep rather?
+//
+static inline bool
+operator== (const dependency_constraint& a, const dependency_constraint& b)
+{
+  return a.min_version == b.min_version && a.max_version == b.max_version &&
+    a.min_open == b.min_open && a.max_open == b.max_open;
+}
+
 static inline bool
 operator== (const dependency& a, const dependency& b)
 {
-  return a.name () == b.name () && !a.constraint == !b.constraint &&
-    (!a.constraint || (a.constraint->operation == b.constraint->operation &&
-                      a.constraint->version == b.constraint->version));
+  return a.name () == b.name () && a.constraint == b.constraint;
 }
 
 static bool
@@ -216,13 +234,15 @@ main (int argc, char* argv[])
               dep (
                 "libbar",
                 optional<dependency_constraint> (
-                  dependency_constraint{comparison::le, version ("2.4.0")})));
+                  dependency_constraint (
+                    nullopt, true, version ("2.4.0"), false))));
 
       assert (fpv2->dependencies[1][0] ==
               dep (
                 "libexp",
                 optional<dependency_constraint> (
-                  dependency_constraint{comparison::eq, version ("1~1.2")})));
+                  dependency_constraint (
+                    version ("1~1.2"), false, version ("1~1.2"), false))));
 
       // libfoo-1.2.2-alpha.1
       //
@@ -243,7 +263,46 @@ main (int argc, char* argv[])
       assert (fpv2a->license_alternatives[0].size () == 1);
       assert (fpv2a->license_alternatives[0][0] == "MIT");
 
-      assert (fpv2a->dependencies.empty ());
+      assert (fpv2a->dependencies.size () == 3);
+      assert (fpv2a->dependencies[0].size () == 2);
+      assert (fpv2a->dependencies[1].size () == 1);
+      assert (fpv2a->dependencies[2].size () == 2);
+
+      assert (fpv2a->dependencies[0][0] ==
+              dep (
+                "libmisc",
+                optional<dependency_constraint> (
+                  dependency_constraint (
+                    version ("0.1"), false, version ("2.0.0-"), true))));
+
+      assert (fpv2a->dependencies[0][1] ==
+              dep (
+                "libmisc",
+                optional<dependency_constraint> (
+                  dependency_constraint (
+                    version ("2.0"), false, version ("5.0"), false))));
+
+      assert (fpv2a->dependencies[1][0] ==
+              dep (
+                "libgenx",
+                optional<dependency_constraint> (
+                  dependency_constraint (
+                    version ("0.2"), true, version ("3.0"), true))));
+
+      assert (fpv2a->dependencies[2][0] ==
+              dep (
+                "libexpat",
+                optional<dependency_constraint> (
+                  dependency_constraint (
+                    nullopt, true, version ("5.2"), true))));
+
+      assert (fpv2a->dependencies[2][1] ==
+              dep (
+                "libexpat",
+                optional<dependency_constraint> (
+                  dependency_constraint (
+                    version ("1"), true, version ("5.1"), false))));
+
       assert (fpv2a->requirements.empty ());
 
       // libfoo-1.2.3-4
@@ -272,7 +331,8 @@ main (int argc, char* argv[])
               dep (
                 "libmisc",
                 optional<dependency_constraint> (
-                  dependency_constraint{comparison::ge, version ("2.0.0")})));
+                  dependency_constraint (
+                    version ("2.0.0"), false, nullopt, true))));
 
       // libfoo-1.2.4
       //
@@ -301,7 +361,8 @@ main (int argc, char* argv[])
               dep (
                 "libmisc",
                 optional<dependency_constraint> (
-                  dependency_constraint{comparison::ge, version ("2.0.0")})));
+                  dependency_constraint (
+                    version ("2.0.0"), false, nullopt, true))));
 
       // Verify 'math' repository.
       //
@@ -373,7 +434,8 @@ main (int argc, char* argv[])
               dep (
                 "libexpat",
                 optional<dependency_constraint> (
-                  dependency_constraint{comparison::ge, version ("2.0.0")})));
+                  dependency_constraint (
+                    version ("2.0.0"), false, nullopt, true))));
 
       assert (xpv->dependencies[1].size () == 1);
       assert (xpv->dependencies[1][0] == dep ("libgenx", nullopt));
@@ -436,13 +498,15 @@ main (int argc, char* argv[])
               dep (
                 "libmisc",
                 optional<dependency_constraint> (
-                  dependency_constraint{comparison::lt, version ("1.1")})));
+                  dependency_constraint (
+                    nullopt, true, version ("1.1"), true))));
 
       assert (fpv5->dependencies[0][1] ==
               dep (
                 "libmisc",
                 optional<dependency_constraint> (
-                  dependency_constraint{comparison::gt, version ("2.3.0")})));
+                  dependency_constraint (
+                    version ("2.3.0"), true, nullopt, true))));
 
       assert (fpv5->dependencies[1].size () == 1);
       assert (fpv5->dependencies[1].comment.empty ());
@@ -450,7 +514,8 @@ main (int argc, char* argv[])
       assert (fpv5->dependencies[1][0] ==
               dep ("libexp",
                    optional<dependency_constraint> (
-                     dependency_constraint{comparison::ge, version ("1.0")})));
+                     dependency_constraint (
+                       version ("1.0"), false, nullopt, true))));
 
       assert (fpv5->dependencies[2].size () == 2);
       assert (fpv5->dependencies[2].comment == "The newer the better.");

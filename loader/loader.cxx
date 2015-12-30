@@ -272,18 +272,7 @@ load_packages (const shared_ptr<repository>& rp, database& db)
 
   for (auto& pm: pkm)
   {
-    shared_ptr<package> p (
-      db.find<package> (
-        package_id
-        {
-          pm.name,
-          {
-            pm.version.epoch,
-            pm.version.canonical_upstream,
-            pm.version.canonical_release,
-            pm.version.revision
-          }
-        }));
+    shared_ptr<package> p (db.find<package> (package_id (pm.name, pm.version)));
 
     if (p == nullptr)
     {
@@ -321,6 +310,7 @@ load_packages (const shared_ptr<repository>& rp, database& db)
         }
 
         dependencies ds;
+
         for (auto& pda: pm.dependencies)
         {
           ds.emplace_back (pda.conditional, move (pda.comment));
@@ -595,22 +585,30 @@ resolve_dependencies (package& p, database& db)
 
       using query = query<package>;
       query q (query::id.name == d.name ());
+      const auto& vm (query::id.version);
 
       if (d.constraint)
       {
         auto c (*d.constraint);
-        switch (c.operation)
+
+        if (c.min_version)
         {
-        case comparison::eq: q = q && query::id.version == c.version; break;
-        case comparison::lt: q = q && query::id.version < c.version; break;
-        case comparison::gt: q = q && query::id.version > c.version; break;
-        case comparison::le: q = q && query::id.version <= c.version; break;
-        case comparison::ge: q = q && query::id.version >= c.version; break;
+          if (c.min_open)
+            q = q && vm > *c.min_version;
+          else
+            q = q && vm >= *c.min_version;
+        }
+
+        if (c.max_version)
+        {
+          if (c.max_open)
+            q = q && vm < *c.max_version;
+          else
+            q = q && vm <= *c.max_version;
         }
       }
 
-      for (const auto& pp:
-             db.query<package> (q + order_by_version_desc (query::id.version)))
+      for (const auto& pp: db.query<package> (q + order_by_version_desc (vm)))
       {
         if (find (p.internal_repository, pp))
         {

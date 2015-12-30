@@ -19,6 +19,11 @@
 #include <brep/types>
 #include <brep/utility>
 
+// The uint16_t value range is not fully covered by SMALLINT PostgreSQL type
+// to which uint16_t is mapped by default.
+//
+#pragma db value(uint16_t) type("INTEGER")
+
 namespace brep
 {
   // Use an image type to map bpkg::version to the database since there
@@ -32,11 +37,17 @@ namespace brep
     string canonical_release;
     uint16_t revision;
     string upstream;
-    string release;
+    optional<string> release;
   };
 }
 
 #include <bpkg/manifest>
+
+namespace brep
+{
+  using optional_version = optional<bpkg::version>;
+  using _optional_version = optional<_version>;
+}
 
 // Prevent assert() macro expansion in get/set expressions. This should
 // appear after all #include directives since the assert() macro is
@@ -50,8 +61,7 @@ void assert (int);
 
 // We have to keep these mappings at the global scope instead of inside
 // the brep namespace because they need to be also effective in the
-// bpkg namespace from which we "borrow" types (and some of them use
-// version and comparison).
+// bpkg namespace from which we "borrow" types (and some of them use version).
 //
 #pragma db map type(bpkg::version) as(brep::_version) \
   to(brep::_version{(?).epoch,                        \
@@ -65,14 +75,24 @@ void assert (int);
                       std::move ((?).release),        \
                       (?).revision))
 
-#pragma db map type(bpkg::comparison) as(brep::string) \
-  to(bpkg::to_string (?))                              \
-  from(bpkg::to_comparison (?))
+#pragma db map type(brep::optional_version) as(brep::_optional_version) \
+  to((?)                                                                \
+     ? brep::_version{(?)->epoch,                                       \
+                      (?)->canonical_upstream,                          \
+                      (?)->canonical_release,                           \
+                      (?)->revision,                                    \
+                      (?)->upstream,                                    \
+                      (?)->release}                                     \
+     : brep::_optional_version ())                                      \
+  from((?)                                                              \
+       ? bpkg::version ((?)->epoch,                                     \
+                        std::move ((?)->upstream),                      \
+                        std::move ((?)->release),                       \
+                        (?)->revision)                                  \
+       : brep::optional_version ())
 
 namespace brep
 {
-  // @@ If namespace, then should probably call it 'repo'.
-  //
   // @@ Might make sense to put some heavy members (e.g., description,
   //    containers) into a separate section.
   //
@@ -130,24 +150,6 @@ namespace brep
     string   canonical_release;
     uint16_t revision;
 
-    // @@ The following function will fail the assertion for versions like
-    //    0.0.0 (canonical_upstream is empty, canonical_release set to "~").
-    //    The problem here is that it's possible to specify such a version
-    //    which canonical representation is indistinguishable from that of
-    //    the empty version. Example: 0.0.0-
-    //    This effectivelly make it impossible to use canonical_version as a
-    //    primary key. Need to think on fixing that problem on the version
-    //    specification level. Probably canonical upstream (and release) for
-    //    non-empty version should always start with '.'.
-    //    Examples: ".00000001.a" for "1.A", ".", for "0.0.0"
-    //
-    // @@ Also version spec do not mention that trailing zero-only components
-    //    get removed.
-    //
-    // @@ If by some reason decide to leave canonical upstream representation
-    //    as is, then need to drop the function below, make the loader not
-    //    using it.
-    //
     bool
     empty () const noexcept
     {
@@ -172,13 +174,14 @@ namespace brep
   #pragma db value transient
   struct upstream_version: version
   {
-    #pragma db member(upstream_) virtual(string)           \
-      get(this.upstream)                                   \
-      set(this = brep::version (0, std::move (?), "~", 0))
+    #pragma db member(upstream_) virtual(string)                      \
+      get(this.upstream)                                              \
+      set(this = brep::version (0, std::move (?), std::string (), 0))
 
-    #pragma db member(release_) virtual(string)                      \
-      get(this.release)                                              \
-      set(this = brep::version (0, this.upstream, std::move (?), 0))
+    #pragma db member(release_) virtual(optional_string)               \
+      get(this.release)                                                \
+      set(this = brep::version (                                       \
+            0, std::move (this.upstream), std::move (?), 0))
 
     upstream_version () = default;
     upstream_version (version v): version (move (v)) {}
@@ -224,12 +227,9 @@ namespace brep
 
   // dependencies
   //
-  using bpkg::comparison;
   using bpkg::dependency_constraint;
 
   #pragma db value(dependency_constraint) definition
-  #pragma db member(dependency_constraint::operation) column("")
-  #pragma db member(dependency_constraint::version) column("")
 
   #pragma db value
   struct package_id
@@ -303,6 +303,7 @@ namespace brep
     // Database mapping.
     //
     #pragma db member(package) column("") not_null
+    #pragma db member(constraint) column("")
   };
 
   std::ostream&

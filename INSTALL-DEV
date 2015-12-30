@@ -118,3 +118,4 @@ data, and reload the Apache2 plugin), execute the following from brep/:
 psql --quiet -d brep -f brep/package.sql
 loader/brep-loader tests/loader/r.conf
 sudo /etc/init.d/apache2 restart
+sudo systemctl restart apache2
