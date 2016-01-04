@@ -16,8 +16,10 @@ without a password:
 # chmod 0440 /etc/sudoers.d/brep
 
 In the rest of this guide commands that start with the $ shell prompt are
-expected to be executed as the brep user and in its home directory.
+expected to be executed as the brep user and in its home directory. To change
+to the brep user from root, do:
 
+# su -l brep
 
 2. Install Prerequisites
 
@@ -28,6 +30,7 @@ b) Install PostgreSQL 9.x and Apache2 using your distribution's packages.
    Also check that the files in /home/brep are readable by "others". If they
    are not, then run the following command to grant Apache2 read access:
 
+   $ setfacl -m g:www-data:rx /home/brep
    $ setfacl -dm g:www-data:rx /home/brep
 
    In the above command and in the rest of this guide replace www-data with
@@ -45,8 +48,10 @@ c) Install PostgreSQL and Apache2 development files. Specifically, we need
    Fedora/RHEL:   posqtgresql-devel    apr-devel    httpd-devel
    FreeBSD:       postgresql94-client  apr          apache24
 
-d) Install build2-toolchain by following its INSTALL file instructions. You
-   can build build2-toolchain using brep's login and in its home directory.
+d) Download (normally from the same place where you obtained brep, e.g.,
+   http://download.build2.org) and install build2-toolchain by following its
+   INSTALL file instructions. You can build build2-toolchain using brep's
+   login and in its home directory.
 
 e) Install libodb-pgsql and libstudxml
 
@@ -106,7 +111,9 @@ CREATE USER "www-data" INHERIT IN ROLE brep;
 Exit psql (^D), then make sure the logins work:
 
 $ psql
+^D
 $ sudo sudo -u www-data psql -d brep
+^D
 
 To troubleshoot, see PostgreSQL logs.
 
