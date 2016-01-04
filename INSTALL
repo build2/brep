@@ -149,13 +149,13 @@ can also find this fragment in install/share/brep/etc/brep-apache2.conf):
         LoadModule brep_module /home/brep/install/libexec/brep/mod_brep.so
 
         # Repository root. This is the part of the URL between the host name
-        # and the start of the repository. For example, root value /pkg/ means
+        # and the start of the repository. For example, root value /pkg means
 	# the repository URL is http://example.org/pkg/. Specify / to use the
         # web server root (e.g., http://example.org/). If using a different
         # repository root, don't forget to also change Location and Alias
 	# directives below.
         #
-        brep-root /pkg/
+        brep-root /pkg
 
         <Location "/pkg">
           SetHandler brep

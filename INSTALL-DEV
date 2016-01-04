@@ -70,7 +70,7 @@ replacing <BREP-OUT-ROOT> and <BREP-SRC-ROOT> with the actual absolute paths
         # Repository root. Use / for web server root. And don't forget to also
         # update the Location and Alias directives below.
         #
-        brep-root /pkg/
+        brep-root /pkg
 
         <Location "/pkg">
           SetHandler brep
