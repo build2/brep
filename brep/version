@@ -2,7 +2,7 @@
 // copyright : Copyright (c) 2014-2015 Code Synthesis Ltd
 // license   : MIT; see accompanying LICENSE file
 
-#ifndef LIBBREP_VERSION // Note: using the version macro itself.
+#ifndef BREP_VERSION // Note: using the version macro itself.
 
 #include <butl/version> // LIBBUTL_VERSION
 #include <bpkg/version> // LIBBPKG_VERSION
@@ -23,29 +23,25 @@
 // 2.2.0-a1    02019901
 // 3.0.0-b2    02999952
 //
-//                          AABBCCDD
-#define LIBBREP_VERSION        10000
-#define LIBBREP_VERSION_STR "0.1.0"
+#define BREP_VERSION 10000
+#define BREP_VERSION_STR "0.1.0"
 
 // For now these are the same.
 //
-#define BREP_VERSION     LIBBREP_VERSION
-#define BREP_VERSION_STR LIBBREP_VERSION_STR
+#define LIBBREP_VERSION BREP_VERSION
+#define LIBBREP_VERSION_STR BREP_VERSION_STR
 
 // Generally, we expect minor versions to be source code backwards-
 // compatible, thought we might have a minimum version requirement.
 //
 // Note: does not apply during early development.
 //
-//                     AABBCCDD
-#if (LIBBUTL_VERSION <    10000 || \
-     LIBBUTL_VERSION >    10000)
+#if LIBBUTL_VERSION != 10000
 #  error incompatible libbutl version
 #endif
 
-#if (LIBBPKG_VERSION <    10000 || \
-     LIBBPKG_VERSION >    10000)
+#if LIBBPKG_VERSION != 10000
 #  error incompatible libbpkg version
 #endif
 
-#endif // LIBBREP_VERSION
+#endif // BREP_VERSION
