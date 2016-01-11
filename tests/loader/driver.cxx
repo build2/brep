@@ -674,7 +674,7 @@ main (int argc, char* argv[])
               "http://pkg.cppget.org/1/staging");
       assert (gr->display_name.empty ());
       assert (gr->priority == 0);
-      assert (gr->url && *gr->url == "http://stage.cppget.org/");
+      assert (gr->url && *gr->url == "http://cppget.org/");
       assert (!gr->email);
       assert (!gr->summary);
       assert (!gr->description);
