@@ -169,9 +169,16 @@ namespace brep
       const string& n (*i++); // Package name.
 
       // Check if this is a package name and not a brep static content files
-      // (CSS) directory name or a repository directory name.
+      // (CSS) directory name, a repository directory name, or a special file
+      // name (the one starting with '.').
       //
-      if (n != "@" && n.find_first_not_of ("0123456789") != string::npos)
+      // @@ Shouldn't we validate that the package name is not "@", is not
+      //    digit-only, does not start with '.' while parsing and serializing
+      //    the package manifest ? Probably also need to mention these
+      //    contraints in the manifest.txt file.
+      //
+      if (n != "@" && n.find_first_not_of ("0123456789") != string::npos &&
+          n[0] != '.')
       {
         if (i == lpath.end ())
         {

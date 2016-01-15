@@ -413,10 +413,10 @@ load_repositories (const shared_ptr<repository>& rp, database& db)
     {
       assert (rp->location.remote () && !rp->url);
 
-      rp->url = rm.effective_url (rp->location);
-
       // Update the base repository with manifest values.
       //
+      rp->url = rm.effective_url (rp->location);
+
       // @@ Should we throw if url is not available for external repository ?
       //    Can, basically, repository be available on the web but have no web
       //    interface associated ?
