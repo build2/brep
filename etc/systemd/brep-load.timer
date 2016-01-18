@@ -4,7 +4,7 @@ RefuseManualStart=no
 RefuseManualStop=no
 
 [Timer]
-Unit=brep-loader.service
+Unit=brep-load.service
 
 # Don't keep track of the timer across reboots.
 #

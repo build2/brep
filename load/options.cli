@@ -1,14 +1,37 @@
-// file      : loader/options.cli
+// file      : load/options.cli
 // copyright : Copyright (c) 2014-2016 Code Synthesis Ltd
 // license   : MIT; see accompanying LICENSE file
 
 include <string>;
 include <cstdint>; // uint16_t
 
+"\section=1"
+"\name=brep-load"
+"\summary=load repositories into database"
+
+{
+  "<options> <file>",
+
+  "\h|SYNOPSIS|
+
+   \cb{brep-load --help}\n
+   \cb{brep-load --version}\n
+   \c{\b{brep-load} [<options>] <file>}
+
+   \h|DESCRIPTION|
+
+   \cb{brep-load} reads the list of repositories from the specified
+   configuration <file>, fetches their manifest files, and loads the repository
+   and package information into the database, suitable for consumption by the
+   \cb{brep} web module.
+
+   Note that \cb{brep-load} expects the database schema to have already been
+   created using \l{brep-migrate(1)}."
+}
+
 class options
 {
-  bool --help {"Print usage information and exit."}
-  bool --version {"Print version and exit."}
+  "\h|OPTIONS|"
 
   std::string --db-user|-u
   {
@@ -43,4 +66,7 @@ class options
     "<port>",
     "Database port number. If not specified, the default port is used."
   }
+
+  bool --help {"Print usage information and exit."}
+  bool --version {"Print version and exit."}
 };

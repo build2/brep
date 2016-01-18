@@ -1,11 +1,21 @@
-DROP TYPE IF EXISTS weighted_text CASCADE;
-CREATE TYPE weighted_text AS (a TEXT, b TEXT, c TEXT, d TEXT);
-
+-- This file should be parsable by the brep-migrate utility. To decrease the
+-- parser complexity, the following restrictions are placed:
+--
+-- * comments must start with -- at the beginning of the line (ignoring
+--   leading spaces)
+-- * only CREATE and DROP statements for FUNCTION and TYPE
+-- * function bodies must be defined using $$-quoted strings
+-- * strings other then function bodies must be quoted with ' or "
+-- * statements must end with ";\n"
+--
 DROP FUNCTION IF EXISTS to_tsvector(IN document weighted_text);
 DROP FUNCTION IF EXISTS search_packages(IN query tsquery, INOUT name TEXT);
 DROP FUNCTION IF EXISTS search_latest_packages(IN query tsquery);
 DROP FUNCTION IF EXISTS latest_package(INOUT name TEXT);
 DROP FUNCTION IF EXISTS latest_packages();
+
+DROP TYPE IF EXISTS weighted_text CASCADE;
+CREATE TYPE weighted_text AS (a TEXT, b TEXT, c TEXT, d TEXT);
 
 -- Return the latest versions of internal packages as a set of package rows.
 --
@@ -72,9 +82,9 @@ $$ LANGUAGE SQL STABLE;
 -- Search for packages matching the search query and having the specified name.
 -- Return a set of rows containing the package id and search rank. If query
 -- is NULL, then match all packages and return 0 rank for all rows.
--- 
+--
 CREATE FUNCTION
-search_packages(IN query tsquery,             
+search_packages(IN query tsquery,
                 INOUT name TEXT,
                 OUT version_epoch INTEGER,
                 OUT version_canonical_upstream TEXT,

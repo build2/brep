@@ -10,7 +10,7 @@ define sql: file
 sql{*}: extension = sql
 sql{*}: install = data
 
-./: lib{brep} mod{brep} sql{package}
+./: lib{brep} mod{brep} sql{package package-extra}
 
 # lib{brep}
 #
@@ -20,8 +20,10 @@ import libs += libbpkg%lib{bpkg}
 
 lib{brep}:                          \
 {hxx         cxx}{ package        } \
+{file           }{ package.xml    } \
 {hxx ixx     cxx}{ package-odb    } \
 {hxx         cxx}{ package-traits } \
+{hxx         cxx}{ database-lock  } \
 {hxx            }{ types          } \
 {hxx            }{ utility        } \
 {hxx            }{ version        } \

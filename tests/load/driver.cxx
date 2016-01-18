@@ -1,4 +1,4 @@
-// file      : tests/loader/driver.cxx -*- C++ -*-
+// file      : tests/load/driver.cxx -*- C++ -*-
 // copyright : Copyright (c) 2014-2016 Code Synthesis Ltd
 // license   : MIT; see accompanying LICENSE file
 

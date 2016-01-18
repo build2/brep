@@ -9,6 +9,7 @@
 #include <odb/session.hxx>
 #include <odb/database.hxx>
 #include <odb/transaction.hxx>
+#include <odb/schema-catalog.hxx>
 
 #include <web/xhtml>
 #include <web/module>
@@ -16,6 +17,7 @@
 
 #include <brep/types>
 #include <brep/utility>
+#include <brep/version>
 
 #include <brep/page>
 #include <brep/options>
@@ -38,6 +40,20 @@ init (scanner& s)
     options_->root (dir_path ("/"));
 
   db_ = shared_database (*options_);
+
+  // Check that the database schema matches the current one. It's enough to
+  // perform the check in just a single module implementation (and we don't
+  // do in the dispatcher because it doesn't use the database).
+  //
+  // Note that the failure can be reported by each web server worker process.
+  // While it could be tempting to move the check to the
+  // repository_root::version() function, it would be wrong. The function can
+  // be called by a different process (usually the web server root one) not
+  // having the proper permissions to access the database.
+  //
+  if (schema_catalog::current_version (*db_) != db_->schema_version ())
+    fail << "database schema differs from the current one (module "
+         << BREP_VERSION_STR << ")";
 }
 
 template <typename T>

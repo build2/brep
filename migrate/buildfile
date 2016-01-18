@@ -1,0 +1,18 @@
+# file      : migrate/buildfile
+# copyright : Copyright (c) 2014-2016 Code Synthesis Ltd
+# license   : MIT; see accompanying LICENSE file
+
+import libs += libodb-pgsql%lib{odb-pgsql}
+import libs += libodb%lib{odb}
+
+include ../brep/
+
+exe{brep-migrate}:           \
+{            cxx}{ migrate } \
+{hxx ixx     cxx}{ options } \
+../brep/lib{brep} $libs
+
+cli.options += -I $src_root --include-with-brackets --include-prefix migrate \
+--guard-prefix MIGRATE
+
+{hxx ixx cxx}{options}: cli{options}

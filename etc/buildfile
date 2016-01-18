@@ -3,7 +3,7 @@
 # license   : MIT; see accompanying LICENSE file
 
 ./: file{brep-module.conf brep-apache2.conf} \
-systemd/file{brep-loader.service brep-loader.timer}
+systemd/file{brep-load.service brep-load.timer}
 
 install = data/etc
 systemd/: install = data/etc/systemd

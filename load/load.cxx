@@ -1,9 +1,10 @@
-// file      : loader/loader.cxx -*- C++ -*-
+// file      : load/load.cxx -*- C++ -*-
 // copyright : Copyright (c) 2014-2016 Code Synthesis Ltd
 // license   : MIT; see accompanying LICENSE file
 
 #include <sstream>
 #include <fstream>
+#include <ostream>
 #include <iostream>
 #include <stdexcept> // runtime_error, invalid_argument
 #include <algorithm> // find(), find_if()
@@ -11,11 +12,9 @@
 #include <odb/session.hxx>
 #include <odb/database.hxx>
 #include <odb/transaction.hxx>
+#include <odb/schema-catalog.hxx>
 
 #include <odb/pgsql/database.hxx>
-#include <odb/pgsql/exceptions.hxx>
-#include <odb/pgsql/connection.hxx>
-#include <odb/pgsql/transaction.hxx>
 
 #include <butl/filesystem>
 
@@ -27,8 +26,9 @@
 
 #include <brep/package>
 #include <brep/package-odb>
+#include <brep/database-lock>
 
-#include <loader/options>
+#include <load/options>
 
 using namespace std;
 using namespace odb::core;
@@ -36,12 +36,10 @@ using namespace butl;
 using namespace bpkg;
 using namespace brep;
 
-namespace pgsql = odb::pgsql;
-
 static void
 usage (ostream& os)
 {
-  os << "Usage: brep-loader [options] <file>" << endl
+  os << "Usage: brep-load [options] <file>" << endl
      << "File lists internal repositories." << endl
      << "Options:" << endl;
 
@@ -700,152 +698,141 @@ detect_dependency_cycle (const package_id& id, package_ids& chain, database& db)
 
 int
 main (int argc, char* argv[])
+try
 {
-  try
+  cli::argv_scanner scan (argc, argv, true);
+  options ops (scan);
+
+  // Version.
+  //
+  if (ops.version ())
   {
-    cli::argv_scanner scan (argc, argv, true);
-    options ops (scan);
+    cout << "brep-load " << BREP_VERSION_STR << endl
+         << "libbrep " << LIBBREP_VERSION_STR << endl
+         << "libbpkg " << LIBBPKG_VERSION_STR << endl
+         << "libbutl " << LIBBUTL_VERSION_STR << endl
+         << "Copyright (c) 2014-2016 Code Synthesis Ltd" << endl
+         << "MIT; see accompanying LICENSE file" << endl;
 
-    // Version.
-    //
-    if (ops.version ())
-    {
-      cout << "brep-loader " << BREP_VERSION_STR << endl
-           << "libbrep " << LIBBREP_VERSION_STR << endl
-           << "libbpkg " << LIBBPKG_VERSION_STR << endl
-           << "libbutl " << LIBBUTL_VERSION_STR << endl
-           << "Copyright (c) 2014-2016 Code Synthesis Ltd" << endl
-           << "MIT; see accompanying LICENSE file" << endl;
-
-      return 0;
-    }
-
-    // Help.
-    //
-    if (ops.help ())
-    {
-      usage (cout);
-      return 0;
-    }
-
-    if (argc < 2)
-    {
-      cerr << "<file> argument not provided" << endl;
-      usage (cerr);
-      return 1;
-    }
-
-    if (argc > 2)
-    {
-      cerr << "unexpected argument encountered" << endl;
-      usage (cerr);
-      return 1;
-    }
-
-    pgsql::database db (ops.db_user (),
-                        ops.db_password (),
-                        ops.db_name (),
-                        ops.db_host (),
-                        ops.db_port ());
-
-    // Prevent several loader instances from updating DB simultaneously.
-    //
-    {
-      transaction t (db.begin ());
-      db.execute ("CREATE TABLE IF NOT EXISTS loader_mutex ()");
-      t.commit ();
-    }
-
-    pgsql::connection_ptr synch_c (db.connection ());
-
-    // Don't make current.
-    //
-    pgsql::transaction synch_t (synch_c->begin (), false);
-
-    try
-    {
-      synch_c->execute ("LOCK TABLE loader_mutex NOWAIT");
-    }
-    catch (const pgsql::database_exception& e)
-    {
-      if (e.sqlstate () == "55P03")
-        return 2; // Other loader instance acquired the mutex.
-
-      throw;
-    }
-
-    // Load the description of all the internal repositories from the
-    // configuration file.
-    //
-    internal_repositories irs (load_repositories (path (argv[1])));
-
-    transaction t (db.begin ());
-
-    if (changed (irs, db))
-    {
-      // Rebuild repositories persistent state from scratch.
-      //
-      db.erase_query<package> ();
-      db.erase_query<repository> ();
-
-      // On the first pass over the internal repositories we load their
-      // packages.
-      //
-      uint16_t priority (1);
-      for (const auto& ir: irs)
-      {
-        shared_ptr<repository> r (
-          make_shared<repository> (ir.location,
-                                   move (ir.display_name),
-                                   move (ir.local_path),
-                                   priority++));
-
-        load_packages (r, db);
-      }
-
-      // On the second pass over the internal repositories we load their
-      // (not yet loaded) manifest values, complement, and prerequisite
-      // repositories.
-      //
-      for (const auto& ir: irs)
-      {
-        shared_ptr<repository> r (
-          db.load<repository> (ir.location.canonical_name ()));
-
-        load_repositories (r, db);
-      }
-
-      session s;
-      using query = query<package>;
-
-      // Resolve internal packages dependencies.
-      //
-      for (auto& p:
-             db.query<package> (query::internal_repository.is_not_null ()))
-        resolve_dependencies (p, db);
-
-      // Ensure there is no package dependency cycles.
-      //
-      package_ids chain;
-      for (const auto& p:
-             db.query<package> (query::internal_repository.is_not_null ()))
-        detect_dependency_cycle (p.id, chain, db);
-    }
-
-    t.commit ();
-    synch_t.commit (); // Release the mutex.
+    return 0;
   }
-  catch (const cli::exception& e)
+
+  // Help.
+  //
+  if (ops.help ())
   {
-    cerr << e << endl;
+    usage (cout);
+    return 0;
+  }
+
+  if (argc < 2)
+  {
+    cerr << "<file> argument not provided" << endl;
     usage (cerr);
     return 1;
   }
-  // Fully qualified to avoid ambiguity with odb exception.
-  //
-  catch (const std::exception& e)
+
+  if (argc > 2)
   {
-    cerr << e.what () << endl;
+    cerr << "unexpected argument encountered" << endl;
+    usage (cerr);
     return 1;
   }
+
+  odb::pgsql::database db (ops.db_user (),
+                           ops.db_password (),
+                           ops.db_name (),
+                           ops.db_host (),
+                           ops.db_port ());
+
+  // Prevent several brep-load/migrate instances from updating DB
+  // simultaneously.
+  //
+  database_lock l (db);
+
+  transaction t (db.begin ());
+
+  // Check that the database schema matches the current one.
+  //
+  if (schema_catalog::current_version (db) != db.schema_version ())
+  {
+    cerr << "database schema differs from the current one" << endl;
+    return 1;
+  }
+
+  // Load the description of all the internal repositories from the
+  // configuration file.
+  //
+  internal_repositories irs (load_repositories (path (argv[1])));
+
+  if (changed (irs, db))
+  {
+    // Rebuild repositories persistent state from scratch.
+    //
+    db.erase_query<package> ();
+    db.erase_query<repository> ();
+
+    // On the first pass over the internal repositories we load their
+    // packages.
+    //
+    uint16_t priority (1);
+    for (const auto& ir: irs)
+    {
+      shared_ptr<repository> r (
+        make_shared<repository> (ir.location,
+                                 move (ir.display_name),
+                                 move (ir.local_path),
+                                 priority++));
+
+      load_packages (r, db);
+    }
+
+    // On the second pass over the internal repositories we load their
+    // (not yet loaded) manifest values, complement, and prerequisite
+    // repositories.
+    //
+    for (const auto& ir: irs)
+    {
+      shared_ptr<repository> r (
+        db.load<repository> (ir.location.canonical_name ()));
+
+      load_repositories (r, db);
+    }
+
+    session s;
+    using query = query<package>;
+
+    // Resolve internal packages dependencies.
+    //
+    for (auto& p:
+           db.query<package> (query::internal_repository.is_not_null ()))
+      resolve_dependencies (p, db);
+
+    // Ensure there is no package dependency cycles.
+    //
+    package_ids chain;
+    for (const auto& p:
+           db.query<package> (query::internal_repository.is_not_null ()))
+      detect_dependency_cycle (p.id, chain, db);
+  }
+
+  t.commit ();
+}
+catch (const database_locked&)
+{
+  cerr << "brep-load or brep-migrate instance is running" << endl;
+  return 2;
+}
+catch (const cli::exception& e)
+{
+  cerr << e << endl;
+  usage (cerr);
+  return 1;
+}
+// Fully qualified to avoid ambiguity with odb exception.
+//
+catch (const std::exception& e)
+{
+  cerr << e.what () << endl;
+  return 1;
 }

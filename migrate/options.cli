@@ -1,0 +1,90 @@
+// file      : migrate/options.cli
+// copyright : Copyright (c) 2014-2016 Code Synthesis Ltd
+// license   : MIT; see accompanying LICENSE file
+
+include <string>;
+include <cstdint>; // uint16_t
+
+"\section=1"
+"\name=brep-migrate"
+"\summary=create/drop/migrate brep database"
+
+{
+  "<options>",
+
+  "\h|SYNOPSIS|
+
+   \cb{brep-migrate --help}\n
+   \cb{brep-migrate --version}\n
+   \c{\b{brep-migrate} [<options>]}
+
+   \h|DESCRIPTION|
+
+   In its default mode \cb{brep-migrate} creates the database schema if it
+   doesn't already exist. Otherwise, it migrates the existing schema and data
+   to the current version, if needed.
+
+   If the \cb{--recreate} option is specified, then \cb{brep-migrate} instead
+   recreates the database schema. That is, it drops all the existing tables
+   (and their data) and then creates them from scratch.
+
+   If the \cb{--drop} option is specified, then \cb{brep-migrate} drops all the
+   existing tables (and their data).
+
+   The \cb{--recreate} and \cb{--drop} options are mutually exclusive. When
+   specified, they will cause \cb{brep-migrate} to fail if the database schema
+   requires migration. In this case you can either migrate the database first
+   or drop the entire database using, for example, \cb{psql(1)}."
+}
+
+class options
+{
+  "\h|OPTIONS|"
+
+  bool --recreate
+  {
+    "Recreate the database schema (all the existing data will be lost)."
+  }
+
+  bool --drop
+  {
+    "Drop the database schema (all the existing data will be lost)."
+  }
+
+  std::string --db-user|-u
+  {
+    "<user>",
+    "Database user name. If not specified, then operating system (login)
+     name is used."
+  }
+
+  std::string --db-password
+  {
+    "<pass>",
+    "Database password. If not specified, then login without password is
+     expected to work."
+  }
+
+  std::string --db-name|-n = "brep"
+  {
+    "<name>",
+    "Database name. If not specified, then '\cb{brep}' is used by default."
+  }
+
+  std::string --db-host|-h
+  {
+    "<host>",
+    "Database host name, address, or socket. If not specified, then connect
+     to \cb{localhost} using the operating system-default mechanism
+     (Unix-domain socket, etc)."
+  }
+
+  std::uint16_t --db-port|-p = 0
+  {
+    "<port>",
+    "Database port number. If not specified, the default port is used."
+  }
+
+  bool --help {"Print usage information and exit."}
+  bool --version {"Print version and exit."}
+};

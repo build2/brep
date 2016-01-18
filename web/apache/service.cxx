@@ -125,7 +125,7 @@ namespace web
 
         // Terminate the root apache process. Indeed we can only try to
         // terminate the process, and most likely will fail in a production
-        // environment where the apache root process usually runs under root
+        // environment where the apache root process usually runs under root,
         // and worker processes run under some other user. This is why the
         // implementation should consider the possibility of not being
         // initialized at the time of HTTP request processing. In such a case
