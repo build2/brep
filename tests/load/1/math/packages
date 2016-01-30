@@ -18,7 +18,7 @@ location: libstudxml-1.0.0+1.tar.gz
 sha256sum: 05ccba3da34dd0296866027a26b6bacf08cacc80f54516d3b8d8eeccbe31ab93
 :
 name: libexp
-version: 1~1.2
+version: 1~1.2+1
 summary: The exponent
 description: The exponent math function.
 license: MIT
@@ -26,7 +26,7 @@ tags: c++, exponent
 url: http://www.exp.com
 email: users@exp.com
 depends: libmisc
-location: libexp-1~1.2.tar.gz
+location: libexp-1~1.2+1.tar.gz
 sha256sum: 15ccba3da34dd0296866027a26b6bacf08cacc80f54516d3b8d8eeccbe31ab93
 :
 name: libfoo

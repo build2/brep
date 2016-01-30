@@ -2,7 +2,7 @@
 sha256sum: 2f2b297be1eafd70fe55f179a0cf062baf8405e08b3854600801420132a206b1
 :
 name: libbar
-version: 2.3.5
+version: 2.4.0+3
 priority: security; Very important to install.
 summary: The Bar library
 description: very very good library.
@@ -14,7 +14,7 @@ depends: libfoo
 depends: libmath >= 2.0.0
 requires: linux | windows | macosx
 changes: some changes
-location: libbar-2.3.5.tar.gz
+location: libbar-2.4.0+3.tar.gz
 sha256sum: 70ccba3da34dd0296866027a26b6bacf08cacc80f54516d3b8d8eeccbe31ab93
 :
 name: libfoo

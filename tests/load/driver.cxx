@@ -117,7 +117,7 @@ main (int argc, char* argv[])
       transaction t (db.begin ());
 
       assert (db.query<repository> ().size () == 5);
-      assert (db.query<package> ().size () == 15);
+      assert (db.query<package> ().size () == 16);
 
       shared_ptr<repository> sr (db.load<repository> ("cppget.org/stable"));
       shared_ptr<repository> mr (db.load<repository> ("cppget.org/math"));
@@ -388,7 +388,7 @@ main (int argc, char* argv[])
       assert (mr->internal);
 
       shared_ptr<package> epv (
-        db.load<package> (package_id ("libexp", version ("1~1.2"))));
+        db.load<package> (package_id ("libexp", version ("1~1.2+1"))));
       assert (check_location (epv));
 
       shared_ptr<package> fpv5 (
@@ -593,7 +593,7 @@ main (int argc, char* argv[])
       assert (!cr->internal);
 
       shared_ptr<package> bpv (
-        db.load<package> (package_id ("libbar", version ("2.3.5"))));
+        db.load<package> (package_id ("libbar", version ("2.4.0+3"))));
       assert (check_location (bpv));
 
       shared_ptr<package> fpv0 (
@@ -610,7 +610,7 @@ main (int argc, char* argv[])
 
       // Verify libbar package version.
       //
-      // libbar-2.3.5
+      // libbar-2.4.0+3
       //
       assert (check_external (*bpv));
       assert (bpv->other_repositories.size () == 1);
@@ -655,6 +655,10 @@ main (int argc, char* argv[])
         db.load<package> (package_id ("libmisc", version ("2.4.0"))));
       assert (check_location (mpv0));
 
+      shared_ptr<package> mpv1 (
+        db.load<package> (package_id ("libmisc", version ("2.3.0+1"))));
+      assert (check_location (mpv1));
+
       assert (tr->prerequisites.empty ());
       assert (tr->complements.size () == 1);
       assert (tr->complements[0].load () == gr);
@@ -666,6 +670,12 @@ main (int argc, char* argv[])
       assert (check_external (*mpv0));
       assert (mpv0->other_repositories.size () == 1);
       assert (mpv0->other_repositories[0].load () == tr);
+
+      // libmisc-2.3.0+1
+      //
+      assert (check_external (*mpv1));
+      assert (mpv1->other_repositories.size () == 1);
+      assert (mpv1->other_repositories[0].load () == tr);
 
       // Verify 'staging' repository.
       //
@@ -696,9 +706,9 @@ main (int argc, char* argv[])
         db.load<package> (package_id ("libgenx", version ("1.0"))));
       assert (check_location (gpv));
 
-      shared_ptr<package> mpv1 (
+      shared_ptr<package> mpv2 (
         db.load<package> (package_id ("libmisc", version ("1.0"))));
-      assert (check_location (mpv1));
+      assert (check_location (mpv2));
 
       assert (gr->prerequisites.empty ());
       assert (gr->complements.empty ());
@@ -723,9 +733,9 @@ main (int argc, char* argv[])
       //
       // libmisc-1.0
       //
-      assert (check_external (*mpv1));
-      assert (mpv1->other_repositories.size () == 1);
-      assert (mpv1->other_repositories[0].load () == gr);
+      assert (check_external (*mpv2));
+      assert (mpv2->other_repositories.size () == 1);
+      assert (mpv2->other_repositories[0].load () == gr);
 
       // Change package summary, update the object persistent state, rerun
       // loader and ensure the model were not rebuilt.
@@ -740,7 +750,7 @@ main (int argc, char* argv[])
     transaction t (db.begin ());
 
     shared_ptr<package> bpv (
-      db.load<package> (package_id ("libbar", version ("2.3.5"))));
+      db.load<package> (package_id ("libbar", version ("2.4.0+3"))));
 
     assert (bpv->summary == "test");
 

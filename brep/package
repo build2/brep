@@ -635,74 +635,116 @@ namespace brep
   // Version comparison operators.
   //
   // They allow comparing objects that have epoch, canonical_upstream,
-  // canonical_release, and revision data members.
+  // canonical_release, and revision data members. The idea is that this
+  // works for both query members of types version and canonical_version
+  // as well as for comparing canonical_version to version.
   //
   template <typename T1, typename T2>
   inline auto
-  operator== (const T1& x, const T2& y) -> decltype (x.epoch == y.epoch)
+  compare_version_eq (const T1& x, const T2& y, bool revision)
+    -> decltype (x.epoch == y.epoch)
   {
-    return x.epoch == y.epoch &&
-      x.canonical_upstream == y.canonical_upstream &&
-      x.canonical_release == y.canonical_release &&
-      x.revision == y.revision;
+    // Since we don't quite know what T1 and T2 are (and where the resulting
+    // expression will run), let's not push our luck with something like
+    // (!revision || x.revision == y.revision).
+    //
+    auto r (x.epoch == y.epoch &&
+            x.canonical_upstream == y.canonical_upstream &&
+            x.canonical_release == y.canonical_release);
+
+    return revision
+      ? r && x.revision == y.revision
+      : r;
   }
 
   template <typename T1, typename T2>
   inline auto
-  operator!= (const T1& x, const T2& y) -> decltype (x.epoch != y.epoch)
+  compare_version_ne (const T1& x, const T2& y, bool revision)
+    -> decltype (x.epoch == y.epoch)
   {
-    return x.epoch != y.epoch ||
-      x.canonical_upstream != y.canonical_upstream ||
-      x.canonical_release != y.canonical_release ||
-      x.revision != y.revision;
+    auto r (x.epoch != y.epoch ||
+            x.canonical_upstream != y.canonical_upstream ||
+            x.canonical_release != y.canonical_release);
+
+    return revision
+      ? r || x.revision != y.revision
+      : r;
   }
 
   template <typename T1, typename T2>
   inline auto
-  operator< (const T1& x, const T2& y) -> decltype (x.epoch < y.epoch)
+  compare_version_lt (const T1& x, const T2& y, bool revision)
+    -> decltype (x.epoch == y.epoch)
   {
-    return x.epoch < y.epoch ||
+    auto r (
+      x.epoch < y.epoch ||
       (x.epoch == y.epoch && x.canonical_upstream < y.canonical_upstream) ||
+      (x.epoch == y.epoch && x.canonical_upstream == y.canonical_upstream &&
+       x.canonical_release < y.canonical_release));
+
+    return revision
+      ? r ||
+      (x.epoch == y.epoch && x.canonical_upstream == y.canonical_upstream &&
+       x.canonical_release == y.canonical_release && x.revision < y.revision)
+      : r;
+  }
+
+  template <typename T1, typename T2>
+  inline auto
+  compare_version_le (const T1& x, const T2& y, bool revision)
+    -> decltype (x.epoch == y.epoch)
+  {
+    auto r (
+      x.epoch < y.epoch ||
+      (x.epoch == y.epoch && x.canonical_upstream < y.canonical_upstream));
+
+    return revision
+      ? r ||
       (x.epoch == y.epoch && x.canonical_upstream == y.canonical_upstream &&
        x.canonical_release < y.canonical_release) ||
       (x.epoch == y.epoch && x.canonical_upstream == y.canonical_upstream &&
-       x.canonical_release == y.canonical_release && x.revision < y.revision);
+       x.canonical_release == y.canonical_release && x.revision <= y.revision)
+      : r ||
+      (x.epoch == y.epoch && x.canonical_upstream == y.canonical_upstream &&
+       x.canonical_release <= y.canonical_release);
   }
 
   template <typename T1, typename T2>
   inline auto
-  operator<= (const T1& x, const T2& y) -> decltype (x.epoch <= y.epoch)
+  compare_version_gt (const T1& x, const T2& y, bool revision)
+    -> decltype (x.epoch == y.epoch)
   {
-    return x.epoch < y.epoch ||
-      (x.epoch == y.epoch && x.canonical_upstream < y.canonical_upstream) ||
-      (x.epoch == y.epoch && x.canonical_upstream == y.canonical_upstream &&
-       x.canonical_release < y.canonical_release) ||
-      (x.epoch == y.epoch && x.canonical_upstream == y.canonical_upstream &&
-       x.canonical_release == y.canonical_release && x.revision <= y.revision);
-  }
-
-  template <typename T1, typename T2>
-  inline auto
-  operator> (const T1& x, const T2& y) -> decltype (x.epoch > y.epoch)
-  {
-    return x.epoch > y.epoch ||
+    auto r (
+      x.epoch > y.epoch ||
       (x.epoch == y.epoch && x.canonical_upstream > y.canonical_upstream) ||
+      (x.epoch == y.epoch && x.canonical_upstream == y.canonical_upstream &&
+       x.canonical_release > y.canonical_release));
+
+    return revision
+      ? r ||
+      (x.epoch == y.epoch && x.canonical_upstream == y.canonical_upstream &&
+       x.canonical_release == y.canonical_release && x.revision > y.revision)
+      : r;
+  }
+
+  template <typename T1, typename T2>
+  inline auto
+  compare_version_ge (const T1& x, const T2& y, bool revision)
+    -> decltype (x.epoch == y.epoch)
+  {
+    auto r (
+      x.epoch > y.epoch ||
+      (x.epoch == y.epoch && x.canonical_upstream > y.canonical_upstream));
+
+    return revision
+      ? r ||
       (x.epoch == y.epoch && x.canonical_upstream == y.canonical_upstream &&
        x.canonical_release > y.canonical_release) ||
       (x.epoch == y.epoch && x.canonical_upstream == y.canonical_upstream &&
-       x.canonical_release == y.canonical_release && x.revision > y.revision);
-  }
-
-  template <typename T1, typename T2>
-  inline auto
-  operator>= (const T1& x, const T2& y) -> decltype (x.epoch >= y.epoch)
-  {
-    return x.epoch > y.epoch ||
-      (x.epoch == y.epoch && x.canonical_upstream > y.canonical_upstream) ||
+       x.canonical_release == y.canonical_release && x.revision >= y.revision)
+      : r ||
       (x.epoch == y.epoch && x.canonical_upstream == y.canonical_upstream &&
-       x.canonical_release > y.canonical_release) ||
-      (x.epoch == y.epoch && x.canonical_upstream == y.canonical_upstream &&
-       x.canonical_release == y.canonical_release && x.revision >= y.revision);
+       x.canonical_release >= y.canonical_release);
   }
 
   template <typename T>
@@ -723,19 +765,8 @@ namespace brep
     if (int r = x.name.compare (y.name))
       return r < 0;
 
-    return x.version < y.version;
+    return compare_version_lt (x.version, y.version, true);
   }
-}
-
-namespace odb
-{
-  using ::brep::operator==;
-  using ::brep::operator!=;
-  using ::brep::operator<;
-  using ::brep::operator<=;
-  using ::brep::operator>;
-  using ::brep::operator>=;
-  using ::brep::order_by_version_desc;
 }
 
 #endif // BREP_PACKAGE
