@@ -1,0 +1,162 @@
+/* 
+ * Form layout table.
+ */
+.form-table
+{
+  width: 100%;
+  border-collapse: collapse;
+  margin-top: 1.5em;
+}
+
+.form-table table, .form-table th, .form-table td
+{
+  border: none;
+  padding: 0;
+}
+
+/* 
+ * Property list table. 
+ */
+.proplist
+{
+  /* Extend the table into #content's margins that are used to separate
+     from the browser frame. If this table gets background/stripe, then
+     we want it to cover that extra space so that we get a margin between
+     the text and the background edge. This also means that the background
+     will touch the browser frame. This looks ok as long as we don't use
+     fancy things like rounded corners. */
+
+  width: calc(100% + .8rem); /* Fill the page plus #content margin. */
+  padding-right: .4rem;
+  padding-left: .4rem;
+  margin-left: -.4rem;
+
+  table-layout: fixed;
+
+  border: none;
+  border-spacing: 0 0; 
+}
+
+.proplist th, .proplist td {padding: .08em 0 .08em 0;}
+
+.proplist th 
+{
+  font-family: monospace; 
+  font-weight: normal;
+  text-align: left;
+}
+.proplist th:after {content: ":";}
+
+.proplist td .comment
+{
+  color: #666;
+  font-size: 0.833em;
+}
+
+/* Flexbox-based left/right aligned value/comment implementation. */
+.proplist td 
+{
+  width: 100%;
+  white-space: nowrap;
+
+  display: -webkit-inline-flex;
+  display: inline-flex;
+
+  -webkit-justify-content: space-between;
+  justify-content: space-between;
+}
+
+.proplist td .value
+{
+  display: inline-block;  
+
+  -webkit-flex-shrink: 1;
+  flex-shrink: 1;  
+
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.proplist td .comment
+{
+  display: inline-block;
+
+  margin-left: 1em;
+
+  -webkit-flex-shrink: 100000;
+  flex-shrink: 100000;
+
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Fallback for browsers that still don't support flexbox. */
+
+.proplist td 
+{  
+  text-align: right;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.proplist td .value
+{  
+  float: left;  
+  text-align: left;
+}
+
+/* Re-styling for full page variant. */
+
+.full .proplist td
+{
+  flex-wrap: wrap;
+  -webkit-flex-wrap: wrap;
+
+  white-space: normal;
+}
+
+.full .proplist th
+{
+  vertical-align: top;
+}
+
+.full .proplist td .value
+{
+  margin-right: 1em;
+
+  white-space: normal;
+}
+
+.full .proplist td .comment
+{
+  margin-left: 0;
+
+  text-align: left;
+  white-space: normal;
+}
+
+/* 
+ * Pager. 
+ */
+#pager
+{
+  margin-top: 1.8em;
+
+  font-size: 0.916em;
+  text-align: center;
+}
+
+#pager a
+{
+  padding: 0 0.4em 0 0.4em;  
+}
+
+#pager #prev:before {content: "<\A0";}
+
+#pager #curr {font-weight: bold;}
+#pager #curr:before {content: "["; font-weight: normal;}
+#pager #curr:after {content: "]"; font-weight: normal;}
+
+#pager #next:after {content: "\A0>";}
