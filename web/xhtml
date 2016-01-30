@@ -324,6 +324,7 @@ namespace web
     static const inline_element A     ("a");
     static const inline_element B     ("b");
     static const inline_element BR    ("br");
+    static const inline_element CODE  ("code");
     static const inline_element EM    ("em");
     static const inline_element I     ("i");
     static const inline_element INPUT ("input");

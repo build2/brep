@@ -37,6 +37,8 @@ namespace brep
 
     s << *LINK(REL="stylesheet", TYPE="text/css",
                HREF=root_ / css / path ("common.css"))
+      << *LINK(REL="stylesheet", TYPE="text/css",
+               HREF=root_ / css / path ("brep-common.css"))
       << *LINK(REL="stylesheet", TYPE="text/css", HREF=root_ / css / path_);
   }
 
@@ -45,10 +47,16 @@ namespace brep
   void DIV_HEADER::
   operator() (serializer& s) const
   {
-    s << DIV(ID="header")
-      <<   DIV(ID="header-menu")
-      <<     A(HREF=root_) << "packages" << ~A
-      <<     A(HREF=root_.string () + "?about") << "about" << ~A
+    s << DIV(ID="header-bar")
+      <<   DIV(ID="header")
+      <<     DIV(ID="header-logo")
+      <<     ~DIV
+      <<     DIV(ID="header-menu")
+      <<       DIV(ID="header-menu-body")
+      <<         A(HREF=root_) << "Packages" << ~A
+      <<         A(HREF=root_.string () + "?about") << "About" << ~A
+      <<       ~DIV
+      <<     ~DIV
       <<   ~DIV
       << ~DIV;
   }
