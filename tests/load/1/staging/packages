@@ -1,4 +1,6 @@
 : 1
+sha256sum: 4f2b297be1eafd70fe55f179a0cf062baf8405e08b3854600801420132a206b1
+:
 name: libexpat
 version: 5.1
 summary: The Expat Library
@@ -6,6 +8,7 @@ license: MIT
 url: http://www.example.com/expat/
 email: expat-users@example.com
 location: libexpat-5.1.tar.gz
+sha256sum: 75c0ba3da34dd0296866027a26b6bacf08cacc80f54516d3b8d8eeccbe31ab93
 :
 name: libgenx
 version: 1.0
@@ -14,6 +17,7 @@ license: MIT
 url: http://www.example.com/genx/
 email: genx-users@example.com
 location: libgenx-1.0.tar.gz
+sha256sum: 75c1ba3da34dd0296866027a26b6bacf08cacc80f54516d3b8d8eeccbe31ab93
 :
 name: libmisc
 version: 1.0
@@ -23,3 +27,4 @@ url: http://www.example.com/misc/
 email: misc-users@example.com
 depends: libexpat >= 5.0
 location: libmisc-1.0.tar.gz
+sha256sum: 75c2ba3da34dd0296866027a26b6bacf08cacc80f54516d3b8d8eeccbe31ab93

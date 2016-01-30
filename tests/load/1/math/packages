@@ -1,4 +1,6 @@
 : 1
+sha256sum: 1f2b297be1eafd70fe55f179a0cf062baf8405e08b3854600801420132a206b1
+:
 name: libstudxml
 version: 1.0.0+1
 summary: Modern C++ XML API
@@ -13,6 +15,7 @@ package-email: boris@codesynthesis.com; Direct email to the author.
 depends: libexpat >= 2.0.0
 depends: libgenx
 location: libstudxml-1.0.0+1.tar.gz
+sha256sum: 05ccba3da34dd0296866027a26b6bacf08cacc80f54516d3b8d8eeccbe31ab93
 :
 name: libexp
 version: 1~1.2
@@ -24,6 +27,7 @@ url: http://www.exp.com
 email: users@exp.com
 depends: libmisc
 location: libexp-1~1.2.tar.gz
+sha256sum: 15ccba3da34dd0296866027a26b6bacf08cacc80f54516d3b8d8eeccbe31ab93
 :
 name: libfoo
 version: 1.2.4+1
@@ -53,6 +57,7 @@ requires: c++11
 requires: ? ; libc++ standard library if using Clang on Mac OS X.
 requires: ? vc++ >= 12.0; Only if using VC++ on Windows.
 location: libfoo-1.2.4+1.tar.gz
+sha256sum: 35ccba3da34dd0296866027a26b6bacf08cacc80f54516d3b8d8eeccbe31ab93
 changes:\
 1.2.4+1
  * applied patch for critical bug-219
@@ -69,3 +74,4 @@ license: MIT
 url: http://www.example.com/foo/
 email: foo-users@example.com
 location: libfoo-1.0.tar.gz
+sha256sum: 45ccba3da34dd0296866027a26b6bacf08cacc80f54516d3b8d8eeccbe31ab93

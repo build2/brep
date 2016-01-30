@@ -1,4 +1,6 @@
 : 1
+sha256sum: 5f2b297be1eafd70fe55f179a0cf062baf8405e08b3854600801420132a206b1
+:
 name: libmisc
 version: 2.4.0
 summary: The Misc Library
@@ -7,3 +9,4 @@ url: http://www.example.com/misc/
 email: misc-users@example.com
 depends: libexpat >= 5.0
 location: libmisc-2.4.0.tar.gz
+sha256sum: 75ccba3da34dd0296866027a26b6bacf08cacc80f54516d3b8d8eeccbe31ab94

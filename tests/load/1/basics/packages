@@ -1,4 +1,6 @@
 : 1
+sha256sum: df2b297be1eafd70fe55f179a0cf062baf8405e08b3854600801420132a206b1
+:
 name: libexpat
 version: 5.1
 summary: The Expat Library
@@ -6,3 +8,4 @@ license: MIT
 url: http://www.example.com/expat/
 email: expat-users@example.com
 location: libexpat-5.1.tar.gz
+sha256sum: 75ccba3da34dd0296866027a26b6bacf08cacc80f54516d3b8d8eeccbe31ab93
