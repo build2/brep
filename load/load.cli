@@ -1,4 +1,4 @@
-// file      : load/options.cli
+// file      : load/load.cli
 // copyright : Copyright (c) 2014-2016 Code Synthesis Ltd
 // license   : MIT; see accompanying LICENSE file
 
@@ -7,7 +7,7 @@ include <cstdint>; // uint16_t
 
 "\section=1"
 "\name=brep-load"
-"\summary=load repositories into database"
+"\summary=load build2 repositories into database"
 
 {
   "<options> <file>",

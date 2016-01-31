@@ -9,12 +9,12 @@ import libs += libodb%lib{odb}
 
 include ../brep/
 
-exe{brep-load}:              \
-{            cxx}{ load    } \
-{hxx ixx     cxx}{ options } \
+exe{brep-load}:                   \
+{            cxx}{ load         } \
+{hxx ixx     cxx}{ load-options } \
 ../brep/lib{brep} $libs
 
 cli.options += -I $src_root --include-with-brackets --include-prefix load \
 --guard-prefix LOAD
 
-{hxx ixx cxx}{options}: cli{options}
+{hxx ixx cxx}{load-options}: cli{load}

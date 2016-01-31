@@ -1,4 +1,4 @@
-// file      : migrate/options.cli
+// file      : migrate/migrate.cli
 // copyright : Copyright (c) 2014-2016 Code Synthesis Ltd
 // license   : MIT; see accompanying LICENSE file
 
@@ -7,7 +7,7 @@ include <cstdint>; // uint16_t
 
 "\section=1"
 "\name=brep-migrate"
-"\summary=create/drop/migrate brep database"
+"\summary=create/drop/migrate build2 repository database"
 
 {
   "<options>",

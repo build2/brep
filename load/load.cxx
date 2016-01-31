@@ -28,7 +28,7 @@
 #include <brep/package-odb>
 #include <brep/database-lock>
 
-#include <load/options>
+#include <load/load-options>
 
 using namespace std;
 using namespace odb::core;

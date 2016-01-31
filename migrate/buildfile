@@ -7,12 +7,12 @@ import libs += libodb%lib{odb}
 
 include ../brep/
 
-exe{brep-migrate}:           \
-{            cxx}{ migrate } \
-{hxx ixx     cxx}{ options } \
+exe{brep-migrate}:                   \
+{            cxx}{ migrate }         \
+{hxx ixx     cxx}{ migrate-options } \
 ../brep/lib{brep} $libs
 
 cli.options += -I $src_root --include-with-brackets --include-prefix migrate \
 --guard-prefix MIGRATE
 
-{hxx ixx cxx}{options}: cli{options}
+{hxx ixx cxx}{migrate-options}: cli{migrate}

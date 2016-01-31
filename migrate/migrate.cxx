@@ -23,7 +23,7 @@
 
 #include <brep/database-lock>
 
-#include <migrate/options>
+#include <migrate/migrate-options>
 
 using namespace std;
 using namespace odb::core;
