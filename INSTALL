@@ -49,7 +49,7 @@ c) Install PostgreSQL and Apache2 development files. Specifically, we need
    FreeBSD:       postgresql94-client  apr          apache24
 
 d) Download (normally from the same place where you obtained brep, e.g.,
-   http://download.build2.org) and install build2-toolchain by following its
+   https://download.build2.org) and install build2-toolchain by following its
    INSTALL file instructions. You can build build2-toolchain using brep's
    login and in its home directory.
 
@@ -91,7 +91,7 @@ $ bpkg create                                                   \
   config.bin.rpath="/home/brep/install/lib /usr/local/lib"      \
   config.install.root=/home/brep/install
 
-$ bpkg add http://pkg.cppget.org/1/alpha
+$ bpkg add https://pkg.cppget.org/1/alpha
 $ bpkg fetch
 $ bpkg build brep
 $ bpkg install brep
