@@ -22,6 +22,7 @@ lib{brep}:                          \
 {hxx         cxx}{ package        } \
 {file           }{ package.xml    } \
 {hxx ixx     cxx}{ package-odb    } \
+{hxx            }{ package-extra  } \
 {hxx         cxx}{ package-traits } \
 {hxx         cxx}{ database-lock  } \
 {hxx            }{ types          } \
