@@ -23,7 +23,7 @@
 //
 #define LIBBREP_SCHEMA_VERSION_BASE 1
 
-#pragma db model version(LIBBREP_SCHEMA_VERSION_BASE, 1, open)
+#pragma db model version(LIBBREP_SCHEMA_VERSION_BASE, 1, closed)
 
 // The uint16_t value range is not fully covered by SMALLINT PostgreSQL type
 // to which uint16_t is mapped by default.
