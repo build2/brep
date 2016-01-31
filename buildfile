@@ -6,4 +6,4 @@ d = brep/ etc/ load/ migrate/ tests/ www/
 ./: $d doc{INSTALL INSTALL-DEV LICENSE version} file{manifest}
 include $d
 
-$src_base/doc{INSTALL INSTALL-DEV}: install = false
+doc{INSTALL*}: install = false
