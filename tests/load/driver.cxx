@@ -25,30 +25,40 @@ using namespace odb::core;
 using namespace butl;
 using namespace brep;
 
-// @@ Rather add this to optional in libbutl. See:
+// @@ Rather add this to optional in libbutl! See:
 //
 // http://en.cppreference.com/w/cpp/experimental/optional/operator_cmp
 
-template <typename T>
-static inline auto
-operator== (const optional<T>& a, const optional<T>& b) -> decltype (*a == *b)
+namespace butl
 {
-  return !a == !b && (!a || *a == *b);
+  template <typename T>
+  static inline auto
+  operator== (const optional<T>& a, const optional<T>& b) ->
+    decltype (*a == *b)
+  {
+    return !a == !b && (!a || *a == *b);
+  }
 }
 
-// @@ Add it to libbrep rather?
+// @@ Add it to libbpkg/libbrep rather!
 //
-static inline bool
-operator== (const dependency_constraint& a, const dependency_constraint& b)
+namespace bpkg
 {
-  return a.min_version == b.min_version && a.max_version == b.max_version &&
-    a.min_open == b.min_open && a.max_open == b.max_open;
+  static inline bool
+  operator== (const dependency_constraint& a, const dependency_constraint& b)
+  {
+    return a.min_version == b.min_version && a.max_version == b.max_version &&
+      a.min_open == b.min_open && a.max_open == b.max_open;
+  }
 }
 
-static inline bool
-operator== (const dependency& a, const dependency& b)
+namespace brep
 {
-  return a.name () == b.name () && a.constraint == b.constraint;
+  static inline bool
+  operator== (const dependency& a, const dependency& b)
+  {
+    return a.name () == b.name () && a.constraint == b.constraint;
+  }
 }
 
 static bool
