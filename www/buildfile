@@ -6,5 +6,5 @@ define css: file
 css{*}: extension = css
 css{*}: install = data/www
 
-./: css{common package-details package-search package-version-details \
-repository-details}
+./: css{common brep-common package-details package-search \
+package-version-details repository-details}
