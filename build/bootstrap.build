@@ -3,7 +3,7 @@
 # license   : MIT; see accompanying LICENSE file
 
 project = brep
-version = 0.2.1
+version = 0.2.2
 
 using build@0.2.0
 using config
