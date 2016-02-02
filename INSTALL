@@ -205,7 +205,16 @@ $ sudo systemctl restart apache2
 To verify, visit the repository root. To troubleshoot, see Apache logs.
 
 
-7. Setup Periodic Loader Execution
+7. Optimize CSS
+
+This step is optional and involves optimizing the CSS files used by brep. For
+example, using the sassc(1) command line tool:
+
+$ cd install/share/brep/www/
+$ for i in *.scss; do sassc -s compressed $i `basename -s .scss $i`.css; done
+
+
+8. Setup Periodic Loader Execution
 
 In this guide we will use the systemd user session to periodically run loader
 as the brep user. If your installation doesn't use systemd, then a cron job
@@ -243,7 +252,7 @@ If everything looks good, enable the timer to be started at boot time:
 $ systemctl --user enable brep-load.timer
 
 
-8. Upgrade Procedure
+9. Upgrade Procedure
 
 During upgrade we will stop apache for what should normally be a short period
 of time. To ensure that there are no surprises, for production environments it
@@ -296,3 +305,5 @@ Start apache:
 $ sudo systemctl start apache2
 
 To verify, visit the repository root. To troubleshoot, see Apache logs.
+
+You may also need to repeat the CSS optimization step above.

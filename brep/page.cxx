@@ -35,11 +35,7 @@ namespace brep
   {
     static const path css ("@");
 
-    s << *LINK(REL="stylesheet", TYPE="text/css",
-               HREF=root_ / css / path ("common.css"))
-      << *LINK(REL="stylesheet", TYPE="text/css",
-               HREF=root_ / css / path ("brep-common.css"))
-      << *LINK(REL="stylesheet", TYPE="text/css", HREF=root_ / css / path_);
+    s << *LINK(REL="stylesheet", TYPE="text/css", HREF=root_ / css / path_);
   }
 
   // DIV_HEADER

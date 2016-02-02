@@ -1,28 +1,3 @@
-h1
-{
-  font-family: monospace;  
-  font-weight: normal;
-  font-size: 2.074em;
-  line-height: 1.4em;
-
-  margin: 1.6em 0 .4em 0;
-
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-h1:first-child {margin-top: .6em;}
-
-/* Since it is a link to itself, it will always be visited. */
-h1 a:visited {color: #006fbf;}
-h1 a:hover, h1 a:active {color: #0087e7; text-decoration: none;}
-
-h2
-{
-  font-style: italic;
-  font-weight: normal;
-  font-size: 1.32em;
-  line-height: 1.4em;
-
-  margin: .4em 0 .4em 0;
-}
+@import url(common.css);
+@import url(brep-common.css);
+@import url(repository-details-body.css);
