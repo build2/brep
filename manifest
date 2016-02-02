@@ -1,6 +1,6 @@
 : 1
 name: brep
-version: 0.2.2
+version: 0.2.3
 summary: build2 package repository web interface
 license: MIT
 tags: build2, c++, package, repository, web, interface, apache, module
