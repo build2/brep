@@ -8,7 +8,15 @@
 -- * strings other then function bodies must be quoted with ' or "
 -- * statements must end with ";\n"
 --
-DROP FUNCTION IF EXISTS to_tsvector(IN document weighted_text);
+
+-- There is no need to drop to_tsvector() explicitly, as we can rely on "DROP
+-- TYPE IF EXISTS weighted_text CASCADE" statement below, which will drop all
+-- objects that depend on this type. Moreover this DROP FUNCTION statement will
+-- fail for old versions of PostgreSQL (experienced for 9.2.14) with error:
+-- type "weighted_text" does not exist.
+--
+-- DROP FUNCTION IF EXISTS to_tsvector(IN document weighted_text);
+--
 DROP FUNCTION IF EXISTS search_packages(IN query tsquery, INOUT name TEXT);
 DROP FUNCTION IF EXISTS search_latest_packages(IN query tsquery);
 DROP FUNCTION IF EXISTS latest_package(INOUT name TEXT);
