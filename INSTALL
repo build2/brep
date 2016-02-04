@@ -198,6 +198,15 @@ can also find this fragment in install/share/brep/etc/brep-apache2.conf):
         #    Require all granted
         #</Directory>
 
+The output content type of the brep module is application/xhtml+xml and if you
+would like to make sure it gets compressed (along with linked CSS), also add
+the following lines:
+
+        # Compress brep output (xhtml+xml) and CSS.
+        #
+      	AddOutputFilterByType DEFLATE application/xhtml+xml
+	AddOutputFilterByType DEFLATE text/css
+
 Restart Apache2:
 
 $ sudo systemctl restart apache2
