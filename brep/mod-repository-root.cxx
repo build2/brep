@@ -5,6 +5,8 @@
 #include <brep/mod-repository-root>
 
 #include <sstream>
+#include <exception>
+#include <stdexcept> // runtime_error
 
 #include <web/module>
 
@@ -122,11 +124,36 @@ namespace brep
 
     const path& lpath (rpath.leaf (root));
 
-    // @@ An exception thrown by the selected module handle () function call
-    //    will be attributed to the repository-root service while being logged.
-    //    Could intercept exception handling to add some sub-module attribution,
-    //    but let's not complicate the code for the time being.
+    // Delegate the request handling to the sub-module. Intercept exception
+    // handling to add sub-module attribution.
     //
+    auto handle = [&rs, this](module& m, request& rq, const char* name) -> bool
+      {
+        try
+        {
+          return m.handle (rq, rs, *log_);
+        }
+        catch (const invalid_request&)
+        {
+          // Preserve invalid_request exception type, so the web server can
+          // properly respond to the client with a 4XX error code.
+          //
+          throw;
+        }
+        catch (const std::exception& e)
+        {
+          // All exception types inherited from std::exception (and different
+          // from invalid_request) are handled by the web server as
+          // std::exception. The only sensible way to handle them is to respond
+          // to the client with the internal server error (500) code. By that
+          // reason it is valid to reduce all these types to a single one.
+          // Note that the server_error exception is handled internally by the
+          // module::handle() function call.
+          //
+          throw runtime_error (string (name) + ": " + e.what ());
+        }
+      };
+
     if (lpath.empty ())
     {
       // Dispatch request handling to the repository_details or the
@@ -147,7 +174,7 @@ namespace brep
 
           request_proxy rp (rq, p);
           repository_details m (*repository_details_);
-          return m.handle (rp, rs);
+          return handle (m, rp, "repository_details");
         }
 
         throw invalid_request (400, "unknown function");
@@ -155,7 +182,7 @@ namespace brep
       else
       {
         package_search m (*package_search_);
-        return m.handle (rq, rs);
+        return handle (m, rq, "package_search");
       }
     }
     else
@@ -183,12 +210,12 @@ namespace brep
         if (i == lpath.end ())
         {
           package_details m (*package_details_);
-          return m.handle (rq, rs);
+          return handle (m, rq, "package_details");
         }
         else if (++i == lpath.end ())
         {
           package_version_details m (*package_version_details_);
-          return m.handle (rq, rs);
+          return handle (m, rq, "package_version_details");
         }
       }
     }

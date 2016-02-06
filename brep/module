@@ -151,6 +151,9 @@ namespace brep
     virtual bool
     handle (request&, response&) = 0;
 
+    virtual bool
+    handle (request&, response&, log&);
+
     // web::module interface.
     //
   public:
@@ -162,9 +165,6 @@ namespace brep
     options ();
 
   private:
-    virtual bool
-    handle (request&, response&, log&);
-
     virtual void
     version (log&);
 
