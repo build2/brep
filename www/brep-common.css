@@ -1,4 +1,4 @@
-/* 
+/*
  * Form layout table.
  */
 .form-table
@@ -14,8 +14,8 @@
   padding: 0;
 }
 
-/* 
- * Property list table. 
+/*
+ * Property list table.
  */
 .proplist
 {
@@ -34,14 +34,14 @@
   table-layout: fixed;
 
   border: none;
-  border-spacing: 0 0; 
+  border-spacing: 0 0;
 }
 
 .proplist th, .proplist td {padding: .08em 0 .08em 0;}
 
-.proplist th 
+.proplist th
 {
-  font-family: monospace; 
+  font-family: monospace;
   font-weight: normal;
   text-align: left;
 }
@@ -54,7 +54,7 @@
 }
 
 /* Flexbox-based left/right aligned value/comment implementation. */
-.proplist td 
+.proplist td
 {
   width: 100%;
   white-space: nowrap;
@@ -68,10 +68,10 @@
 
 .proplist td .value
 {
-  display: inline-block;  
+  display: inline-block;
 
   -webkit-flex-shrink: 1;
-  flex-shrink: 1;  
+  flex-shrink: 1;
 
   white-space: nowrap;
   overflow: hidden;
@@ -94,16 +94,16 @@
 
 /* Fallback for browsers that still don't support flexbox. */
 
-.proplist td 
-{  
+.proplist td
+{
   text-align: right;
   overflow: hidden;
   text-overflow: ellipsis;
 }
 
 .proplist td .value
-{  
-  float: left;  
+{
+  float: left;
   text-align: left;
 }
 
@@ -137,8 +137,8 @@
   white-space: normal;
 }
 
-/* 
- * Pager. 
+/*
+ * Pager.
  */
 #pager
 {
@@ -150,7 +150,7 @@
 
 #pager a
 {
-  padding: 0 0.4em 0 0.4em;  
+  padding: 0 0.4em 0 0.4em;
 }
 
 #pager #prev:before {content: "<\A0";}

@@ -1,5 +1,5 @@
 #heading
-{ 
+{
   display: table;
   table-layout: fixed;
   width: 100%;
@@ -12,7 +12,7 @@
 
 h1
 {
-  font-family: monospace;  
+  font-family: monospace;
   font-weight: normal;
   font-size: 2.074em;
   line-height: 1.4em;
@@ -20,15 +20,15 @@ h1
   margin: .6em 0 .6em 0;
 
   display: table-cell;
-  text-align: left; 
+  text-align: left;
 }
 
-#heading > a 
+#heading > a
 {
   font-size: 1.32em;
   line-height: 1.4em;
 
-  display: table-cell;   
+  display: table-cell;
   text-align: right;
   width: 3.2em;
   vertical-align: middle;
@@ -58,10 +58,10 @@ h1, h2
   white-space: normal;
 }
 
-/* 
+/*
  * Package details table.
  */
-#package 
+#package
 {
   margin-top: 1.5em;
   margin-bottom: 1.5em;
@@ -86,8 +86,8 @@ h1, h2
   margin: 1.2em 0 0 0;
 }
 
-/* 
- * Version table. 
+/*
+ * Version table.
  */
 table.version
 {

@@ -1,5 +1,5 @@
 #heading
-{ 
+{
   display: table;
   table-layout: fixed;
   width: 100%;
@@ -21,15 +21,15 @@ h1
   margin: .6em 0 .6em 0;
 
   display: table-cell;
-  text-align: left; 
+  text-align: left;
 }
 
-#heading > a 
+#heading > a
 {
   font-size: 1.32em;
   line-height: 1.4em;
 
-  display: table-cell;   
+  display: table-cell;
   text-align: right;
   width: 3.2em;
   vertical-align: middle;
@@ -50,7 +50,7 @@ h2
 
 h3
 {
-  font-family: monospace;  
+  font-family: monospace;
   font-weight: normal;
   font-size: 1.26em;
   line-height: 1.4em;
@@ -73,10 +73,10 @@ h1, h2, h3
   white-space: normal;
 }
 
-/* 
- * Version details table. 
+/*
+ * Version details table.
  */
-#version 
+#version
 {
   margin-top: .5em;
   margin-bottom: 1em;
@@ -103,18 +103,18 @@ h1, h2, h3
   font-size: 0.94em;
 }
 
-/* 
- * Package details table. 
+/*
+ * Package details table.
  */
-#package 
+#package
 {
   margin-top: 1.2em;
   margin-bottom: 1em;
 }
 #package th {width: 6.4em;}
 
-/* 
- * Dependencies and requirements tables. 
+/*
+ * Dependencies and requirements tables.
  */
 #depends {margin-top: .4em; margin-bottom: 1em;}
 #depends th {width: 2.8em; text-align: center;}
@@ -154,14 +154,14 @@ h1, h2, h3
   font-size: 0.94em;
 }
 
-/* 
+/*
  * Changes.
  *
  * This is a <pre> block that fits lines up to 80 characters long and
  * wraps longer ones.
  */
-#changes 
-{     
+#changes
+{
   font-size: 0.78em;
   white-space: pre-wrap;
   margin: .5em 0 .5em 0;
