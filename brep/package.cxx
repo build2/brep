@@ -37,6 +37,18 @@ namespace brep
     return o;
   }
 
+  bool
+  operator== (const dependency& x, const dependency& y)
+  {
+    return x.name () == y.name () && x.constraint == y.constraint;
+  }
+
+  bool
+  operator!= (const dependency& x, const dependency& y)
+  {
+    return !(x == y);
+  }
+
   // package
   //
   package::

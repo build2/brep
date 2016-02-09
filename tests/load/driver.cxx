@@ -25,42 +25,6 @@ using namespace odb::core;
 using namespace butl;
 using namespace brep;
 
-// @@ Rather add this to optional in libbutl! See:
-//
-// http://en.cppreference.com/w/cpp/experimental/optional/operator_cmp
-
-namespace butl
-{
-  template <typename T>
-  static inline auto
-  operator== (const optional<T>& a, const optional<T>& b) ->
-    decltype (*a == *b)
-  {
-    return !a == !b && (!a || *a == *b);
-  }
-}
-
-// @@ Add it to libbpkg/libbrep rather!
-//
-namespace bpkg
-{
-  static inline bool
-  operator== (const dependency_constraint& a, const dependency_constraint& b)
-  {
-    return a.min_version == b.min_version && a.max_version == b.max_version &&
-      a.min_open == b.min_open && a.max_open == b.max_open;
-  }
-}
-
-namespace brep
-{
-  static inline bool
-  operator== (const dependency& a, const dependency& b)
-  {
-    return a.name () == b.name () && a.constraint == b.constraint;
-  }
-}
-
 static bool
 check_location (shared_ptr<package>& p)
 {

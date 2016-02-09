@@ -315,6 +315,12 @@ namespace brep
   std::ostream&
   operator<< (std::ostream&, const dependency&);
 
+  bool
+  operator== (const dependency&, const dependency&);
+
+  bool
+  operator!= (const dependency&, const dependency&);
+
   #pragma db value
   class dependency_alternatives: public vector<dependency>
   {
