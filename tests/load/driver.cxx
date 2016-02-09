@@ -107,7 +107,8 @@ main (int argc, char* argv[])
       assert (sr->display_name == "stable");
       assert (sr->priority == 1);
       assert (!sr->url);
-      assert (sr->email && *sr->email == "repoman@cppget.org");
+      assert (sr->email && *sr->email == "repoman@cppget.org" &&
+              sr->email->comment == "public mailing list");
       assert (sr->summary &&
               *sr->summary == "General C++ package stable repository");
       assert (sr->description && *sr->description ==

@@ -1,5 +1,5 @@
 <changelog xmlns="http://www.codesynthesis.com/xmlns/odb/changelog" database="pgsql" version="1">
-  <model version="1">
+  <model version="2">
     <table name="repository" kind="object">
       <column name="name" type="TEXT" null="false"/>
       <column name="location" type="TEXT" null="false"/>
@@ -7,6 +7,7 @@
       <column name="priority" type="INTEGER" null="false"/>
       <column name="url" type="TEXT" null="true"/>
       <column name="email" type="TEXT" null="true"/>
+      <column name="email_comment" type="TEXT" null="true"/>
       <column name="summary" type="TEXT" null="true"/>
       <column name="description" type="TEXT" null="true"/>
       <column name="local_path" type="TEXT" null="false"/>

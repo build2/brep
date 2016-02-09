@@ -109,7 +109,17 @@ handle (request& rq, response& rs)
       s << P_DESCRIPTION (*r.description);
 
     if (r.email)
-      s << P << A(HREF="mailto:" + *r.email) << *r.email << ~A << ~P;
+    {
+      const email& e (*r.email);
+
+      s << P
+        <<   A(HREF="mailto:" + e) << e << ~A;
+
+      if (!e.comment.empty ())
+        s << " (" << e.comment << ")";
+
+      s << ~P;
+    }
 
     ostringstream o;
     butl::to_stream (o,

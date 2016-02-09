@@ -21,9 +21,9 @@
 
 // Used by the data migration entries.
 //
-#define LIBBREP_SCHEMA_VERSION_BASE 1
+#define LIBBREP_SCHEMA_VERSION_BASE 2
 
-#pragma db model version(LIBBREP_SCHEMA_VERSION_BASE, 1, closed)
+#pragma db model version(LIBBREP_SCHEMA_VERSION_BASE, 2, open)
 
 // The uint16_t value range is not fully covered by SMALLINT PostgreSQL type
 // to which uint16_t is mapped by default.
@@ -355,6 +355,8 @@ namespace brep
   class repository
   {
   public:
+    using email_type = brep::email;
+
     // Create internal repository.
     //
     repository (repository_location,
@@ -380,7 +382,7 @@ namespace brep
 
     // Present only for internal repositories.
     //
-    optional<string> email;
+    optional<email_type> email;
     optional<string> summary;
     optional<string> description;
 
