@@ -225,9 +225,29 @@ $ for i in *.scss; do sassc -s compressed $i `basename -s .scss $i`.css; done
 
 8. Setup Periodic Loader Execution
 
-In this guide we will use the systemd user session to periodically run loader
-as the brep user. If your installation doesn't use systemd, then a cron job
-would be a natural alternative.
+Initially this guide suggested using systemd user session support to run the
+loader. However, the current state of user sessions has one major drawback:
+they are not strated/attached to when logging in with su -l (see Debian bug
+#813789 for details). This limitation makes them unusable in our setup. If you
+still would like to use systemd to run the loader, then you can set it up as a
+system-wide service which runs the loader as the brep user/group. Otherwise, a
+cron job is a natural choice.
+
+
+8.a Setup Periodic Loader Execution with cron
+
+The following crontab entry will execute the loader every five minutes:
+
+$ crontab -
+MAILTO=<brep-admin-email>
+*/5 * * * * $HOME/install/bin/brep-load $HOME/config/brep-load.conf
+
+
+8.b Setup Periodic Loader Execution with systemd
+
+In this version we will use the systemd user session to periodically run the
+loader as the brep user. If your installation doesn't use systemd, then a cron
+job would be a natural alternative (see above).
 
 As the first step, make sure systemd user sessions support is working for the
 brep user:
@@ -278,10 +298,15 @@ Build new version of brep:
 
 $ bpkg -d brep build brep
 
-Stop and disable loader:
+If you are using a systemd-based setup, then stop and disable the loader:
 
 $ systemctl --user disable --now brep-load.timer
 $ systemctl --user stop brep-load.service
+
+If you are using a cron-based setup, then it is not worth it commenting out the
+job entry. If the new version of the loader gets executed before or during the
+migration, then it will fail and you will get an email with the diagnostics.
+Other than that, it should be harmless.
 
 Stop apache:
 
@@ -300,7 +325,7 @@ Update database schema:
 
 $ install/bin/brep-migrate
 
-Start and enable loader:
+If using systemd, then start and enable the loader:
 
 $ systemctl --user start brep-load.service
 $ systemctl --user status brep-load.service
@@ -308,6 +333,8 @@ $ systemctl --user status brep-load.service
 If everything looks good, enable periodic execution:
 
 $ systemctl --user enable --now brep-load.timer
+
+If using cron, then simply wait for the next run.
 
 Start apache:
 
