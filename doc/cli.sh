@@ -13,6 +13,9 @@ while [ $# -gt 0 ]; do
   case $1 in
     --clean)
       rm -f brep*.xhtml brep*.1
+      rm -f build2-repository-interface-manual*.ps \
+	 build2-repository-interface-manual*.pdf   \
+	 build2-repository-interface-manual.xhtml
       exit 0
       ;;
     *)
@@ -55,3 +58,19 @@ pages="load/load migrate/migrate"
 for p in $pages; do
   compile $p $o
 done
+
+# Manual.
+#
+cli -I .. -v version="$version" -v date="$date" \
+--generate-html --html-suffix .xhtml \
+--html-prologue-file doc-prologue.xhtml \
+--html-epilogue-file doc-epilogue.xhtml \
+--link-regex '%b([-.].+)%../../build2/doc/b$1%' \
+--link-regex '%bpkg([-.].+)%../../bpkg/doc/bpkg$1%' \
+--output-prefix build2-repository-interface- manual.cli
+
+html2ps -f doc.html2ps:a4.html2ps -o build2-repository-interface-manual-a4.ps build2-repository-interface-manual.xhtml
+ps2pdf14 -sPAPERSIZE=a4 -dOptimize=true -dEmbedAllFonts=true build2-repository-interface-manual-a4.ps build2-repository-interface-manual-a4.pdf
+
+html2ps -f doc.html2ps:letter.html2ps -o build2-repository-interface-manual-letter.ps build2-repository-interface-manual.xhtml
+ps2pdf14 -sPAPERSIZE=letter -dOptimize=true -dEmbedAllFonts=true build2-repository-interface-manual-letter.ps build2-repository-interface-manual-letter.pdf
