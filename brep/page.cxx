@@ -15,9 +15,6 @@
 #include <web/xhtml>
 #include <web/mime-url-encoding>
 
-#include <brep/types>
-#include <brep/utility>
-
 #include <brep/package>
 #include <brep/package-odb>
 

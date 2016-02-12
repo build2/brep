@@ -8,8 +8,6 @@
 #include <map>
 #include <ratio>
 #include <chrono>
-#include <iosfwd>      // ostream
-#include <cassert>
 #include <type_traits> // static_assert
 
 #include <odb/core.hxx>
@@ -312,8 +310,8 @@ namespace brep
     #pragma db member(constraint) column("")
   };
 
-  std::ostream&
-  operator<< (std::ostream&, const dependency&);
+  ostream&
+  operator<< (ostream&, const dependency&);
 
   bool
   operator== (const dependency&, const dependency&);

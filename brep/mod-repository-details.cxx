@@ -20,9 +20,6 @@
 #include <web/module>
 #include <web/mime-url-encoding>
 
-#include <brep/types>
-#include <brep/utility>
-
 #include <brep/page>
 #include <brep/options>
 #include <brep/package>

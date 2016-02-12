@@ -4,8 +4,6 @@
 
 #include <brep/mod-package-version-details>
 
-#include <stdexcept> // invalid_argument
-
 #include <xml/serializer>
 
 #include <odb/session.hxx>
@@ -15,9 +13,6 @@
 #include <web/xhtml>
 #include <web/module>
 #include <web/mime-url-encoding>
-
-#include <brep/types>
-#include <brep/utility>
 
 #include <brep/page>
 #include <brep/options>

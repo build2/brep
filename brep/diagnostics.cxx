@@ -4,10 +4,6 @@
 
 #include <brep/diagnostics>
 
-#include <exception>
-
-#include <brep/utility>
-
 using namespace std;
 
 namespace brep

@@ -183,7 +183,7 @@ namespace brep
 
   private:
     // Extract function name from a __PRETTY_FUNCTION__.
-    // Throw std::invalid_argument if fail to parse.
+    // Throw invalid_argument if fail to parse.
     //
     static string
     func_name (const char* pretty_name);

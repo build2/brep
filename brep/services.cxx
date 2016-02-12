@@ -6,6 +6,9 @@
 
 #include <web/apache/service>
 
+#include <brep/types>
+#include <brep/utility>
+
 #include <brep/mod-repository-root>
 
 static brep::repository_root mod;

@@ -4,9 +4,7 @@
 
 #include <sstream>
 #include <fstream>
-#include <ostream>
 #include <iostream>
-#include <stdexcept> // runtime_error, invalid_argument
 #include <algorithm> // find(), find_if()
 
 #include <odb/session.hxx>

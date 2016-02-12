@@ -5,6 +5,9 @@
 #ifndef BREP_OPTIONS_TYPES
 #define BREP_OPTIONS_TYPES
 
+#include <brep/types>
+#include <brep/utility>
+
 namespace brep
 {
   // brep types

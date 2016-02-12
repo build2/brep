@@ -5,9 +5,7 @@
 #ifndef BREP_DIAGNOSTICS
 #define BREP_DIAGNOSTICS
 
-#include <utility>    // forward()
 #include <sstream>
-#include <functional>
 
 #include <brep/types>
 #include <brep/utility>
@@ -42,7 +40,7 @@ namespace brep
   template <typename> struct diag_prologue;
   template <typename> struct diag_mark;
 
-  using diag_epilogue = std::function<void (diag_data&&)>;
+  using diag_epilogue = function<void (diag_data&&)>;
 
   struct diag_record
   {
@@ -130,7 +128,7 @@ namespace brep
 
     template <typename... A>
     diag_prologue (const diag_epilogue& e, A&&... a)
-        : B (std::forward<A> (a)...), epilogue_ (e) {}
+        : B (forward<A> (a)...), epilogue_ (e) {}
 
     template <typename T>
     diag_record
@@ -163,7 +161,7 @@ namespace brep
     diag_mark (): B () {}
 
     template <typename... A>
-    diag_mark (A&&... a): B (std::forward<A> (a)...) {}
+    diag_mark (A&&... a): B (forward<A> (a)...) {}
 
     template <typename T>
     diag_record

@@ -9,6 +9,7 @@
 #define BREP_TYPES_PARSERS
 
 #include <brep/types>
+#include <brep/utility>
 
 #include <brep/options-types>
 

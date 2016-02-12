@@ -8,6 +8,7 @@
 #include <odb/forward.hxx> // database
 
 #include <brep/types>
+#include <brep/utility>
 
 #include <brep/options>
 

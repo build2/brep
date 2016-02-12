@@ -5,13 +5,9 @@
 #include <brep/mod-repository-root>
 
 #include <sstream>
-#include <exception>
-#include <stdexcept> // runtime_error
 
 #include <web/module>
 
-#include <brep/types>
-#include <brep/utility>
 #include <brep/version>
 
 #include <brep/module>

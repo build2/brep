@@ -4,12 +4,8 @@
 
 #include <strings.h> // strcasecmp()
 
-#include <string>
-#include <cassert>
-#include <ostream>
 #include <sstream>
 #include <iostream>
-#include <stdexcept> // runtime_error, invalid_argument
 
 #include <odb/database.hxx>
 #include <odb/transaction.hxx>

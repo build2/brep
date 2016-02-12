@@ -5,11 +5,11 @@
 #ifndef BREP_DATABASE_LOCK
 #define BREP_DATABASE_LOCK
 
-#include <memory>    // unique_ptr
-#include <exception>
-
 #include <odb/pgsql/forward.hxx>    // database, transaction
 #include <odb/pgsql/connection.hxx>
+
+#include <brep/types>
+#include <brep/utility>
 
 namespace brep
 {
@@ -36,7 +36,7 @@ namespace brep
 
   private:
     odb::pgsql::connection_ptr connection_;
-    std::unique_ptr<odb::pgsql::transaction> transaction_;
+    unique_ptr<odb::pgsql::transaction> transaction_;
   };
 }
 

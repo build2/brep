@@ -4,12 +4,7 @@
 
 #include <brep/database>
 
-#include <stdexcept> // runtime_error
-
 #include <odb/pgsql/database.hxx>
-
-#include <brep/types>
-#include <brep/utility>
 
 namespace brep
 {
@@ -30,7 +25,7 @@ namespace brep
           o.db_name ()     != d->db ()       ||
           o.db_host ()     != d->host ()     ||
           o.db_port ()     != d->port ())
-        throw std::runtime_error ("shared database options mismatch");
+        throw runtime_error ("shared database options mismatch");
 
       return d;
     }

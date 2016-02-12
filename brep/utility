@@ -5,16 +5,28 @@
 #ifndef BREP_UTILITY
 #define BREP_UTILITY
 
-#include <string>  // to_string()
-#include <memory>  // make_shared()
-#include <cassert>
-#include <utility> // move()
+#include <memory>   // make_shared()
+#include <string>   // to_string()
+#include <utility>  // move(), forward(), declval(), make_pair()
+#include <cassert>  // assert()
+#include <iterator> // make_move_iterator()
+
+#include <butl/utility> // reverse_iterate()
 
 namespace brep
 {
   using std::move;
+  using std::forward;
+  using std::declval;
+
+  using std::make_pair;
   using std::make_shared;
+  using std::make_move_iterator;
   using std::to_string;
+
+  // <butl/utility>
+  //
+  using butl::reverse_iterate;
 };
 
 #endif // BREP_UTILITY

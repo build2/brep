@@ -15,8 +15,6 @@
 #include <web/module>
 #include <web/mime-url-encoding>
 
-#include <brep/types>
-#include <brep/utility>
 #include <brep/version>
 
 #include <brep/page>

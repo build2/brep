@@ -6,6 +6,7 @@
 #define BREP_MOD_REPOSITORY_ROOT
 
 #include <brep/types>
+#include <brep/utility>
 
 #include <brep/module>
 #include <brep/options>

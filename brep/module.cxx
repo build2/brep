@@ -7,17 +7,12 @@
 #include <httpd.h>
 #include <http_log.h>
 
-#include <ostream>
 #include <sstream>
 #include <cstring>    // strchr()
-#include <stdexcept>
 #include <functional> // bind()
 
 #include <web/module>
 #include <web/apache/log>
-
-#include <brep/types>
-#include <brep/utility>
 
 #include <brep/options>
 
