@@ -5,8 +5,9 @@
 #ifndef WEB_APACHE_LOG
 #define WEB_APACHE_LOG
 
-#include <httpd.h>    // request_rec
+#include <httpd.h>       // request_rec
 #include <http_log.h>
+#include <http_config.h> // module
 
 #include <cstdint>   // uint64_t
 #include <algorithm> // min()
@@ -21,7 +22,8 @@ namespace web
     {
     public:
 
-      log (server_rec* server) noexcept: server_ (server) {}
+      log (server_rec* s, const ::module* m) noexcept
+        : server_ (s), module_ (m) {}
 
       virtual void
       write (const char* msg) {write (APLOG_ERR, msg);}
@@ -49,7 +51,7 @@ namespace web
         if (func)
           ap_log_error (file,
                         line,
-                        APLOG_NO_MODULE,
+                        module_->module_index,
                         level,
                         0,
                         server_,
@@ -61,7 +63,7 @@ namespace web
           //
           ap_log_error (file,
                         line,
-                        APLOG_NO_MODULE,
+                        module_->module_index,
                         level,
                         0,
                         server_,
@@ -71,6 +73,7 @@ namespace web
 
     private:
       server_rec* server_;
+      const ::module* module_; // Apache module.
     };
   }
 }
