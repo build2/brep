@@ -40,18 +40,35 @@ namespace brep
   void DIV_HEADER::
   operator() (serializer& s) const
   {
-    s << DIV(ID="header-bar")
-      <<   DIV(ID="header")
-      <<     DIV(ID="header-logo")
-      <<     ~DIV
-      <<     DIV(ID="header-menu")
-      <<       DIV(ID="header-menu-body")
-      <<         A(HREF=root_) << "Packages" << ~A
-      <<         A(HREF=root_.string () + "?about") << "About" << ~A
-      <<       ~DIV
-      <<     ~DIV
-      <<   ~DIV
-      << ~DIV;
+    if (!logo_.empty () || !menu_.empty ())
+    {
+      s << DIV(ID="header-bar")
+        <<   DIV(ID="header");
+
+      if (!logo_.empty ())
+        s << DIV(ID="header-logo") << logo_ << ~DIV;
+
+      if (!menu_.empty ())
+      {
+        s << DIV(ID="header-menu")
+          <<   DIV(ID="header-menu-body");
+
+        for (const auto& m: menu_)
+        {
+          const string& l (m.link[0] == '/' || m.link.find (':') != string::npos
+                           ? m.link
+                           : root_.string () + m.link);
+
+          s << A(HREF=l) << m.label << ~A;
+        }
+
+        s <<   ~DIV
+          << ~DIV;
+      }
+
+      s <<   ~DIV
+        << ~DIV;
+    }
   }
 
   // FORM_SEARCH

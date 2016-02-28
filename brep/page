@@ -7,10 +7,13 @@
 
 #include <xml/forward>
 
+#include <web/xhtml-fragment>
+
 #include <brep/types>
 #include <brep/utility>
 
 #include <brep/package>
+#include <brep/options-types> // page_menu
 
 namespace brep
 {
@@ -25,7 +28,7 @@ namespace brep
     CSS_LINKS (const path& p, const dir_path& r): path_ (p), root_ (r) {}
 
     void
-    operator() (xml::serializer& s) const;
+    operator() (xml::serializer&) const;
 
   private:
     const path& path_;
@@ -37,13 +40,18 @@ namespace brep
   class DIV_HEADER
   {
   public:
-    DIV_HEADER (const dir_path& r): root_ (r) {}
+    DIV_HEADER (const dir_path& root,
+                const web::xhtml::fragment& logo,
+                const vector<page_menu>& menu):
+        root_ (root), logo_ (logo), menu_ (menu)  {}
 
     void
-    operator() (xml::serializer& s) const;
+    operator() (xml::serializer&) const;
 
   private:
     const dir_path& root_;
+    const web::xhtml::fragment& logo_;
+    const vector<page_menu>& menu_;
   };
 
   // Generates package search form element.
@@ -54,7 +62,7 @@ namespace brep
     FORM_SEARCH (const string& q): query_ (q) {}
 
     void
-    operator() (xml::serializer& s) const;
+    operator() (xml::serializer&) const;
 
   private:
     const string& query_;
@@ -73,7 +81,7 @@ namespace brep
         : count_ (c), singular_ (s), plural_ (p) {}
 
     void
-    operator() (xml::serializer& s) const;
+    operator() (xml::serializer&) const;
 
   private:
     size_t count_;
@@ -90,7 +98,7 @@ namespace brep
         : name_ (n), query_param_ (q), root_ (r) {}
 
     void
-    operator() (xml::serializer& s) const;
+    operator() (xml::serializer&) const;
 
   private:
     const string& name_;
@@ -114,7 +122,7 @@ namespace brep
         : package_ (nullptr), version_ (v), root_ (nullptr) {}
 
     void
-    operator() (xml::serializer& s) const;
+    operator() (xml::serializer&) const;
 
   private:
     const string* package_;
@@ -130,7 +138,7 @@ namespace brep
     TR_SUMMARY (const string& s): summary_ (s) {}
 
     void
-    operator() (xml::serializer& s) const;
+    operator() (xml::serializer&) const;
 
   private:
     const string& summary_;
@@ -144,7 +152,7 @@ namespace brep
     TR_LICENSE (const license_alternatives& l): licenses_ (l) {}
 
     void
-    operator() (xml::serializer& s) const;
+    operator() (xml::serializer&) const;
 
   private:
     const license_alternatives& licenses_;
@@ -159,7 +167,7 @@ namespace brep
     TR_LICENSES (const license_alternatives& l): licenses_ (l) {}
 
     void
-    operator() (xml::serializer& s) const;
+    operator() (xml::serializer&) const;
 
   private:
     const license_alternatives& licenses_;
@@ -173,7 +181,7 @@ namespace brep
     TR_TAGS (const strings& ts, const dir_path& r): tags_ (ts), root_ (r) {}
 
     void
-    operator() (xml::serializer& s) const;
+    operator() (xml::serializer&) const;
 
   private:
     const strings& tags_;
@@ -189,7 +197,7 @@ namespace brep
         : dependencies_ (d), root_ (r) {}
 
     void
-    operator() (xml::serializer& s) const;
+    operator() (xml::serializer&) const;
 
   private:
     const dependencies& dependencies_;
@@ -204,7 +212,7 @@ namespace brep
     TR_REQUIRES (const requirements& r): requirements_ (r) {}
 
     void
-    operator() (xml::serializer& s) const;
+    operator() (xml::serializer&) const;
 
   private:
     const requirements& requirements_;
@@ -218,7 +226,7 @@ namespace brep
     TR_URL (const url& u, const char* l = "url"): url_ (u), label_ (l) {}
 
     void
-    operator() (xml::serializer& s) const;
+    operator() (xml::serializer&) const;
 
   private:
     const url& url_;
@@ -234,7 +242,7 @@ namespace brep
         : email_ (e), label_ (l) {}
 
     void
-    operator() (xml::serializer& s) const;
+    operator() (xml::serializer&) const;
 
   private:
     const email& email_;
@@ -249,7 +257,7 @@ namespace brep
     TR_PRIORITY (const priority& p): priority_ (p) {}
 
     void
-    operator() (xml::serializer& s) const;
+    operator() (xml::serializer&) const;
 
   private:
     const priority& priority_;
@@ -264,7 +272,7 @@ namespace brep
         : name_ (n), root_ (r) {}
 
     void
-    operator() (xml::serializer& s) const;
+    operator() (xml::serializer&) const;
 
   private:
     const string& name_;
@@ -279,7 +287,7 @@ namespace brep
     TR_DOWNLOAD (const string& u): url_ (u) {}
 
     void
-    operator() (xml::serializer& s) const;
+    operator() (xml::serializer&) const;
 
   private:
     const string& url_;
@@ -293,7 +301,7 @@ namespace brep
     SPAN_COMMENT (const string& c): comment_ (c) {}
 
     void
-    operator() (xml::serializer& s) const;
+    operator() (xml::serializer&) const;
 
   private:
     const string& comment_;
@@ -315,7 +323,7 @@ namespace brep
         : description_ (d), length_ (l), url_ (&u) {}
 
     void
-    operator() (xml::serializer& s) const;
+    operator() (xml::serializer&) const;
 
   private:
     const string& description_;
@@ -340,7 +348,7 @@ namespace brep
         : changes_ (c), length_ (l), url_ (&u) {}
 
     void
-    operator() (xml::serializer& s) const;
+    operator() (xml::serializer&) const;
 
   private:
     const string& changes_;
@@ -360,7 +368,7 @@ namespace brep
                const string& url);
 
     void
-    operator() (xml::serializer& s) const;
+    operator() (xml::serializer&) const;
 
   private:
     size_t current_page_;

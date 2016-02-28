@@ -58,6 +58,7 @@ src =                                                          \
        ../web/{hxx         cxx}{ mime-url-encoding           } \
        ../web/{hxx            }{ module                      } \
        ../web/{hxx            }{ xhtml                       } \
+       ../web/{hxx         cxx}{ xhtml-fragment              } \
 ../web/apache/{hxx            }{ log                         } \
 ../web/apache/{hxx ixx     cxx}{ request                     } \
 ../web/apache/{hxx     txx cxx}{ service                     } \

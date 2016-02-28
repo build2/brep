@@ -8,6 +8,8 @@
 #ifndef BREP_TYPES_PARSERS
 #define BREP_TYPES_PARSERS
 
+#include <web/xhtml-fragment>
+
 #include <brep/types>
 #include <brep/utility>
 
@@ -34,6 +36,20 @@ namespace brep
     {
       static void
       parse (page_form&, scanner&);
+    };
+
+    template <>
+    struct parser<page_menu>
+    {
+      static void
+      parse (page_menu&, scanner&);
+    };
+
+    template <>
+    struct parser<web::xhtml::fragment>
+    {
+      static void
+      parse (web::xhtml::fragment&, scanner&);
     };
   }
 }

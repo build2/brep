@@ -7,6 +7,7 @@
 #include <brep/options>
 
 using namespace std;
+using namespace web::xhtml;
 
 namespace brep
 {
@@ -58,6 +59,56 @@ namespace brep
         x = page_form::brief;
       else
         throw invalid_value (o, v);
+    }
+
+    // Parse page_menu.
+    //
+    void parser<page_menu>::
+    parse (page_menu& x, scanner& s)
+    {
+      const char* o (s.next ());
+
+      if (!s.more ())
+        throw missing_value (o);
+
+      const string v (s.next ());
+
+      auto p (v.find ('='));
+      if (p != string::npos)
+      {
+        string label (v, 0, p);
+        string link (v, p + 1);
+
+        if (!label.empty ())
+        {
+          x = page_menu (move (label), move (link));
+          return;
+        }
+      }
+
+      throw invalid_value (o, v);
+    }
+
+    // Parse web::xhtml::fragment.
+    //
+    void parser<fragment>::
+    parse (fragment& x, scanner& s)
+    {
+      const char* o (s.next ());
+
+      if (!s.more ())
+        throw missing_value (o);
+
+      const char* v (s.next ());
+
+      try
+      {
+        x = fragment (v, o);
+      }
+      catch (const xml::parsing&)
+      {
+        throw invalid_value (o, v);
+      }
     }
   }
 }

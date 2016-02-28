@@ -17,6 +17,16 @@ namespace brep
     full,
     brief
   };
+
+  struct page_menu
+  {
+    string label;
+    string link;
+
+    page_menu () = default;
+    page_menu (string b, string l): label (move (b)), link (move (l)) {}
+  };
+
 }
 
 #endif // BREP_OPTIONS_TYPES

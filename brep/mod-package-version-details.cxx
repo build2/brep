@@ -12,6 +12,7 @@
 
 #include <web/xhtml>
 #include <web/module>
+#include <web/xhtml-fragment>
 #include <web/mime-url-encoding>
 
 #include <brep/page>
@@ -51,6 +52,8 @@ handle (request& rq, response& rs)
   // server process.
   //
   static const dir_path& root (options_->root ());
+  static const fragment& logo (options_->logo ());
+  static const vector<page_menu>& menu (options_->menu ());
 
   auto i (rq.path ().rbegin ());
   version ver;
@@ -104,7 +107,7 @@ handle (request& rq, response& rs)
     <<     CSS_LINKS (path ("package-version-details.css"), root)
     <<   ~HEAD
     <<   BODY
-    <<     DIV_HEADER (root)
+    <<     DIV_HEADER (root, logo, menu)
     <<     DIV(ID="content");
 
   if (full)

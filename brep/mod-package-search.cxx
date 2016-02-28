@@ -13,6 +13,7 @@
 
 #include <web/xhtml>
 #include <web/module>
+#include <web/xhtml-fragment>
 #include <web/mime-url-encoding>
 
 #include <brep/version>
@@ -78,6 +79,8 @@ handle (request& rq, response& rs)
   //
   static const size_t res_page (options_->search_results ());
   static const dir_path& root (options_->root ());
+  static const fragment& logo (options_->logo ());
+  static const vector<page_menu>& menu (options_->menu ());
 
   params::package_search params;
 
@@ -121,7 +124,7 @@ handle (request& rq, response& rs)
     <<     SCRIPT << " " << ~SCRIPT
     <<   ~HEAD
     <<   BODY
-    <<     DIV_HEADER (root)
+    <<     DIV_HEADER (root, logo, menu)
     <<     DIV(ID="content");
 
   session sn;
