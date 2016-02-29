@@ -83,8 +83,8 @@ namespace brep
     //
     uint16_t verb_ = 0;
 
-    template <class F> void level1 (const F& f) const {if (verb_ >= 1) f ();}
-    template <class F> void level2 (const F& f) const {if (verb_ >= 2) f ();}
+    template <class F> void l1 (const F& f) const {if (verb_ >= 1) f ();}
+    template <class F> void l2 (const F& f) const {if (verb_ >= 2) f ();}
 
     // Set to true when the module is successfully initialized.
     //
