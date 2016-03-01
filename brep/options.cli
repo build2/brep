@@ -86,10 +86,8 @@ namespace brep
         "<label=link>",
         "Web page menu. Each entry is displayed in the page header in the order
          specified and aligned to the right edge. A link target that starts
-         with \cb{/} or contains \cb{:} is used as is. Otherwise, it is prefixed
-         with the repository web interface root."
-
-         // @@ Might need updating.
+         with '\cb{/}' or contains '\cb{:}' is used as is. Otherwise, it is
+         prefixed with the repository web interface root."
       }
     };
 

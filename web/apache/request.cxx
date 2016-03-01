@@ -97,7 +97,7 @@ namespace web
         for (auto h (reinterpret_cast<const apr_table_entry_t *> (ha->elts));
              n--; ++h)
         {
-          if (::strcasecmp (h->key, "Cookie") == 0)
+          if (strcasecmp (h->key, "Cookie") == 0)
           {
             for (const char* n (h->val); n != nullptr; )
             {
@@ -136,8 +136,8 @@ namespace web
     content (status_code status, const string& type, bool buffer)
     {
       if (out_ && status == rec_->status && buffer == buffer_ &&
-          ::strcasecmp (rec_->content_type ? rec_->content_type : "",
-                        type.c_str ()) == 0)
+          strcasecmp (rec_->content_type ? rec_->content_type : "",
+                      type.c_str ()) == 0)
       {
         return *out_;
       }

@@ -2,7 +2,7 @@
 // copyright : Copyright (c) 2014-2016 Code Synthesis Ltd
 // license   : MIT; see accompanying LICENSE file
 
-#include <strings.h> // strcasecmp()
+#include <strings.h> // strncasecmp()
 
 #include <iomanip>
 #include <sstream>
@@ -53,22 +53,31 @@ namespace web
       if (!form_data_)
       {
         form_data_.reset (new std::string ());
-        const char* ct (apr_table_get (rec_->headers_in, "Content-Type"));
 
-        if (ct &&
-            strncasecmp ("application/x-www-form-urlencoded", ct, 33) == 0)
+        if (rec_->method_number == M_POST)
         {
-          std::istream& istr (content ());
-          std::getline (istr, *form_data_);
+          const char* ct (apr_table_get (rec_->headers_in, "Content-Type"));
 
-          // Make request data still be available.
-          //
-          std::unique_ptr<std::streambuf> in_buf (
-            new std::stringbuf (*form_data_));
+          if (ct != nullptr &&
+              strncasecmp ("application/x-www-form-urlencoded", ct, 33) == 0)
+          {
+            std::istream& istr (content ());
 
-          in_.reset (new std::istream (in_buf.get ()));
-          in_buf_ = std::move (in_buf);
-          in_->exceptions (std::ios::failbit | std::ios::badbit);
+            // Do not throw when eofbit is set (end of stream reached), and
+            // when failbit is set (getline() failed to extract any character).
+            //
+            istr.exceptions (std::ios::badbit);
+            std::getline (istr, *form_data_);
+
+            // Make this data the content of the input stream.
+            //
+            std::unique_ptr<std::streambuf> in_buf (
+              new std::stringbuf (*form_data_));
+
+            in_.reset (new std::istream (in_buf.get ()));
+            in_buf_ = std::move (in_buf);
+            in_->exceptions (std::ios::failbit | std::ios::badbit);
+          }
         }
       }
 
