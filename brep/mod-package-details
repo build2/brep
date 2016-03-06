@@ -18,6 +18,14 @@ namespace brep
   class package_details: public module
   {
   public:
+    package_details () = default;
+
+    // Create a shallow copy (handling instance) if initialized and a deep
+    // copy (context exemplar) otherwise.
+    //
+    explicit
+    package_details (const package_details&);
+
     virtual bool
     handle (request&, response&);
 

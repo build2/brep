@@ -31,6 +31,18 @@ using namespace std;
 using namespace odb::core;
 using namespace brep::cli;
 
+// While currently the user-defined copy constructor is not required (we don't
+// need to deep copy nullptr's), it is a good idea to keep the placeholder
+// ready for less trivial cases.
+//
+brep::repository_details::
+repository_details (const repository_details& r)
+    : module (r),
+      options_ (r.initialized_ ? r.options_ : nullptr),
+      db_ (r.initialized_ ? r.db_ : nullptr)
+{
+}
+
 void brep::repository_details::
 init (scanner& s)
 {
@@ -54,12 +66,7 @@ handle (request& rq, response& rs)
 
   MODULE_DIAG;
 
-  // The module options object is not changed after being created once per
-  // server process.
-  //
-  static const dir_path& root (options_->root ());
-  static const fragment& logo (options_->logo ());
-  static const vector<page_menu>& menu (options_->menu ());
+  const dir_path& root (options_->root ());
 
   // Make sure no parameters passed.
   //
@@ -82,7 +89,7 @@ handle (request& rq, response& rs)
     <<     CSS_LINKS (path ("repository-details.css"), root)
     <<   ~HEAD
     <<   BODY
-    <<     DIV_HEADER (root, logo, menu)
+    <<     DIV_HEADER (root, options_->logo (), options_->menu ())
     <<     DIV(ID="content");
 
   transaction t (db_->begin ());

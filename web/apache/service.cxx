@@ -4,8 +4,7 @@
 
 #include <web/apache/service>
 
-#include <unistd.h> // getppid()
-#include <signal.h> // kill()
+#include <apr_pools.h>
 
 #include <httpd.h>
 #include <http_config.h>
@@ -51,11 +50,17 @@ namespace web
             i.first->first.c_str (),
             reinterpret_cast<cmd_func> (parse_option),
             this,
-            RSRC_CONF,
+
+            // Allow directives in both server and directory configuration
+            // scopes.
+            //
+            RSRC_CONF | ACCESS_CONF,
+
             // Move away from TAKE1 to be able to handle empty string and
             // no-value.
             //
             RAW_ARGS,
+
             nullptr
           };
       }
@@ -64,21 +69,47 @@ namespace web
       cmds = directives.release ();
     }
 
-    const char* service::
-    parse_option (cmd_parms* parms, void*, const char* args) noexcept
+    void* service::
+    create_server_context (apr_pool_t* pool, server_rec*) noexcept
     {
-      // @@ Current implementation does not consider configuration context
-      //    (server config, virtual host, directory) for directive parsing, nor
-      //    for request handling.
+      // Create the object using the configuration memory pool provided by the
+      // Apache API. The lifetime of the object is equal to the lifetime of the
+      // pool.
       //
+      void* p (apr_palloc (pool, sizeof (context)));
+      assert (p != nullptr);
+      return new (p) context ();
+    }
+
+    void* service::
+    create_dir_context (apr_pool_t* pool, char* dir) noexcept
+    {
+      // Create the object using the configuration memory pool provided by the
+      // Apache API. The lifetime of the object is equal to the lifetime of
+      // the pool.
+      //
+      void* p (apr_palloc (pool, sizeof (context)));
+      assert (p != nullptr);
+
+      // For the user-defined directory configuration context dir is the path
+      // of the corresponding directive. For the special server directory
+      // invented by Apache for server scope directives, dir is NULL.
+      //
+      return new (p) context (dir == nullptr);
+    }
+
+    const char* service::
+    parse_option (cmd_parms* parms, void* conf, const char* args) noexcept
+    {
       service& srv (*reinterpret_cast<service*> (parms->cmd->cmd_data));
 
       if (srv.options_parsed_)
-        // Apache is inside the second pass of its messy initialization cycle
-        // (more details at http://wiki.apache.org/httpd/ModuleLife). Just
-        // ignore it.
+        // Apache have started the second pass of its messy initialization cycle
+        // (more details at http://wiki.apache.org/httpd/ModuleLife). This time
+        // we are parsing for real. Cleanup the existing config, and start
+        // building the new one.
         //
-        return 0;
+        srv.clear_config ();
 
       // 'args' is an optionally double-quoted string. It uses double quotes
       // to distinguish empty string from no-value case.
@@ -91,11 +122,52 @@ namespace web
           ? string (args + 1, l - 2)
           : args;
 
-      return srv.add_option (parms->cmd->name, move (value));
+      // Determine the directory and server configuration contexts for the
+      // option.
+      //
+      context* dir_context (static_cast<context*> (conf));
+      assert (dir_context != nullptr);
+
+      server_rec* server (parms->server);
+      assert (server != nullptr);
+      assert (server->module_config != nullptr);
+
+      context* srv_context (
+        static_cast<context*> (
+          ap_get_module_config (server->module_config, &srv)));
+
+      assert (srv_context != nullptr);
+
+      // Associate the directory configuration context with the enclosing
+      // server configuration context.
+      //
+      context*& s (dir_context->server);
+      if (s == nullptr)
+        s = srv_context;
+      else
+        assert (s == srv_context);
+
+      // If the option appears in the special directory configuration context,
+      // add it to the enclosing server context instead. This way it will be
+      // possible to complement all server-enclosed contexts (including this
+      // special one) with the server scope options.
+      //
+      context* c (dir_context->special ? srv_context : dir_context);
+
+      if (dir_context->special)
+        //
+        // Make sure the special directory context is also in the option lists
+        // map. Later the context will be populated with an enclosing server
+        // context options.
+        //
+        srv.options_.emplace (make_context_id (dir_context), name_values ());
+
+      return srv.add_option (
+        make_context_id (c), parms->cmd->name, move (value));
     }
 
     const char* service::
-    add_option (const char* name, optional<string> value)
+    add_option (context_id id, const char* name, optional<string> value)
     {
       auto i (option_descriptions_.find (name));
       assert (i != option_descriptions_.end ());
@@ -105,47 +177,54 @@ namespace web
       if (i->second != static_cast<bool> (value))
         return value ? "unexpected value" : "value expected";
 
-      options_.emplace_back (name + name_.length () + 1, move (value));
+      options_[id].emplace_back (name + name_.length () + 1, move (value));
       return 0;
     }
 
     void service::
-    init_worker (log& l) noexcept
+    complement (context_id enclosed, context_id enclosing)
     {
-      const string func_name (
-        "web::apache::service<" + name_ + ">::init_worker");
+      auto i (options_.find (enclosing));
 
-      try
+      // The enclosing context may have no options. It can be the context of a
+      // server having no configuration directives in it's immediate scope,
+      // but having ones in it's enclosed scope (directory or virtual server).
+      //
+      if (i != options_.end ())
       {
-        exemplar_.init (options_, l);
+        const name_values& src (i->second);
+        name_values& dest (options_[enclosed]);
+        dest.insert (dest.begin (), src.begin (), src.end ());
       }
-      catch (const exception& e)
-      {
-        l.write (nullptr, 0, func_name.c_str (), APLOG_EMERG, e.what ());
+    }
 
-        // Terminate the root apache process. Indeed we can only try to
-        // terminate the process, and most likely will fail in a production
-        // environment where the apache root process usually runs under root,
-        // and worker processes run under some other user. This is why the
-        // implementation should consider the possibility of not being
-        // initialized at the time of HTTP request processing. In such a case
-        // it should respond with an internal server error (500 HTTP status),
-        // reporting misconfiguration.
-        //
-        ::kill (::getppid (), SIGTERM);
-      }
-      catch (...)
+    void service::
+    finalize_config (server_rec* s)
+    {
+      if (!version_logged_)
       {
-        l.write (nullptr,
-                 0,
-                 func_name.c_str (),
-                 APLOG_EMERG,
-                 "unknown error");
-
-        // Terminate the root apache process.
-        //
-        ::kill (::getppid (), SIGTERM);
+        log l (s, this);
+        exemplar_.version (l);
+        version_logged_ = true;
       }
+
+      // Complement directory configuration contexts with options of the
+      // enclosing server configuration context. By this time virtual server
+      // contexts are already complemented with the main server configuration
+      // context options as a result of the merge_server_context() calls.
+      //
+      for (const auto& o: options_)
+        if (o.first->server != nullptr) // Is a directory configuration context.
+          complement (o.first, o.first->server);
+
+      options_parsed_ = true;
+    }
+
+    void service::
+    clear_config ()
+    {
+      options_.clear ();
+      options_parsed_ = false;
     }
   }
 }

@@ -18,6 +18,14 @@ namespace brep
   class package_search: public module
   {
   public:
+    package_search () = default;
+
+    // Create a shallow copy (handling instance) if initialized and a deep
+    // copy (context exemplar) otherwise.
+    //
+    explicit
+    package_search (const package_search&);
+
     virtual bool
     handle (request&, response&);
 

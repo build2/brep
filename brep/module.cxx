@@ -30,7 +30,7 @@ namespace brep
 
     try
     {
-      if (!loaded_)
+      if (!initialized_)
       {
         MODULE_DIAG;
         fail << "not initialized, presumably due to misconfiguration";
@@ -187,7 +187,7 @@ namespace brep
   void module::
   init (const name_values& options, log& log)
   {
-    assert (!loaded_);
+    assert (!initialized_);
 
     log_ = &log;
 
@@ -207,7 +207,7 @@ namespace brep
       options::module o (s, cli::unknown_mode::fail, cli::unknown_mode::fail);
 
       verb_ = o.verbosity ();
-      loaded_ = true;
+      initialized_ = true;
     }
     catch (const server_error& e)
     {
@@ -236,7 +236,11 @@ namespace brep
   // Custom copy constructor is required to initialize log_writer_ properly.
   //
   module::
-  module (const module& m): module () {verb_ = m.verb_; loaded_ = m.loaded_;}
+  module (const module& m): module ()
+  {
+    verb_ = m.verb_;
+    initialized_ = m.initialized_;
+  }
 
 // For function func declared like this:
 // using B = std::string (*)(int);

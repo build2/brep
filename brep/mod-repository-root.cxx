@@ -58,6 +58,37 @@ namespace brep
   {
   }
 
+  repository_root::
+  repository_root (const repository_root& r)
+      : module (r),
+        //
+        // Deep/shallow-copy sub-modules depending on whether this is an
+        // exemplar/handler.
+        //
+        package_search_ (
+          r.initialized_
+          ? r.package_search_
+          : make_shared<package_search> (*r.package_search_)),
+        package_details_ (
+          r.initialized_
+          ? r.package_details_
+          : make_shared<package_details> (*r.package_details_)),
+        package_version_details_ (
+          r.initialized_
+          ? r.package_version_details_
+          : make_shared<package_version_details> (
+              *r.package_version_details_)),
+        repository_details_ (
+          r.initialized_
+          ? r.repository_details_
+          : make_shared<repository_details> (*r.repository_details_)),
+        options_ (
+          r.initialized_
+          ? r.options_
+          : nullptr)
+  {
+  }
+
   // Return amalgamation of repository_root and all its sub-modules option
   // descriptions.
   //
@@ -112,7 +143,7 @@ namespace brep
   {
     MODULE_DIAG;
 
-    static const dir_path& root (options_->root ());
+    const dir_path& root (options_->root ());
 
     const path& rpath (rq.path ());
     if (!rpath.sub (root))

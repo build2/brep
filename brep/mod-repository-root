@@ -23,6 +23,12 @@ namespace brep
   public:
     repository_root ();
 
+    // Create a shallow copy (handling instance) if initialized and a deep
+    // copy (context exemplar) otherwise.
+    //
+    explicit
+    repository_root (const repository_root&);
+
   private:
     virtual bool
     handle (request&, response&);

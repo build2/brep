@@ -86,6 +86,9 @@ namespace web
   public:
     using path_type = web::path;
 
+    virtual
+    ~request () = default;
+
     // Corresponds to abs_path portion of HTTP URL as described in
     // "3.2.2 HTTP URL" of http://tools.ietf.org/html/rfc2616.
     // Returns '/' if no abs_path is present in URL.
@@ -120,6 +123,9 @@ namespace web
   class response
   {
   public:
+    virtual
+    ~response () = default;
+
     // Set status code, content type, and get the stream to write
     // the content to. If the buffer argument is true (default),
     // then buffer the entire content before sending it as a
@@ -170,6 +176,9 @@ namespace web
   class log
   {
   public:
+    virtual
+    ~log () = default;
+
     virtual void
     write (const char* msg) = 0;
   };
@@ -188,6 +197,9 @@ namespace web
   class module
   {
   public:
+    virtual
+    ~module () = default;
+
     // Description of configuration options supported by this module. Note:
     // should be callable during static initialization.
     //

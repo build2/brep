@@ -18,6 +18,14 @@ namespace brep
   class repository_details: public module
   {
   public:
+    repository_details () = default;
+
+    // Create a shallow copy (handling instance) if initialized and a deep
+    // copy (context exemplar) otherwise.
+    //
+    explicit
+    repository_details (const repository_details&);
+
     virtual bool
     handle (request&, response&);
 

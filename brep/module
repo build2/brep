@@ -88,7 +88,7 @@ namespace brep
 
     // Set to true when the module is successfully initialized.
     //
-    bool loaded_ {false};
+    bool initialized_ {false};
 
     // Implementation details.
     //
