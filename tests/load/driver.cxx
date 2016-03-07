@@ -39,11 +39,11 @@ static bool
 check_external (const package& p)
 {
   return p.summary.empty () && p.tags.empty () && !p.description &&
-    p.url.empty () && !p.package_url && p.email.empty () && !p.package_email &&
-    !p.internal () && p.other_repositories.size () > 0 &&
+    p.url.empty () && !p.package_url && p.email.empty () &&
+    !p.package_email && !p.internal () && p.other_repositories.size () > 0 &&
     p.priority == priority () && p.changes.empty () &&
     p.license_alternatives.empty () && p.dependencies.empty () &&
-    p.requirements.empty ();
+    p.requirements.empty () && !p.sha256sum;
 }
 
 int
@@ -122,27 +122,6 @@ main (int argc, char* argv[])
       assert (sr->repositories_timestamp ==
               file_mtime (dir_path (sr->local_path) / path ("repositories")));
       assert (sr->internal);
-
-      shared_ptr<package> fpv1 (
-        db.load<package> (package_id ("libfoo", version ("1.0"))));
-      assert (check_location (fpv1));
-
-      shared_ptr<package> fpv2 (
-        db.load<package> (package_id ("libfoo", version ("1.2.2"))));
-      assert (check_location (fpv2));
-
-      shared_ptr<package> fpv2a (
-        db.load<package> (package_id ("libfoo", version ("1.2.2-alpha.1"))));
-      assert (check_location (fpv2a));
-
-      shared_ptr<package> fpv3 (
-        db.load<package> (package_id ("libfoo", version ("1.2.3+4"))));
-      assert (check_location (fpv3));
-
-      shared_ptr<package> fpv4 (
-        db.load<package> (package_id ("libfoo", version ("1.2.4"))));
-      assert (check_location (fpv4));
-
       assert (sr->complements.empty ());
       assert (sr->prerequisites.size () == 2);
       assert (sr->prerequisites[0].load () == cr);
@@ -152,6 +131,9 @@ main (int argc, char* argv[])
       //
       // libfoo-1.0
       //
+      shared_ptr<package> fpv1 (
+        db.load<package> (package_id ("libfoo", version ("1.0"))));
+
       assert (fpv1->summary == "The Foo Library");
       assert (fpv1->tags.empty ());
       assert (!fpv1->description);
@@ -175,8 +157,16 @@ main (int argc, char* argv[])
       assert (fpv1->dependencies.empty ());
       assert (fpv1->requirements.empty ());
 
+      assert (check_location (fpv1));
+
+      assert (fpv1->sha256sum && *fpv1->sha256sum ==
+        "754cba3da34dd0296866027a26b6bacf08cacc80f54516d3b8d8eeccbe31ab93");
+
       // libfoo-1.2.2
       //
+      shared_ptr<package> fpv2 (
+        db.load<package> (package_id ("libfoo", version ("1.2.2"))));
+
       assert (fpv2->summary == "The Foo library");
       assert (fpv2->tags == strings ({"c++", "foo"}));
       assert (!fpv2->description);
@@ -202,7 +192,8 @@ main (int argc, char* argv[])
         [&db](const char* n,
               const optional<dependency_constraint>& c) -> dependency
         {
-          return {lazy_shared_ptr<package> (db, package_id (n, version ())), c};
+          return {
+            lazy_shared_ptr<package> (db, package_id (n, version ())), c};
         });
 
       assert (fpv2->dependencies[0][0] ==
@@ -219,8 +210,16 @@ main (int argc, char* argv[])
                   dependency_constraint (
                     version ("1~1.2"), false, version ("1~1.2"), false))));
 
+      assert (check_location (fpv2));
+
+      assert (fpv2->sha256sum && *fpv2->sha256sum ==
+        "751cba3da34dd0296866027a26b6bacf08cacc80f54516d3b8d8eeccbe31ab93");
+
       // libfoo-1.2.2-alpha.1
       //
+      shared_ptr<package> fpv2a (
+        db.load<package> (package_id ("libfoo", version ("1.2.2-alpha.1"))));
+
       assert (fpv2a->summary == "The Foo library");
       assert (fpv2a->tags == strings ({"c++", "foo"}));
       assert (!fpv2a->description);
@@ -280,8 +279,16 @@ main (int argc, char* argv[])
 
       assert (fpv2a->requirements.empty ());
 
+      assert (check_location (fpv2a));
+
+      assert (fpv2a->sha256sum && *fpv2a->sha256sum ==
+        "752cba3da34dd0296866027a26b6bacf08cacc80f54516d3b8d8eeccbe31ab93");
+
       // libfoo-1.2.3-4
       //
+      shared_ptr<package> fpv3 (
+        db.load<package> (package_id ("libfoo", version ("1.2.3+4"))));
+
       assert (fpv3->summary == "The Foo library");
       assert (fpv3->tags == strings ({"c++", "foo"}));
       assert (!fpv3->description);
@@ -309,8 +316,16 @@ main (int argc, char* argv[])
                   dependency_constraint (
                     version ("2.0.0"), false, nullopt, true))));
 
+      assert (check_location (fpv3));
+
+      assert (fpv3->sha256sum && *fpv3->sha256sum ==
+        "750cba3da34dd0296866027a26b6bacf08cacc80f54516d3b8d8eeccbe31ab93");
+
       // libfoo-1.2.4
       //
+      shared_ptr<package> fpv4 (
+        db.load<package> (package_id ("libfoo", version ("1.2.4"))));
+
       assert (fpv4->summary == "The Foo Library");
       assert (fpv4->tags == strings ({"c++", "foo"}));
       assert (*fpv4->description == "Very good foo library.");
@@ -339,6 +354,11 @@ main (int argc, char* argv[])
                   dependency_constraint (
                     version ("2.0.0"), false, nullopt, true))));
 
+      assert (check_location (fpv4));
+
+      assert (fpv4->sha256sum && *fpv4->sha256sum ==
+        "753cba3da34dd0296866027a26b6bacf08cacc80f54516d3b8d8eeccbe31ab93");
+
       // Verify 'math' repository.
       //
       assert (mr->location.canonical_name () == "cppget.org/math");
@@ -362,24 +382,15 @@ main (int argc, char* argv[])
               file_mtime (dir_path (mr->local_path) / path ("repositories")));
       assert (mr->internal);
 
-      shared_ptr<package> epv (
-        db.load<package> (package_id ("libexp", version ("1~1.2+1"))));
-      assert (check_location (epv));
-
-      shared_ptr<package> fpv5 (
-        db.load<package> (package_id ("libfoo", version ("1.2.4+1"))));
-      assert (check_location (fpv5));
-
-      shared_ptr<package> xpv (
-        db.load<package> (package_id ("libstudxml", version ("1.0.0+1"))));
-      assert (check_location (xpv));
-
       assert (mr->complements.empty ());
       assert (mr->prerequisites.size () == 1);
       assert (mr->prerequisites[0].load () == cr);
 
       // Verify libstudxml package version.
       //
+      shared_ptr<package> xpv (
+        db.load<package> (package_id ("libstudxml", version ("1.0.0+1"))));
+
       assert (xpv->summary == "Modern C++ XML API");
       assert (xpv->tags == strings ({"c++", "xml", "parser", "serializer",
               "pull", "streaming", "modern"}));
@@ -417,18 +428,26 @@ main (int argc, char* argv[])
 
       assert (xpv->requirements.empty ());
 
+      assert (check_location (xpv));
+
+      assert (xpv->sha256sum && *xpv->sha256sum ==
+        "05ccba3da34dd0296866027a26b6bacf08cacc80f54516d3b8d8eeccbe31ab93");
+
       // Verify libfoo package versions.
       //
       // libfoo-1.2.4-1
       //
+      shared_ptr<package> fpv5 (
+        db.load<package> (package_id ("libfoo", version ("1.2.4+1"))));
+
       assert (fpv5->summary == "The Foo Math Library");
       assert (fpv5->tags == strings ({"c++", "foo", "math"}));
       assert (*fpv5->description ==
-              "A modern C++ library with easy to use linear algebra and lot of "
-              "optimization\ntools.\n\nThere are over 100 functions in total "
-              "with an extensive test suite. The API is\nsimilar to MATLAB."
-              "\n\nUseful for conversion of research code into production "
-              "environments.");
+              "A modern C++ library with easy to use linear algebra and lot "
+              "of optimization\ntools.\n\nThere are over 100 functions in "
+              "total with an extensive test suite. The API is\nsimilar to "
+              "MATLAB.\n\nUseful for conversion of research code into "
+              "production environments.");
       assert (fpv5->url == "http://www.example.com/foo/");
       assert (fpv5->package_url &&
               *fpv5->package_url == "http://www.example.com/foo/pack");
@@ -518,10 +537,18 @@ main (int argc, char* argv[])
       assert (fpvr5[3].conditional);
       assert (fpvr5[3].comment == "Only if using VC++ on Windows.");
 
+      assert (check_location (fpv5));
+
+      assert (fpv5->sha256sum && *fpv5->sha256sum ==
+        "35ccba3da34dd0296866027a26b6bacf08cacc80f54516d3b8d8eeccbe31ab93");
+
       // Verify libexp package version.
       //
       // libexp-1+1.2
       //
+      shared_ptr<package> epv (
+        db.load<package> (package_id ("libexp", version ("1~1.2+1"))));
+
       assert (epv->summary == "The exponent");
       assert (epv->tags == strings ({"c++", "exponent"}));
       assert (epv->description && *epv->description ==
@@ -546,6 +573,11 @@ main (int argc, char* argv[])
 
       assert (epv->requirements.empty ());
 
+      assert (check_location (epv));
+
+      assert (epv->sha256sum && *epv->sha256sum ==
+        "15ccba3da34dd0296866027a26b6bacf08cacc80f54516d3b8d8eeccbe31ab93");
+
       // Verify 'misc' repository.
       //
       assert (cr->location.canonical_name () == "cppget.org/misc");
@@ -566,19 +598,6 @@ main (int argc, char* argv[])
       assert (cr->repositories_timestamp ==
               file_mtime (dir_path (cr->local_path) / path ("repositories")));
       assert (!cr->internal);
-
-      shared_ptr<package> bpv (
-        db.load<package> (package_id ("libbar", version ("2.4.0+3"))));
-      assert (check_location (bpv));
-
-      shared_ptr<package> fpv0 (
-        db.load<package> (package_id ("libfoo", version ("0.1"))));
-      assert (check_location (fpv0));
-
-      shared_ptr<package> fpv6 (
-        db.load<package> (package_id ("libfoo", version ("1.2.4+2"))));
-      assert (check_location (fpv6));
-
       assert (cr->prerequisites.empty ());
       assert (cr->complements.size () == 1);
       assert (cr->complements[0].load () == tr);
@@ -587,23 +606,35 @@ main (int argc, char* argv[])
       //
       // libbar-2.4.0+3
       //
+      shared_ptr<package> bpv (
+        db.load<package> (package_id ("libbar", version ("2.4.0+3"))));
+
       assert (check_external (*bpv));
       assert (bpv->other_repositories.size () == 1);
       assert (bpv->other_repositories[0].load () == cr);
+      assert (check_location (bpv));
 
       // Verify libfoo package versions.
       //
       // libfoo-0.1
       //
+      shared_ptr<package> fpv0 (
+        db.load<package> (package_id ("libfoo", version ("0.1"))));
+
       assert (check_external (*fpv0));
       assert (fpv0->other_repositories.size () == 1);
       assert (fpv0->other_repositories[0].load () == cr);
+      assert (check_location (fpv0));
 
       // libfoo-1.2.4-2
       //
+      shared_ptr<package> fpv6 (
+        db.load<package> (package_id ("libfoo", version ("1.2.4+2"))));
+
       assert (check_external (*fpv6));
       assert (fpv6->other_repositories.size () == 1);
       assert (fpv6->other_repositories[0].load () == cr);
+      assert (check_location (fpv6));
 
       // Verify 'testing' repository.
       //
@@ -625,15 +656,6 @@ main (int argc, char* argv[])
       assert (tr->repositories_timestamp ==
               file_mtime (dir_path (tr->local_path) / path ("repositories")));
       assert (!tr->internal);
-
-      shared_ptr<package> mpv0 (
-        db.load<package> (package_id ("libmisc", version ("2.4.0"))));
-      assert (check_location (mpv0));
-
-      shared_ptr<package> mpv1 (
-        db.load<package> (package_id ("libmisc", version ("2.3.0+1"))));
-      assert (check_location (mpv1));
-
       assert (tr->prerequisites.empty ());
       assert (tr->complements.size () == 1);
       assert (tr->complements[0].load () == gr);
@@ -642,15 +664,23 @@ main (int argc, char* argv[])
       //
       // libmisc-2.4.0
       //
+      shared_ptr<package> mpv0 (
+        db.load<package> (package_id ("libmisc", version ("2.4.0"))));
+
       assert (check_external (*mpv0));
       assert (mpv0->other_repositories.size () == 1);
       assert (mpv0->other_repositories[0].load () == tr);
+      assert (check_location (mpv0));
 
       // libmisc-2.3.0+1
       //
+      shared_ptr<package> mpv1 (
+        db.load<package> (package_id ("libmisc", version ("2.3.0+1"))));
+
       assert (check_external (*mpv1));
       assert (mpv1->other_repositories.size () == 1);
       assert (mpv1->other_repositories[0].load () == tr);
+      assert (check_location (mpv1));
 
       // Verify 'staging' repository.
       //
@@ -672,19 +702,6 @@ main (int argc, char* argv[])
       assert (gr->repositories_timestamp ==
               file_mtime (dir_path (gr->local_path) / path ("repositories")));
       assert (!gr->internal);
-
-      shared_ptr<package> tpv (
-        db.load<package> (package_id ("libexpat", version ("5.1"))));
-      assert (check_location (tpv));
-
-      shared_ptr<package> gpv (
-        db.load<package> (package_id ("libgenx", version ("1.0"))));
-      assert (check_location (gpv));
-
-      shared_ptr<package> mpv2 (
-        db.load<package> (package_id ("libmisc", version ("1.0"))));
-      assert (check_location (mpv2));
-
       assert (gr->prerequisites.empty ());
       assert (gr->complements.empty ());
 
@@ -692,25 +709,37 @@ main (int argc, char* argv[])
       //
       // libexpat-5.1
       //
+      shared_ptr<package> tpv (
+        db.load<package> (package_id ("libexpat", version ("5.1"))));
+
       assert (check_external (*tpv));
       assert (tpv->other_repositories.size () == 1);
       assert (tpv->other_repositories[0].load () == gr);
+      assert (check_location (tpv));
 
       // Verify libgenx package version.
       //
       // libgenx-1.0
       //
+      shared_ptr<package> gpv (
+        db.load<package> (package_id ("libgenx", version ("1.0"))));
+
       assert (check_external (*gpv));
       assert (gpv->other_repositories.size () == 1);
       assert (gpv->other_repositories[0].load () == gr);
+      assert (check_location (gpv));
 
       // Verify libmisc package version.
       //
       // libmisc-1.0
       //
+      shared_ptr<package> mpv2 (
+        db.load<package> (package_id ("libmisc", version ("1.0"))));
+
       assert (check_external (*mpv2));
       assert (mpv2->other_repositories.size () == 1);
       assert (mpv2->other_repositories[0].load () == gr);
+      assert (check_location (mpv2));
 
       // Change package summary, update the object persistent state, rerun
       // loader and ensure the model were not rebuilt.

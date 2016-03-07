@@ -161,7 +161,7 @@ handle (request& rq, response& rs)
           : P_DESCRIPTION (*d, options_->package_description (),
                            url (!full, id)));
 
-  assert (pkg->location);
+  assert (pkg->location && pkg->sha256sum);
 
   s << TABLE(CLASS="proplist", ID="version")
     <<   TBODY
@@ -175,6 +175,7 @@ handle (request& rq, response& rs)
     <<     TR_LOCATION (pkg->internal_repository.object_id (), root)
     <<     TR_DOWNLOAD (pkg->internal_repository.load ()->location.string () +
                         "/" + pkg->location->string ())
+    <<     TR_SHA256SUM (*pkg->sha256sum)
     <<   ~TBODY
     << ~TABLE
 

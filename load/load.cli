@@ -2,6 +2,7 @@
 // copyright : Copyright (c) 2014-2016 Code Synthesis Ltd
 // license   : MIT; see accompanying LICENSE file
 
+include <vector>;
 include <string>;
 include <cstdint>; // uint16_t
 
@@ -21,9 +22,9 @@ include <cstdint>; // uint16_t
    \h|DESCRIPTION|
 
    \cb{brep-load} reads the list of repositories from the specified
-   configuration <file>, fetches their manifest files, and loads the repository
-   and package information into the database, suitable for consumption by the
-   \cb{brep} web module.
+   configuration <file>, fetches their manifest files, and loads the
+   repository and package information into the database, suitable for
+   consumption by the \cb{brep} web module.
 
    Note that \cb{brep-load} expects the database schema to have already been
    created using \l{brep-migrate(1)}."
@@ -67,6 +68,36 @@ class options
     "Database port number. If not specified, the default port is used."
   }
 
+  std::string --pager // String to allow empty value.
+  {
+    "<path>",
+    "The pager program to be used to show long text. Commonly used pager
+     programs are \cb{less} and \cb{more}. You can also specify additional
+     options that should be passed to the pager program with
+     \cb{--pager-option}. If an empty string is specified as the pager
+     program, then no pager will be used. If the pager program is not
+     explicitly specified, then \cb{brep-load} will try to use \cb{less}. If
+     it is not available, then no pager will be used."
+  }
+
+  std::vector<std::string> --pager-option
+  {
+    "<opt>",
+    "Additional option to be passed to the pager program. See \cb{--pager}
+     for more information on the pager program. Repeat this option to
+     specify multiple pager options."
+  }
+
   bool --help {"Print usage information and exit."}
   bool --version {"Print version and exit."}
 };
+
+"\h|EXIT STATUS|
+
+\cb{0}      Successful termination.
+
+\cb{1}      \cb{brep-load} or \l{brep-migrate(1)} instance is running. Try
+            again.
+
+\cb{2}      Fatal error.
+"

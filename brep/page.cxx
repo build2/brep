@@ -481,6 +481,17 @@ namespace brep
       << ~TR;
   }
 
+  // TR_SHA256SUM
+  //
+  void TR_SHA256SUM::
+  operator() (serializer& s) const
+  {
+    s << TR(CLASS="sha256")
+      <<   TH << "sha256" << ~TH
+      <<   TD << SPAN(CLASS="value") << sha256sum_ << ~SPAN << ~TD
+      << ~TR;
+  }
+
   // SPAN_COMMENT
   //
   void SPAN_COMMENT::

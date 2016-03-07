@@ -62,6 +62,7 @@ namespace brep
            dependencies_type dp,
            requirements_type rq,
            optional<path> lc,
+           optional<string> sh,
            shared_ptr<repository_type> rp)
       : id (move (nm), vr),
         version (move (vr)),
@@ -78,7 +79,8 @@ namespace brep
         dependencies (move (dp)),
         requirements (move (rq)),
         internal_repository (move (rp)),
-        location (move (lc))
+        location (move (lc)),
+        sha256sum (move (sh))
   {
     assert (internal_repository->internal);
   }

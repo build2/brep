@@ -293,6 +293,20 @@ namespace brep
     const string& url_;
   };
 
+  // Generates sha256sum element.
+  //
+  class TR_SHA256SUM
+  {
+  public:
+    TR_SHA256SUM (const string& s): sha256sum_ (s) {}
+
+    void
+    operator() (xml::serializer&) const;
+
+  private:
+    const string& sha256sum_;
+  };
+
   // Generates comment element.
   //
   class SPAN_COMMENT

@@ -2,7 +2,6 @@
 // copyright : Copyright (c) 2014-2016 Code Synthesis Ltd
 // license   : MIT; see accompanying LICENSE file
 
-#include <sstream>
 #include <fstream>
 #include <iostream>
 #include <algorithm> // find(), find_if()
@@ -14,6 +13,7 @@
 
 #include <odb/pgsql/database.hxx>
 
+#include <butl/pager>
 #include <butl/filesystem>
 
 #include <bpkg/manifest-parser> // manifest_parsing
@@ -34,15 +34,12 @@ using namespace butl;
 using namespace bpkg;
 using namespace brep;
 
-static void
-usage (ostream& os)
-{
-  os << "Usage: brep-load [options] <file>" << endl
-     << "File lists internal repositories." << endl
-     << "Options:" << endl;
+// Operation failed, diagnostics has already been issued.
+//
+struct failed: std::exception {};
 
-  options::print_usage (os);
-}
+static const char* help_info (
+  "  info: run 'brep-load --help' for more information");
 
 static inline bool
 space (char c) noexcept
@@ -75,7 +72,10 @@ load_repositories (path p)
 
   ifstream ifs (p.string ());
   if (!ifs.is_open ())
-    throw ifstream::failure (p.string () + ": unable to open");
+  {
+    cerr << "error: unable to open " << p << " in read mode" << endl;
+    throw failed ();
+  }
 
   ifs.exceptions (ifstream::badbit);
 
@@ -108,11 +108,13 @@ load_repositories (path p)
       auto pb (i);  // Location begin.
       skip (false); // Find end of location.
 
-      auto bad_line ([&p, l, &pb, &b](const string& d) {
-          ostringstream os;
-          os << p << ':' << l << ':' << pb - b + 1 << ": error: " << d;
-          throw runtime_error (os.str ());
-        });
+      auto bad_line = [&p, l, &pb, &b](const string& d)
+      {
+        cerr << p << ':' << l << ':' << pb - b + 1 << ": error: " << d
+             << endl;
+
+        throw failed ();
+      };
 
       repository_location location;
 
@@ -186,7 +188,8 @@ load_repositories (path p)
   }
   catch (const ifstream::failure&)
   {
-    throw ifstream::failure (p.string () + ": io failure");
+    cerr << "error: unable to read " << p << endl;
+    throw failed ();
   }
 
   return repos;
@@ -208,7 +211,8 @@ changed (const internal_repositories& repos, database& db)
       db.find<repository> (r.location.canonical_name ()));
 
     if (pr == nullptr || r.location.string () != pr->location.string () ||
-        r.display_name != pr->display_name || r.local_path != pr->local_path ||
+        r.display_name != pr->display_name ||
+        r.local_path != pr->local_path ||
         file_mtime (r.packages_path ()) != pr->packages_timestamp ||
         file_mtime (r.repositories_path ()) != pr->repositories_timestamp ||
         !pr->internal)
@@ -224,8 +228,8 @@ changed (const internal_repositories& repos, database& db)
   //
   return
     !db.query<repository> (
-      query::internal && !query::name.in_range (names.begin (), names.end ())).
-    empty ();
+      query::internal &&
+      !query::name.in_range (names.begin (), names.end ())).empty ();
 }
 
 static timestamp
@@ -233,7 +237,10 @@ manifest_stream (const path& p, ifstream& f)
 {
   f.open (p.string ());
   if (!f.is_open ())
-    throw ifstream::failure (p.string () + ": unable to open");
+  {
+    cerr << "error: unable to open " << p << " in read mode" << endl;
+    throw failed ();
+  }
 
   f.exceptions (ifstream::badbit | ifstream::failbit);
   return file_mtime (p);
@@ -268,7 +275,13 @@ load_packages (const shared_ptr<repository>& rp, database& db)
 
   for (auto& pm: pkm)
   {
-    shared_ptr<package> p (db.find<package> (package_id (pm.name, pm.version)));
+    shared_ptr<package> p (
+      db.find<package> (package_id (pm.name, pm.version)));
+
+    // sha256sum should always be present if the package manifest comes from
+    // the 'packages' file.
+    //
+    assert (pm.sha256sum);
 
     if (p == nullptr)
     {
@@ -338,6 +351,7 @@ load_packages (const shared_ptr<repository>& rp, database& db)
           move (ds),
           move (pm.requirements),
           move (pm.location),
+          move (pm.sha256sum),
           rp);
       }
       else
@@ -349,15 +363,18 @@ load_packages (const shared_ptr<repository>& rp, database& db)
     }
     else
     {
-      // @@ Need to ensure that the same packages coming from different
-      //    repositories are equal. Probably will invent hashsum at some point
-      //    for this purpose.
-      //
-
       // As soon as internal repositories get loaded first, the internal
       // package can duplicate an internal package only.
       //
       assert (!rp->internal || p->internal ());
+
+      if (rp->internal && pm.sha256sum != p->sha256sum)
+        cerr << "warning: sha256sum mismatch for package " << p->id.name
+             << " " << p->version << endl
+             << "  info: " << p->internal_repository.load ()->location
+             << " has " << *p->sha256sum << endl
+             << "  info: " << rp->location << " has " << *pm.sha256sum
+             << endl;
 
       p->other_repositories.push_back (rp);
       db.update (p);
@@ -402,7 +419,8 @@ load_repositories (const shared_ptr<repository>& rp, database& db)
 
   for (auto& rm: rpm)
   {
-    if (rm.effective_role () == repository_role::prerequisite && !rp->internal)
+    if (rm.effective_role () == repository_role::prerequisite &&
+        !rp->internal)
       continue; // Ignore the external repository prerequisite entry.
 
     if (rm.effective_role () == repository_role::base)
@@ -449,12 +467,12 @@ load_repositories (const shared_ptr<repository>& rp, database& db)
     auto bad_location (
       [&rp, &rm]()
       {
-        ostringstream o;
-        o << "invalid location '" << rm.location.string ()
-          << "' of the prerequisite repository for internal "
-          "repository '" << rp->location.string () << "'";
+        cerr << "error: invalid prerequisite repository location "
+             << rm.location << endl
+             << "  info: base (internal) repository location is "
+             << rp->location << endl;
 
-        throw runtime_error (o.str ());
+        throw failed ();
       });
 
     try
@@ -508,12 +526,12 @@ load_repositories (const shared_ptr<repository>& rp, database& db)
       }
       catch (const invalid_path&)
       {
-        ostringstream o;
-        o << "can't normalize local path'" << lp.string ()
-          << "' of the prerequisite repository for internal "
-          "repository '" << rp->location.string () << "'";
+        cerr << "error: can't normalize prerequisite repository local path '"
+             << lp << "'" << endl
+             << "  info: base (internal) repository location is "
+             << rp->location << endl;
 
-        throw runtime_error (o.str ());
+        throw failed ();
       }
     }
 
@@ -536,7 +554,8 @@ find (const lazy_shared_ptr<repository>& r,
   assert (r != nullptr);
 
   const auto& o (p.other_repositories);
-  if (r == p.internal_repository || find (o.begin (), o.end (), r) != o.end ())
+  if (r == p.internal_repository ||
+      find (o.begin (), o.end (), r) != o.end ())
     return true;
 
   auto rp (r.load ());
@@ -629,17 +648,18 @@ resolve_dependencies (package& p, database& db)
 
       if (d.package.object_id ().version.empty ())
       {
-        ostringstream o;
-        o << "can't resolve dependency " << d << " of the package "
-          << p.id.name << " " << p.version.string ()
-          << " (" << p.internal_repository.load ()->name << ")";
+        cerr << "error: can't resolve dependency " << d << " of the package "
+             << p.id.name << " " << p.version << endl
+             << "  info: repository "
+             << p.internal_repository.load ()->location
+             << " appears to be broken" << endl;
 
         // Practically it is enough to resolve at least one dependency
         // alternative to build a package. Meanwhile here we consider an error
         // specifying in the manifest file an alternative which can't be
         // resolved.
         //
-        throw runtime_error (o.str ());
+        throw failed ();
       }
     }
   }
@@ -650,14 +670,15 @@ resolve_dependencies (package& p, database& db)
 using package_ids = vector<package_id>;
 
 // Ensure the package dependency chain do not contain the package id. Throw
-// runtime_error otherwise. Continue the chain with the package id and call
-// itself recursively for each prerequisite of the package. Should be called
-// once per internal package.
+// failed otherwise. Continue the chain with the package id and call itself
+// recursively for each prerequisite of the package. Should be called once per
+// internal package.
 //
 // @@ This should probably be eventually moved to bpkg.
 //
 static void
-detect_dependency_cycle (const package_id& id, package_ids& chain, database& db)
+detect_dependency_cycle (
+  const package_id& id, package_ids& chain, database& db)
 {
   // Package of one version depending on the same package of another version
   // is something obscure. So the comparison is made up to a package name.
@@ -667,11 +688,10 @@ detect_dependency_cycle (const package_id& id, package_ids& chain, database& db)
 
   if (i != chain.end ())
   {
-    ostringstream o;
-    o << "package dependency cycle: ";
+    cerr << "error: package dependency cycle: ";
 
     auto prn (
-      [&o, &db](const package_id& id)
+      [&db](const package_id& id)
       {
         shared_ptr<package> p (db.load<package> (id));
         assert (p->internal () || !p->other_repositories.empty ());
@@ -681,17 +701,18 @@ detect_dependency_cycle (const package_id& id, package_ids& chain, database& db)
           ? p->internal_repository.load ()
           : p->other_repositories[0].load ());
 
-        o << id.name << " " << p->version.string () << " (" << r->name << ")";
+        cerr << id.name << " " << p->version << " (" << r->name << ")";
       });
 
     for (; i != chain.end (); ++i)
     {
       prn (*i);
-      o << " -> ";
+      cerr << " -> ";
     }
 
     prn (id);
-    throw runtime_error (o.str ());
+    cerr << endl;
+    throw failed ();
   }
 
   chain.push_back (id);
@@ -731,22 +752,30 @@ try
   //
   if (ops.help ())
   {
-    usage (cout);
-    return 0;
+    pager p ("brep-load help",
+             false,
+             ops.pager_specified () ? &ops.pager () : nullptr,
+             &ops.pager_option ());
+
+    print_usage (p.stream ());
+
+    // If the pager failed, assume it has issued some diagnostics.
+    //
+    return p.wait () ? 0 : 2;
   }
 
   if (argc < 2)
   {
-    cerr << "<file> argument not provided" << endl;
-    usage (cerr);
-    return 1;
+    cerr << "error: configuration file path argument expected" << endl
+         << help_info << endl;
+    return 2;
   }
 
   if (argc > 2)
   {
-    cerr << "unexpected argument encountered" << endl;
-    usage (cerr);
-    return 1;
+    cerr << "error: unexpected argument encountered" << endl
+         << help_info << endl;
+    return 2;
   }
 
   odb::pgsql::database db (ops.db_user (),
@@ -766,8 +795,9 @@ try
   //
   if (schema_catalog::current_version (db) != db.schema_version ())
   {
-    cerr << "database schema differs from the current one" << endl;
-    return 1;
+    cerr << "error: database schema differs from the current one" << endl
+         << "  info: use brep-migrate to migrate the database" << endl;
+    return 2;
   }
 
   // Load the description of all the internal repositories from the
@@ -827,22 +857,26 @@ try
   }
 
   t.commit ();
+  return 0;
 }
 catch (const database_locked&)
 {
   cerr << "brep-load or brep-migrate instance is running" << endl;
-  return 2;
+  return 1;
 }
 catch (const cli::exception& e)
 {
-  cerr << e << endl;
-  usage (cerr);
-  return 1;
+  cerr << "error: " << e << endl << help_info << endl;
+  return 2;
+}
+catch (const failed&)
+{
+  return 2; // Diagnostics has already been issued.
 }
 // Fully qualified to avoid ambiguity with odb exception.
 //
 catch (const std::exception& e)
 {
-  cerr << e.what () << endl;
-  return 1;
+  cerr << "error: " << e.what () << endl;
+  return 2;
 }

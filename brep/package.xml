@@ -87,6 +87,7 @@
       <column name="package_email_comment" type="TEXT" null="true"/>
       <column name="internal_repository" type="TEXT" null="true"/>
       <column name="location" type="TEXT" null="true"/>
+      <column name="sha256sum" type="TEXT" null="true"/>
       <column name="search_index" type="tsvector" null="true"/>
       <primary-key>
         <column name="name"/>

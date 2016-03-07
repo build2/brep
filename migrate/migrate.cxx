@@ -13,6 +13,8 @@
 
 #include <odb/pgsql/database.hxx>
 
+#include <butl/pager>
+
 #include <brep/types>
 #include <brep/utility>
 #include <brep/version>
@@ -24,6 +26,13 @@
 using namespace std;
 using namespace odb::core;
 using namespace brep;
+
+// Operation failed, diagnostics has already been issued.
+//
+struct failed: std::exception {};
+
+static const char* help_info (
+  "  info: run 'brep-migrate --help' for more information");
 
 // Helper class that encapsulates both the ODB-generated schema and the
 // extra that comes from a .sql file (via xxd).
@@ -108,19 +117,28 @@ schema (const char* s)
         if (strcasecmp (kw.c_str (), "FUNCTION") == 0)
         {
           if (!read_until ("$$") || !read_until ("$$"))
-            throw invalid_argument (
-              "function body must be defined using $$-quoted strings");
+          {
+            cerr << "error: function body must be defined using $$-quoted "
+              "strings" << endl;
+            throw failed ();
+          }
         }
         else if (strcasecmp (kw.c_str (), "TYPE") == 0)
         {
           // Fall through.
         }
         else
-          throw invalid_argument ("unexpected CREATE statement");
+        {
+          cerr << "error: unexpected CREATE statement" << endl;
+          throw failed ();
+        }
 
         if (!read_until (";\n"))
-          throw invalid_argument (
-            "expected ';\\n' at the end of CREATE statement");
+        {
+          cerr << "error: expected ';\\n' at the end of CREATE statement"
+               << endl;
+          throw failed ();
+        }
 
         assert (!statement.empty ());
         create_statements_.emplace_back (move (statement));
@@ -128,15 +146,21 @@ schema (const char* s)
       else if (strcasecmp (op.c_str (), "DROP") == 0)
       {
         if (!read_until (";\n"))
-          throw invalid_argument (
-            "expected ';\\n' at the end of DROP statement");
+        {
+          cerr << "error: expected ';\\n' at the end of DROP statement"
+               << endl;
+          throw failed ();
+        }
 
         assert (!statement.empty ());
         drop_statements_.emplace_back (move (statement));
       }
       else
-        throw invalid_argument (
-          "unexpected statement starting with '" + op + "'");
+      {
+        cerr << "error: unexpected statement starting with '" << op << "'"
+             << endl;
+        throw failed ();
+      }
     }
   }
 }
@@ -166,17 +190,6 @@ create (database& db) const
     db.execute (s);
 }
 
-// Utility functions
-//
-static void
-usage (ostream& os)
-{
-  os << "Usage: brep-migrate [options]" << endl
-     << "Options:" << endl;
-
-  options::print_usage (os);
-}
-
 // main() function
 //
 int
@@ -204,22 +217,30 @@ try
   //
   if (ops.help ())
   {
-    usage (cout);
-    return 0;
+    butl::pager p ("brep-migrate help",
+                   false,
+                   ops.pager_specified () ? &ops.pager () : nullptr,
+                   &ops.pager_option ());
+
+    print_usage (p.stream ());
+
+    // If the pager failed, assume it has issued some diagnostics.
+    //
+    return p.wait () ? 0 : 2;
   }
 
   if (argc > 1)
   {
-    cerr << "unexpected argument encountered" << endl;
-    usage (cerr);
-    return 1;
+    cerr << "error: unexpected argument encountered" << endl
+         << help_info << endl;
+    return 2;
   }
 
   if (ops.recreate () && ops.drop ())
   {
-    cerr << "inconsistent options specified" << endl;
-    usage (cerr);
-    return 1;
+    cerr << "error: inconsistent options specified" << endl
+         << help_info << endl;
+    return 2;
   }
 
   odb::pgsql::database db (ops.db_user (),
@@ -247,10 +268,16 @@ try
   if (schema_version > 0)
   {
     if (schema_version < schema_catalog::base_version (db))
-      throw runtime_error ("database schema is too old");
+    {
+      cerr << "error: database schema is too old" << endl;
+      throw failed ();
+    }
 
     if (schema_version > schema_catalog::current_version (db))
-      throw runtime_error ("database schema is too new");
+    {
+      cerr << "error: database schema is too new" << endl;
+      throw failed ();
+    }
   }
 
   bool drop (ops.drop ());
@@ -264,7 +291,12 @@ try
   //
   if ((create || drop) && schema_version != 0 &&
       schema_version != schema_catalog::current_version (db))
-    throw runtime_error ("database schema requires migration");
+  {
+    cerr << "error: database schema requires migration" << endl
+         << "  info: either migrate the database first or drop the entire "
+            "database using, for example, psql" << endl;
+    throw failed ();
+  }
 
   transaction t (db.begin ());
 
@@ -292,22 +324,26 @@ try
   }
 
   t.commit ();
+  return 0;
 }
 catch (const database_locked&)
 {
   cerr << "brep-migrate or brep-load instance is running" << endl;
-  return 2;
+  return 1;
 }
 catch (const cli::exception& e)
 {
-  cerr << e << endl;
-  usage (cerr);
-  return 1;
+  cerr << "error: " << e << endl << help_info << endl;
+  return 2;
+}
+catch (const failed&)
+{
+  return 2; // Diagnostics has already been issued.
 }
 // Fully qualified to avoid ambiguity with odb exception.
 //
 catch (const std::exception& e)
 {
-  cerr << e.what () << endl;
-  return 1;
+  cerr << "error: " << e.what () << endl;
+  return 2;
 }

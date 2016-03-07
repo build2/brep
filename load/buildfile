@@ -15,6 +15,7 @@ exe{brep-load}:                   \
 ../brep/lib{brep} $libs
 
 cli.options += -I $src_root --include-with-brackets --include-prefix load \
---guard-prefix LOAD
+--guard-prefix LOAD --generate-specifier --page-usage print_ --ansi-color \
+--long-usage
 
 {hxx ixx cxx}{load-options}: cli{load}

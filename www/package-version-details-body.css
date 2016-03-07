@@ -103,6 +103,12 @@ h1, h2, h3
   font-size: 0.94em;
 }
 
+#version tr.sha256 td .value
+{
+  /* Increase the chances of 64-char value not to be truncated. */
+  font-size: 0.9em;
+}
+
 /*
  * Package details table.
  */
