@@ -292,29 +292,23 @@ load_packages (const shared_ptr<repository>& rp, database& db)
         optional<string> dsc;
         if (pm.description)
         {
-          if (pm.description->file)
-          {
-            // @@ Pull description from the file when package manager API
-            // is ready.
-          }
-          else
-            dsc = move (*pm.description);
+          assert (!pm.description->file);
+          dsc = move (pm.description->text);
         }
 
         string chn;
         for (auto& c: pm.changes)
         {
-          if (c.file)
-          {
-            // @@ Pull change notes from the file when package manager
-            //    API is ready.
-          }
+          assert (!c.file);
+
+          if (chn.empty ())
+            chn = move (c.text);
           else
           {
-            if (chn.empty ())
-              chn = move (c);
-            else
-              chn += "\n" + c;
+            if (chn.back () != '\n')
+              chn += '\n'; // Always have a blank line as a separator.
+
+            chn += "\n" + c.text;
           }
         }
 

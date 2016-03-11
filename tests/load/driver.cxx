@@ -337,7 +337,7 @@ main (int argc, char* argv[])
       assert (fpv4->internal_repository.load () == sr);
       assert (fpv4->other_repositories.empty ());
       assert (fpv4->priority == priority::low);
-      assert (fpv4->changes == "some changes 1\nsome changes 2");
+      assert (fpv4->changes == "some changes 1\n\nsome changes 2");
 
       assert (fpv4->license_alternatives.size () == 1);
       assert (fpv4->license_alternatives[0].comment ==
