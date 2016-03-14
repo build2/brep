@@ -1,3 +1,13 @@
+/* Assume 4-6 menu entries for mobile degradation. */
+@media only screen and (max-width: 567px)
+{
+  #header-menu-body
+  {
+    -webkit-flex-direction: column;
+    flex-direction: column;
+  }
+}
+
 /*
  * Form layout table.
  */
