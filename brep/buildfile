@@ -42,17 +42,18 @@ import libs += libstudxml%lib{studxml}
 
 gen =         {hxx ixx     cxx}{ options                 }
 src =                                                          \
+              {hxx         cxx}{ database                    } \
+              {hxx         cxx}{ database-module             } \
               {hxx         cxx}{ diagnostics                 } \
-              {hxx         cxx}{ module                      } \
-              {hxx            }{ options-types               } \
               {hxx         cxx}{ mod-package-details         } \
               {hxx         cxx}{ mod-package-search          } \
               {hxx         cxx}{ mod-package-version-details } \
-              {hxx         cxx}{ page                        } \
               {hxx         cxx}{ mod-repository-details      } \
               {hxx         cxx}{ mod-repository-root         } \
+              {hxx         cxx}{ module                      } \
+              {hxx            }{ options-types               } \
+              {hxx         cxx}{ page                        } \
               {            cxx}{ services                    } \
-              {hxx         cxx}{ database                    } \
               {hxx         cxx}{ types-parsers               } \
               {hxx            }{ wrapper-traits              } \
        ../web/{hxx         cxx}{ mime-url-encoding           } \

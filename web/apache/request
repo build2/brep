@@ -5,23 +5,14 @@
 #ifndef WEB_APACHE_REQUEST
 #define WEB_APACHE_REQUEST
 
-#include <apr_strings.h>
+#include <httpd.h> // request_rec, HTTP_*, OK, M_POST
 
-#include <httpd.h>
-#include <http_core.h>
-#include <util_script.h>
-
-#include <ios>
 #include <chrono>
 #include <memory>    // unique_ptr
 #include <string>
-#include <cassert>
 #include <istream>
 #include <ostream>
-#include <utility>   // move()
 #include <streambuf>
-#include <stdexcept>
-#include <exception>
 
 #include <web/module>
 #include <web/apache/stream>
@@ -30,23 +21,63 @@ namespace web
 {
   namespace apache
   {
+    // The state of the request processing, reflecting an interaction with
+    // Apache API (like reading/writing content function calls), with no
+    // buffering taken into account. Any state different from the initial
+    // suppose that some irrevocable interaction with Apache API have
+    // happened, so request processing should be either completed, or
+    // reported as failed. State values are ordered in a sense that the
+    // higher value reflects the more advanced stage of processing, so the
+    // request current state value may not decrease.
+    //
+    enum class request_state
+    {
+      // Denotes the initial stage of the request handling. At this stage
+      // the request line and headers are already parsed by Apache.
+      //
+      initial,
+
+      // Reading the request content.
+      //
+      reading,
+
+      // Adding the response headers (cookies in particular).
+      //
+      headers,
+
+      // Writing the response content.
+      //
+      writing
+    };
+
     class request: public web::request,
                    public web::response,
-                   public write_state
+                   public stream_state
     {
       friend class service;
 
-      request (request_rec* rec) noexcept: rec_ (rec) {rec_->status = HTTP_OK;}
+      request (request_rec* rec) noexcept
+        : rec_ (rec)
+      {
+        rec_->status = HTTP_OK;
+      }
 
-      // Flush of buffered content.
+      request_state
+      state () const noexcept {return state_;}
+
+      // Flush the buffered response content if present. The returned value
+      // should be passed to Apache API on request handler exit.
       //
       int
       flush ();
 
-      // Return true if content have been sent to the client, false otherwise.
+      // Prepare for the request re-processing if possible (no unbuffered
+      // read/write operations have been done). Throw sequence_error
+      // otherwise. In particular, the preparation can include the response
+      // content buffer cleanup, the request content buffer rewind.
       //
-      bool
-      get_write_state () const noexcept {return write_state_;}
+      void
+      rewind ();
 
       // Get request path.
       //
@@ -56,7 +87,7 @@ namespace web
       // Get request body data stream.
       //
       virtual std::istream&
-      content ();
+      content (bool buffer = false);
 
       // Get request parameters.
       //
@@ -70,7 +101,8 @@ namespace web
 
       // Get response status code.
       //
-      status_code status () const noexcept {return rec_->status;}
+      status_code
+      status () const noexcept {return rec_->status;}
 
       // Set response status code.
       //
@@ -89,10 +121,11 @@ namespace web
       virtual void
       cookie (const char* name,
               const char* value,
-              const std::chrono::seconds* max_age = 0,
-              const char* path = 0,
-              const char* domain = 0,
-              bool secure = false);
+              const std::chrono::seconds* max_age = nullptr,
+              const char* path = nullptr,
+              const char* domain = nullptr,
+              bool secure = false,
+              bool buffer = true);
 
     private:
       // Get application/x-www-form-urlencoded form data.
@@ -103,37 +136,35 @@ namespace web
       void
       parse_parameters (const char* args);
 
+      // Advance the request processing state. Noop if new state is equal to
+      // the current one. Throw sequence_error if the new state is less then
+      // the current one. Can throw invalid_request if HTTP request is
+      // malformed.
+      //
+      void
+      state (request_state);
+
+      // stream_state members implementation.
+      //
       virtual void
-      set_write_state ()
-      {
-        if (!write_state_)
-        {
-          // Preparing to write a response read and discard request
-          // body if any.
-          //
-          int r (ap_discard_request_body (rec_));
+      set_read_state () {state (request_state::reading);}
 
-          if (r != OK)
-          {
-            throw invalid_request (r);
-          }
-
-          write_state_ = true;
-        }
-      }
+      virtual void
+      set_write_state () {state (request_state::writing);}
 
     private:
       request_rec* rec_;
-      bool buffer_ {true};
-      bool write_state_ {false};
-      std::unique_ptr<std::streambuf> out_buf_;
-      std::unique_ptr<std::ostream> out_;
-      std::unique_ptr<std::streambuf> in_buf_;
-      std::unique_ptr<std::istream> in_;
+      request_state state_ = request_state::initial;
+
       path_type path_;
       std::unique_ptr<name_values> parameters_;
       std::unique_ptr<name_values> cookies_;
       std::unique_ptr<std::string> form_data_;
+      std::unique_ptr<std::streambuf> in_buf_;
+      std::unique_ptr<std::istream> in_;
+
+      std::unique_ptr<std::streambuf> out_buf_;
+      std::unique_ptr<std::ostream> out_;
     };
   }
 }

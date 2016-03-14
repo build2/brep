@@ -4,10 +4,12 @@
 
 #include <strings.h> // strncasecmp()
 
-#include <iomanip>
+#include <apr_tables.h>  // apr_table_*
+
+#include <http_protocol.h> // ap_*()
+
 #include <sstream>
-#include <cstring>
-#include <cstdlib>
+#include <utility> // move()
 
 namespace web
 {
@@ -16,35 +18,34 @@ namespace web
     inline int request::
     flush ()
     {
-      if (buffer_ && out_buf_)
+      if (std::stringbuf* b = dynamic_cast<std::stringbuf*> (out_buf_.get ()))
       {
-        auto b (dynamic_cast<std::stringbuf*> (out_buf_.get ()));
-        assert (b);
-
+        // Response content is buffered.
+        //
         std::string s (b->str ());
 
         if (!s.empty ())
         {
-          // Before writing response read and discard request body if any.
-          //
-          int r (ap_discard_request_body (rec_));
-
-          if (r == OK)
+          try
           {
-            set_write_state ();
+            state (request_state::writing);
 
             if (ap_rwrite (s.c_str (), s.length (), rec_) < 0)
               rec_->status = HTTP_REQUEST_TIME_OUT;
           }
-          else
-            rec_->status = r;
+          catch (const invalid_request& e)
+          {
+            rec_->status = e.status;
+          }
         }
 
         out_.reset ();
         out_buf_.reset ();
       }
 
-      return rec_->status == HTTP_OK || get_write_state () ? OK : rec_->status;
+      return rec_->status == HTTP_OK || state_ >= request_state::writing
+        ? OK
+        : rec_->status;
     }
 
     inline const std::string& request::
@@ -64,19 +65,21 @@ namespace web
             std::istream& istr (content ());
 
             // Do not throw when eofbit is set (end of stream reached), and
-            // when failbit is set (getline() failed to extract any character).
+            // when failbit is set (getline() failed to extract any
+            // character).
             //
-            istr.exceptions (std::ios::badbit);
+            istr.exceptions (std::istream::badbit);
             std::getline (istr, *form_data_);
 
-            // Make this data the content of the input stream.
+            // Make this data the content of the input stream, so it's
+            // available for the application as well.
             //
             std::unique_ptr<std::streambuf> in_buf (
               new std::stringbuf (*form_data_));
 
             in_.reset (new std::istream (in_buf.get ()));
             in_buf_ = std::move (in_buf);
-            in_->exceptions (std::ios::failbit | std::ios::badbit);
+            in_->exceptions (std::istream::failbit | std::istream::badbit);
           }
         }
       }

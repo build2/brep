@@ -1,0 +1,55 @@
+// file      : brep/database-module -*- C++ -*-
+// copyright : Copyright (c) 2014-2016 Code Synthesis Ltd
+// license   : MIT; see accompanying LICENSE file
+
+#ifndef BREP_DATABASE_MODULE
+#define BREP_DATABASE_MODULE
+
+#include <odb/forward.hxx> // database
+
+#include <brep/types>
+#include <brep/utility>
+
+#include <brep/module>
+#include <brep/options>
+
+namespace brep
+{
+  // A module that utilises the database. Specifically, it will retry the
+  // request in the face of recoverable database failures (deadlock, loss of
+  // connection, etc) up to a certain number of times.
+  //
+  class database_module: public module
+  {
+  protected:
+    database_module () = default;
+
+    // Create a shallow copy (handling instance) if initialized and a deep
+    // copy (context exemplar) otherwise.
+    //
+    explicit
+    database_module (const database_module&);
+
+    // Required to avoid getting warning from clang that
+    // database_module::init() hides module::init() virtual functions. This
+    // way all functions get to the same scope and become overloaded set.
+    //
+    using module::init;
+
+    void
+    init (const options::db&);
+
+    virtual bool
+    handle (request&, response&) = 0;
+
+  protected:
+    size_t retry_;
+    shared_ptr<odb::core::database> db_;
+
+  private:
+    virtual bool
+    handle (request&, response&, log&);
+  };
+}
+
+#endif // BREP_DATABASE_MODULE

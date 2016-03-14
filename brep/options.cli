@@ -54,21 +54,30 @@ namespace brep
       string db-name = "brep"
       {
         "<name>",
-        "Database name. If not specified, then '\cb{brep}' is used by default."
+        "Database name. If not specified, then '\cb{brep}' is used by
+         default."
       }
 
       string db-host
       {
         "<host>",
-        "Database host name, address, or socket. If not specified, then connect
-         to \cb{localhost} using the operating system-default mechanism
-         (Unix-domain socket, etc)."
+        "Database host name, address, or socket. If not specified, then
+         connect to \cb{localhost} using the operating system-default
+         mechanism (Unix-domain socket, etc)."
       }
 
       uint16_t db-port = 0
       {
         "<port>",
         "Database port number. If not specified, the default port is used."
+      }
+
+      size_t db-retry = 10
+      {
+        "<num>",
+        "The maximum number of times to retry database transactions in the
+         face of recoverable failures (deadlock, loss of connection, etc). The
+         default is 10."
       }
     };
 
@@ -84,10 +93,10 @@ namespace brep
       vector<page_menu> menu;
       {
         "<label=link>",
-        "Web page menu. Each entry is displayed in the page header in the order
-         specified and aligned to the right edge. A link target that starts
-         with '\cb{/}' or contains '\cb{:}' is used as is. Otherwise, it is
-         prefixed with the repository web interface root."
+        "Web page menu. Each entry is displayed in the page header in the
+         order specified and aligned to the right edge. A link target that
+         starts with '\cb{/}' or contains '\cb{:}' is used as is. Otherwise,
+         it is prefixed with the repository web interface root."
       }
     };
 

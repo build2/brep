@@ -62,7 +62,7 @@ namespace brep
   const basic_mark info (severity::info,                                \
                          this->log_writer_,                             \
                          __PRETTY_FUNCTION__);                          \
-  const basic_mark trace (severity::info,                               \
+  const basic_mark trace (severity::trace,                              \
                           this->log_writer_,                            \
                           __PRETTY_FUNCTION__)
 
@@ -76,7 +76,8 @@ namespace brep
     // Trace verbosity level.
     //
     // 0 - tracing disabled.
-    // 1 - @@ TODO: document
+    // 1 - brief information regarding irregular situations, which not being
+    //     an error can be of some interest.
     // 2 - @@ TODO: document
     //
     // While uint8 is more than enough, use uint16 for the ease of printing.

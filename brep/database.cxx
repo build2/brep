@@ -41,11 +41,13 @@ namespace brep
     }
 
     shared_ptr<database> d (
-      make_shared<database> (o.db_user (),
-                             o.db_password (),
-                             o.db_name (),
-                             o.db_host (),
-                             o.db_port ()));
+      make_shared<database> (
+        o.db_user (),
+        o.db_password (),
+        o.db_name (),
+        o.db_host (),
+        o.db_port (),
+        "options='-c default_transaction_isolation=serializable'"));
 
     databases[o] = d;
     return d;

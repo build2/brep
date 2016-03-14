@@ -5,7 +5,7 @@
 #ifndef WEB_APACHE_LOG
 #define WEB_APACHE_LOG
 
-#include <httpd.h>       // request_rec
+#include <httpd.h>       // request_rec, server_rec
 #include <http_log.h>
 #include <http_config.h> // module
 
@@ -44,7 +44,7 @@ namespace web
              const char* msg) const noexcept
       {
         if (file && *file)
-          file = nullptr; // skip file/line placeholder from log line.
+          file = nullptr; // Skip file/line placeholder from log line.
 
         level = std::min (level, APLOG_TRACE8);
 
@@ -59,7 +59,7 @@ namespace web
                         func,
                         msg);
         else
-          // skip function name placeholder from log line
+          // Skip function name placeholder from log line.
           //
           ap_log_error (file,
                         line,

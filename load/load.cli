@@ -96,8 +96,10 @@ class options
 
 \cb{0}      Successful termination.
 
-\cb{1}      \cb{brep-load} or \l{brep-migrate(1)} instance is running. Try
+\cb{1}      Fatal error.
+
+\cb{2}      \cb{brep-load} or \l{brep-migrate(1)} instance is running. Try
             again.
 
-\cb{2}      Fatal error.
+\cb{3}      The database recoverable error. Try again.
 "

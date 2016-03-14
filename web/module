@@ -111,13 +111,13 @@ namespace web
     virtual const name_values&
     cookies () = 0;
 
-    // Get the stream to read the request content from. Note that
-    // reading content after any unbuffered content has been written
-    // is undefined behavior. The implementation may detect it and
-    // throw sequence_error but is not required to do so.
+    // Get the stream to read the request content from. If the buffer argument
+    // is false, then reading content after any unbuffered content has been
+    // written or after a retry is undefined behavior. The implementation may
+    // detect this and throw sequence_error but is not required to do so.
     //
     virtual std::istream&
-    content () = 0;
+    content (bool buffer = false) = 0;
   };
 
   class response
@@ -160,10 +160,11 @@ namespace web
     virtual void
     cookie (const char* name,
             const char* value,
-            const std::chrono::seconds* max_age = 0,
-            const char* path = 0,
-            const char* domain = 0,
-            bool secure = false) = 0;
+            const std::chrono::seconds* max_age = nullptr,
+            const char* path = nullptr,
+            const char* domain = nullptr,
+            bool secure = false,
+            bool buffer = true) = 0;
   };
 
   // A web server logging backend. The module can use it to log
@@ -229,15 +230,26 @@ namespace web
     // Return false if decline to handle the request. If handling have been
     // declined after any unbuffered content has been written, then the
     // implementation shall terminate the response in a suitable but
-    // unspecified manner. Any exception other than invalid_request described
-    // above that leaves this function is treated by the web server
-    // implementation as an internal server error (500). Similar to
-    // invalid_request, it will try to return the status and description
-    // (obtained by calling what() on std::exception) to the client, if
-    // possible. The description is assume to be encoded in UTF-8. The
-    // implementation may provide a configuration option to omit the
-    // description from the response, for security/privacy reasons.
+    // unspecified manner.
     //
+    // Throw retry if need to retry handling the request. The retry will
+    // happen on the same instance of the module and the implementation is
+    // expected to "rewind" the request and response objects to their initial
+    // state. This is only guaranteed to be possible if the relevant functions
+    // in the request and response objects were called in buffered mode (the
+    // buffer argument was true).
+    //
+    // Any exception other than retry and invalid_request described above that
+    // leaves this function is treated by the web server implementation as an
+    // internal server error (500). Similar to invalid_request, it will try to
+    // return the status and description (obtained by calling what() on
+    // std::exception) to the client, if possible. The description is assume
+    // to be encoded in UTF-8. The implementation may provide a configuration
+    // option to omit the description from the response, for security/privacy
+    // reasons.
+    //
+    struct retry {};
+
     virtual bool
     handle (request&, response&, log&) = 0;
   };

@@ -5,8 +5,11 @@
 #ifndef WEB_APACHE_SERVICE
 #define WEB_APACHE_SERVICE
 
-#include <httpd.h>
-#include <http_config.h> // module, ap_hook_*()
+#include <apr_pools.h>   // apr_pool_t
+#include <apr_hooks.h>   // APR_HOOK_*
+
+#include <httpd.h>       // request_rec, server_rec, HTTP_*, DECLINED
+#include <http_config.h> // module, cmd_parms, ap_hook_*()
 
 #include <map>
 #include <memory>  // unique_ptr
@@ -130,7 +133,8 @@ namespace web
         // The worker_initializer() function is called right after Apache
         // worker process is started. Called for every new process spawned.
         //
-        ap_hook_child_init (&worker_initializer<M>, NULL, NULL, APR_HOOK_LAST);
+        ap_hook_child_init (
+          &worker_initializer<M>, NULL, NULL, APR_HOOK_LAST);
 
         // The request_handler () function is called for each client request.
         //
@@ -254,7 +258,8 @@ namespace web
       parse_option (cmd_parms* parms, void* conf, const char* args) noexcept;
 
       const char*
-      add_option (context_id id, const char* name, optional<std::string> value);
+      add_option (
+        context_id id, const char* name, optional<std::string> value);
 
       void
       finalize_config (server_rec*);

@@ -5,17 +5,15 @@
 #ifndef BREP_MOD_PACKAGE_DETAILS
 #define BREP_MOD_PACKAGE_DETAILS
 
-#include <odb/forward.hxx> // database
-
 #include <brep/types>
 #include <brep/utility>
 
-#include <brep/module>
 #include <brep/options>
+#include <brep/database-module>
 
 namespace brep
 {
-  class package_details: public module
+  class package_details: public database_module
   {
   public:
     package_details () = default;
@@ -38,7 +36,6 @@ namespace brep
 
   private:
     shared_ptr<options::package_details> options_;
-    shared_ptr<odb::core::database> db_;
   };
 }
 

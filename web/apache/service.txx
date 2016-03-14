@@ -3,9 +3,9 @@
 // license   : MIT; see accompanying LICENSE file
 
 #include <unistd.h> // getppid()
-#include <signal.h> // kill()
+#include <signal.h> // kill(), SIGTERM
 
-#include <http_log.h>
+#include <http_log.h> // APLOG_*
 
 #include <utility>   // move()
 #include <exception>
@@ -132,21 +132,31 @@ namespace web
         const M* e (dynamic_cast<const M*> (exemplar));
         assert (e != nullptr);
 
-        M m (*e);
+        for (M m (*e);;)
+        {
+          try
+          {
+            if (static_cast<module&> (m).handle (rq, rq, lg))
+              return rq.flush ();
 
-        if (static_cast<module&> (m).handle (rq, rq, lg))
-          return rq.flush ();
+            if (rq.state () == request_state::initial)
+              return DECLINED;
 
-        if (!rq.get_write_state ())
-          return DECLINED;
-
-        lg.write (nullptr, 0, func_name.c_str (), APLOG_ERR,
-                  "handling declined while unbuffered content "
-                  "has been written");
+            lg.write (nullptr, 0, func_name.c_str (), APLOG_ERR,
+                      "handling declined being partially executed");
+            break;
+          }
+          catch (const module::retry&)
+          {
+            // Retry to handle the request.
+            //
+            rq.rewind ();
+          }
+        }
       }
       catch (const invalid_request& e)
       {
-        if (!e.content.empty () && !rq.get_write_state ())
+        if (!e.content.empty () && rq.state () < request_state::writing)
         {
           try
           {
@@ -165,11 +175,12 @@ namespace web
       {
         lg.write (nullptr, 0, func_name.c_str (), APLOG_ERR, e.what ());
 
-        if (*e.what () && !rq.get_write_state ())
+        if (*e.what () && rq.state () < request_state::writing)
         {
           try
           {
-            rq.content (HTTP_INTERNAL_SERVER_ERROR, "text/plain;charset=utf-8")
+            rq.content (
+              HTTP_INTERNAL_SERVER_ERROR, "text/plain;charset=utf-8")
               << e.what ();
 
             return rq.flush ();
@@ -184,11 +195,12 @@ namespace web
       {
         lg.write (nullptr, 0, func_name.c_str (), APLOG_ERR, "unknown error");
 
-        if (!rq.get_write_state ())
+        if (rq.state () < request_state::writing)
         {
           try
           {
-            rq.content (HTTP_INTERNAL_SERVER_ERROR, "text/plain;charset=utf-8")
+            rq.content (
+              HTTP_INTERNAL_SERVER_ERROR, "text/plain;charset=utf-8")
               << "unknown error";
 
             return rq.flush ();

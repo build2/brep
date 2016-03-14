@@ -5,44 +5,56 @@
 #ifndef WEB_APACHE_STREAM
 #define WEB_APACHE_STREAM
 
-#include <httpd.h>
-#include <http_protocol.h>
+#include <httpd.h>         // request_rec, HTTP_*
+#include <http_protocol.h> // ap_*()
 
 #include <ios>       // streamsize
 #include <vector>
-#include <cstring>   // memmove()
+#include <cstring>   // memmove(), size_t
 #include <streambuf>
 #include <algorithm> // min(), max()
 
-#include <web/module>
+#include <web/module> // invalid_request
 
 namespace web
 {
   namespace apache
   {
-    // Object of a class implementing this interface is intended for
-    // keeping the state of writing response to the client.
+    // Object of a class implementing this interface is intended for keeping
+    // the state of communication with the client.
     //
-    struct write_state
+    struct stream_state
     {
-      // Called by ostreambuf methods when some content to be written to the
-      // client.
+      // Called by istreambuf functions when content is about to be read from
+      // the client. Can throw invalid_request or sequence_error.
+      //
+      virtual void
+      set_read_state () = 0;
+
+      // Called by ostreambuf functions when some content is about to be
+      // written to the client. Can throw invalid_request or sequence_error.
       //
       virtual void
       set_write_state () = 0;
-
-      // Called to check if any data have already been written to the client.
-      // Such checks required for some operations which are impossible to
-      // execute after response is partially written.
-      //
-      virtual bool
-      get_write_state () const noexcept = 0;
     };
 
-    class ostreambuf: public std::streambuf
+    // Base class for ostreambuf and istreambuf. References request and
+    // communication state structures.
+    //
+    class rbuf: public std::streambuf
+    {
+    protected:
+      rbuf (request_rec* r, stream_state& s): rec_ (r), state_ (s) {}
+
+    protected:
+      request_rec* rec_;
+      stream_state& state_;
+    };
+
+    class ostreambuf: public rbuf
     {
     public:
-      ostreambuf (request_rec* rec, write_state& ws): rec_ (rec), ws_ (ws) {}
+      ostreambuf (request_rec* r, stream_state& s): rbuf (r, s) {}
 
     private:
       virtual int_type
@@ -50,7 +62,7 @@ namespace web
       {
         if (c != traits_type::eof ())
         {
-          ws_.set_write_state ();
+          state_.set_write_state ();
 
           char chr (c);
 
@@ -67,12 +79,10 @@ namespace web
       virtual std::streamsize
       xsputn (const char* s, std::streamsize num)
       {
-        ws_.set_write_state ();
+        state_.set_write_state ();
 
         if (ap_rwrite (s, num, rec_) < 0)
-        {
           throw invalid_request (HTTP_REQUEST_TIME_OUT);
-        }
 
         return num;
       }
@@ -81,58 +91,36 @@ namespace web
       sync ()
       {
         if (ap_rflush (rec_) < 0)
-        {
           throw invalid_request (HTTP_REQUEST_TIME_OUT);
-        }
 
         return 0;
       }
-
-    private:
-      request_rec* rec_;
-      write_state& ws_;
     };
 
-    class istreambuf: public std::streambuf
+    class istreambuf: public rbuf
     {
     public:
-      istreambuf (request_rec* rec,
-                  write_state& ws,
+      istreambuf (request_rec* r,
+                  stream_state& s,
                   size_t bufsize = 1024,
                   size_t putback = 1)
-          : rec_ (rec),
-            ws_ (ws),
+          : rbuf (r, s),
             bufsize_ (std::max (bufsize, (size_t)1)),
             putback_ (std::min (putback, bufsize_ - 1)),
             buf_ (bufsize_)
       {
-        if (ws_.get_write_state ())
-        {
-          throw sequence_error ("::web::apache::istreambuf::istreambuf");
-        }
-
         char* p (buf_.data () + putback_);
         setg (p, p, p);
-
-        int status (ap_setup_client_block (rec_, REQUEST_CHUNKED_DECHUNK));
-
-        if (status != OK)
-        {
-          throw invalid_request (status);
-        }
       }
 
     private:
       virtual int_type
       underflow ()
       {
-        if (ws_.get_write_state ())
-        {
-          throw sequence_error ("::web::apache::istreambuf::underflow");
-        }
-
         if (gptr () < egptr ())
           return traits_type::to_int_type (*gptr ());
+
+        state_.set_read_state ();
 
         size_t pb (std::min ((size_t)(gptr () - eback ()), putback_));
         std::memmove (buf_.data () + putback_ - pb, gptr () - pb, pb);
@@ -141,22 +129,16 @@ namespace web
         int rb (ap_get_client_block (rec_, p, bufsize_ - putback_));
 
         if (rb == 0)
-        {
           return traits_type::eof ();
-        }
 
         if (rb < 0)
-        {
           throw invalid_request (HTTP_REQUEST_TIME_OUT);
-        }
 
         setg (p - pb, p, p + rb);
         return traits_type::to_int_type (*gptr ());
       }
 
     private:
-      request_rec* rec_;
-      write_state& ws_;
       size_t bufsize_;
       size_t putback_;
       std::vector<char> buf_;

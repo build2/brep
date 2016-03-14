@@ -4,10 +4,10 @@
 
 #include <web/apache/service>
 
-#include <apr_pools.h>
+#include <apr_pools.h> // apr_palloc()
 
-#include <httpd.h>
-#include <http_config.h>
+#include <httpd.h>       // server_rec
+#include <http_config.h> // command_rec, cmd_*, ap_get_module_config()
 
 #include <memory>    // unique_ptr
 #include <string>
@@ -16,7 +16,10 @@
 #include <cstring>   // strlen()
 #include <exception>
 
+#include <butl/optional>
+
 #include <web/module>
+#include <web/apache/log>
 
 using namespace std;
 
@@ -29,12 +32,12 @@ namespace web
     {
       assert (cmds == nullptr);
 
-      // Fill apache module directive definitions. Directives share
-      // common name space in apache configuration file, so to prevent name
-      // clash have to form directive name as a combination of module and
-      // option names: <module name>-<option name>. This why for option
-      // bar of module foo the corresponding directive will appear in apache
-      // configuration file as foo-bar.
+      // Fill apache module directive definitions. Directives share common
+      // name space in apache configuration file, so to prevent name clash
+      // have to form directive name as a combination of module and option
+      // names: <module name>-<option name>. This why for option bar of module
+      // foo the corresponding directive will appear in apache configuration
+      // file as foo-bar.
       //
       const option_descriptions& od (exemplar_.options ());
       unique_ptr<command_rec[]> directives (new command_rec[od.size () + 1]);
@@ -42,7 +45,8 @@ namespace web
 
       for (const auto& o: od)
       {
-        auto i (option_descriptions_.emplace (name_ + "-" + o.first, o.second));
+        auto i (
+          option_descriptions_.emplace (name_ + "-" + o.first, o.second));
         assert (i.second);
 
         *d++ =
@@ -73,8 +77,8 @@ namespace web
     create_server_context (apr_pool_t* pool, server_rec*) noexcept
     {
       // Create the object using the configuration memory pool provided by the
-      // Apache API. The lifetime of the object is equal to the lifetime of the
-      // pool.
+      // Apache API. The lifetime of the object is equal to the lifetime of
+      // the pool.
       //
       void* p (apr_palloc (pool, sizeof (context)));
       assert (p != nullptr);
@@ -104,10 +108,10 @@ namespace web
       service& srv (*reinterpret_cast<service*> (parms->cmd->cmd_data));
 
       if (srv.options_parsed_)
-        // Apache have started the second pass of its messy initialization cycle
-        // (more details at http://wiki.apache.org/httpd/ModuleLife). This time
-        // we are parsing for real. Cleanup the existing config, and start
-        // building the new one.
+        // Apache have started the second pass of its messy initialization
+        // cycle (more details at http://wiki.apache.org/httpd/ModuleLife).
+        // This time we are parsing for real. Cleanup the existing config, and
+        // start building the new one.
         //
         srv.clear_config ();
 
@@ -214,8 +218,12 @@ namespace web
       // context options as a result of the merge_server_context() calls.
       //
       for (const auto& o: options_)
-        if (o.first->server != nullptr) // Is a directory configuration context.
+      {
+        // Is a directory configuration context.
+        //
+        if (o.first->server != nullptr)
           complement (o.first, o.first->server);
+      }
 
       options_parsed_ = true;
     }

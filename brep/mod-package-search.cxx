@@ -21,7 +21,6 @@
 #include <brep/page>
 #include <brep/options>
 #include <brep/package>
-#include <brep/database>
 #include <brep/package-odb>
 
 using namespace odb::core;
@@ -33,9 +32,8 @@ using namespace brep::cli;
 //
 brep::package_search::
 package_search (const package_search& r)
-    : module (r),
-      options_ (r.initialized_ ? r.options_ : nullptr),
-      db_ (r.initialized_ ? r.db_ : nullptr)
+    : database_module (r),
+      options_ (r.initialized_ ? r.options_ : nullptr)
 {
 }
 
@@ -47,10 +45,10 @@ init (scanner& s)
   options_ = make_shared<options::package_search> (
     s, unknown_mode::fail, unknown_mode::fail);
 
+  database_module::init (*options_);
+
   if (options_->root ().empty ())
     options_->root (dir_path ("/"));
-
-  db_ = shared_database (*options_);
 
   // Check that the database schema matches the current one. It's enough to
   // perform the check in just a single module implementation (and we don't
@@ -94,7 +92,8 @@ handle (request& rq, response& rs)
   try
   {
     name_value_scanner s (rq.parameters ());
-    params = params::package_search (s, unknown_mode::fail, unknown_mode::fail);
+    params = params::package_search (
+      s, unknown_mode::fail, unknown_mode::fail);
   }
   catch (const unknown_argument& e)
   {
@@ -106,6 +105,7 @@ handle (request& rq, response& rs)
   string squery_param (squery.empty ()
                        ? ""
                        : "?q=" + web::mime_url_encode (squery));
+
 
   static const string title ("Packages");
   xml::serializer s (rs.content (), title);

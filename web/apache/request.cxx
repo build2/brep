@@ -4,21 +4,29 @@
 
 #include <web/apache/request>
 
-#include <apr_tables.h>
+#include <apr_tables.h>  // apr_table_*, apr_array_header_t
+#include <apr_strings.h> // apr_pstrdup()
+
+#include <httpd.h>         // request_rec, HTTP_*, OK
+#include <http_protocol.h> // ap_*()
 
 #include <strings.h> // strcasecmp()
 
-#include <ios>
-#include <ctime>
+#include <ctime>     // strftime(), time_t
 #include <chrono>
 #include <memory>    // unique_ptr
+#include <string>
+#include <cassert>
 #include <sstream>
 #include <ostream>
 #include <istream>
-#include <cstring>
+#include <cstring>   // str*(), size_t
 #include <utility>   // move()
-#include <stdexcept>
+#include <stdexcept> // invalid_argument
+#include <exception> // current_exception()
 #include <streambuf>
+
+#include <butl/optional>
 
 #include <web/mime-url-encoding>
 
@@ -28,16 +36,92 @@ namespace web
 {
   namespace apache
   {
-    istream& request::
-    content ()
+    void request::
+    state (request_state s)
     {
+      assert (s != request_state::initial);
+
+      if (s == state_)
+        return; // Noop.
+
+      if (s < state_)
+      {
+        // Can't "unwind" irrevocable interaction with Apache API.
+        //
+        static const char* names[] = {
+          "initial", "reading", "headers", "writing"};
+
+        string str ("web::apache::request::set_state: ");
+        str += names[static_cast<size_t> (state_)];
+        str += " to ";
+        str += names[static_cast<size_t> (s)];
+
+        throw sequence_error (move (str));
+      }
+
+      if (s == request_state::reading)
+      {
+        // Prepare request content for reading.
+        //
+        int r (ap_setup_client_block (rec_, REQUEST_CHUNKED_DECHUNK));
+
+        if (r != OK)
+          throw invalid_request (r);
+      }
+      else if (s > request_state::reading && state_ <= request_state::reading)
+      {
+        // Read request content if any, discard whatever is received.
+        //
+        int r (ap_discard_request_body (rec_));
+
+        if (r != OK)
+          throw invalid_request (r);
+      }
+
+      state_ = s;
+    }
+
+    void request::
+    rewind ()
+    {
+      // @@ Request content buffering, and response cookies buffering are not
+      //    supported yet. When done will be possible to rewind in broader
+      //    range of cases.
+      //
+
+      if (state_ == request_state::initial ||
+
+          // Form data have been read. Lucky case, can rewind.
+          //
+          (state_ == request_state::reading &&
+           dynamic_cast<stringbuf*> (in_buf_.get ()) != nullptr))
+      {
+        out_.reset ();
+        out_buf_.reset ();
+
+        rec_->status = HTTP_OK;
+
+        ap_set_content_type (rec_, nullptr);
+
+        if (in_)
+          in_->seekg (0);
+      }
+      else
+        throw sequence_error ("web::apache::request::rewind");
+    }
+
+    istream& request::
+    content (bool buffer)
+    {
+      assert (!buffer); // Request content buffering is not implemented yet.
+
       if (!in_)
       {
         unique_ptr<streambuf> in_buf (new istreambuf (rec_, *this));
 
         in_.reset (new istream (in_buf.get ()));
         in_buf_ = move (in_buf);
-        in_->exceptions (ios::failbit | ios::badbit);
+        in_->exceptions (istream::failbit | istream::badbit);
 
         // Save form data now otherwise will not be available to do later
         // when data already read from stream.
@@ -135,17 +219,29 @@ namespace web
     ostream& request::
     content (status_code status, const string& type, bool buffer)
     {
-      if (out_ && status == rec_->status && buffer == buffer_ &&
+      if (out_ &&
+
+          // Same status code.
+          //
+          status == rec_->status &&
+
+          // Same buffering flag.
+          //
+          buffer ==
+          (dynamic_cast<stringbuf*> (out_buf_.get ()) != nullptr) &&
+
+          // Same content type.
+          //
           strcasecmp (rec_->content_type ? rec_->content_type : "",
                       type.c_str ()) == 0)
       {
+        // No change, return the existing stream.
+        //
         return *out_;
       }
 
-      if (get_write_state ())
-      {
-        throw sequence_error ("::web::apache::request::content");
-      }
+      if (state_ >= request_state::writing)
+        throw sequence_error ("web::apache::request::content");
 
       if (!buffer)
         // Request body will be discarded prior first byte of content is
@@ -161,9 +257,8 @@ namespace web
 
       out_.reset (new ostream (out_buf.get ()));
       out_buf_ = move (out_buf);
-      out_->exceptions (ios::eofbit | ios::failbit | ios::badbit);
+      out_->exceptions (ostream::eofbit | ostream::failbit | ostream::badbit);
 
-      buffer_ = buffer;
       rec_->status = status;
 
       ap_set_content_type (
@@ -182,13 +277,10 @@ namespace web
         // where no sense to throw but still need to signal apache a
         // proper status code.
         //
-        if (get_write_state () && !current_exception ())
-        {
-          throw sequence_error ("::web::apache::request::status");
-        }
+        if (state_ >= request_state::writing && !current_exception ())
+          throw sequence_error ("web::apache::request::status");
 
         rec_->status = status;
-        buffer_ = true;
         out_.reset ();
         out_buf_.reset ();
         ap_set_content_type (rec_, nullptr);
@@ -201,14 +293,10 @@ namespace web
             const chrono::seconds* max_age,
             const char* path,
             const char* domain,
-            bool secure)
+            bool secure,
+            bool buffer)
     {
-      if (get_write_state ())
-      {
-        // Too late to send cookie if content is already written.
-        //
-        throw sequence_error ("::web::apache::request::cookie");
-      }
+      assert (!buffer); // Cookie buffering is not implemented yet.
 
       ostringstream s;
       mime_url_encode (name, s);
@@ -230,20 +318,15 @@ namespace web
       }
 
       if (path)
-      {
         s << ";Path=" << path;
-      }
 
       if (domain)
-      {
         s << ";Domain=" << domain;
-      }
 
       if (secure)
-      {
         s << ";Secure";
-      }
 
+      state (request_state::headers);
       apr_table_add (rec_->err_headers_out, "Set-Cookie", s.str ().c_str ());
     }
 

@@ -40,7 +40,7 @@ namespace brep
     cookies () {return request_.cookies ();}
 
     virtual istream&
-    content () {return request_.content ();}
+    content (bool buffer) {return request_.content (buffer);}
 
   private:
     request& request_;

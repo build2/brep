@@ -201,7 +201,9 @@ namespace brep
 
       // Read brep::module configuration.
       //
-      static option_descriptions od (convert (options::module::description ()));
+      static option_descriptions od (
+        convert (options::module::description ()));
+
       name_values mo (filter (opts, od));
       name_value_scanner s (mo);
       options::module o (s, cli::unknown_mode::fail, cli::unknown_mode::fail);
@@ -311,7 +313,12 @@ namespace brep
       // Considered using lambda for mapping but looks too verbose while can
       // be a bit safer in runtime.
       //
-      static int s[] = {APLOG_ERR, APLOG_WARNING, APLOG_INFO, APLOG_TRACE1};
+      // Use APLOG_INFO (as opposed to APLOG_TRACE1) as a mapping for
+      // severity::trace. "LogLevel trace1" configuration directive switches
+      // on the avalanche of log messages from various modules. Would be good
+      // to avoid wading through them.
+      //
+      static int s[] = {APLOG_ERR, APLOG_WARNING, APLOG_INFO, APLOG_INFO};
 
       for (const auto& e: d)
       {

@@ -8,6 +8,7 @@
 
 #include <odb/session.hxx>
 #include <odb/database.hxx>
+#include <odb/exceptions.hxx>
 #include <odb/transaction.hxx>
 #include <odb/schema-catalog.hxx>
 
@@ -602,7 +603,8 @@ resolve_dependencies (package& p, database& db)
       {
         auto c (*d.constraint);
 
-        if (c.min_version && c.max_version && *c.min_version == *c.max_version)
+        if (c.min_version && c.max_version &&
+            *c.min_version == *c.max_version)
         {
           const version& v (*c.min_version);
           q = q && compare_version_eq (vm, v, v.revision != 0);
@@ -755,28 +757,30 @@ try
 
     // If the pager failed, assume it has issued some diagnostics.
     //
-    return p.wait () ? 0 : 2;
+    return p.wait () ? 0 : 1;
   }
 
   if (argc < 2)
   {
     cerr << "error: configuration file path argument expected" << endl
          << help_info << endl;
-    return 2;
+    return 1;
   }
 
   if (argc > 2)
   {
     cerr << "error: unexpected argument encountered" << endl
          << help_info << endl;
-    return 2;
+    return 1;
   }
 
-  odb::pgsql::database db (ops.db_user (),
-                           ops.db_password (),
-                           ops.db_name (),
-                           ops.db_host (),
-                           ops.db_port ());
+  odb::pgsql::database db (
+    ops.db_user (),
+    ops.db_password (),
+    ops.db_name (),
+    ops.db_host (),
+    ops.db_port (),
+    "options='-c default_transaction_isolation=serializable'");
 
   // Prevent several brep-load/migrate instances from updating DB
   // simultaneously.
@@ -791,7 +795,7 @@ try
   {
     cerr << "error: database schema differs from the current one" << endl
          << "  info: use brep-migrate to migrate the database" << endl;
-    return 2;
+    return 1;
   }
 
   // Load the description of all the internal repositories from the
@@ -856,21 +860,26 @@ try
 catch (const database_locked&)
 {
   cerr << "brep-load or brep-migrate instance is running" << endl;
-  return 1;
+  return 2;
+}
+catch (const recoverable& e)
+{
+  cerr << "database recoverable error: " << e.what () << endl;
+  return 3;
 }
 catch (const cli::exception& e)
 {
   cerr << "error: " << e << endl << help_info << endl;
-  return 2;
+  return 1;
 }
 catch (const failed&)
 {
-  return 2; // Diagnostics has already been issued.
+  return 1; // Diagnostics has already been issued.
 }
 // Fully qualified to avoid ambiguity with odb exception.
 //
 catch (const std::exception& e)
 {
   cerr << "error: " << e.what () << endl;
-  return 2;
+  return 1;
 }

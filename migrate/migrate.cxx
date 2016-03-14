@@ -170,8 +170,8 @@ drop (database& db) const
 {
   for (const auto& s: drop_statements_)
     // If the statement execution fails, the corresponding source file line
-    // number is not reported. The line number could be usefull for the utility
-    // implementer only. The errors seen by the end-user should not be
+    // number is not reported. The line number could be usefull for the
+    // utility implementer only. The errors seen by the end-user should not be
     // statement-specific.
     //
     db.execute (s);
@@ -226,28 +226,30 @@ try
 
     // If the pager failed, assume it has issued some diagnostics.
     //
-    return p.wait () ? 0 : 2;
+    return p.wait () ? 0 : 1;
   }
 
   if (argc > 1)
   {
     cerr << "error: unexpected argument encountered" << endl
          << help_info << endl;
-    return 2;
+    return 1;
   }
 
   if (ops.recreate () && ops.drop ())
   {
     cerr << "error: inconsistent options specified" << endl
          << help_info << endl;
-    return 2;
+    return 1;
   }
 
-  odb::pgsql::database db (ops.db_user (),
-                           ops.db_password (),
-                           ops.db_name (),
-                           ops.db_host (),
-                           ops.db_port ());
+  odb::pgsql::database db (
+    ops.db_user (),
+    ops.db_password (),
+    ops.db_name (),
+    ops.db_host (),
+    ops.db_port (),
+    "options='-c default_transaction_isolation=serializable'");
 
   // Prevent several brep-migrate/load instances from updating DB
   // simultaneously.
@@ -329,21 +331,26 @@ try
 catch (const database_locked&)
 {
   cerr << "brep-migrate or brep-load instance is running" << endl;
-  return 1;
+  return 2;
+}
+catch (const recoverable& e)
+{
+  cerr << "database recoverable error: " << e.what () << endl;
+  return 3;
 }
 catch (const cli::exception& e)
 {
   cerr << "error: " << e << endl << help_info << endl;
-  return 2;
+  return 1;
 }
 catch (const failed&)
 {
-  return 2; // Diagnostics has already been issued.
+  return 1; // Diagnostics has already been issued.
 }
 // Fully qualified to avoid ambiguity with odb exception.
 //
 catch (const std::exception& e)
 {
   cerr << "error: " << e.what () << endl;
-  return 2;
+  return 1;
 }

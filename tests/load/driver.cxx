@@ -84,7 +84,13 @@ main (int argc, char* argv[])
 
     // Check persistent objects validity.
     //
-    odb::pgsql::database db ("", "", "brep", argv[3], stoul (argv[5]));
+    odb::pgsql::database db (
+      "",
+      "",
+      "brep",
+      argv[3],
+      stoul (argv[5]),
+      "options='-c default_transaction_isolation=serializable'");
 
     {
       session s;

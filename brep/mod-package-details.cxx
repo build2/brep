@@ -18,7 +18,6 @@
 #include <brep/page>
 #include <brep/options>
 #include <brep/package>
-#include <brep/database>
 #include <brep/package-odb>
 
 using namespace odb::core;
@@ -30,9 +29,8 @@ using namespace brep::cli;
 //
 brep::package_details::
 package_details (const package_details& r)
-    : module (r),
-      options_ (r.initialized_ ? r.options_ : nullptr),
-      db_ (r.initialized_ ? r.db_ : nullptr)
+    : database_module (r),
+      options_ (r.initialized_ ? r.options_ : nullptr)
 {
 }
 
@@ -44,10 +42,10 @@ init (scanner& s)
   options_ = make_shared<options::package_details> (
     s, unknown_mode::fail, unknown_mode::fail);
 
+  database_module::init (*options_);
+
   if (options_->root ().empty ())
     options_->root (dir_path ("/"));
-
-  db_ = shared_database (*options_);
 }
 
 template <typename T>
