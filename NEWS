@@ -1,0 +1,32 @@
+Version 0.3.0
+
+  * Multiple instances of the brep module can now be configured on a single
+    Apache2 server. The configuration can be specified at the Apache2 root,
+    VistualHost, and Location levels.
+
+  * Add support for custom web page logo and menu entries. See comments in
+    the etc/brep-module.conf file for details.
+
+  * Display SHA256 package checksum on the package version details pages.
+
+  * Add instructions to the INSTALL file on how to run the database loader via
+    cron rather than systemd timers.
+
+  * Add instructions to the INSTALL file on how to enable Apache2 compression
+    for the brep output.
+
+  * Add support for comments in the repository manifest email values.
+
+  * Remove a DROP FUNCTION statement that caused an error on older PostgreSQL
+    versions.
+
+  * On startup log brep module name to Apache2 log.
+
+Version 0.2.2
+
+  * Add support (and instruction in the INSTALL file) for optional optimizing
+    brep CSS with SASS.
+
+Version 0.2.0
+
+  * First public release.
