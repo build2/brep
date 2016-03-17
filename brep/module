@@ -141,7 +141,8 @@ namespace brep
     virtual void
     init (cli::scanner&) = 0;
 
-    // Can be overriden by custom request dispatcher to initialize sub-modules.
+    // Can be overriden by custom request dispatcher to initialize
+    // sub-modules.
     //
     virtual void
     init (const name_values&);
@@ -158,9 +159,9 @@ namespace brep
     // web::module interface.
     //
   public:
-    // Custom request dispatcher can aggregate its own option descriptions with
-    // sub-modules option descriptions. In this case it should still call the
-    // base implementation in order to include the brep::module's options.
+    // Custom request dispatcher can aggregate its own option descriptions
+    // with sub-modules option descriptions. In this case it should still call
+    // the base implementation in order to include the brep::module's options.
     //
     virtual option_descriptions
     options ();

@@ -30,11 +30,9 @@ namespace brep
 
     try
     {
-      if (!initialized_)
-      {
-        MODULE_DIAG;
-        fail << "not initialized, presumably due to misconfiguration";
-      }
+      // Web server should terminate if initialization failed.
+      //
+      assert (initialized_);
 
       return handle (rq, rs);
     }

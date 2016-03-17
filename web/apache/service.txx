@@ -2,11 +2,10 @@
 // copyright : Copyright (c) 2014-2016 Code Synthesis Ltd
 // license   : MIT; see accompanying LICENSE file
 
-#include <unistd.h> // getppid()
-#include <signal.h> // kill(), SIGTERM
-
+#include <httpd.h>    // APEXIT_CHILDSICK
 #include <http_log.h> // APLOG_*
 
+#include <cstdlib>   // exit()
 #include <utility>   // move()
 #include <exception>
 
@@ -65,16 +64,23 @@ namespace web
       {
         l.write (nullptr, 0, func_name.c_str (), APLOG_EMERG, e.what ());
 
-        // Terminate the root apache process. Indeed we can only try to
-        // terminate the process, and most likely will fail in a production
-        // environment, where the apache root process usually runs under root,
-        // and worker processes run under some other user. This is why the
-        // implementation should consider the possibility of not being
-        // initialized at the time of HTTP request processing. In such a case
-        // it should respond with an internal server error (500 HTTP status),
-        // reporting misconfiguration.
+        // Terminate the worker apache process. APEXIT_CHILDSICK indicates to
+        // the root process that the worker have exited due to a resource
+        // shortage. In this case the root process limits the rate of forking
+        // until situation is resolved.
         //
-        kill (getppid (), SIGTERM);
+        // If the root process fails to create any worker process on startup,
+        // the behaviour depends on the Multi-Processing Module enabled. For
+        // mpm_worker_module and mpm_event_module the root process terminates.
+        // For mpm_prefork_module it keeps trying to create the worker process
+        // at one-second intervals.
+        //
+        // If the root process loses all it's workers while running (for
+        // example due to the MaxRequestsPerChild directive), and fails to
+        // create any new ones, it keeps trying to create the worker process
+        // at one-second intervals.
+        //
+        std::exit (APEXIT_CHILDSICK);
       }
       catch (...)
       {
@@ -84,9 +90,9 @@ namespace web
                  APLOG_EMERG,
                  "unknown error");
 
-        // Terminate the root apache process.
+        // Terminate the worker apache process.
         //
-        kill (getppid (), SIGTERM);
+        std::exit (APEXIT_CHILDSICK);
       }
     }
 
