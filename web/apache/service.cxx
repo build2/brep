@@ -13,7 +13,7 @@
 #include <string>
 #include <cassert>
 #include <utility>   // move()
-#include <cstring>   // strlen()
+#include <cstring>   // strlen(), strcmp()
 #include <exception>
 
 #include <butl/optional>
@@ -40,7 +40,7 @@ namespace web
       // file as foo-bar.
       //
       const option_descriptions& od (exemplar_.options ());
-      unique_ptr<command_rec[]> directives (new command_rec[od.size () + 1]);
+      unique_ptr<command_rec[]> directives (new command_rec[od.size () + 2]);
       command_rec* d (directives.get ());
 
       for (const auto& o: od)
@@ -68,6 +68,21 @@ namespace web
             nullptr
           };
       }
+
+      // Track if the module allowed to handle a request in the specific
+      // configuration scope. The module exemplar will be created (and
+      // initialized) only for configuration contexts having
+      // 'SetHandler <mod_name>' in effect for the corresponding scope.
+      //
+      *d++ =
+        {
+          "SetHandler",
+          reinterpret_cast<cmd_func> (parse_option),
+          this,
+          RSRC_CONF | ACCESS_CONF,
+          RAW_ARGS,
+          nullptr
+        };
 
       *d = {nullptr, nullptr, nullptr, 0, RAW_ARGS, nullptr};
       cmds = directives.release ();
@@ -129,7 +144,7 @@ namespace web
       // Determine the directory and server configuration contexts for the
       // option.
       //
-      context* dir_context (static_cast<context*> (conf));
+      context* dir_context (context_cast (conf));
       assert (dir_context != nullptr);
 
       server_rec* server (parms->server);
@@ -137,8 +152,7 @@ namespace web
       assert (server->module_config != nullptr);
 
       context* srv_context (
-        static_cast<context*> (
-          ap_get_module_config (server->module_config, &srv)));
+        context_cast (ap_get_module_config (server->module_config, &srv)));
 
       assert (srv_context != nullptr);
 
@@ -164,14 +178,26 @@ namespace web
         // map. Later the context will be populated with an enclosing server
         // context options.
         //
-        srv.options_.emplace (make_context_id (dir_context), name_values ());
+        srv.options_.emplace (dir_context, name_values ());
 
-      return srv.add_option (
-        make_context_id (c), parms->cmd->name, move (value));
+      const char* name (parms->cmd->name);
+      if (strcmp (name, "SetHandler") == 0)
+      {
+        // Keep track of a request handling allowability.
+        //
+        srv.options_.emplace (c, name_values ()).first->first->handling =
+          value && *value == srv.name_
+          ? request_handling::allowed
+          : request_handling::disallowed;
+
+        return 0;
+      }
+
+      return srv.add_option (c, name, move (value));
     }
 
     const char* service::
-    add_option (context_id id, const char* name, optional<string> value)
+    add_option (context* ctx, const char* name, optional<string> value)
     {
       auto i (option_descriptions_.find (name));
       assert (i != option_descriptions_.end ());
@@ -181,12 +207,12 @@ namespace web
       if (i->second != static_cast<bool> (value))
         return value ? "unexpected value" : "value expected";
 
-      options_[id].emplace_back (name + name_.length () + 1, move (value));
+      options_[ctx].emplace_back (name + name_.length () + 1, move (value));
       return 0;
     }
 
     void service::
-    complement (context_id enclosed, context_id enclosing)
+    complement (context* enclosed, context* enclosing)
     {
       auto i (options_.find (enclosing));
 
@@ -200,6 +226,9 @@ namespace web
         name_values& dest (options_[enclosed]);
         dest.insert (dest.begin (), src.begin (), src.end ());
       }
+
+      if (enclosed->handling == request_handling::inherit)
+        enclosed->handling = enclosing->handling;
     }
 
     void service::

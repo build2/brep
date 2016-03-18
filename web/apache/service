@@ -86,7 +86,8 @@ namespace web
         //    contexts options with the ones from the enclosing servers.
         //
         // 5. Apache calls worker_initializer() which creates module exemplar
-        //    for each directory configuration context.
+        //    for each directory configuration context having
+        //    'SetHandler <mod_name>' directive in effect for it.
         //
         // References:
         //   http://www.apachetutor.org/dev/config
@@ -164,6 +165,34 @@ namespace web
       request_handler (request_rec* r) noexcept;
 
     private:
+
+      // Reflects the allowability of the request handling in the specific
+      // configuration scope.
+      //
+      enum class request_handling
+      {
+        // Configuration scope has 'SetHandler <mod_name>' directive
+        // specified. The module allowed to handle a request in the scope.
+        //
+        allowed,
+
+        // Configuration scope has 'SetHandler <other_mod_name>|None'
+        // directive specified. The module disallowed to handle a request in
+        // the scope.
+        //
+        disallowed,
+
+        //
+        // Note that if there are several SetHandler directives specified
+        // in the specific scope, then the latest one takes the precedence.
+
+        // Configuration scope has no SetHandler directive specified. The
+        // request handling allowability is established by the enclosing
+        // scopes.
+        //
+        inherit
+      };
+
       // Our representation of the Apache configuration context.
       //
       // The lifetime of this object is under the control of the Apache API,
@@ -183,7 +212,7 @@ namespace web
         // Outer (server) configuration context for the directory
         // configuration context, NULL otherwise.
         //
-        context* server;
+        context* server = nullptr;
 
         // If module directives appear directly in the server configuration
         // scope, Apache creates a special directory context for them. This
@@ -192,9 +221,14 @@ namespace web
         //
         bool special;
 
+        // Request handling allowability for the corresponding configuration
+        // scope.
+        //
+        request_handling handling = request_handling::inherit;
+
         // Create the server configuration context.
         //
-        context (): server (nullptr), special (false) {}
+        context (): special (false) {}
 
         // Create the directory configuration context. Due to the Apache API
         // implementation details it is not possible to detect the enclosing
@@ -202,28 +236,16 @@ namespace web
         // creation. As a result, the server member is set by the module's
         // parse_option() function.
         //
-        context (bool s): server (nullptr), special (s) {}
+        context (bool s): special (s) {}
 
         // Ensure the object is only destroyed by Apache.
         //
         ~context () = delete;
       };
 
-      // Type of the key for configuration options and module exemplar maps.
-      //
-      using context_id = const context*;
-
-      static bool
-      is_null (context_id id) noexcept {return id == nullptr;}
-
-      static context_id
-      make_context_id (const context* c) noexcept {return c;}
-
-      // Convert Apache-provided configuration pointer to the context id.
-      //
-      static context_id
-      make_context_id (void* config) noexcept
-      {return make_context_id (static_cast<const context*> (config));}
+      static context*
+      context_cast (void* config) noexcept
+      {return static_cast<context*> (config);}
 
     private:
       void
@@ -246,10 +268,8 @@ namespace web
       merge_server_context (apr_pool_t*, void* enclosing, void* enclosed)
         noexcept
       {
-        // Complement the enclosed context with options of the enclosing one.
-        //
         instance<M> ()->complement (
-          make_context_id (enclosed), make_context_id (enclosing));
+          context_cast (enclosed), context_cast (enclosing));
 
         return enclosed;
       }
@@ -258,8 +278,7 @@ namespace web
       parse_option (cmd_parms* parms, void* conf, const char* args) noexcept;
 
       const char*
-      add_option (
-        context_id id, const char* name, optional<std::string> value);
+      add_option (context*, const char* name, optional<std::string> value);
 
       void
       finalize_config (server_rec*);
@@ -267,8 +286,13 @@ namespace web
       void
       clear_config ();
 
+      // Complement the enclosed context with options of the enclosing one.
+      // If the 'handling' member of the enclosed context is set to
+      // request_handling::inherit value, assign it a value from the enclosing
+      // context.
+      //
       void
-      complement (context_id enclosed, context_id enclosing);
+      complement (context* enclosed, context* enclosing);
 
       template <typename M>
       void
@@ -276,17 +300,23 @@ namespace web
 
       template <typename M>
       int
-      handle (request&, context_id, log&) const;
+      handle (request&, const context*, log&) const;
 
     private:
       std::string name_;
       module& exemplar_;
       option_descriptions option_descriptions_;
 
-      using options = std::map<context_id, name_values>;
+      // The context objects pointed by the key can change during the
+      // configuration phase.
+      //
+      using options = std::map<context*, name_values>;
       options options_;
 
-      using exemplars = std::map<context_id, std::unique_ptr<module>>;
+      // The context objects pointed by the key can not change during the
+      // request handling phase.
+      //
+      using exemplars = std::map<const context*, std::unique_ptr<module>>;
       exemplars exemplars_;
 
       bool options_parsed_ = false;

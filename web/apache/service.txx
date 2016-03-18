@@ -25,24 +25,21 @@ namespace web
         const M* exemplar (dynamic_cast<const M*> (&exemplar_));
         assert (exemplar != nullptr);
 
-        // For each directory configuration context create the module exemplar
-        // as a deep copy of the exemplar_ member and initialize it with the
-        // context-specific option list. Note that there can be contexts
-        // having no module options specified for them and no options
-        // inherited from enclosing contexts. Such contexts will not appear in
-        // the options_ map. Meanwhile 'SetHandler <modname>' directive can be
-        // in effect for such contexts, and we should be ready to handle
-        // requests for them (by using the "root exemplar").
+        // For each directory configuration context, for which the module
+        // allowed to handle a request, create the module exemplar as a deep
+        // copy of the exemplar_ member, and initialize it with the
+        // context-specific option list.
         //
         for (const auto& o: options_)
         {
           const context* c (o.first);
 
-          if (c->server != nullptr) // Is a directory configuration context.
+          if (c->server != nullptr && // Is a directory configuration context.
+              c->handling == request_handling::allowed)
           {
             auto r (
               exemplars_.emplace (
-                make_context_id (c),
+                c,
                 std::unique_ptr<module> (new M (*exemplar))));
 
             r.first->second->init (o.second, l);
@@ -52,13 +49,6 @@ namespace web
         // Options are not needed anymore. Free up the space.
         //
         options_.clear ();
-
-        // Initialize the "root exemplar" by default (with no options). It
-        // will be used to handle requests for configuration contexts having
-        // no options specified, and no options inherited from enclosing
-        // contexts.
-        //
-        exemplar_.init (name_values (), l);
       }
       catch (const std::exception& e)
       {
@@ -105,37 +95,31 @@ namespace web
 
       assert (r->per_dir_config != nullptr);
 
-      // Obtain the request-associated configuration context id.
+      // Obtain the request-associated configuration context.
       //
-      context_id id (
-        make_context_id (ap_get_module_config (r->per_dir_config, srv)));
+      const context* cx (
+        context_cast (ap_get_module_config (r->per_dir_config, srv)));
 
-      assert (!is_null (id));
+      assert (cx != nullptr);
 
       request rq (r);
       log lg (r->server, srv);
-      return srv->template handle<M> (rq, id, lg);
+      return srv->template handle<M> (rq, cx, lg);
     }
 
     template <typename M>
     int service::
-    handle (request& rq, context_id id, log& lg) const
+    handle (request& rq, const context* cx, log& lg) const
     {
       static const std::string func_name (
         "web::apache::service<" + name_ + ">::handle");
 
       try
       {
-        auto i (exemplars_.find (id));
+        auto i (exemplars_.find (cx));
+        assert (i != exemplars_.end ());
 
-        // Use the context-specific exemplar if found, otherwise use the
-        // default one.
-        //
-        const module* exemplar (i != exemplars_.end ()
-                                ? i->second.get ()
-                                : &exemplar_);
-
-        const M* e (dynamic_cast<const M*> (exemplar));
+        const M* e (dynamic_cast<const M*> (i->second.get ()));
         assert (e != nullptr);
 
         for (M m (*e);;)
