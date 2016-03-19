@@ -25,7 +25,7 @@ namespace web
         const M* exemplar (dynamic_cast<const M*> (&exemplar_));
         assert (exemplar != nullptr);
 
-        // For each directory configuration context, for which the module
+        // For each directory configuration context, for which the module is
         // allowed to handle a request, create the module exemplar as a deep
         // copy of the exemplar_ member, and initialize it with the
         // context-specific option list.

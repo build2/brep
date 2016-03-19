@@ -35,10 +35,10 @@ namespace web
     // It then initializes each of these "context exemplars" with the (merged)
     // set of configuration options. Finally, when handling a request, it
     // copies the corresponding "context exemplar" to create the "handling
-    // instance". Note that the "context exemplars" are create before the
-    // provided exemplar is initialized. As a result, it is possible to detect
-    // if the module's copy constructor is used to create a "context exemplar"
-    // or a "handling instance".
+    // instance". Note that the "context exemplars" are created as a copy of
+    // the provided exemplar, which is never initialized. As a result, it is
+    // possible to detect if the module's copy constructor is used to create a
+    // "context exemplar" or a "handling instance".
     //
     class service: ::module
     {
@@ -86,7 +86,7 @@ namespace web
         //    contexts options with the ones from the enclosing servers.
         //
         // 5. Apache calls worker_initializer() which creates module exemplar
-        //    for each directory configuration context having
+        //    for each directory configuration context that have
         //    'SetHandler <mod_name>' directive in effect for it.
         //
         // References:
@@ -172,13 +172,13 @@ namespace web
       enum class request_handling
       {
         // Configuration scope has 'SetHandler <mod_name>' directive
-        // specified. The module allowed to handle a request in the scope.
+        // specified. The module is allowed to handle a request in the scope.
         //
         allowed,
 
         // Configuration scope has 'SetHandler <other_mod_name>|None'
-        // directive specified. The module disallowed to handle a request in
-        // the scope.
+        // directive specified. The module is disallowed to handle a request
+        // in the scope.
         //
         disallowed,
 
@@ -307,13 +307,13 @@ namespace web
       module& exemplar_;
       option_descriptions option_descriptions_;
 
-      // The context objects pointed by the key can change during the
+      // The context objects pointed to by the key can change during the
       // configuration phase.
       //
       using options = std::map<context*, name_values>;
       options options_;
 
-      // The context objects pointed by the key can not change during the
+      // The context objects pointed to by the key can not change during the
       // request handling phase.
       //
       using exemplars = std::map<const context*, std::unique_ptr<module>>;

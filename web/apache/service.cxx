@@ -69,9 +69,9 @@ namespace web
           };
       }
 
-      // Track if the module allowed to handle a request in the specific
+      // Track if the module is allowed to handle a request in the specific
       // configuration scope. The module exemplar will be created (and
-      // initialized) only for configuration contexts having
+      // initialized) only for configuration contexts that have
       // 'SetHandler <mod_name>' in effect for the corresponding scope.
       //
       *d++ =
@@ -217,8 +217,8 @@ namespace web
       auto i (options_.find (enclosing));
 
       // The enclosing context may have no options. It can be the context of a
-      // server having no configuration directives in it's immediate scope,
-      // but having ones in it's enclosed scope (directory or virtual server).
+      // server that has no configuration directives in it's immediate scope,
+      // but has ones in it's enclosed scope (directory or virtual server).
       //
       if (i != options_.end ())
       {

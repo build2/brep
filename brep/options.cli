@@ -72,6 +72,13 @@ namespace brep
         "Database port number. If not specified, the default port is used."
       }
 
+      size_t db-max-connections = 5
+      {
+        "<num>",
+        "The maximum number of concurrent database connections per web server
+         process. If 0, then no limitation is applied. The default is 5."
+      }
+
       size_t db-retry = 10
       {
         "<num>",

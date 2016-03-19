@@ -7,6 +7,7 @@
 #include <map>
 
 #include <odb/pgsql/database.hxx>
+#include <odb/pgsql/connection-factory.hxx>
 
 namespace brep
 {
@@ -26,11 +27,11 @@ namespace brep
     }
   }
 
-  shared_ptr<odb::database>
+  using namespace odb;
+
+  shared_ptr<database>
   shared_database (const options::db& o)
   {
-    using odb::pgsql::database;
-
     static std::map<options::db, weak_ptr<database>> databases;
 
     auto i (databases.find (o));
@@ -40,14 +41,18 @@ namespace brep
         return d;
     }
 
+    unique_ptr<pgsql::connection_factory>
+      f (new pgsql::connection_pool_factory (o.db_max_connections ()));
+
     shared_ptr<database> d (
-      make_shared<database> (
+      make_shared<pgsql::database> (
         o.db_user (),
         o.db_password (),
         o.db_name (),
         o.db_host (),
         o.db_port (),
-        "options='-c default_transaction_isolation=serializable'"));
+        "options='-c default_transaction_isolation=serializable'",
+        move (f)));
 
     databases[o] = d;
     return d;
