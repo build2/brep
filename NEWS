@@ -7,6 +7,9 @@ Version 0.3.0
   * Support for custom web page logo and menu entries. See comments in the
     etc/brep-module.conf file for details.
 
+  * Use serializable transaction isolation, handle recoverable database errors
+    (deadlock, loss of connection, etc).
+
   * Ability to specify the maximum number of concurrent database connections
     per web server process. See comments in the etc/brep-module.conf file for
     details.
