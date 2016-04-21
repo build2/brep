@@ -1,8 +1,8 @@
-// file      : brep/diagnostics.cxx -*- C++ -*-
+// file      : mod/diagnostics.cxx -*- C++ -*-
 // copyright : Copyright (c) 2014-2016 Code Synthesis Ltd
 // license   : MIT; see accompanying LICENSE file
 
-#include <brep/diagnostics>
+#include <mod/diagnostics>
 
 using namespace std;
 

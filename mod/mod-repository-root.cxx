@@ -1,8 +1,8 @@
-// file      : brep/mod-repository-root.cxx -*- C++ -*-
+// file      : mod/mod-repository-root.cxx -*- C++ -*-
 // copyright : Copyright (c) 2014-2016 Code Synthesis Ltd
 // license   : MIT; see accompanying LICENSE file
 
-#include <brep/mod-repository-root>
+#include <mod/mod-repository-root>
 
 #include <sstream>
 
@@ -10,12 +10,12 @@
 
 #include <brep/version>
 
-#include <brep/module>
-#include <brep/options>
-#include <brep/mod-package-search>
-#include <brep/mod-package-details>
-#include <brep/mod-repository-details>
-#include <brep/mod-package-version-details>
+#include <mod/module>
+#include <mod/options>
+#include <mod/mod-package-search>
+#include <mod/mod-package-details>
+#include <mod/mod-repository-details>
+#include <mod/mod-package-version-details>
 
 using namespace std;
 using namespace brep::cli;

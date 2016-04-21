@@ -1,5 +1,3 @@
-options
-options.?xx
 package-odb*
 package.sql
 package-extra

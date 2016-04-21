@@ -1,9 +1,9 @@
-// file      : brep/page -*- C++ -*-
+// file      : mod/page -*- C++ -*-
 // copyright : Copyright (c) 2014-2016 Code Synthesis Ltd
 // license   : MIT; see accompanying LICENSE file
 
-#ifndef BREP_PAGE
-#define BREP_PAGE
+#ifndef MOD_PAGE
+#define MOD_PAGE
 
 #include <xml/forward>
 
@@ -13,7 +13,8 @@
 #include <brep/utility>
 
 #include <brep/package>
-#include <brep/options-types> // page_menu
+
+#include <mod/options-types> // page_menu
 
 namespace brep
 {
@@ -399,4 +400,4 @@ namespace brep
   html_id (const string&);
 }
 
-#endif // BREP_PAGE
+#endif // MOD_PAGE

@@ -1,8 +1,8 @@
-// file      : brep/mod-package-search.cxx -*- C++ -*-
+// file      : mod/mod-package-search.cxx -*- C++ -*-
 // copyright : Copyright (c) 2014-2016 Code Synthesis Ltd
 // license   : MIT; see accompanying LICENSE file
 
-#include <brep/mod-package-search>
+#include <mod/mod-package-search>
 
 #include <xml/serializer>
 
@@ -17,11 +17,11 @@
 #include <web/mime-url-encoding>
 
 #include <brep/version>
-
-#include <brep/page>
-#include <brep/options>
 #include <brep/package>
 #include <brep/package-odb>
+
+#include <mod/page>
+#include <mod/options>
 
 using namespace odb::core;
 using namespace brep::cli;

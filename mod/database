@@ -1,16 +1,16 @@
-// file      : brep/database -*- C++ -*-
+// file      : mod/database -*- C++ -*-
 // copyright : Copyright (c) 2014-2016 Code Synthesis Ltd
 // license   : MIT; see accompanying LICENSE file
 
-#ifndef BREP_DATABASE
-#define BREP_DATABASE
+#ifndef MOD_DATABASE
+#define MOD_DATABASE
 
 #include <odb/forward.hxx> // database
 
 #include <brep/types>
 #include <brep/utility>
 
-#include <brep/options>
+#include <mod/options>
 
 namespace brep
 {
@@ -23,4 +23,4 @@ namespace brep
   shared_database (const options::db&);
 }
 
-#endif // BREP_DATABASE
+#endif // MOD_DATABASE

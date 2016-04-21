@@ -1,4 +1,4 @@
-// file      : brep/services.cxx -*- C++ -*-
+// file      : mod/services.cxx -*- C++ -*-
 // copyright : Copyright (c) 2014-2016 Code Synthesis Ltd
 // license   : MIT; see accompanying LICENSE file
 
@@ -9,7 +9,7 @@
 #include <brep/types>
 #include <brep/utility>
 
-#include <brep/mod-repository-root>
+#include <mod/mod-repository-root>
 
 static brep::repository_root mod;
 web::apache::service AP_MODULE_DECLARE_DATA brep_module ("brep", mod);

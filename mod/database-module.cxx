@@ -1,13 +1,13 @@
-// file      : brep/database-module.cxx -*- C++ -*-
+// file      : mod/database-module.cxx -*- C++ -*-
 // copyright : Copyright (c) 2014-2016 Code Synthesis Ltd
 // license   : MIT; see accompanying LICENSE file
 
-#include <brep/database-module>
+#include <mod/database-module>
 
 #include <odb/exceptions.hxx>
 
-#include <brep/options>
-#include <brep/database>
+#include <mod/options>
+#include <mod/database>
 
 namespace brep
 {

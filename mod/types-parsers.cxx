@@ -1,10 +1,10 @@
-// file      : brep/types-parsers.cxx -*- C++ -*-
+// file      : mod/types-parsers.cxx -*- C++ -*-
 // copyright : Copyright (c) 2014-2016 Code Synthesis Ltd
 // license   : MIT; see accompanying LICENSE file
 
-#include <brep/types-parsers>
+#include <mod/types-parsers>
 
-#include <brep/options>
+#include <mod/options>
 
 using namespace std;
 using namespace web::xhtml;

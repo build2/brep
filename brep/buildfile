@@ -2,15 +2,9 @@
 # copyright : Copyright (c) 2014-2016 Code Synthesis Ltd
 # license   : MIT; see accompanying LICENSE file
 
-define mod: libso
-mod{*}: bin.libprefix = mod_
-mod{*}: install = libexec
-
 define sql: file
 sql{*}: extension = sql
 sql{*}: install = data
-
-./: lib{brep} mod{brep} sql{package package-extra}
 
 # lib{brep}
 #
@@ -28,57 +22,12 @@ lib{brep}:                          \
 {hxx            }{ types          } \
 {hxx            }{ utility        } \
 {hxx            }{ version        } \
-$libs
+{hxx            }{ wrapper-traits } \
+$libs                               \
+sql{package package-extra}
 
-libso{brep}: cxx.export.poptions = -I$out_root -I$src_root
+lib{brep}: cxx.export.poptions = -I$out_root -I$src_root
 
 # Install into the brep/ subdirectory of, say, /usr/include/.
 #
 install.include = $install.include/brep
-
-# mod{brep}
-#
-import libs += libstudxml%lib{studxml}
-
-gen =         {hxx ixx     cxx}{ options                 }
-src =                                                          \
-              {hxx         cxx}{ database                    } \
-              {hxx         cxx}{ database-module             } \
-              {hxx         cxx}{ diagnostics                 } \
-              {hxx         cxx}{ mod-package-details         } \
-              {hxx         cxx}{ mod-package-search          } \
-              {hxx         cxx}{ mod-package-version-details } \
-              {hxx         cxx}{ mod-repository-details      } \
-              {hxx         cxx}{ mod-repository-root         } \
-              {hxx         cxx}{ module                      } \
-              {hxx            }{ options-types               } \
-              {hxx         cxx}{ page                        } \
-              {            cxx}{ services                    } \
-              {hxx         cxx}{ types-parsers               } \
-              {hxx            }{ wrapper-traits              } \
-       ../web/{hxx         cxx}{ mime-url-encoding           } \
-       ../web/{hxx            }{ module                      } \
-       ../web/{hxx            }{ xhtml                       } \
-       ../web/{hxx         cxx}{ xhtml-fragment              } \
-../web/apache/{hxx            }{ log                         } \
-../web/apache/{hxx ixx     cxx}{ request                     } \
-../web/apache/{hxx     txx cxx}{ service                     } \
-../web/apache/{hxx            }{ stream                      }
-
-mod{brep}: $src $gen lib{brep} $libs
-
-# Don't install any of the mod{brep} headers.
-#
-$out_base/{$gen}: install = false
-$src_base/{$src}: install = false
-
-# Set option prefix to the empty value to handle all unknown request parameters
-# uniformly with a single catch block.
-#
-cli.options += --std c++11 -I $src_root --include-with-brackets \
---include-prefix brep --guard-prefix BREP \
---cxx-prologue "#include <brep/types-parsers>" \
---cli-namespace brep::cli --generate-file-scanner --suppress-usage \
---generate-modifier --generate-description --option-prefix ""
-
-{hxx ixx cxx}{options}: cli{options}

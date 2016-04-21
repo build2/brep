@@ -1,19 +1,19 @@
-// file      : brep/types-parsers -*- C++ -*-
+// file      : mod/types-parsers -*- C++ -*-
 // copyright : Copyright (c) 2014-2016 Code Synthesis Ltd
 // license   : MIT; see accompanying LICENSE file
 
 // CLI parsers, included into the generated source files.
 //
 
-#ifndef BREP_TYPES_PARSERS
-#define BREP_TYPES_PARSERS
+#ifndef MOD_TYPES_PARSERS
+#define MOD_TYPES_PARSERS
 
 #include <web/xhtml-fragment>
 
 #include <brep/types>
 #include <brep/utility>
 
-#include <brep/options-types>
+#include <mod/options-types>
 
 namespace brep
 {
@@ -54,4 +54,4 @@ namespace brep
   }
 }
 
-#endif // BREP_TYPES_PARSERS
+#endif // MOD_TYPES_PARSERS

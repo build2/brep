@@ -1,17 +1,17 @@
-// file      : brep/module -*- C++ -*-
+// file      : mod/module -*- C++ -*-
 // copyright : Copyright (c) 2014-2016 Code Synthesis Ltd
 // license   : MIT; see accompanying LICENSE file
 
-#ifndef BREP_MODULE
-#define BREP_MODULE
+#ifndef MOD_MODULE
+#define MOD_MODULE
 
 #include <web/module>
 
 #include <brep/types>
 #include <brep/utility>
 
-#include <brep/options>
-#include <brep/diagnostics>
+#include <mod/options>
+#include <mod/diagnostics>
 
 namespace brep
 {
@@ -198,4 +198,4 @@ namespace brep
   };
 }
 
-#endif // BREP_MODULE
+#endif // MOD_MODULE

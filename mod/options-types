@@ -1,9 +1,9 @@
-// file      : brep/options-types -*- C++ -*-
+// file      : mod/options-types -*- C++ -*-
 // copyright : Copyright (c) 2014-2016 Code Synthesis Ltd
 // license   : MIT; see accompanying LICENSE file
 
-#ifndef BREP_OPTIONS_TYPES
-#define BREP_OPTIONS_TYPES
+#ifndef MOD_OPTIONS_TYPES
+#define MOD_OPTIONS_TYPES
 
 #include <brep/types>
 #include <brep/utility>
@@ -29,4 +29,4 @@ namespace brep
 
 }
 
-#endif // BREP_OPTIONS_TYPES
+#endif // MOD_OPTIONS_TYPES

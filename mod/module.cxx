@@ -1,8 +1,8 @@
-// file      : brep/module.cxx -*- C++ -*-
+// file      : mod/module.cxx -*- C++ -*-
 // copyright : Copyright (c) 2014-2016 Code Synthesis Ltd
 // license   : MIT; see accompanying LICENSE file
 
-#include <brep/module>
+#include <mod/module>
 
 #include <httpd.h>
 #include <http_log.h>
@@ -14,7 +14,7 @@
 #include <web/module>
 #include <web/apache/log>
 
-#include <brep/options>
+#include <mod/options>
 
 using namespace std;
 using namespace placeholders; // For std::bind's _1, etc.

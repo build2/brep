@@ -1,15 +1,15 @@
-// file      : brep/mod-repository-details -*- C++ -*-
+// file      : mod/mod-repository-details -*- C++ -*-
 // copyright : Copyright (c) 2014-2016 Code Synthesis Ltd
 // license   : MIT; see accompanying LICENSE file
 
-#ifndef BREP_MOD_REPOSITORY_DETAILS
-#define BREP_MOD_REPOSITORY_DETAILS
+#ifndef MOD_MOD_REPOSITORY_DETAILS
+#define MOD_MOD_REPOSITORY_DETAILS
 
 #include <brep/types>
 #include <brep/utility>
 
-#include <brep/options>
-#include <brep/database-module>
+#include <mod/options>
+#include <mod/database-module>
 
 namespace brep
 {
@@ -39,4 +39,4 @@ namespace brep
   };
 }
 
-#endif // BREP_MOD_REPOSITORY_DETAILS
+#endif // MOD_MOD_REPOSITORY_DETAILS
