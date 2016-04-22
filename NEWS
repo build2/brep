@@ -32,6 +32,9 @@ Version 0.3.0
 
   * On startup log brep module version to Apache2 log.
 
+  * The module implementation has been moved from brep/ to mod/ (only affects
+    INSTALL-DEV setup).
+
 Version 0.2.2
 
   * Add support (and instruction in the INSTALL file) for optional optimizing
