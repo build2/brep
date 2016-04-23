@@ -41,7 +41,12 @@ mod{brep}:                                                     \
 # Don't install any of the module's headers.
 #
 {hxx ixx txx}{*}: install = false
-../web/{hxx ixx txx}{*}: install = false
+
+#../web/{hxx ixx txx}{*}: install = false # @@ BC
+../web/:
+{
+  {hxx ixx txx}{*}: install = false
+}
 
 # Set option prefix to the empty value to handle all unknown request parameters
 # uniformly with a single catch block.
