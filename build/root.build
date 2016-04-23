@@ -32,5 +32,11 @@ cxx{*options}: dist = true
 # All exe{} in tests/ are, well, tests.
 #
 tests/: test.exe = true # @@ BC
-tests/exe{*}: test = true
+
+#tests/exe{*}: test = true # @@ BC
+tests/:
+{
+  exe{*}: test = true
+}
+
 tests/: install = false
