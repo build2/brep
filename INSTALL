@@ -296,7 +296,8 @@ $ cp -r install install-`cat install/share/doc/brep/version`
 
 Build new version of brep:
 
-$ bpkg -d brep build brep
+$ bpkg fetch -d brep
+$ bpkg build -d brep brep
 
 If you are using a systemd-based setup, then stop and disable the loader:
 
@@ -315,7 +316,7 @@ $ sudo systemctl stop apache2
 Install new brep:
 
 $ rm -rf install/*
-$ bpkg -d brep install brep
+$ bpkg install -d brep brep
 
 Review brep-module.conf changes that may need to be merged:
 
