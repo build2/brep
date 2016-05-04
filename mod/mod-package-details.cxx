@@ -225,9 +225,9 @@ handle (request& rq, response& rs)
 
     assert (p->internal ());
 
-    // @@ Shouldn't we make package location to be a link to the proper
+    // @@ Shouldn't we make package repository name to be a link to the proper
     //    place of the About page, describing corresponding repository?
-    //    Yes, I think that's sounds reasonable, once we have about.
+    //    Yes, I think that's sounds reasonable.
     //    Or maybe it can be something more valuable like a link to the
     //    repository package search page ?
     //
@@ -238,7 +238,7 @@ handle (request& rq, response& rs)
     //
     //    Hm, I am not so sure about this. Consider: stable/testing/unstable.
     //
-    s <<     TR_LOCATION (p->internal_repository.object_id (), root)
+    s <<     TR_REPOSITORY (p->internal_repository.object_id (), root)
       <<     TR_DEPENDS (p->dependencies, root)
       <<     TR_REQUIRES (p->requirements)
       <<   ~TBODY

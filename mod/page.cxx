@@ -448,13 +448,13 @@ namespace brep
       << ~TR;
   }
 
-  // TR_LOCATION
+  // TR_REPOSITORY
   //
-  void TR_LOCATION::
+  void TR_REPOSITORY::
   operator() (serializer& s) const
   {
-    s << TR(CLASS="location")
-      <<   TH << "location" << ~TH
+    s << TR(CLASS="repository")
+      <<   TH << "repository" << ~TH
       <<   TD
       <<     SPAN(CLASS="value")
       <<       A
@@ -465,6 +465,17 @@ namespace brep
       <<       ~A
       <<     ~SPAN
       <<   ~TD
+      << ~TR;
+  }
+
+  // TR_LOCATION
+  //
+  void TR_LOCATION::
+  operator() (serializer& s) const
+  {
+    s << TR(CLASS="location")
+      <<   TH << "location" << ~TH
+      <<   TD << SPAN(CLASS="value") << location_ << ~SPAN << ~TD
       << ~TR;
   }
 
