@@ -92,11 +92,11 @@ h1, h2, h3
   border: 1px outset rgba(230,230,230,.24);
   */
 }
-#version th {width: 6.4em;}
+#version th {width: 7.6em;}
 
 #version tr.version td .value,
 #version tr.priority td .value,
-#version tr.location td .value
+#version tr.repository td .value
 {
   /* <code> style. */
   font-family: monospace;
@@ -117,7 +117,7 @@ h1, h2, h3
   margin-top: 1.2em;
   margin-bottom: 1em;
 }
-#package th {width: 6.4em;}
+#package th {width: 7.6em;}
 
 /*
  * Dependencies and requirements tables.

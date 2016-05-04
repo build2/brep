@@ -127,6 +127,8 @@ handle (request& rq, response& rs)
       s << ~P;
     }
 
+    s << P << A(HREF=r.location.string ()) << r.location << ~A << ~P;
+
     ostringstream o;
     butl::to_stream (o,
                      max (r.packages_timestamp, r.repositories_timestamp),

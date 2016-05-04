@@ -264,12 +264,12 @@ namespace brep
     const priority& priority_;
   };
 
-  // Generates package location element.
+  // Generates repository name element.
   //
-  class TR_LOCATION
+  class TR_REPOSITORY
   {
   public:
-    TR_LOCATION (const string& n, const dir_path& r)
+    TR_REPOSITORY (const string& n, const dir_path& r)
         : name_ (n), root_ (r) {}
 
     void
@@ -278,6 +278,20 @@ namespace brep
   private:
     const string& name_;
     const dir_path& root_;
+  };
+
+  // Generates repository location element.
+  //
+  class TR_LOCATION
+  {
+  public:
+    TR_LOCATION (const repository_location& l): location_ (l) {}
+
+    void
+    operator() (xml::serializer&) const;
+
+  private:
+    const repository_location& location_;
   };
 
   // Generates package download URL element.

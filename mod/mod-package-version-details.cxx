@@ -162,6 +162,8 @@ handle (request& rq, response& rs)
 
   assert (pkg->location && pkg->sha256sum);
 
+  const repository_location& rl (pkg->internal_repository.load ()->location);
+
   s << TABLE(CLASS="proplist", ID="version")
     <<   TBODY
 
@@ -171,9 +173,9 @@ handle (request& rq, response& rs)
 
     <<     TR_PRIORITY (pkg->priority)
     <<     TR_LICENSES (pkg->license_alternatives)
-    <<     TR_LOCATION (pkg->internal_repository.object_id (), root)
-    <<     TR_DOWNLOAD (pkg->internal_repository.load ()->location.string () +
-                        "/" + pkg->location->string ())
+    <<     TR_REPOSITORY (rl.canonical_name (), root)
+    <<     TR_LOCATION (rl)
+    <<     TR_DOWNLOAD (rl.string () + "/" + pkg->location->string ())
     <<     TR_SHA256SUM (*pkg->sha256sum)
     <<   ~TBODY
     << ~TABLE

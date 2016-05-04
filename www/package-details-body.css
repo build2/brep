@@ -66,7 +66,7 @@ h1, h2
   margin-top: 1.5em;
   margin-bottom: 1.5em;
 }
-#package th {width: 6.4em;}
+#package th {width: 7.6em;}
 
 /*
  * Search form (based on form-table)
@@ -100,11 +100,11 @@ table.version
 }
 table.version:nth-child(even) {background-color: rgba(0, 0, 0, 0.07);}
 
-table.version th {width: 6.4em;}
+table.version th {width: 7.6em;}
 
 table.version tr.version td .value,
 table.version tr.priority td .value,
-table.version tr.location td .value,
+table.version tr.repository td .value,
 table.version tr.depends td .value,
 table.version tr.requires td .value
 {
