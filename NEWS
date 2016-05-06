@@ -1,3 +1,8 @@
+Version 0.3.1
+
+  * Show actual repository location in addition to repository name on the
+    package version details and about pages.
+
 Version 0.3.0
 
   * Multiple instances of the brep module can now be configured on a single
