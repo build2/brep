@@ -147,7 +147,9 @@ can also find this fragment in install/share/brep/etc/brep-apache2.conf):
 
         # Load the brep module.
         #
-        LoadModule brep_module /home/brep/install/libexec/brep/mod_brep.so
+        <IfModule !brep_module>
+          LoadModule brep_module /home/brep/install/libexec/brep/mod_brep.so
+        </IfModule>
 
         # Repository root. This is the part of the URL between the host name
         # and the start of the repository. For example, root value /pkg means

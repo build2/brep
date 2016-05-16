@@ -66,7 +66,9 @@ replacing <BREP-OUT-ROOT> and <BREP-SRC-ROOT> with the actual absolute paths
 
         # Load the brep module.
         #
-        LoadModule brep_module <BREP-OUT-ROOT>/mod/mod_brep.so
+        <IfModule !brep_module>
+          LoadModule brep_module <BREP-OUT-ROOT>/mod/mod_brep.so
+        </IfModule>
 
         # Repository root. Use / for web server root. And don't forget to also
         # update the Location and Alias directives below.
