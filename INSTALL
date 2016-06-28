@@ -215,6 +215,21 @@ $ sudo systemctl restart apache2
 
 To verify, visit the repository root. To troubleshoot, see Apache logs.
 
+Now that Apache2 loads the brep module which requires PostgreSQL, it is a good
+idea to make the Apache2 service depend on PostgreSQL so that they are started
+in proper order. Here is how we can do it with systemd (with newer versions
+you can use 'systemctl edit' instead of mkdir and cat):
+
+mkdir -p /etc/systemd/system/apache2.service.d/
+cat >/etc/systemd/system/apache2.service.d/postgresql.conf
+[Unit]
+Requires=postgresql.service
+After=postgresql.service
+^D
+systemctl daemon-reload
+systemctl cat apache2      # Verify override is listed.
+systemctl restart apache2  # Verify the service still works.
+
 
 7. Optimize CSS
 
