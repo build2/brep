@@ -1,5 +1,64 @@
 : 1
-sha256sum: 1f2b297be1eafd70fe55f179a0cf062baf8405e08b3854600801420132a206b1
+sha256sum: 05f690c39da531ea450e8b1f1a2a1314d891c6c5e4e8be5be9c8c2f2ede5e28a
+:
+name: libexp
+version: 1~1.2+1
+summary: The exponent
+license: MIT
+tags: c++, exponent
+description: The exponent math function.
+url: http://www.exp.com
+email: users@exp.com
+depends: libmisc
+location: libexp-1~1.2+1.tar.gz
+sha256sum: 6c1869459964c8c780bd63d67e4c0727e583965e7280fd1f31be3f3639206191
+:
+name: libfoo
+version: 1.0
+summary: The Foo Library
+license: MIT
+url: http://www.example.com/foo/
+email: foo-users@example.com
+location: libfoo-1.0.tar.gz
+sha256sum: d8ad319b55fdd19ff24cb0fcf9d61101289569f80b8688884389587cfafa1f1e
+:
+name: libfoo
+version: 1.2.4+1
+priority: high; Critical bug fixes, performance improvement.
+summary: The Foo Math Library
+license: LGPLv2, MIT; If using with GNU TLS.
+license: BSD; If using with OpenSSL.
+tags: c++, foo, math
+description: \
+A modern C++ library with easy to use linear algebra and lot of optimization
+tools.
+
+There are over 100 functions in total with an extensive test suite. The API is
+similar to MATLAB.
+
+Useful for conversion of research code into production environments.
+\
+changes: \
+1.2.4+1
+ * applied patch for critical bug-219
+ * regenerated documentation
+
+1.2.4
+ * test suite extended significantly
+\
+url: http://www.example.com/foo/; Project home page.
+package-url: http://www.example.com/foo/pack; Package details.
+email: foo-users@example.com; Public mailing list. Read FAQ before posting.
+package-email: pack@example.com; Current packager.
+depends: libmisc < 1.1 | libmisc > 2.3.0; Crashes with 1.1.0-2.3.0.
+depends: libexp >= 1.0
+depends: ? libstudxml | libexpat; The newer the better.
+requires: linux | windows | macosx; Symbian support is coming.
+requires: c++11
+requires: ? ; libc++ standard library if using Clang on Mac OS X.
+requires: ? vc++ >= 12.0; Only if using VC++ on Windows.
+location: libfoo-1.2.4+1.tar.gz
+sha256sum: 6bf9de8c4647a32dee79ad5e787c10311495e3f6b5727bfd03b2d9dcd6a16eed
 :
 name: libstudxml
 version: 1.0.0+1
@@ -13,63 +72,4 @@ package-email: boris@codesynthesis.com; Direct email to the author.
 depends: libexpat >= 2.0.0
 depends: libgenx
 location: libstudxml-1.0.0+1.tar.gz
-sha256sum: 05ccba3da34dd0296866027a26b6bacf08cacc80f54516d3b8d8eeccbe31ab93
-:
-name: libexp
-version: 1~1.2+1
-summary: The exponent
-description: The exponent math function.
-license: MIT
-tags: c++, exponent
-url: http://www.exp.com
-email: users@exp.com
-depends: libmisc
-location: libexp-1~1.2+1.tar.gz
-sha256sum: 15ccba3da34dd0296866027a26b6bacf08cacc80f54516d3b8d8eeccbe31ab93
-:
-name: libfoo
-version: 1.2.4+1
-summary: The Foo Math Library
-description:\
-A modern C++ library with easy to use linear algebra and lot of optimization
-tools.
-
-There are over 100 functions in total with an extensive test suite. The API is
-similar to MATLAB.
-
-Useful for conversion of research code into production environments.
-\
-license: LGPLv2, MIT; If using with GNU TLS.
-license: BSD; If using with OpenSSL.
-priority: high; Critical bug fixes, performance improvement.
-tags: c++, foo, math
-url: http://www.example.com/foo/; Project home page.
-email: foo-users@example.com; Public mailing list. Read FAQ before posting.
-package-url: http://www.example.com/foo/pack; Package details.
-package-email: pack@example.com; Current packager.
-depends: libmisc < 1.1 | libmisc > 2.3.0; Crashes with 1.1.0-2.3.0.
-depends: libexp >= 1.0
-depends: ? libstudxml | libexpat; The newer the better.
-requires: linux | windows | macosx; Symbian support is coming.
-requires: c++11
-requires: ? ; libc++ standard library if using Clang on Mac OS X.
-requires: ? vc++ >= 12.0; Only if using VC++ on Windows.
-location: libfoo-1.2.4+1.tar.gz
-sha256sum: 35ccba3da34dd0296866027a26b6bacf08cacc80f54516d3b8d8eeccbe31ab93
-changes:\
-1.2.4+1
- * applied patch for critical bug-219
- * regenerated documentation
-
-1.2.4
- * test suite extended significantly
-\
-:
-name: libfoo
-version: 1.0
-summary: The Foo Lib
-license: MIT
-url: http://www.example.com/foo/
-email: foo-users@example.com
-location: libfoo-1.0.tar.gz
-sha256sum: 754cba3da34dd0296866027a26b6bacf08cacc80f54516d3b8d8eeccbe31ab93
+sha256sum: cfa4b1f89f8e903d48eff1e1d14628c32aa4d126d09b0b056d2cd80f8dc78580

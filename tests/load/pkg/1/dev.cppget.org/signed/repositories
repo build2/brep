@@ -1,17 +1,6 @@
 : 1
-# Foreign repository manifest.
-#
-location: ../misc
-:
-# Adjacent repository manifest.
-#
-location: ../math
-:
 # Local repository manifest (this repository).
 #
-email: repoman@dev.cppget.org; public mailing list
-summary: General C++ package stable repository
-description: This is the awesome C++ package repository full of exciting stuff.
 certificate: \
 -----BEGIN CERTIFICATE-----
 MIIFOzCCAyOgAwIBAgIJANKSVz8Ff0f3MA0GCSqGSIb3DQEBCwUAMDcxFzAVBgNV

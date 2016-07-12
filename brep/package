@@ -19,9 +19,9 @@
 
 // Used by the data migration entries.
 //
-#define LIBBREP_SCHEMA_VERSION_BASE 2
+#define LIBBREP_SCHEMA_VERSION_BASE 3
 
-#pragma db model version(LIBBREP_SCHEMA_VERSION_BASE, 2, closed)
+#pragma db model version(LIBBREP_SCHEMA_VERSION_BASE, 3, open)
 
 // The uint16_t value range is not fully covered by SMALLINT PostgreSQL type
 // to which uint16_t is mapped by default.
@@ -279,15 +279,17 @@ namespace brep
   //    tricky. Can stick to just a package name until get some clarity on
   //    "foreign" package resolution.
   //
-  // 4. As we left just the the package class the dependency resolution come to
+  // 4. As we left just the package class the dependency resolution come to
   //    finding the best version matching package object. The question is
   //    if to resolve dependencies on the loading phase or in the WEB interface
   //    when required. The arguments in favour of doing that during loading
   //    phase are:
-  //    * WEB interface get offloaded from a possibly expensive queries
+  //
+  //    - WEB interface get offloaded from a possibly expensive queries
   //      which otherwise have to be executed multiple times for the same
   //      dependency no matter the result would be the same.
-  //    * No need to complicate persisted object model with repository
+  //
+  //    - No need to complicate persisted object model with repository
   //      relations otherwise required just for dependency resolution.
   //
 
@@ -349,17 +351,30 @@ namespace brep
   #pragma db map type(repository_location) as(string)     \
     to((?).string ()) from(brep::repository_location (?))
 
+  #pragma db value
+  class certificate
+  {
+  public:
+    string fingerprint;  // SHA256 fingerprint.
+    string name;         // CN component of Subject.
+    string organization; // O component of Subject.
+    string email;        // email: in Subject Alternative Name.
+    string pem;          // PEM representation.
+  };
+
   #pragma db object pointer(shared_ptr) session
   class repository
   {
   public:
     using email_type = brep::email;
+    using certificate_type = brep::certificate;
 
     // Create internal repository.
     //
     repository (repository_location,
                 string display_name,
-                dir_path local_path,
+                repository_location cache_location,
+                optional<certificate_type>,
                 uint16_t priority);
 
     // Create external repository.
@@ -384,10 +399,14 @@ namespace brep
     optional<string> summary;
     optional<string> description;
 
-    // Non empty for internal repositories and external ones with a filesystem
-    // path location.
+    // Location of the repository local cache. Non empty for internal
+    // repositories and external ones with a filesystem path location.
     //
-    dir_path local_path;
+    repository_location cache_location;
+
+    // Present only for internal signed repositories.
+    //
+    optional<certificate_type> certificate;
 
     // Initialized with timestamp_nonexistent by default.
     //

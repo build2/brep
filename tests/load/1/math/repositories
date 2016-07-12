@@ -5,7 +5,7 @@ location: ../misc
 :
 # Local repository manifest (this repository).
 #
-email: repoman@cppget.org
+email: repoman@dev.cppget.org
 summary: Math C++ package repository
 description: \
 This is the awesome C++ package repository full of remarkable algorithms and

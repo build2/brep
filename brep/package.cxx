@@ -141,12 +141,17 @@ namespace brep
   // repository
   //
   repository::
-  repository (repository_location l, string d, dir_path p, uint16_t r)
+  repository (repository_location l,
+              string d,
+              repository_location h,
+              optional<certificate_type> c,
+              uint16_t r)
       : name (l.canonical_name ()),
         location (move (l)),
         display_name (move (d)),
         priority (r),
-        local_path (move (p)),
+        cache_location (move (h)),
+        certificate (move (c)),
         internal (true)
   {
   }

@@ -6,6 +6,8 @@ include <vector>;
 include <string>;
 include <cstdint>; // uint16_t
 
+include <brep/types>;
+
 "\section=1"
 "\name=brep-load"
 "\summary=load build2 repositories into database"
@@ -27,7 +29,11 @@ include <cstdint>; // uint16_t
    consumption by the \cb{brep} web module.
 
    Note that \cb{brep-load} expects the database schema to have already been
-   created using \l{brep-migrate(1)}."
+   created using \l{brep-migrate(1)}.
+
+   Also note that \cb{brep-load} requires \l{bpkg(1)} to fetch repository
+   information. See \cb{--bpkg} for more information on the package manager
+   program."
 }
 
 class options
@@ -66,6 +72,24 @@ class options
   {
     "<port>",
     "Database port number. If not specified, the default port is used."
+  }
+
+  brep::path --bpkg = "bpkg"
+  {
+    "<path>",
+    "The package manager program to be used to fetch repository information.
+     This should be the path to the \cb{bpkg} executable. You can also specify
+     additional options that should be passed to the package manager program
+     with \cb{--bpkg-option}. If the package manager program is not explicitly
+     specified, then \cb{brep-load} will use \cb{bpkg} by default."
+  }
+
+  brep::strings --bpkg-option
+  {
+    "<opt>",
+    "Additional option to be passed to the package manager program. See
+     \cb{--bpkg} for more information on the package manager program. Repeat
+     this option to specify multiple package manager options."
   }
 
   std::string --pager // String to allow empty value.

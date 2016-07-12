@@ -1,5 +1,5 @@
 <changelog xmlns="http://www.codesynthesis.com/xmlns/odb/changelog" database="pgsql" version="1">
-  <model version="2">
+  <model version="3">
     <table name="repository" kind="object">
       <column name="name" type="TEXT" null="false"/>
       <column name="location" type="TEXT" null="false"/>
@@ -10,7 +10,12 @@
       <column name="email_comment" type="TEXT" null="true"/>
       <column name="summary" type="TEXT" null="true"/>
       <column name="description" type="TEXT" null="true"/>
-      <column name="local_path" type="TEXT" null="false"/>
+      <column name="cache_location" type="TEXT" null="false"/>
+      <column name="certificate_fingerprint" type="TEXT" null="true"/>
+      <column name="certificate_name" type="TEXT" null="true"/>
+      <column name="certificate_organization" type="TEXT" null="true"/>
+      <column name="certificate_email" type="TEXT" null="true"/>
+      <column name="certificate_pem" type="TEXT" null="true"/>
       <column name="packages_timestamp" type="BIGINT" null="false"/>
       <column name="repositories_timestamp" type="BIGINT" null="false"/>
       <column name="internal" type="BOOLEAN" null="false"/>

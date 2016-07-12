@@ -26,3 +26,23 @@ h2
 
   margin: .4em 0 .4em 0;
 }
+
+/*
+ * Certificate details.
+ */
+p.certfp
+{
+  font-size: 0.74em;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+pre.certpem
+{
+  font-size: 0.97em;
+  white-space: pre;
+  margin: .5em 0 .5em 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}

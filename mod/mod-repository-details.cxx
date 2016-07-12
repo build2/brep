@@ -111,23 +111,20 @@ handle (request& rq, response& rs)
     if (r.summary)
       s << H2 << *r.summary << ~H2;
 
-    if (r.description)
-      s << P_DESCRIPTION (*r.description);
+    s << P
+      << A(HREF=r.location.string ()) << r.location << ~A << *BR;
 
     if (r.email)
     {
       const email& e (*r.email);
 
-      s << P
-        <<   A(HREF="mailto:" + e) << e << ~A;
+      s <<   A(HREF="mailto:" + e) << e << ~A;
 
       if (!e.comment.empty ())
         s << " (" << e.comment << ")";
 
-      s << ~P;
+      s << *BR;
     }
-
-    s << P << A(HREF=r.location.string ()) << r.location << ~A << ~P;
 
     ostringstream o;
     butl::to_stream (o,
@@ -136,7 +133,32 @@ handle (request& rq, response& rs)
                      true,
                      true);
 
-    s << P << o.str () << ~P;
+    s << o.str ()
+      << ~P;
+
+    if (r.description)
+      s << P_DESCRIPTION (*r.description);
+
+    if (r.certificate)
+    {
+      const certificate& cert (*r.certificate);
+
+      size_t np (cert.name.find (':'));
+      assert (np != string::npos); // Naming scheme should always be present.
+
+      // Mimic the suggested format of the repository description so that the
+      // certificate info looks like just another section. Inside use the
+      // format similar to the bpkg rep-info output.
+      //
+      s << P << "REPOSITORY CERTIFICATE" << ~P
+        << P
+        << "CN=" << cert.name.c_str () + np + 1 << *BR
+        << "O=" << cert.organization << *BR
+        << email (cert.email)
+        << ~P
+        << P(CLASS="certfp") << cert.fingerprint << ~P
+        << PRE(CLASS="certpem") << cert.pem << ~PRE;
+    }
   }
 
   t.commit ();

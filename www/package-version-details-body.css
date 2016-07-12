@@ -106,7 +106,7 @@ h1, h2, h3
 #version tr.sha256 td .value
 {
   /* Increase the chances of 64-char value not to be truncated. */
-  font-size: 0.9em;
+  font-size: 0.88em;
 }
 
 /*

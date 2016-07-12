@@ -49,18 +49,49 @@ check_external (const package& p)
 int
 main (int argc, char* argv[])
 {
-  if (argc != 7)
+  auto print_usage = [argv]()
   {
     cerr << "usage: " << argv[0]
-         << " <loader_path> --db-host <host> --db-port <port>"
-         << " <loader_conf_file>" << endl;
+         << " <loader_path> [loader_options] <loader_conf_file>" << endl;
+  };
 
+  if (argc < 3)
+  {
+    print_usage ();
+    return 1;
+  }
+
+  string user;
+  string password;
+  string name ("brep");
+  string host;
+  unsigned int port (0);
+  int i (2);
+
+  for (; i < argc - 1; ++i)
+  {
+    string n (argv[i]);
+    if (n == "--db-user")
+      user = argv[++i];
+    else if (n == "--db-password")
+      password = argv[++i];
+    else if (n == "--db-name")
+      name = argv[++i];
+    else if (n == "--db-host")
+      host = argv[++i];
+    else if (n == "--db-port")
+      port = stoul (argv[++i]);
+  }
+
+  if (i != argc - 1)
+  {
+    print_usage ();
     return 1;
   }
 
   try
   {
-    path cp (argv[6]);
+    path cp (argv[argc - 1]);
 
     // Make configuration file path absolute to use it's directory as base for
     // internal repositories relative local paths.
@@ -85,35 +116,44 @@ main (int argc, char* argv[])
     // Check persistent objects validity.
     //
     odb::pgsql::database db (
-      "",
-      "",
-      "brep",
-      argv[3],
-      stoul (argv[5]),
+      user,
+      password,
+      name,
+      host,
+      port,
       "options='-c default_transaction_isolation=serializable'");
 
     {
       session s;
       transaction t (db.begin ());
 
-      assert (db.query<repository> ().size () == 5);
+      assert (db.query<repository> ().size () == 7);
       assert (db.query<package> ().size () == 16);
 
-      shared_ptr<repository> sr (db.load<repository> ("cppget.org/stable"));
-      shared_ptr<repository> mr (db.load<repository> ("cppget.org/math"));
-      shared_ptr<repository> cr (db.load<repository> ("cppget.org/misc"));
-      shared_ptr<repository> tr (db.load<repository> ("cppget.org/testing"));
-      shared_ptr<repository> gr (db.load<repository> ("cppget.org/staging"));
+      shared_ptr<repository> sr (
+        db.load<repository> ("dev.cppget.org/stable"));
+
+      shared_ptr<repository> mr (
+        db.load<repository> ("dev.cppget.org/math"));
+
+      shared_ptr<repository> cr (
+        db.load<repository> ("dev.cppget.org/misc"));
+
+      shared_ptr<repository> tr (
+        db.load<repository> ("dev.cppget.org/testing"));
+
+      shared_ptr<repository> gr (
+        db.load<repository> ("dev.cppget.org/staging"));
 
       // Verify 'stable' repository.
       //
-      assert (sr->location.canonical_name () == "cppget.org/stable");
+      assert (sr->location.canonical_name () == "dev.cppget.org/stable");
       assert (sr->location.string () ==
-              "http://pkg.cppget.org/1/stable");
+              "http://dev.cppget.org/1/stable");
       assert (sr->display_name == "stable");
       assert (sr->priority == 1);
       assert (!sr->url);
-      assert (sr->email && *sr->email == "repoman@cppget.org" &&
+      assert (sr->email && *sr->email == "repoman@dev.cppget.org" &&
               sr->email->comment == "public mailing list");
       assert (sr->summary &&
               *sr->summary == "General C++ package stable repository");
@@ -122,11 +162,14 @@ main (int argc, char* argv[])
               "stuff.");
 
       dir_path srp (cp.directory () / dir_path ("1/stable"));
-      assert (sr->local_path == srp.normalize ());
+      assert (sr->cache_location.path () == srp.normalize ());
 
       assert (sr->packages_timestamp == srt);
       assert (sr->repositories_timestamp ==
-              file_mtime (dir_path (sr->local_path) / path ("repositories")));
+              file_mtime (
+                dir_path (
+                  sr->cache_location.path ()) / path ("repositories")));
+
       assert (sr->internal);
       assert (sr->complements.empty ());
       assert (sr->prerequisites.size () == 2);
@@ -166,7 +209,7 @@ main (int argc, char* argv[])
       assert (check_location (fpv1));
 
       assert (fpv1->sha256sum && *fpv1->sha256sum ==
-        "754cba3da34dd0296866027a26b6bacf08cacc80f54516d3b8d8eeccbe31ab93");
+        "d8ad319b55fdd19ff24cb0fcf9d61101289569f80b8688884389587cfafa1f1e");
 
       // libfoo-1.2.2
       //
@@ -219,7 +262,7 @@ main (int argc, char* argv[])
       assert (check_location (fpv2));
 
       assert (fpv2->sha256sum && *fpv2->sha256sum ==
-        "751cba3da34dd0296866027a26b6bacf08cacc80f54516d3b8d8eeccbe31ab93");
+        "b47de1b207ef097c9ecdd560007aeadd3775f4fafb4f96fb983e9685c21f3980");
 
       // libfoo-1.2.2-alpha.1
       //
@@ -288,7 +331,7 @@ main (int argc, char* argv[])
       assert (check_location (fpv2a));
 
       assert (fpv2a->sha256sum && *fpv2a->sha256sum ==
-        "752cba3da34dd0296866027a26b6bacf08cacc80f54516d3b8d8eeccbe31ab93");
+        "34fc224087bfd9212de4acfbbf5275513ebc57678b5f029546918a62c57d15cb");
 
       // libfoo-1.2.3-4
       //
@@ -325,7 +368,7 @@ main (int argc, char* argv[])
       assert (check_location (fpv3));
 
       assert (fpv3->sha256sum && *fpv3->sha256sum ==
-        "750cba3da34dd0296866027a26b6bacf08cacc80f54516d3b8d8eeccbe31ab93");
+        "204fb25edf2404e9e88e1bef8b2a444281a807d9087093147a2cc80a1ffba79a");
 
       // libfoo-1.2.4
       //
@@ -363,29 +406,34 @@ main (int argc, char* argv[])
       assert (check_location (fpv4));
 
       assert (fpv4->sha256sum && *fpv4->sha256sum ==
-        "753cba3da34dd0296866027a26b6bacf08cacc80f54516d3b8d8eeccbe31ab93");
+        "aa1606323bfc59b70de642629dc5d8318cc5348e3646f90ed89406d975db1e1d");
 
       // Verify 'math' repository.
       //
-      assert (mr->location.canonical_name () == "cppget.org/math");
+      assert (mr->location.canonical_name () == "dev.cppget.org/math");
       assert (mr->location.string () ==
-              "http://pkg.cppget.org/1/math");
+              "http://dev.cppget.org/1/math");
       assert (mr->display_name == "math");
       assert (mr->priority == 2);
       assert (!mr->url);
-      assert (mr->email && *mr->email == "repoman@cppget.org");
+      assert (mr->email && *mr->email == "repoman@dev.cppget.org");
       assert (mr->summary && *mr->summary == "Math C++ package repository");
       assert (mr->description && *mr->description ==
               "This is the awesome C++ package repository full of remarkable "
               "algorithms and\nAPIs.");
 
       dir_path mrp (cp.directory () / dir_path ("1/math"));
-      assert (mr->local_path == mrp.normalize ());
+      assert (mr->cache_location.path () == mrp.normalize ());
 
       assert (mr->packages_timestamp ==
-              file_mtime (dir_path (mr->local_path) / path ("packages")));
+              file_mtime (
+                dir_path (mr->cache_location.path ()) / path ("packages")));
+
       assert (mr->repositories_timestamp ==
-              file_mtime (dir_path (mr->local_path) / path ("repositories")));
+              file_mtime (
+                dir_path (
+                  mr->cache_location.path ()) / path ("repositories")));
+
       assert (mr->internal);
 
       assert (mr->complements.empty ());
@@ -437,7 +485,7 @@ main (int argc, char* argv[])
       assert (check_location (xpv));
 
       assert (xpv->sha256sum && *xpv->sha256sum ==
-        "05ccba3da34dd0296866027a26b6bacf08cacc80f54516d3b8d8eeccbe31ab93");
+        "cfa4b1f89f8e903d48eff1e1d14628c32aa4d126d09b0b056d2cd80f8dc78580");
 
       // Verify libfoo package versions.
       //
@@ -546,7 +594,7 @@ main (int argc, char* argv[])
       assert (check_location (fpv5));
 
       assert (fpv5->sha256sum && *fpv5->sha256sum ==
-        "35ccba3da34dd0296866027a26b6bacf08cacc80f54516d3b8d8eeccbe31ab93");
+        "6bf9de8c4647a32dee79ad5e787c10311495e3f6b5727bfd03b2d9dcd6a16eed");
 
       // Verify libexp package version.
       //
@@ -582,13 +630,13 @@ main (int argc, char* argv[])
       assert (check_location (epv));
 
       assert (epv->sha256sum && *epv->sha256sum ==
-        "15ccba3da34dd0296866027a26b6bacf08cacc80f54516d3b8d8eeccbe31ab93");
+        "6c1869459964c8c780bd63d67e4c0727e583965e7280fd1f31be3f3639206191");
 
       // Verify 'misc' repository.
       //
-      assert (cr->location.canonical_name () == "cppget.org/misc");
+      assert (cr->location.canonical_name () == "dev.cppget.org/misc");
       assert (cr->location.string () ==
-              "http://pkg.cppget.org/1/misc");
+              "http://dev.cppget.org/1/misc");
       assert (cr->display_name.empty ());
       assert (cr->priority == 0);
       assert (cr->url && *cr->url == "http://misc.cppget.org/");
@@ -597,12 +645,17 @@ main (int argc, char* argv[])
       assert (!cr->description);
 
       dir_path crp (cp.directory () / dir_path ("1/misc"));
-      assert (cr->local_path == crp.normalize ());
+      assert (cr->cache_location.path () == crp.normalize ());
 
       assert (cr->packages_timestamp ==
-              file_mtime (dir_path (cr->local_path) / path ("packages")));
+              file_mtime (
+                dir_path (cr->cache_location.path ()) / path ("packages")));
+
       assert (cr->repositories_timestamp ==
-              file_mtime (dir_path (cr->local_path) / path ("repositories")));
+              file_mtime (
+                dir_path (
+                  cr->cache_location.path ()) / path ("repositories")));
+
       assert (!cr->internal);
       assert (cr->prerequisites.empty ());
       assert (cr->complements.size () == 1);
@@ -644,9 +697,9 @@ main (int argc, char* argv[])
 
       // Verify 'testing' repository.
       //
-      assert (tr->location.canonical_name () == "cppget.org/testing");
+      assert (tr->location.canonical_name () == "dev.cppget.org/testing");
       assert (tr->location.string () ==
-              "http://pkg.cppget.org/1/testing");
+              "http://dev.cppget.org/1/testing");
       assert (tr->display_name.empty ());
       assert (tr->priority == 0);
       assert (tr->url && *tr->url == "http://test.cppget.org/hello/");
@@ -655,12 +708,17 @@ main (int argc, char* argv[])
       assert (!tr->description);
 
       dir_path trp (cp.directory () / dir_path ("1/testing"));
-      assert (tr->local_path == trp.normalize ());
+      assert (tr->cache_location.path () == trp.normalize ());
 
       assert (tr->packages_timestamp ==
-              file_mtime (dir_path (tr->local_path) / path ("packages")));
+              file_mtime (
+                dir_path (tr->cache_location.path ()) / path ("packages")));
+
       assert (tr->repositories_timestamp ==
-              file_mtime (dir_path (tr->local_path) / path ("repositories")));
+              file_mtime (
+                dir_path (
+                  tr->cache_location.path ()) / path ("repositories")));
+
       assert (!tr->internal);
       assert (tr->prerequisites.empty ());
       assert (tr->complements.size () == 1);
@@ -690,23 +748,28 @@ main (int argc, char* argv[])
 
       // Verify 'staging' repository.
       //
-      assert (gr->location.canonical_name () == "cppget.org/staging");
+      assert (gr->location.canonical_name () == "dev.cppget.org/staging");
       assert (gr->location.string () ==
-              "http://pkg.cppget.org/1/staging");
+              "http://dev.cppget.org/1/staging");
       assert (gr->display_name.empty ());
       assert (gr->priority == 0);
-      assert (gr->url && *gr->url == "http://cppget.org/");
+      assert (gr->url && *gr->url == "http://dev.cppget.org/");
       assert (!gr->email);
       assert (!gr->summary);
       assert (!gr->description);
 
       dir_path grp (cp.directory () / dir_path ("1/staging"));
-      assert (gr->local_path == grp.normalize ());
+      assert (gr->cache_location.path () == grp.normalize ());
 
       assert (gr->packages_timestamp ==
-              file_mtime (dir_path (gr->local_path) / path ("packages")));
+              file_mtime (
+                dir_path (gr->cache_location.path ()) / path ("packages")));
+
       assert (gr->repositories_timestamp ==
-              file_mtime (dir_path (gr->local_path) / path ("repositories")));
+              file_mtime (
+                dir_path (
+                  gr->cache_location.path ()) / path ("repositories")));
+
       assert (!gr->internal);
       assert (gr->prerequisites.empty ());
       assert (gr->complements.empty ());

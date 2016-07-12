@@ -2,6 +2,7 @@
 // copyright : Copyright (c) 2014-2016 Code Synthesis Ltd
 // license   : MIT; see accompanying LICENSE file
 
+#include <cstring>   // strncmp()
 #include <fstream>
 #include <iostream>
 #include <algorithm> // find(), find_if()
@@ -15,6 +16,8 @@
 #include <odb/pgsql/database.hxx>
 
 #include <butl/pager>
+#include <butl/sha256>
+#include <butl/process>
 #include <butl/filesystem>
 
 #include <bpkg/manifest-parser> // manifest_parsing
@@ -37,7 +40,7 @@ using namespace brep;
 
 // Operation failed, diagnostics has already been issued.
 //
-struct failed: std::exception {};
+struct failed {};
 
 static const char* help_info (
   "  info: run 'brep-load --help' for more information");
@@ -52,13 +55,15 @@ struct internal_repository
 {
   repository_location location;
   string display_name;
-  dir_path local_path;
+  repository_location cache_location;
+  optional<string> fingerprint;
 
   path
-  packages_path () const {return local_path / path ("packages");}
+  packages_path () const {return cache_location.path () / path ("packages");}
 
   path
-  repositories_path () const {return local_path / path ("repositories");}
+  repositories_path () const {
+    return cache_location.path () / path ("repositories");}
 };
 
 using internal_repositories = vector<internal_repository>;
@@ -93,8 +98,7 @@ load_repositories (path p)
       //
       auto skip = [&i, &e](bool s = true) -> decltype (i)
       {
-        for (; i != e && space (*i) == s; ++i)
-          ;
+        for (; i != e && space (*i) == s; ++i) ;
         return i;
       };
 
@@ -143,35 +147,81 @@ load_repositories (path p)
       skip (false); // Find end of display name.
 
       string name (pb, i);
-      pb = skip (); // Find begin of filesystem path.
+      repository_location cache_location;
+      optional<string> fingerprint;
 
-      if (pb == e) // For now filesystem path is mandatory.
-        bad_line ("no filesystem path found");
+      // Parse options, that have <name>:<value> form. Currently defined
+      // options are cache (mandatory for now) and fingerprint.
+      //
+      while ((pb = skip ()) != e)
+      {
+        skip (false); // Find end of the option (no spaces allowed).
 
-      skip (false); // Find end of filesystem path (no spaces allowed).
+        string nv (pb, i);
+        size_t vp;
+
+        if (strncmp (nv.c_str (), "cache:", vp = 6) == 0)
+        {
+          if (!cache_location.empty ())
+            bad_line ("cache option redefinition");
+
+          // If the internal repository cache path is relative, then calculate
+          // its absolute path. Such path is considered to be relative to the
+          // configuration file directory path so result is independent from
+          // whichever directory is current for the loader process. Note that
+          // the resulted absolute path should be a valid repository location.
+          //
+          dir_path cache_path = dir_path (string (nv, vp));
+          if (cache_path.relative ())
+            cache_path = p.directory () / cache_path;
+
+          try
+          {
+            cache_location = repository_location (cache_path.string ());
+
+            // Created from the absolute path repository location can not be
+            // other than absolute.
+            //
+            assert (cache_location.absolute ());
+          }
+          catch (const invalid_argument&)
+          {
+            bad_line ("invalid cache path");
+          }
+        }
+        else if (strncmp (nv.c_str (), "fingerprint:", vp = 12) == 0)
+        {
+          if (fingerprint)
+            bad_line ("fingerprint option redefinition");
+
+          fingerprint = string (nv, vp);
+
+          // Sanity check.
+          //
+          if (!fingerprint->empty ())
+          {
+            try
+            {
+              fingerprint_to_sha256 (*fingerprint);
+            }
+            catch (const invalid_argument&)
+            {
+              bad_line ("invalid fingerprint");
+            }
+          }
+        }
+        else
+          bad_line ("invalid option '" + nv + "'");
+      }
+
+      if (cache_location.empty ()) // For now cache option is mandatory.
+        bad_line ("no cache option found");
 
       internal_repository r {
         move (location),
         move (name),
-        dir_path (string (pb, i))};
-
-      // If the internal repository local path is relative, then
-      // calculate its absolute local path. Such path is considered to be
-      // relative to configuration file directory path so result is
-      // independent from whichever directory is current for the loader
-      // process.
-      //
-      if (r.local_path.relative ())
-        r.local_path = p.directory () / r.local_path;
-
-      try
-      {
-        r.local_path.normalize ();
-      }
-      catch (const invalid_path&)
-      {
-        bad_line ("can't normalize local path");
-      }
+        move (cache_location),
+        move (fingerprint)};
 
       if (!file_exists (r.packages_path ()))
         bad_line ("'packages' file does not exist");
@@ -213,7 +263,7 @@ changed (const internal_repositories& repos, database& db)
 
     if (pr == nullptr || r.location.string () != pr->location.string () ||
         r.display_name != pr->display_name ||
-        r.local_path != pr->local_path ||
+        r.cache_location.path () != pr->cache_location.path () ||
         file_mtime (r.packages_path ()) != pr->packages_timestamp ||
         file_mtime (r.repositories_path ()) != pr->repositories_timestamp ||
         !pr->internal)
@@ -231,6 +281,37 @@ changed (const internal_repositories& repos, database& db)
     !db.query<repository> (
       query::internal &&
       !query::name.in_range (names.begin (), names.end ())).empty ();
+}
+
+// Start 'bpkg rep-info [options] <repository_location>' process.
+//
+static process
+repository_info (const options& lo, const string& rl, const cstrings& options)
+{
+  cstrings args {lo.bpkg ().string ().c_str (), "rep-info"};
+
+  args.insert (args.end (), options.begin (), options.end ());
+
+  for (const string& o: lo.bpkg_option ())
+    args.push_back (o.c_str ());
+
+  args.push_back (rl.c_str ());
+  args.push_back (nullptr);
+
+  try
+  {
+    return process (args.data (), 0, -1, 2);
+  }
+  catch (const process_error& e)
+  {
+    cerr << "error: unable to execute " << args[0] << ": " << e.what ()
+         << endl;
+
+    if (e.child ())
+      exit (1);
+
+    throw failed ();
+  }
 }
 
 static timestamp
@@ -261,13 +342,13 @@ load_packages (const shared_ptr<repository>& rp, database& db)
   // Only locally accessible repositories allowed until package manager API is
   // ready.
   //
-  assert (!rp->local_path.empty ());
+  assert (!rp->cache_location.empty ());
 
   package_manifests pkm;
 
   {
     ifstream ifs;
-    path p (rp->local_path / path ("packages"));
+    path p (rp->cache_location.path () / path ("packages"));
     rp->packages_timestamp = manifest_stream (p, ifs);
 
     manifest_parser mp (ifs, p.string ());
@@ -395,7 +476,7 @@ load_repositories (const shared_ptr<repository>& rp, database& db)
   // Only locally accessible repositories allowed until package manager API is
   // ready.
   //
-  assert (!rp->local_path.empty ());
+  assert (!rp->cache_location.empty ());
 
   // Repository is already persisted by the load_packages() function call.
   //
@@ -405,7 +486,7 @@ load_repositories (const shared_ptr<repository>& rp, database& db)
 
   {
     ifstream ifs;
-    path p (rp->local_path / path ("repositories"));
+    path p (rp->cache_location.path () / path ("repositories"));
     rp->repositories_timestamp = manifest_stream (p, ifs);
 
     manifest_parser mp (ifs, p.string ());
@@ -448,6 +529,26 @@ load_repositories (const shared_ptr<repository>& rp, database& db)
         rp->email = move (rm.email);
         rp->summary = move (rm.summary);
         rp->description = move (rm.description);
+
+        // Mismatch of the repository manifest and the certificate information
+        // can be the result of racing condition.
+        //
+        // @@ Need to address properly while fully moving to the bpkg-based
+        //    fetching.
+        // @@ Shouldn't we dedicate a specific exit code for such situations?
+        //
+        if (static_cast<bool> (rm.certificate) !=
+            static_cast<bool> (rp->certificate))
+        {
+          cerr << "error: signing status mismatch for internal repository "
+               << rp->location << endl
+               << "  info: try again" << endl;
+
+          throw failed ();
+        }
+
+        if (rm.certificate)
+          rp->certificate->pem = move (*rm.certificate);
       }
 
       continue;
@@ -508,23 +609,23 @@ load_repositories (const shared_ptr<repository>& rp, database& db)
     pr = make_shared<repository> (move (rl));
 
     // If the prerequsite repository location is a relative path, then
-    // calculate its absolute local path.
+    // calculate its cache location.
     //
     if (rm.location.relative ())
     {
-      dir_path& lp (pr->local_path);
-      lp = rp->local_path / rm.location.path ();
-
       try
       {
-        lp.normalize ();
+        pr->cache_location =
+          repository_location (rm.location, rp->cache_location);
       }
-      catch (const invalid_path&)
+      catch (const invalid_argument&)
       {
-        cerr << "error: can't normalize prerequisite repository local path '"
-             << lp << "'" << endl
+        cerr << "error: can't obtain cache location for prerequisite "
+             << "repository '" << rm.location << "'" << endl
              << "  info: base (internal) repository location is "
-             << rp->location << endl;
+             << rp->location << endl
+             << "  info: base repository cache location is "
+             << rp->cache_location << endl;
 
         throw failed ();
       }
@@ -723,6 +824,122 @@ detect_dependency_cycle (
   chain.pop_back ();
 }
 
+// Return the certificate information for a signed repository and nullopt for
+// an unsigned. Note that a repository at the remote location is not trusted
+// unless the certificate fingerprint is provided (which also means it should
+// either be signed or the wildcard fingerprint specified). A local repository
+// location is, instead, trusted by default. If the fingerprint is provided
+// then the repository is authenticated regardless of the location type.
+//
+static optional<certificate>
+certificate_info (const options& lo,
+                  const repository_location& rl,
+                  const optional<string>& fp)
+{
+  try
+  {
+    cstrings args {
+      "--cert-fingerprint",
+      "--cert-name",
+      "--cert-organization",
+      "--cert-email",
+      "-q"};                 // Don't print info messages.
+
+    const char* trust ("--trust-no");
+
+    if (fp)
+    {
+      if (!fp->empty ())
+      {
+        args.push_back ("--trust");
+        args.push_back (fp->c_str ());
+      }
+      else
+        trust = "--trust-yes";
+
+      if (!rl.remote ())
+      {
+        args.push_back ("--auth");
+        args.push_back ("all");
+      }
+    }
+
+    args.push_back (trust);
+
+    process pr (repository_info (lo, rl.string (), args));
+
+    ifdstream is (pr.in_ofd);
+    is.exceptions (ifdstream::failbit | ifdstream::badbit | ifdstream::eofbit);
+
+    try
+    {
+      optional<certificate> cert;
+
+      string fingerprint;
+      getline (is, fingerprint);
+
+      if (!fingerprint.empty ())
+      {
+        cert = certificate ();
+        cert->fingerprint = move (fingerprint);
+        getline (is, cert->name);
+        getline (is, cert->organization);
+        getline (is, cert->email);
+      }
+      else
+      {
+        // Read out empty lines.
+        //
+        string s;
+        getline (is, s); // Name.
+        getline (is, s); // Organization.
+        getline (is, s); // Email.
+      }
+
+      // Check that EOF is successfully reached.
+      //
+      is.exceptions (ifdstream::failbit | ifdstream::badbit);
+      if (is.peek () != ifdstream::traits_type::eof ())
+        throw system_error (EIO, system_category ());
+
+      is.close ();
+
+      if (pr.wait ())
+        return cert;
+
+      // Fall through.
+      //
+    }
+    catch (const system_error&)
+    {
+      // Child input reading error.
+      //
+      is.close ();
+
+      // Child exit status doesn't matter. Just wait for the process
+      // completion and fall through.
+      //
+      pr.wait ();
+    }
+
+    // Assume the child issued diagnostics.
+    //
+    cerr << "error: unable to fetch certificate information for "
+         << rl.canonical_name () << endl;
+
+    // Fall through.
+  }
+  catch (const process_error& e)
+  {
+    cerr << "error: unable to fetch certificate information for "
+         << rl.canonical_name () << ": " << e.what () << endl;
+
+    // Fall through.
+  }
+
+  throw failed ();
+}
+
 int
 main (int argc, char* argv[])
 try
@@ -811,15 +1028,22 @@ try
     db.erase_query<repository> ();
 
     // On the first pass over the internal repositories we load their
-    // packages.
+    // certificate information and packages.
     //
     uint16_t priority (1);
     for (const auto& ir: irs)
     {
+      optional<certificate> cert (
+        certificate_info (
+          ops,
+          !ir.cache_location.empty () ? ir.cache_location : ir.location,
+          ir.fingerprint));
+
       shared_ptr<repository> r (
         make_shared<repository> (ir.location,
                                  move (ir.display_name),
-                                 move (ir.local_path),
+                                 move (ir.cache_location),
+                                 move (cert),
                                  priority++));
 
       load_packages (r, db);
