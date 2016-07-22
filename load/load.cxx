@@ -3,7 +3,6 @@
 // license   : MIT; see accompanying LICENSE file
 
 #include <cstring>   // strncmp()
-#include <fstream>
 #include <iostream>
 #include <algorithm> // find(), find_if()
 
@@ -18,6 +17,7 @@
 #include <butl/pager>
 #include <butl/sha256>
 #include <butl/process>
+#include <butl/fdstream>
 #include <butl/filesystem>
 
 #include <bpkg/manifest-parser> // manifest_parsing
@@ -76,17 +76,10 @@ load_repositories (path p)
   if (p.relative ())
     p.complete ();
 
-  ifstream ifs (p.string ());
-  if (!ifs.is_open ())
-  {
-    cerr << "error: unable to open " << p << " in read mode" << endl;
-    throw failed ();
-  }
-
-  ifs.exceptions (ifstream::badbit);
-
   try
   {
+    ifdstream ifs (p, ifdstream::in, ifdstream::badbit);
+
     string s;
     for (uint64_t l (1); getline (ifs, s); ++l)
     {
@@ -237,9 +230,9 @@ load_repositories (path p)
         bad_line ("junk after filesystem path");
     }
   }
-  catch (const ifstream::failure&)
+  catch (const ifdstream::failure& e)
   {
-    cerr << "error: unable to read " << p << endl;
+    cerr << "error: unable to read " << p << ": " << e.what () << endl;
     throw failed ();
   }
 
@@ -314,20 +307,6 @@ repository_info (const options& lo, const string& rl, const cstrings& options)
   }
 }
 
-static timestamp
-manifest_stream (const path& p, ifstream& f)
-{
-  f.open (p.string ());
-  if (!f.is_open ())
-  {
-    cerr << "error: unable to open " << p << " in read mode" << endl;
-    throw failed ();
-  }
-
-  f.exceptions (ifstream::badbit | ifstream::failbit);
-  return file_mtime (p);
-}
-
 // Load the repository packages from the 'packages' file and persist the
 // repository. Should be called once per repository.
 //
@@ -345,14 +324,20 @@ load_packages (const shared_ptr<repository>& rp, database& db)
   assert (!rp->cache_location.empty ());
 
   package_manifests pkm;
+  path p (rp->cache_location.path () / path ("packages"));
 
+  try
   {
-    ifstream ifs;
-    path p (rp->cache_location.path () / path ("packages"));
-    rp->packages_timestamp = manifest_stream (p, ifs);
+    ifdstream ifs (p);
+    rp->packages_timestamp = file_mtime (p);
 
     manifest_parser mp (ifs, p.string ());
     pkm = package_manifests (mp);
+  }
+  catch (const ifdstream::failure& e)
+  {
+    cerr << "error: unable to read " << p << ": " << e.what () << endl;
+    throw failed ();
   }
 
   for (auto& pm: pkm)
@@ -484,13 +469,20 @@ load_repositories (const shared_ptr<repository>& rp, database& db)
 
   repository_manifests rpm;
 
+  path p (rp->cache_location.path () / path ("repositories"));
+
+  try
   {
-    ifstream ifs;
-    path p (rp->cache_location.path () / path ("repositories"));
-    rp->repositories_timestamp = manifest_stream (p, ifs);
+    ifdstream ifs (p);
+    rp->repositories_timestamp = file_mtime (p);
 
     manifest_parser mp (ifs, p.string ());
     rpm = repository_manifests (mp);
+  }
+  catch (const ifdstream::failure& e)
+  {
+    cerr << "error: unable to read " << p << ": " << e.what () << endl;
+    throw failed ();
   }
 
   for (auto& rm: rpm)
@@ -868,11 +860,11 @@ certificate_info (const options& lo,
 
     process pr (repository_info (lo, rl.string (), args));
 
-    ifdstream is (pr.in_ofd);
-    is.exceptions (ifdstream::failbit | ifdstream::badbit | ifdstream::eofbit);
-
     try
     {
+      ifdstream is (
+        pr.in_ofd, ifdstream::failbit | ifdstream::badbit | ifdstream::eofbit);
+
       optional<certificate> cert;
 
       string fingerprint;
@@ -900,7 +892,7 @@ certificate_info (const options& lo,
       //
       is.exceptions (ifdstream::failbit | ifdstream::badbit);
       if (is.peek () != ifdstream::traits_type::eof ())
-        throw system_error (EIO, system_category ());
+        throw ifdstream::failure ("");
 
       is.close ();
 
@@ -910,12 +902,8 @@ certificate_info (const options& lo,
       // Fall through.
       //
     }
-    catch (const system_error&)
+    catch (const ifdstream::failure&)
     {
-      // Child input reading error.
-      //
-      is.close ();
-
       // Child exit status doesn't matter. Just wait for the process
       // completion and fall through.
       //
