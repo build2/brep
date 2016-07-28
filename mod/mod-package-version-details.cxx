@@ -243,7 +243,7 @@ handle (request& rq, response& rs)
         }
         else if (p->internal ())
         {
-          path u (root / path (ename));
+          dir_path u (root / dir_path (ename));
           s << A(HREF=u) << dname << ~A;
 
           if (dcon)

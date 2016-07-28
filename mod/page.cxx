@@ -27,12 +27,14 @@ namespace brep
 {
   // CSS_LINKS
   //
+  static const dir_path css_path ("@");
+
   void CSS_LINKS::
   operator() (serializer& s) const
   {
-    static const path css ("@");
-
-    s << *LINK(REL="stylesheet", TYPE="text/css", HREF=root_ / css / path_);
+    s << *LINK(REL="stylesheet",
+               TYPE="text/css",
+               HREF=root_ / css_path / path_);
   }
 
   // DIV_HEADER
@@ -146,7 +148,8 @@ namespace brep
     else
     {
       assert (root_ != nullptr);
-      s << A(HREF=*root_ / path (mime_url_encode (*package_)) / path (version_))
+      s << A(HREF=*root_ / dir_path (mime_url_encode (*package_)) /
+                  path (version_))
         <<   version_
         << ~A;
     }
