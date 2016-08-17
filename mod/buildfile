@@ -7,13 +7,14 @@
 if ($build.version != 30000) # No support for > in 0.3.0
 {
   define mod: libs
+  mod{*}: bin.lib.prefix = mod_
 }
 else
 {
   define mod: libso
+  mod{*}: bin.libprefix = mod_
 }
 
-mod{*}: bin.libprefix = mod_
 mod{*}: install = libexec
 
 import libs += libodb%lib{odb}
