@@ -5,5 +5,7 @@
 ./: file{brep-module.conf brep-apache2.conf} \
 systemd/file{brep-load.service brep-load.timer}
 
-install = data/etc
-systemd/: install = data/etc/systemd
+install = data/etc/
+systemd/: install = data/etc/systemd/
+
+#@@ BC install.subdirs

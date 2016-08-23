@@ -4,7 +4,7 @@
 
 define sql: file
 sql{*}: extension = sql
-sql{*}: install = data
+sql{*}: install = data/
 
 # lib{brep}
 #
@@ -30,4 +30,4 @@ lib{brep}: cxx.export.poptions = -I$out_root -I$src_root
 
 # Install into the brep/ subdirectory of, say, /usr/include/.
 #
-install.include = $install.include/brep
+install.include = $install.include/brep/

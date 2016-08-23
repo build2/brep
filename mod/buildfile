@@ -15,7 +15,7 @@ else
   mod{*}: bin.libprefix = mod_
 }
 
-mod{*}: install = libexec
+mod{*}: install = libexec/
 
 import libs += libodb%lib{odb}
 import libs += libodb-pgsql%lib{odb-pgsql}
