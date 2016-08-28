@@ -6,11 +6,10 @@ define sql: file
 sql{*}: extension = sql
 sql{*}: install = data/
 
-# lib{brep}
-#
-import libs += libodb%lib{odb}
-import libs += libodb-pgsql%lib{odb-pgsql}
-import libs += libbpkg%lib{bpkg}
+import int_libs  = libodb%lib{odb}
+import int_libs += libodb-pgsql%lib{odb-pgsql}
+import int_libs += libbutl%lib{butl}
+import int_libs += libbpkg%lib{bpkg}
 
 lib{brep}:                          \
 {hxx         cxx}{ package        } \
@@ -23,10 +22,11 @@ lib{brep}:                          \
 {hxx            }{ utility        } \
 {hxx            }{ version        } \
 {hxx            }{ wrapper-traits } \
-$libs                               \
+                   $int_libs        \
 sql{package package-extra}
 
 lib{brep}: cxx.export.poptions = -I$out_root -I$src_root
+lib{brep}: cxx.export.libs = $int_libs
 
 # Install into the brep/ subdirectory of, say, /usr/include/.
 #

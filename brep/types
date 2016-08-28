@@ -28,7 +28,7 @@
 
 namespace brep
 {
-    // Commonly-used types.
+  // Commonly-used types.
   //
   using std::uint8_t;
   using std::uint16_t;

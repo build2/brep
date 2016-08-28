@@ -2,9 +2,9 @@
 # copyright : Copyright (c) 2014-2016 Code Synthesis Ltd
 # license   : MIT; see accompanying LICENSE file
 
-import libs += libbutl%lib{butl}
+import libs  = libodb%lib{odb}
 import libs += libodb-pgsql%lib{odb-pgsql}
-import libs += libodb%lib{odb}
+import libs += libbutl%lib{butl}
 
 include ../brep/
 

@@ -17,10 +17,14 @@ else
 
 mod{*}: install = libexec/
 
+# While we don't need to link to APR, we need to find its header location.
+#
+import libs  = libapr1%lib{apr-1}
+import libs += libstudxml%lib{studxml}
 import libs += libodb%lib{odb}
 import libs += libodb-pgsql%lib{odb-pgsql}
+import libs += libbutl%lib{butl}
 import libs += libbpkg%lib{bpkg}
-import libs += libstudxml%lib{studxml}
 
 include ../brep/
 
@@ -34,7 +38,7 @@ mod{brep}:                                                     \
               {hxx         cxx}{ mod-repository-details      } \
               {hxx         cxx}{ mod-repository-root         } \
               {hxx         cxx}{ module                      } \
-	      {hxx ixx     cxx}{ options                     } \
+              {hxx ixx     cxx}{ options                     } \
               {hxx            }{ options-types               } \
               {hxx         cxx}{ page                        } \
               {            cxx}{ services                    } \
