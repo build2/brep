@@ -10,8 +10,9 @@ description: The exponent math function.
 url: http://www.exp.com
 email: users@exp.com
 depends: libmisc
+depends: libpq >= 9.0.0
 location: libexp-1~1.2+1.tar.gz
-sha256sum: 6c1869459964c8c780bd63d67e4c0727e583965e7280fd1f31be3f3639206191
+sha256sum: 49172533e10e1dd9b8f80bcd25d25397f143ba49a944cd8cb8fd273823b7c10e
 :
 name: libfoo
 version: 1.0
@@ -59,6 +60,41 @@ requires: ? ; libc++ standard library if using Clang on Mac OS X.
 requires: ? vc++ >= 12.0; Only if using VC++ on Windows.
 location: libfoo-1.2.4+1.tar.gz
 sha256sum: 6bf9de8c4647a32dee79ad5e787c10311495e3f6b5727bfd03b2d9dcd6a16eed
+:
+name: libpq
+version: 0
+summary: PostgreSQL C API client library
+license: PostgreSQL License; Permissive free software license.
+tags: postgresql, database, client, library, c, api, interface
+description: \
+PostgreSQL is an object-relational SQL database management system with libpq
+being its C client library. Applications can use this library to pass queries
+to the PostgreSQL backend server and to receive the results of those queries
+using the C programming language. For more information see:
+
+https://www.postgresql.org/
+
+This package currently contains a build2 package manager (bpkg) stub meaning
+that it can only be "built" as already installed in the underlying system (for
+example, using a system package manager).
+
+Send questions, bug reports, or any other feedback about the library itself to
+the PostgreSQL mailing lists. Send build system and packaging-related feedback
+to the packaging@build2.org mailing list (see https://lists.build2.org for
+posting guidelines, etc).
+
+The packaging of PostgreSQL for build2 is tracked in a Git repository at:
+
+https://git.build2.org/cgit/packaging/postgresql/
+
+\
+url: https://www.postgresql.org/
+package-url: https://git.build2.org/cgit/packaging/postgresql/
+email: pgsql-general@postgresql.org; Mailing list.
+package-email: packaging@build2.org; Mailing list.
+requires: build2 >= 0.4.0
+location: libpq-0.tar.gz
+sha256sum: 75958d000b641c588cdf48e3574584e070104097702dccffdad77947e37f9bd0
 :
 name: libstudxml
 version: 1.0.0+1

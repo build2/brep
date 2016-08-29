@@ -157,10 +157,13 @@ namespace brep
     bool
     empty () const noexcept
     {
-      bool e (canonical_upstream.empty ());
-      assert (!e ||
-              (epoch == 0 && canonical_release.empty () && revision == 0));
-      return e;
+      // Note that an empty canonical_upstream doesn't denote an empty
+      // canonical_version. Remeber, that canonical_upstream doesn't include
+      // rightmost digit-only zero components? So non-empty version("0") has
+      // an empty canonical_upstream.
+      //
+      return epoch == 0 && canonical_upstream.empty () &&
+        canonical_release.empty () && revision == 0;
     }
 
     // Change collation to ensure the proper comparison of the "absent" release
@@ -200,6 +203,12 @@ namespace brep
               cv.canonical_release == canonical_release);
     }
   };
+
+  // Wildcard version. Satisfies any dependency constraint and is represented
+  // as 0+0 (which is also the "stub version"; since a real version is always
+  // greater than the stub version, we reuse it to signify a special case).
+  //
+  extern const version wildcard_version;
 
   // priority
   //

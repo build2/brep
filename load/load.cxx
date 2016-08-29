@@ -695,23 +695,26 @@ resolve_dependencies (package& p, database& db)
       if (d.constraint)
       {
         auto c (*d.constraint);
+        query qs (compare_version_eq (vm, wildcard_version, false));
 
         if (c.min_version && c.max_version &&
             *c.min_version == *c.max_version)
         {
           const version& v (*c.min_version);
-          q = q && compare_version_eq (vm, v, v.revision != 0);
+          q = q && (compare_version_eq (vm, v, v.revision != 0) || qs);
         }
         else
         {
+          query qr (true);
+
           if (c.min_version)
           {
             const version& v (*c.min_version);
 
             if (c.min_open)
-              q = q && compare_version_gt (vm, v, v.revision != 0);
+              qr = compare_version_gt (vm, v, v.revision != 0);
             else
-              q = q && compare_version_ge (vm, v, v.revision != 0);
+              qr = compare_version_ge (vm, v, v.revision != 0);
           }
 
           if (c.max_version)
@@ -719,10 +722,12 @@ resolve_dependencies (package& p, database& db)
             const version& v (*c.max_version);
 
             if (c.max_open)
-              q = q && compare_version_lt (vm, v, v.revision != 0);
+              qr = qr && compare_version_lt (vm, v, v.revision != 0);
             else
-              q = q && compare_version_le (vm, v, v.revision != 0);
+              qr = qr && compare_version_le (vm, v, v.revision != 0);
           }
+
+          q = q && (qr || qs);
         }
       }
 

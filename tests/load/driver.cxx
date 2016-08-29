@@ -71,15 +71,15 @@ main (int argc, char* argv[])
   for (; i < argc - 1; ++i)
   {
     string n (argv[i]);
-    if (n == "--db-user")
+    if (n == "--db-user" || n == "-u")
       user = argv[++i];
     else if (n == "--db-password")
       password = argv[++i];
-    else if (n == "--db-name")
+    else if (n == "--db-name" || n == "-n")
       name = argv[++i];
-    else if (n == "--db-host")
+    else if (n == "--db-host" || n == "-h")
       host = argv[++i];
-    else if (n == "--db-port")
+    else if (n == "--db-port" || n == "-p")
       port = stoul (argv[++i]);
   }
 
@@ -128,7 +128,7 @@ main (int argc, char* argv[])
       transaction t (db.begin ());
 
       assert (db.query<repository> ().size () == 7);
-      assert (db.query<package> ().size () == 16);
+      assert (db.query<package> ().size () == 17);
 
       shared_ptr<repository> sr (
         db.load<repository> ("dev.cppget.org/stable"));
@@ -621,16 +621,31 @@ main (int argc, char* argv[])
       assert (epv->license_alternatives[0].size () == 1);
       assert (epv->license_alternatives[0][0] == "MIT");
 
-      assert (epv->dependencies.size () == 1);
+      assert (epv->dependencies.size () == 2);
       assert (epv->dependencies[0].size () == 1);
       assert (epv->dependencies[0][0] == dep ("libmisc", nullopt));
+
+      assert (epv->dependencies[1].size () == 1);
+      assert (epv->dependencies[1][0] ==
+              dep ("libpq",
+                   optional<dependency_constraint> (
+                     dependency_constraint (
+                       version ("9.0.0"), false, nullopt, true))));
 
       assert (epv->requirements.empty ());
 
       assert (check_location (epv));
-
       assert (epv->sha256sum && *epv->sha256sum ==
-        "6c1869459964c8c780bd63d67e4c0727e583965e7280fd1f31be3f3639206191");
+        "49172533e10e1dd9b8f80bcd25d25397f143ba49a944cd8cb8fd273823b7c10e");
+
+      // Verify libpq package version.
+      //
+      // libpq-0
+      //
+      shared_ptr<package> qpv (
+        db.load<package> (package_id ("libpq", version ("0"))));
+
+      assert (qpv->summary == "PostgreSQL C API client library");
 
       // Verify 'misc' repository.
       //
