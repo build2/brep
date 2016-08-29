@@ -144,14 +144,23 @@ namespace brep
       <<     SPAN(CLASS="value");
 
     if (package_ == nullptr)
+    {
       s << version_;
+
+      if (stub_)
+        s << " (stub)";
+    }
     else
     {
       assert (root_ != nullptr);
       s << A(HREF=*root_ / dir_path (mime_url_encode (*package_)) /
                   path (version_))
-        <<   version_
-        << ~A;
+        <<   version_;
+
+      if (stub_)
+        s << " (stub)";
+
+      s << ~A;
     }
 
     s <<     ~SPAN

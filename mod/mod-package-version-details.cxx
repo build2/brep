@@ -169,7 +169,7 @@ handle (request& rq, response& rs)
 
     // Repeat version here since it can be cut out in the header.
     //
-    <<     TR_VERSION (pkg->version.string ())
+    <<     TR_VERSION (pkg->version)
 
     <<     TR_PRIORITY (pkg->priority)
     <<     TR_LICENSES (pkg->license_alternatives)
