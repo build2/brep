@@ -2,19 +2,8 @@
 # copyright : Copyright (c) 2014-2016 Code Synthesis Ltd
 # license   : MIT; see accompanying LICENSE file
 
-# @@ BC with 0.3.0: renamed libso to libs.
-#
-if ($build.version != 30000) # No support for > in 0.3.0
-{
-  define mod: libs
-  mod{*}: bin.lib.prefix = mod_
-}
-else
-{
-  define mod: libso
-  mod{*}: bin.libprefix = mod_
-}
-
+define mod: libs
+mod{*}: bin.lib.prefix = mod_
 mod{*}: install = libexec/
 
 # While we don't need to link to APR, we need to find its header location.
@@ -56,12 +45,7 @@ mod{brep}:                                                     \
 # Don't install any of the module's headers.
 #
 {hxx ixx txx}{*}: install = false
-
-#../web/{hxx ixx txx}{*}: install = false # @@ BC
-../web/:
-{
-  {hxx ixx txx}{*}: install = false
-}
+../web/{hxx ixx txx}{*}: install = false
 
 # Set option prefix to the empty value to handle all unknown request parameters
 # uniformly with a single catch block.
