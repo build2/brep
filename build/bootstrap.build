@@ -3,12 +3,24 @@
 # license   : MIT; see accompanying LICENSE file
 
 project = brep
+
+using build@0.4.0-a1
+
 version = 0.4.0-a1
 
-using build@0.3.0
+abi_major = 0
+abi_minor = 4
+abi_patch = 0
+abi_prerelease = true
+
+revision = 0
+
+dist.package = $project-$version
+
+if ($revision != 0)
+  dist.package += +$revision
+
 using config
 using dist
 using test
 using install
-
-dist.package = $project-$version
