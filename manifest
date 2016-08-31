@@ -9,14 +9,14 @@ changes-file: NEWS
 url: https://build2.org
 email: users@build2.org
 requires: c++11
-requires: build2 >= 0.3.0
-requires: libstudxml >= 1.1.0-a3
-requires: libodb >= 2.5.0-a3
-requires: libodb-pgsql >= 2.5.0-a3
+requires: build2 >= 0.4.0
 requires: postgresql >= 9.0
 requires: apache2; Including development files (httpd.h header, etc).
-requires: libapr
 # @@ Should probably become conditional dependency.
 requires: ? cli ; Only required if changing .cli files.
+depends: libapr1
+depends: libstudxml >= 1.1.0-a4
+depends: libodb >= 2.5.0-a10
+depends: libodb-pgsql >= 2.5.0-a10
 depends: libbutl == 0.4.0-a1
 depends: libbpkg == 0.4.0-a1
