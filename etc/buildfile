@@ -5,5 +5,5 @@
 ./: file{brep-module.conf brep-apache2.conf} \
 systemd/file{brep-load.service brep-load.timer}
 
-install = data/etc/
-install.subdirs = true # Recreate subdirectories.
+*: install = data/etc/
+*: install.subdirs = true # Recreate subdirectories.
