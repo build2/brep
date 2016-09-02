@@ -1,7 +1,8 @@
 This guide shows how to install and configure brep on a "deployment" machine as
 opposed to a "development" one (see INSTALL-DEV for the latter). Here we assume
 you are using a systemd-based distribution. If not, then you will need to
-replace systemctl commands with the equivalend init.d ones.
+replace systemctl commands with the equivalent init.d ones.
+
 
 1. Create 'brep' User
 
@@ -16,14 +17,18 @@ without a password:
 # chmod 0440 /etc/sudoers.d/brep
 
 In the rest of this guide commands that start with the $ shell prompt are
-expected to be executed as the brep user and in its home directory. To change
-to the brep user from root, do:
+expected to be executed as the brep user and in its home directory (those
+that start with # as above are run as root). To change to the brep user
+from root, do:
 
 # su -l brep
+
 
 2. Install Prerequisites
 
 a) Install a C++ compiler using your distribution's package.
+
+   Also make sure the pkg-config (or one of its replacements) is installed.
 
 b) Install PostgreSQL 9.x and Apache2 using your distribution's packages.
 
@@ -48,53 +53,40 @@ c) Install PostgreSQL and Apache2 development files. Specifically, we need
    Fedora/RHEL:   posqtgresql-devel    apr-devel    httpd-devel
    FreeBSD:       postgresql94-client  apr          apache24
 
-d) Download (normally from the same place where you obtained brep, e.g.,
-   https://download.build2.org) and install build2-toolchain by following its
-   INSTALL file instructions. You can build build2-toolchain using brep's
+d) Unless you already have the build2 toolchain installed, download (normally
+   from https://download.build2.org) and install build2-toolchain by following
+   its INSTALL file instructions. You can build build2-toolchain using brep's
    login and in its home directory.
 
-e) Install libodb-pgsql and libstudxml
-
-   [Currently we use pre-release versions of these libraries so they have to
-   be built from source.]
-
-   Download source packages for the two libraries from the same location as
-   build2-toolchain. Then unpack, build, and install:
-
-   $ cd libXXX-X.Y.Z
-   $ ./configure CPPFLAGS=-I/usr/local/include LDFLAGS=-L/usr/local/lib \
-     --prefix=/usr/local
-   $ make
-   $ sudo make install
-
-   Again, you can use brep's login/home directory for this. See the INSTALL
-   file for each library for more information.
-
+   Note that brep loader (discussed below) runs bpkg so it makes sense to have
+   both from the same release.
 
 3. Build and Install brep
 
-$ mkdir brep install
+Normally the only extra information that you need to provide on this step is
+the location of the Apache2 headers (httpd.h, etc). Below are their locations
+for some distributions:
+
+Debian/Ubuntu: /usr/include/apache2
+Fedora/RHEL:   /usr/include/httpd
+FreeBSD:       /usr/local/include/apache24
+
+You can also use the Apache2 apxs utility to obtain this information as shown
+below.
+
+$ mkdir brep
 $ cd brep
 
-In the following command line, replace <apr> and <apache> with directories
-that contain the apr.h and httpd.h headers, respectively. Below are their
-locations for some distributions:
-
-Debian/Ubuntu: /usr/include/apr-1.0      /usr/include/apache2
-Fedora/RHEL:   /usr/include/apr-1        /usr/include/httpd
-FreeBSD:       /usr/local/include/apr-1  /usr/local/include/apache24
-
-$ bpkg create                                                   \
-  cxx                                                           \
-  config.cxx.poptions="-I/usr/local/include -I<apr> -I<apache>" \
-  config.cxx.loptions=-L/usr/local/lib                          \
-  config.bin.rpath="/home/brep/install/lib /usr/local/lib"      \
+bpkg create                                    \
+  cc                                           \
+  config.cc.poptions="-I$(apxs -q includedir)" \
+  config.bin.rpath=/home/brep/install/lib      \
   config.install.root=/home/brep/install
 
-$ bpkg add https://pkg.cppget.org/1/alpha
-$ bpkg fetch
-$ bpkg build brep
-$ bpkg install brep
+bpkg add https://pkg.cppget.org/1/alpha
+bpkg fetch
+bpkg build brep ?sys:libapr1 ?sys:libpq
+bpkg install brep
 
 $ cd .. # Back to brep home.
 
@@ -137,7 +129,7 @@ $ psql -c 'SELECT name, summary FROM repository'
 $ cp install/share/brep/etc/brep-module.conf config/
 $ edit config/brep-module.conf # Adjust default values if required.
 
-If you happy to run with the default values, you can instead do:
+If you are happy to run with the default values, you can instead do:
 
 $ ln -s ../install/share/brep/etc/brep-module.conf config/
 
@@ -186,7 +178,7 @@ can also find this fragment in install/share/brep/etc/brep-apache2.conf):
         Alias /pkg/@/ /home/brep/install/share/brep/www/
 
         <Directory "/home/brep/install/share/brep/www">
-            Require all granted
+          Require all granted
         </Directory>
 
         # You can also serve the repository files from the repository root.
@@ -197,7 +189,7 @@ can also find this fragment in install/share/brep/etc/brep-apache2.conf):
         #AliasMatch ^/pkg/(\d+)/(.+) /path/to/repo/$1/$2
         #
         #<Directory "/path/to/repo">
-        #    Require all granted
+        #  Require all granted
         #</Directory>
 
 The output content type of the brep module is application/xhtml+xml and if you
@@ -220,15 +212,15 @@ idea to make the Apache2 service depend on PostgreSQL so that they are started
 in proper order. Here is how we can do it with systemd (with newer versions
 you can use 'systemctl edit' instead of mkdir and cat):
 
-mkdir -p /etc/systemd/system/apache2.service.d/
-cat >/etc/systemd/system/apache2.service.d/postgresql.conf
+# mkdir -p /etc/systemd/system/apache2.service.d/
+# cat >/etc/systemd/system/apache2.service.d/postgresql.conf
 [Unit]
 Requires=postgresql.service
 After=postgresql.service
 ^D
-systemctl daemon-reload
-systemctl cat apache2      # Verify override is listed.
-systemctl restart apache2  # Verify the service still works.
+# systemctl daemon-reload
+# systemctl cat apache2      # Verify override is listed.
+# systemctl restart apache2  # Verify the service still works.
 
 
 7. Optimize CSS
@@ -244,7 +236,7 @@ $ for i in *.scss; do sassc -s compressed $i `basename -s .scss $i`.css; done
 
 Initially this guide suggested using systemd user session support to run the
 loader. However, the current state of user sessions has one major drawback:
-they are not strated/attached to when logging in with su -l (see Debian bug
+they are not started/attached-to when logging in with su -l (see Debian bug
 #813789 for details). This limitation makes them unusable in our setup. If you
 still would like to use systemd to run the loader, then you can set it up as a
 system-wide service which runs the loader as the brep user/group. Otherwise, a
@@ -257,7 +249,12 @@ The following crontab entry will execute the loader every five minutes:
 
 $ crontab -
 MAILTO=<brep-admin-email>
+PATH=/usr/local/bin:/bin:/usr/bin
 */5 * * * * $HOME/install/bin/brep-load $HOME/config/brep-load.conf
+^D
+
+Note that here we assume that bpkg (which is executed by brep-load) is in one
+of the PATH's directories (usually /usr/local/bin).
 
 
 8.b Setup Periodic Loader Execution with systemd
@@ -313,8 +310,9 @@ $ cp -r install install-`cat install/share/doc/brep/version`
 
 Build new version of brep:
 
-$ bpkg fetch -d brep
-$ bpkg build -d brep brep
+$ cd brep
+$ bpkg fetch
+$ bpkg build brep
 
 If you are using a systemd-based setup, then stop and disable the loader:
 
@@ -333,13 +331,14 @@ $ sudo systemctl stop apache2
 Install new brep:
 
 $ rm -rf install/*
-$ bpkg install -d brep brep
+$ bpkg install brep
+$ cd ..
 
 Review brep-module.conf changes that may need to be merged:
 
 $ diff -u install/share/brep/etc/brep-module.conf config/brep-module.conf
 
-Update database schema:
+Migrate database schema:
 
 $ install/bin/brep-migrate
 
@@ -354,10 +353,14 @@ $ systemctl --user enable --now brep-load.timer
 
 If using cron, then simply wait for the next run.
 
-Start apache:
+You can also do a manual load:
+
+$ install/bin/brep-load config/brep-load.conf
+
+Next, start apache:
 
 $ sudo systemctl start apache2
 
 To verify, visit the repository root. To troubleshoot, see Apache logs.
 
-You may also need to repeat the CSS optimization step above.
+You will also need to repeat the CSS optimization step above.

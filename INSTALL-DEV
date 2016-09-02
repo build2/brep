@@ -125,7 +125,7 @@ load/brep-load --bpkg ../bpkg/bpkg/bpkg tests/load/r.conf
 sudo /etc/init.d/apache2 restart
 sudo systemctl restart apache2
 
-Note that if instead need to recreate the whole database (e.g., migration is
-not possible), then one way to do it would be:
+Note that if instead you need to recreate the whole database (e.g., migration
+is not possible), then one way to do it would be:
 
 psql -d brep -c 'DROP OWNED BY <user>'
