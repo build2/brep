@@ -383,7 +383,7 @@ load_packages (const shared_ptr<repository>& rp, database& db)
 
         for (auto& pda: pm.dependencies)
         {
-          ds.emplace_back (pda.conditional, move (pda.comment));
+          ds.emplace_back (pda.conditional, pda.buildtime, move (pda.comment));
 
           for (auto& pd: pda)
             // Proper version will be assigned during dependency resolution

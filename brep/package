@@ -335,13 +335,12 @@ namespace brep
   {
   public:
     bool conditional;
+    bool buildtime;
     string comment;
 
     dependency_alternatives () = default;
-
-    explicit
-    dependency_alternatives (bool d, string c)
-        : conditional (d), comment (move (c)) {}
+    dependency_alternatives (bool d, bool b, string c)
+        : conditional (d), buildtime (b), comment (move (c)) {}
   };
 
   using dependencies = vector<dependency_alternatives>;

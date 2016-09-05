@@ -293,6 +293,9 @@ namespace brep
       if (d.conditional)
         s << "?";
 
+      if (d.buildtime)
+        s << "*";
+
       // Suppress package name duplicates.
       //
       set<string> names;
@@ -372,6 +375,9 @@ namespace brep
 
       if (r.conditional)
         s << "?";
+
+      if (r.buildtime)
+        s << "*";
 
       if (r.empty ())
       {

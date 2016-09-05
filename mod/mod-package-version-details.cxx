@@ -212,6 +212,12 @@ handle (request& rq, response& rs)
       if (da.conditional)
         s << "?";
 
+      if (da.buildtime)
+        s << "*";
+
+      if (da.conditional || da.buildtime)
+        s << " ";
+
       s <<   ~TH
         <<   TD
         <<     SPAN(CLASS="value");
@@ -282,6 +288,12 @@ handle (request& rq, response& rs)
 
       if (ra.conditional)
         s << "?";
+
+      if (ra.buildtime)
+        s << "*";
+
+      if (ra.conditional || ra.buildtime)
+        s << " ";
 
       s <<   ~TH
         <<   TD
