@@ -215,9 +215,6 @@ handle (request& rq, response& rs)
       if (da.buildtime)
         s << "*";
 
-      if (da.conditional || da.buildtime)
-        s << " ";
-
       s <<   ~TH
         <<   TD
         <<     SPAN(CLASS="value");
