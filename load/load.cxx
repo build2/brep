@@ -383,6 +383,17 @@ load_packages (const shared_ptr<repository>& rp, database& db)
 
         for (auto& pda: pm.dependencies)
         {
+          // Ignore special build2 and bpkg dependencies. We may not have
+          // packages for them and also showing them for every package is
+          // probably not very helpful.
+          //
+          if (pda.buildtime && !pda.empty ())
+          {
+            const string& n (pda.front ().name);
+            if (n == "build2" || n == "bpkg")
+              continue;
+          }
+
           ds.emplace_back (pda.conditional, pda.buildtime, move (pda.comment));
 
           for (auto& pd: pda)
