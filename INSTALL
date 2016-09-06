@@ -342,6 +342,11 @@ Migrate database schema:
 
 $ install/bin/brep-migrate
 
+Note that if instead you need to recreate the whole database (e.g., migration
+is not possible), then one way to do it would be:
+
+$ psql -c 'DROP OWNED BY brep'
+
 If using systemd, then start and enable the loader:
 
 $ systemctl --user start brep-load.service

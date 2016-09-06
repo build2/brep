@@ -128,4 +128,4 @@ sudo systemctl restart apache2
 Note that if instead you need to recreate the whole database (e.g., migration
 is not possible), then one way to do it would be:
 
-psql -d brep -c 'DROP OWNED BY <user>'
+$ psql -d brep -c 'DROP OWNED BY <user>'
