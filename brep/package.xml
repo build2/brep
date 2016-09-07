@@ -216,6 +216,7 @@
       <column name="version_revision" type="INTEGER" null="false"/>
       <column name="index" type="BIGINT" null="false"/>
       <column name="conditional" type="BOOLEAN" null="false"/>
+      <column name="buildtime" type="BOOLEAN" null="false"/>
       <column name="comment" type="TEXT" null="false"/>
       <foreign-key name="object_id_fk" on-delete="CASCADE">
         <column name="name"/>
