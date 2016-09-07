@@ -1,3 +1,16 @@
+Version 0.4.0
+
+  * Support for signed repositories.
+
+    The repository certificate information (subject, fingerprint) and the
+    certificate itself are now displayed on the repository about page.
+
+  * Support for displaying stub packages, build-time dependencies.
+
+  * All the brep prerequisites except the Apache2 headers are now available as
+    build2 packages. This significantly simplifies building. See the INSTALL
+    file for details.
+
 Version 0.3.1
 
   * Show actual repository location in addition to repository name on the
