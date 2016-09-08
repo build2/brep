@@ -6,12 +6,12 @@ project = brep
 
 using build@0.4.0
 
-version = 0.4.0
+version = 0.5.0-a1
 
 abi_major = 0
-abi_minor = 4
+abi_minor = 5
 abi_patch = 0
-abi_prerelease = false
+abi_prerelease = true
 
 revision = 0
 
