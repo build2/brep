@@ -230,7 +230,7 @@ load_repositories (path p)
         bad_line ("junk after filesystem path");
     }
   }
-  catch (const ifdstream::failure& e)
+  catch (const io_error& e)
   {
     cerr << "error: unable to read " << p << ": " << e.what () << endl;
     throw failed ();
@@ -334,7 +334,7 @@ load_packages (const shared_ptr<repository>& rp, database& db)
     manifest_parser mp (ifs, p.string ());
     pkm = package_manifests (mp);
   }
-  catch (const ifdstream::failure& e)
+  catch (const io_error& e)
   {
     cerr << "error: unable to read " << p << ": " << e.what () << endl;
     throw failed ();
@@ -490,7 +490,7 @@ load_repositories (const shared_ptr<repository>& rp, database& db)
     manifest_parser mp (ifs, p.string ());
     rpm = repository_manifests (mp);
   }
-  catch (const ifdstream::failure& e)
+  catch (const io_error& e)
   {
     cerr << "error: unable to read " << p << ": " << e.what () << endl;
     throw failed ();
@@ -908,7 +908,7 @@ certificate_info (const options& lo,
       //
       is.exceptions (ifdstream::failbit | ifdstream::badbit);
       if (is.peek () != ifdstream::traits_type::eof ())
-        throw ifdstream::failure ("");
+        throw io_error ("");
 
       is.close ();
 
@@ -918,7 +918,7 @@ certificate_info (const options& lo,
       // Fall through.
       //
     }
-    catch (const ifdstream::failure&)
+    catch (const io_error&)
     {
       // Child exit status doesn't matter. Just wait for the process
       // completion and fall through.
