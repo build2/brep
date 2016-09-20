@@ -86,6 +86,7 @@ handle (request& rq, response& rs)
 
   const size_t res_page (options_->search_results ());
   const dir_path& root (options_->root ());
+  const string& title (options_->search_title ());
 
   params::package_search params;
 
@@ -106,8 +107,6 @@ handle (request& rq, response& rs)
                        ? ""
                        : "?q=" + web::mime_url_encode (squery));
 
-
-  static const string title ("Packages");
   xml::serializer s (rs.content (), title);
 
   s << HTML

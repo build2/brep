@@ -143,6 +143,12 @@ namespace brep
     //
     class package_search: search, db, page, module
     {
+      string search-title = "Packages"
+      {
+        "<text>",
+        "Package search page title. It is placed inside XHTML5 <title>
+         element."
+      }
     };
 
     class package_details: package, search, db, page, module
