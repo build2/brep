@@ -19,8 +19,9 @@
 #include <butl/process>
 #include <butl/fdstream>
 #include <butl/filesystem>
+#include <butl/manifest-parser>
 
-#include <bpkg/manifest-parser> // manifest_parsing
+#include <bpkg/manifest>
 
 #include <brep/types>
 #include <brep/utility>
