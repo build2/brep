@@ -61,7 +61,9 @@ done
 
 # Manual.
 #
-cli -I .. -v version="$version" -v date="$date" \
+cli -I .. \
+-v version="$(echo "$version" | sed -e 's/^\([^.]*\.[^.]*\).*/\1/')" \
+-v date="$date" \
 --generate-html --html-suffix .xhtml \
 --html-prologue-file doc-prologue.xhtml \
 --html-epilogue-file doc-epilogue.xhtml \
