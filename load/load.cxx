@@ -880,7 +880,8 @@ certificate_info (const options& lo,
     try
     {
       ifdstream is (
-        pr.in_ofd, ifdstream::failbit | ifdstream::badbit | ifdstream::eofbit);
+        move (pr.in_ofd),
+        ifdstream::failbit | ifdstream::badbit | ifdstream::eofbit);
 
       optional<certificate> cert;
 
