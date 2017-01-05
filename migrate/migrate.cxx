@@ -1,5 +1,5 @@
 // file      : migrate/migrate.cxx -*- C++ -*-
-// copyright : Copyright (c) 2014-2016 Code Synthesis Ltd
+// copyright : Copyright (c) 2014-2017 Code Synthesis Ltd
 // license   : MIT; see accompanying LICENSE file
 
 #include <strings.h> // strcasecmp()
@@ -207,7 +207,7 @@ try
          << "libbrep " << LIBBREP_VERSION_STR << endl
          << "libbpkg " << LIBBPKG_VERSION_STR << endl
          << "libbutl " << LIBBUTL_VERSION_STR << endl
-         << "Copyright (c) 2014-2016 Code Synthesis Ltd" << endl
+         << "Copyright (c) 2014-2017 Code Synthesis Ltd" << endl
          << "MIT; see accompanying LICENSE file" << endl;
 
     return 0;
