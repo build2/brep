@@ -11,7 +11,7 @@
 #include <cassert>  // assert()
 #include <iterator> // make_move_iterator()
 
-#include <butl/utility> // reverse_iterate()
+#include <butl/utility> // reverse_iterate(), operator<<(ostream, exception)
 
 namespace brep
 {

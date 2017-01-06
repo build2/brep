@@ -848,7 +848,7 @@ main (int argc, char* argv[])
   //
   catch (const std::exception& e)
   {
-    cerr << e.what () << endl;
+    cerr << e << endl;
     return 1;
   }
 }

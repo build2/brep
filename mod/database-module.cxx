@@ -41,7 +41,7 @@ namespace brep
     if (retry_-- > 0)
     {
       MODULE_DIAG;
-      l1 ([&]{trace << e.what () << "; " << retry_ + 1 << " retries left";});
+      l1 ([&]{trace << e << "; " << retry_ + 1 << " retries left";});
       throw retry ();
     }
 

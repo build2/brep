@@ -171,7 +171,7 @@ namespace web
           {
             rq.content (
               HTTP_INTERNAL_SERVER_ERROR, "text/plain;charset=utf-8")
-              << e.what ();
+              << e;
 
             return rq.flush ();
           }

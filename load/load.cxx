@@ -233,7 +233,7 @@ load_repositories (path p)
   }
   catch (const io_error& e)
   {
-    cerr << "error: unable to read " << p << ": " << e.what () << endl;
+    cerr << "error: unable to read " << p << ": " << e << endl;
     throw failed ();
   }
 
@@ -298,8 +298,7 @@ repository_info (const options& lo, const string& rl, const cstrings& options)
   }
   catch (const process_error& e)
   {
-    cerr << "error: unable to execute " << args[0] << ": " << e.what ()
-         << endl;
+    cerr << "error: unable to execute " << args[0] << ": " << e << endl;
 
     if (e.child ())
       exit (1);
@@ -337,7 +336,7 @@ load_packages (const shared_ptr<repository>& rp, database& db)
   }
   catch (const io_error& e)
   {
-    cerr << "error: unable to read " << p << ": " << e.what () << endl;
+    cerr << "error: unable to read " << p << ": " << e << endl;
     throw failed ();
   }
 
@@ -493,7 +492,7 @@ load_repositories (const shared_ptr<repository>& rp, database& db)
   }
   catch (const io_error& e)
   {
-    cerr << "error: unable to read " << p << ": " << e.what () << endl;
+    cerr << "error: unable to read " << p << ": " << e << endl;
     throw failed ();
   }
 
@@ -938,7 +937,7 @@ certificate_info (const options& lo,
   catch (const process_error& e)
   {
     cerr << "error: unable to fetch certificate information for "
-         << rl.canonical_name () << ": " << e.what () << endl;
+         << rl.canonical_name () << ": " << e << endl;
 
     // Fall through.
   }
@@ -1094,7 +1093,7 @@ catch (const database_locked&)
 }
 catch (const recoverable& e)
 {
-  cerr << "database recoverable error: " << e.what () << endl;
+  cerr << "database recoverable error: " << e << endl;
   return 3;
 }
 catch (const cli::exception& e)
@@ -1110,6 +1109,6 @@ catch (const failed&)
 //
 catch (const std::exception& e)
 {
-  cerr << "error: " << e.what () << endl;
+  cerr << "error: " << e << endl;
   return 1;
 }

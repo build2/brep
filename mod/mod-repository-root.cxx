@@ -177,7 +177,9 @@ namespace brep
           // Note that the server_error exception is handled internally by the
           // module::handle() function call.
           //
-          throw runtime_error (string (name) + ": " + e.what ());
+          ostringstream os;
+          os << name << ": " << e;
+          throw runtime_error (os.str ());
         }
       };
 

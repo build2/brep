@@ -335,7 +335,7 @@ catch (const database_locked&)
 }
 catch (const recoverable& e)
 {
-  cerr << "database recoverable error: " << e.what () << endl;
+  cerr << "database recoverable error: " << e << endl;
   return 3;
 }
 catch (const cli::exception& e)
@@ -351,6 +351,6 @@ catch (const failed&)
 //
 catch (const std::exception& e)
 {
-  cerr << "error: " << e.what () << endl;
+  cerr << "error: " << e << endl;
   return 1;
 }
