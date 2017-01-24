@@ -27,3 +27,7 @@ if! $cli.configured
 # All exe{} in tests/ are, well, tests.
 #
 tests/exe{*}: test = true
+
+# Specify the test target for cross-testing.
+#
+test.target = $cxx.target
