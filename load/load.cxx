@@ -2,6 +2,9 @@
 // copyright : Copyright (c) 2014-2017 Code Synthesis Ltd
 // license   : MIT; see accompanying LICENSE file
 
+#include <signal.h> // signal()
+
+#include <cerrno>
 #include <cstring>   // strncmp()
 #include <iostream>
 #include <algorithm> // find(), find_if()
@@ -90,7 +93,7 @@ load_repositories (path p)
 
       // Skip until first non-space (true) or space (false).
       //
-      auto skip = [&i, &e](bool s = true) -> decltype (i)
+      auto skip = [&i, &e] (bool s = true) -> decltype (i)
       {
         for (; i != e && space (*i) == s; ++i) ;
         return i;
@@ -107,7 +110,7 @@ load_repositories (path p)
       auto pb (i);  // Location begin.
       skip (false); // Find end of location.
 
-      auto bad_line = [&p, l, &pb, &b](const string& d)
+      auto bad_line = [&p, l, &pb, &b] (const string& d)
       {
         cerr << p << ':' << l << ':' << pb - b + 1 << ": error: " << d
              << endl;
@@ -163,7 +166,7 @@ load_repositories (path p)
           // its absolute path. Such path is considered to be relative to the
           // configuration file directory path so result is independent from
           // whichever directory is current for the loader process. Note that
-          // the resulted absolute path should be a valid repository location.
+          // the resulting absolute path should be a valid repository location.
           //
           dir_path cache_path = dir_path (string (nv, vp));
           if (cache_path.relative ())
@@ -563,16 +566,15 @@ load_repositories (const shared_ptr<repository>& rp, database& db)
 
     repository_location rl;
 
-    auto bad_location (
-      [&rp, &rm]()
-      {
-        cerr << "error: invalid prerequisite repository location "
-             << rm.location << endl
-             << "  info: base (internal) repository location is "
-             << rp->location << endl;
+    auto bad_location = [&rp, &rm] ()
+    {
+      cerr << "error: invalid prerequisite repository location "
+           << rm.location << endl
+           << "  info: base (internal) repository location is "
+           << rp->location << endl;
 
-        throw failed ();
-      });
+      throw failed ();
+    };
 
     try
     {
@@ -788,26 +790,25 @@ detect_dependency_cycle (
   // Package of one version depending on the same package of another version
   // is something obscure. So the comparison is made up to a package name.
   //
-  auto pr ([&id](const package_id& i) -> bool {return i.name == id.name;});
+  auto pr = [&id] (const package_id& i) -> bool {return i.name == id.name;};
   auto i (find_if (chain.begin (), chain.end (), pr));
 
   if (i != chain.end ())
   {
     cerr << "error: package dependency cycle: ";
 
-    auto prn (
-      [&db](const package_id& id)
-      {
-        shared_ptr<package> p (db.load<package> (id));
-        assert (p->internal () || !p->other_repositories.empty ());
+    auto prn = [&db] (const package_id& id)
+    {
+      shared_ptr<package> p (db.load<package> (id));
+      assert (p->internal () || !p->other_repositories.empty ());
 
-        shared_ptr<repository> r (
-          p->internal ()
-          ? p->internal_repository.load ()
-          : p->other_repositories[0].load ());
+      shared_ptr<repository> r (
+        p->internal ()
+        ? p->internal_repository.load ()
+        : p->other_repositories[0].load ());
 
-        cerr << id.name << " " << p->version << " (" << r->name << ")";
-      });
+      cerr << id.name << " " << p->version << " (" << r->name << ")";
+    };
 
     for (; i != chain.end (); ++i)
     {
@@ -949,6 +950,18 @@ int
 main (int argc, char* argv[])
 try
 {
+  // On POSIX ignore SIGPIPE which is signaled to a pipe-writing process if
+  // the pipe reading end is closed. Note that by default this signal
+  // terminates a process. Also note that there is no way to disable this
+  // behavior on a file descriptor basis or for the write() function call.
+  //
+  if (signal (SIGPIPE, SIG_IGN) == SIG_ERR)
+  {
+    cerr << "error: unable to ignore broken pipe (SIGPIPE) signal: "
+         << system_error (errno, system_category ()) << endl; // Sanitize.
+    return 1;
+  }
+
   cli::argv_scanner scan (argc, argv, true);
   options ops (scan);
 
