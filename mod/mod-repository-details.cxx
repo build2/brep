@@ -74,7 +74,7 @@ handle (request& rq, response& rs)
     name_value_scanner s (rq.parameters ());
     params::repository_details (s, unknown_mode::fail, unknown_mode::fail);
   }
-  catch (const unknown_argument& e)
+  catch (const cli::exception& e)
   {
     throw invalid_request (400, e.what ());
   }

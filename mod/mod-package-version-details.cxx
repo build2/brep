@@ -89,20 +89,19 @@ handle (request& rq, response& rs)
 
     full = params.form () == page_form::full;
   }
-  catch (const unknown_argument& e)
+  catch (const cli::exception& e)
   {
     throw invalid_request (400, e.what ());
   }
 
-  auto url (
-    [&sver](bool f = false, const string& a = "") -> string
-    {
-      string u (sver);
+  auto url = [&sver] (bool f = false, const string& a = "") -> string
+  {
+    string u (sver);
 
-      if (f)           { u += "?f=full"; }
-      if (!a.empty ()) { u += '#' + a; }
-      return u;
-    });
+    if (f)           { u += "?f=full"; }
+    if (!a.empty ()) { u += '#' + a; }
+    return u;
+  };
 
   const string title (name + " " + sver);
   xml::serializer s (rs.content (), title);

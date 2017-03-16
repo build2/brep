@@ -97,21 +97,20 @@ handle (request& rq, response& rs)
   size_t page (params.page ());
   const string& squery (params.query ());
 
-  auto url (
-    [&ename](bool f = false,
-             const string& q = "",
-             size_t p = 0,
-             const string& a = "") -> string
-    {
-      string s ("?");
-      string u (ename);
+  auto url = [&ename] (bool f = false,
+                       const string& q = "",
+                       size_t p = 0,
+                       const string& a = "") -> string
+  {
+    string s ("?");
+    string u (ename);
 
-      if (f)           { u += "?f=full"; s = "&"; }
-      if (!q.empty ()) { u += s + "q=" +  mime_url_encode (q); s = "&"; }
-      if (p > 0)       { u += s + "p=" + to_string (p); s = "&"; }
-      if (!a.empty ()) { u += '#' + a; }
-      return u;
-    });
+    if (f)           { u += "?f=full"; s = "&"; }
+    if (!q.empty ()) { u += s + "q=" +  mime_url_encode (q); s = "&"; }
+    if (p > 0)       { u += s + "p=" + to_string (p); s = "&"; }
+    if (!a.empty ()) { u += '#' + a; }
+    return u;
+  };
 
   xml::serializer s (rs.content (), name);
 

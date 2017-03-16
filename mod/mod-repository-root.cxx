@@ -154,34 +154,35 @@ namespace brep
     // Delegate the request handling to the sub-module. Intercept exception
     // handling to add sub-module attribution.
     //
-    auto handle = [&rs, this](module& m, request& rq, const char* name) -> bool
+    auto handle =
+      [&rs, this] (module& m, request& rq, const char* name) -> bool
+    {
+      try
       {
-        try
-        {
-          return m.handle (rq, rs, *log_);
-        }
-        catch (const invalid_request&)
-        {
-          // Preserve invalid_request exception type, so the web server can
-          // properly respond to the client with a 4XX error code.
-          //
-          throw;
-        }
-        catch (const std::exception& e)
-        {
-          // All exception types inherited from std::exception (and different
-          // from invalid_request) are handled by the web server as
-          // std::exception. The only sensible way to handle them is to respond
-          // to the client with the internal server error (500) code. By that
-          // reason it is valid to reduce all these types to a single one.
-          // Note that the server_error exception is handled internally by the
-          // module::handle() function call.
-          //
-          ostringstream os;
-          os << name << ": " << e;
-          throw runtime_error (os.str ());
-        }
-      };
+        return m.handle (rq, rs, *log_);
+      }
+      catch (const invalid_request&)
+      {
+        // Preserve invalid_request exception type, so the web server can
+        // properly respond to the client with a 4XX error code.
+        //
+        throw;
+      }
+      catch (const std::exception& e)
+      {
+        // All exception types inherited from std::exception (and different
+        // from invalid_request) are handled by the web server as
+        // std::exception. The only sensible way to handle them is to respond
+        // to the client with the internal server error (500) code. By that
+        // reason it is valid to reduce all these types to a single one. Note
+        // that the server_error exception is handled internally by the
+        // module::handle() function call.
+        //
+        ostringstream os;
+        os << name << ": " << e;
+        throw runtime_error (os.str ());
+      }
+    };
 
     if (lpath.empty ())
     {

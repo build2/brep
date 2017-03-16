@@ -96,7 +96,7 @@ handle (request& rq, response& rs)
     params = params::package_search (
       s, unknown_mode::fail, unknown_mode::fail);
   }
-  catch (const unknown_argument& e)
+  catch (const cli::exception& e)
   {
     throw invalid_request (400, e.what ());
   }
@@ -146,12 +146,12 @@ handle (request& rq, response& rs)
   // Enclose the subsequent tables to be able to use nth-child CSS selector.
   //
   s << DIV;
-    for (const auto& pr:
-           db_->query<latest_package_search_rank> (
-             search_param<latest_package_search_rank> (squery) +
-             "ORDER BY rank DESC, name" +
-             "OFFSET" + to_string (page * res_page) +
-             "LIMIT" + to_string (res_page)))
+  for (const auto& pr:
+         db_->query<latest_package_search_rank> (
+           search_param<latest_package_search_rank> (squery) +
+           "ORDER BY rank DESC, name" +
+           "OFFSET" + to_string (page * res_page) +
+           "LIMIT" + to_string (res_page)))
   {
     shared_ptr<package> p (db_->load<package> (pr.id));
 
