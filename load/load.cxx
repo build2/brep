@@ -958,7 +958,7 @@ try
   if (signal (SIGPIPE, SIG_IGN) == SIG_ERR)
   {
     cerr << "error: unable to ignore broken pipe (SIGPIPE) signal: "
-         << system_error (errno, system_category ()) << endl; // Sanitize.
+         << system_error (errno, generic_category ()) << endl; // Sanitize.
     return 1;
   }
 
