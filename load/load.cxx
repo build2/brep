@@ -22,6 +22,7 @@
 #include <butl/process>
 #include <butl/fdstream>
 #include <butl/filesystem>
+#include <butl/tab-parser>
 #include <butl/manifest-parser>
 
 #include <bpkg/manifest>
@@ -72,6 +73,12 @@ struct internal_repository
 
 using internal_repositories = vector<internal_repository>;
 
+  // Parse loadtab file.
+  //
+  // loadtab consists of lines in the following format:
+  //
+  // <remote-repository-location> <display-name> cache:<local-repository-location> [fingerprint:<fingerprint>]
+  //
 static internal_repositories
 load_repositories (path p)
 {
@@ -82,124 +89,121 @@ load_repositories (path p)
 
   try
   {
-    ifdstream ifs (p, ifdstream::in, ifdstream::badbit);
+    ifdstream ifs (p);
+    tab_parser parser (ifs, p.string ());
 
-    string s;
-    for (uint64_t l (1); getline (ifs, s); ++l)
+    tab_fields tl;
+    while (!(tl = parser.next ()).empty ())
     {
-      auto b (s.cbegin ());
-      auto i (b);
-      auto e (s.cend ());
+      size_t n (tl.size ()); // Fields count.
+      size_t i (0);          // The field currently being processed.
 
-      // Skip until first non-space (true) or space (false).
+      // Report an error for the field currently being processed. If i == n
+      // then we refer to the end-of-line column (presumably reporting a missed
+      // field).
       //
-      auto skip = [&i, &e] (bool s = true) -> decltype (i)
+      auto bad_line = [&p, &tl, &i, n] (const string& d, size_t offset = 0)
       {
-        for (; i != e && space (*i) == s; ++i) ;
-        return i;
-      };
+        // Offset beyond the end-of-line is meaningless.
+        //
+        assert (i < n || (i == n && offset == 0));
 
-      skip (); // Skip leading spaces.
-
-      if (i == e || *i == '#') // Empty line or comment.
-        continue;
-
-      // From now on pb will track the begining of the next part
-      // while i -- the end.
-      //
-      auto pb (i);  // Location begin.
-      skip (false); // Find end of location.
-
-      auto bad_line = [&p, l, &pb, &b] (const string& d)
-      {
-        cerr << p << ':' << l << ':' << pb - b + 1 << ": error: " << d
-             << endl;
+        cerr << p << ':' << tl.line << ':'
+             << (i == n
+                 ? tl.end_column
+                 : tl[i].column + offset)
+             << ": error: " << d << endl;
 
         throw failed ();
       };
 
-      repository_location location;
+      internal_repository r;
 
       try
       {
-        location = repository_location (string (pb, i));
+        r.location = repository_location (tl[i].value);
       }
       catch (const invalid_argument& e)
       {
         bad_line (e.what ());
       }
 
-      if (location.local ())
+      if (r.location.local ())
         bad_line ("local repository location");
 
-      for (const auto& r: repos)
-        if (r.location.canonical_name () == location.canonical_name ())
+      for (const auto& rp: repos)
+        if (rp.location.canonical_name () == r.location.canonical_name ())
           bad_line ("duplicate canonical name");
 
-      pb = skip (); // Find begin of display name.
-
-      if (pb == e)
+      // Display name field is a required one.
+      //
+      if (++i == n)
         bad_line ("no display name found");
 
-      skip (false); // Find end of display name.
-
-      string name (pb, i);
-      repository_location cache_location;
-      optional<string> fingerprint;
+      r.display_name = move (tl[i++].value);
 
       // Parse options, that have <name>:<value> form. Currently defined
       // options are cache (mandatory for now) and fingerprint.
       //
-      while ((pb = skip ()) != e)
+      for (; i < n; ++i)
       {
-        skip (false); // Find end of the option (no spaces allowed).
-
-        string nv (pb, i);
+        string nv (tl[i].value);
         size_t vp;
 
         if (strncmp (nv.c_str (), "cache:", vp = 6) == 0)
         {
-          if (!cache_location.empty ())
+          if (!r.cache_location.empty ())
             bad_line ("cache option redefinition");
-
-          // If the internal repository cache path is relative, then calculate
-          // its absolute path. Such path is considered to be relative to the
-          // configuration file directory path so result is independent from
-          // whichever directory is current for the loader process. Note that
-          // the resulting absolute path should be a valid repository location.
-          //
-          dir_path cache_path = dir_path (string (nv, vp));
-          if (cache_path.relative ())
-            cache_path = p.directory () / cache_path;
 
           try
           {
-            cache_location = repository_location (cache_path.string ());
+            // If the internal repository cache path is relative, then
+            // calculate its absolute path. Such path is considered to be
+            // relative to the configuration file directory path so result is
+            // independent from whichever directory is current for the loader
+            // process. Note that the resulting absolute path should be a valid
+            // repository location.
+            //
+            dir_path cache_path = dir_path (string (nv, vp));
+            if (cache_path.relative ())
+              cache_path = p.directory () / cache_path;
+
+            r.cache_location = repository_location (cache_path.string ());
 
             // Created from the absolute path repository location can not be
             // other than absolute.
             //
-            assert (cache_location.absolute ());
+            assert (r.cache_location.absolute ());
           }
-          catch (const invalid_argument&)
+          catch (const invalid_path& e)     // Thrown by dir_path().
           {
-            bad_line ("invalid cache path");
+            bad_line (string ("invalid cache path: ") + e.what ());
           }
+          catch (const invalid_argument& e) // Thrown by repository_location().
+          {
+            bad_line (string ("invalid cache path: ") + e.what ());
+          }
+
+          if (!file_exists (r.packages_path ()))
+            bad_line ("'packages' file does not exist");
+
+          if (!file_exists (r.repositories_path ()))
+            bad_line ("'repositories' file does not exist");
         }
         else if (strncmp (nv.c_str (), "fingerprint:", vp = 12) == 0)
         {
-          if (fingerprint)
+          if (r.fingerprint)
             bad_line ("fingerprint option redefinition");
 
-          fingerprint = string (nv, vp);
+          r.fingerprint = string (nv, vp);
 
           // Sanity check.
           //
-          if (!fingerprint->empty ())
+          if (!r.fingerprint->empty ())
           {
             try
             {
-              fingerprint_to_sha256 (*fingerprint);
+              fingerprint_to_sha256 (*r.fingerprint);
             }
             catch (const invalid_argument&)
             {
@@ -211,28 +215,18 @@ load_repositories (path p)
           bad_line ("invalid option '" + nv + "'");
       }
 
-      if (cache_location.empty ()) // For now cache option is mandatory.
+      // For now cache option is mandatory.
+      //
+      if (r.cache_location.empty ())
         bad_line ("no cache option found");
 
-      internal_repository r {
-        move (location),
-        move (name),
-        move (cache_location),
-        move (fingerprint)};
-
-      if (!file_exists (r.packages_path ()))
-        bad_line ("'packages' file does not exist");
-
-      if (!file_exists (r.repositories_path ()))
-        bad_line ("'repositories' file does not exist");
-
       repos.emplace_back (move (r));
-
-      // Check that there is no non-whitespace junk at the end.
-      //
-      if (skip () != e)
-        bad_line ("junk after filesystem path");
     }
+  }
+  catch (const tab_parsing& e)
+  {
+    cerr << e << endl;
+    throw failed ();
   }
   catch (const io_error& e)
   {

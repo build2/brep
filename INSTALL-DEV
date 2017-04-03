@@ -52,7 +52,7 @@ $ migrate/brep-migrate
 
 # Or use some other loader config.
 #
-$ load/brep-load --bpkg ../bpkg/bpkg/bpkg tests/load/r.conf
+$ load/brep-load --bpkg ../bpkg/bpkg/bpkg tests/load/loadtab
 
 To verify:
 
@@ -121,7 +121,7 @@ To do a "complete reload" (i.e., recreate database schema, load the repository
 data, and reload the Apache2 plugin), execute the following from brep/:
 
 migrate/brep-migrate --recreate
-load/brep-load --bpkg ../bpkg/bpkg/bpkg tests/load/r.conf
+load/brep-load --bpkg ../bpkg/bpkg/bpkg tests/load/loadtab
 sudo /etc/init.d/apache2 restart
 sudo systemctl restart apache2
 

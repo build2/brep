@@ -52,7 +52,7 @@ main (int argc, char* argv[])
   auto print_usage = [argv]()
   {
     cerr << "usage: " << argv[0]
-         << " <loader_path> [loader_options] <loader_conf_file>" << endl;
+         << " <loader_path> [loader_options] <loadtab_file>" << endl;
   };
 
   if (argc < 3)

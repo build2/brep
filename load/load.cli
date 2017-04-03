@@ -13,18 +13,18 @@ include <brep/types>;
 "\summary=load build2 repositories into database"
 
 {
-  "<options> <file>",
+  "<options> <loadtab-file>",
 
   "\h|SYNOPSIS|
 
    \cb{brep-load --help}\n
    \cb{brep-load --version}\n
-   \c{\b{brep-load} [<options>] <file>}
+   \c{\b{brep-load} [<options>] <loadtab-file>}
 
    \h|DESCRIPTION|
 
    \cb{brep-load} reads the list of repositories from the specified
-   configuration <file>, fetches their manifest files, and loads the
+   configuration <loadtab-file>, fetches their manifest files, and loads the
    repository and package information into the database, suitable for
    consumption by the \cb{brep} web module.
 

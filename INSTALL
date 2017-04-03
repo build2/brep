@@ -114,10 +114,10 @@ To troubleshoot, see PostgreSQL logs.
 5. Create Database Schema and Load Repositories
 
 $ mkdir config
-$ edit config/brep-load.conf # Loader configuration, see brep-load(1).
+$ edit config/loadtab # Loader configuration, see brep-load(1).
 
 $ install/bin/brep-migrate
-$ install/bin/brep-load config/brep-load.conf
+$ install/bin/brep-load config/loadtab
 
 To verify:
 
@@ -250,7 +250,7 @@ The following crontab entry will execute the loader every five minutes:
 $ crontab -
 MAILTO=<brep-admin-email>
 PATH=/usr/local/bin:/bin:/usr/bin
-*/5 * * * * $HOME/install/bin/brep-load $HOME/config/brep-load.conf
+*/5 * * * * $HOME/install/bin/brep-load $HOME/config/loadtab
 ^D
 
 Note that here we assume that bpkg (which is executed by brep-load) is in one
@@ -360,7 +360,7 @@ If using cron, then simply wait for the next run.
 
 You can also do a manual load:
 
-$ install/bin/brep-load config/brep-load.conf
+$ install/bin/brep-load config/loadtab
 
 Next, start apache:
 
