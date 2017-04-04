@@ -17,6 +17,9 @@ namespace brep
   class package_details;
   class package_version_details;
   class repository_details;
+  class build_task;
+  class build_result;
+  class build_log;
 
   class repository_root: public module
   {
@@ -55,6 +58,9 @@ namespace brep
     shared_ptr<package_details> package_details_;
     shared_ptr<package_version_details> package_version_details_;
     shared_ptr<repository_details> repository_details_;
+    shared_ptr<build_task> build_task_;
+    shared_ptr<build_result> build_result_;
+    shared_ptr<build_log> build_log_;
     shared_ptr<options::repository_root> options_;
 
     // Sub-module the request is dispatched to. Initially is NULL. It is set

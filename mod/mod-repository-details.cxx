@@ -49,7 +49,7 @@ init (scanner& s)
   options_ = make_shared<options::repository_details> (
     s, unknown_mode::fail, unknown_mode::fail);
 
-  database_module::init (*options_);
+  database_module::init (*options_, options_->package_db_retry ());
 
   if (options_->root ().empty ())
     options_->root (dir_path ("/"));
@@ -90,12 +90,12 @@ handle (request& rq, response& rs)
     <<     DIV_HEADER (root, options_->logo (), options_->menu ())
     <<     DIV(ID="content");
 
-  transaction t (db_->begin ());
+  transaction t (package_db_->begin ());
 
   using query = query<repository>;
 
   for (const auto& r:
-         db_->query<repository> (
+         package_db_->query<repository> (
            query::internal + "ORDER BY" + query::priority))
   {
     //@@ Feels like a lot of trouble (e.g., id_attribute()) for very

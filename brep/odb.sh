@@ -9,10 +9,17 @@ lib="\
 -I$HOME/work/odb/libodb-default \
 -I$HOME/work/odb/libodb"
 
-$odb $lib -d pgsql --std c++11 --generate-query --generate-schema \
-    --schema-format sql --schema-format embedded \
+$odb $lib -d pgsql --std c++11 --generate-query \
     --odb-epilogue '#include <brep/wrapper-traits>' \
     --hxx-prologue '#include <brep/wrapper-traits>' \
+    -I .. -I ../../libbpkg -I ../../libbutl \
+    --hxx-suffix "" --include-with-brackets \
+    --include-prefix brep --guard-prefix BREP \
+    common
+
+$odb $lib -d pgsql --std c++11 --generate-query --generate-schema \
+    --schema-format sql --schema-format embedded --schema-name package \
+    --generate-prepared --odb-epilogue '#include <brep/wrapper-traits>' \
     --hxx-prologue '#include <brep/package-traits>' \
     -I .. -I ../../libbpkg -I ../../libbutl \
     --hxx-suffix "" --include-with-brackets \
@@ -20,3 +27,11 @@ $odb $lib -d pgsql --std c++11 --generate-query --generate-schema \
     package
 
 xxd -i <package-extra.sql >package-extra
+
+$odb $lib -d pgsql --std c++11 --generate-query --generate-schema \
+    --schema-format sql --schema-format embedded --schema-name build \
+    --generate-prepared --odb-epilogue '#include <brep/wrapper-traits>' \
+    -I .. -I ../../libbbot -I ../../libbpkg -I ../../libbutl \
+    --hxx-suffix "" --include-with-brackets \
+    --include-prefix brep --guard-prefix BREP \
+    build

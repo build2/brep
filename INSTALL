@@ -91,37 +91,46 @@ bpkg install brep
 $ cd .. # Back to brep home.
 
 
-4. Create PostgreSQL User and Database
+4. Create PostgreSQL User and Databases
 
 $ sudo sudo -u postgres psql # Note: double sudo is not a mistake.
 
-CREATE DATABASE brep TEMPLATE template0 ENCODING 'UTF8'
+CREATE DATABASE brep_package TEMPLATE template0 ENCODING 'UTF8'
+LC_COLLATE 'en_US.UTF8' LC_CTYPE 'en_US.UTF8';
+CREATE DATABASE brep_build TEMPLATE template0 ENCODING 'UTF8'
 LC_COLLATE 'en_US.UTF8' LC_CTYPE 'en_US.UTF8';
 CREATE USER brep;
-GRANT ALL PRIVILEGES ON DATABASE brep TO brep;
+GRANT ALL PRIVILEGES ON DATABASE brep_package, brep_build TO brep;
 CREATE USER "www-data" INHERIT IN ROLE brep;
 
 Exit psql (^D), then make sure the logins work:
 
-$ psql
+$ psql -d brep_package
 ^D
-$ sudo sudo -u www-data psql -d brep
+$ psql -d brep_build
+^D
+$ sudo sudo -u www-data psql -d brep_package
+^D
+$ sudo sudo -u www-data psql -d brep_build
 ^D
 
 To troubleshoot, see PostgreSQL logs.
 
 
-5. Create Database Schema and Load Repositories
+5. Create Database Schemes and Load Repositories
 
 $ mkdir config
 $ edit config/loadtab # Loader configuration, see brep-load(1).
 
-$ install/bin/brep-migrate
+$ install/bin/brep-migrate package
 $ install/bin/brep-load config/loadtab
+
+$ install/bin/brep-migrate build
 
 To verify:
 
-$ psql -c 'SELECT name, summary FROM repository'
+$ psql -d brep_package -c 'SELECT name, summary FROM repository'
+$ psql -d brep_build -c 'SELECT package_name FROM build' # Empty row set.
 
 
 6. Setup Apache2 Module
@@ -142,6 +151,18 @@ can also find this fragment in install/share/brep/etc/brep-apache2.conf):
         <IfModule !brep_module>
           LoadModule brep_module /home/brep/install/libexec/brep/mod_brep.so
         </IfModule>
+
+        # Repository email. This email is used for the From: header in emails
+        # send by brep (for example, build failure notifications).
+        #
+        brep-email admin@example.org
+
+        # Repository host. It specifies the scheme and the host address (but
+        # not the root path; see brep-root below) that will be used whenever
+        # brep needs to construct an absolute URL to one of its locations (for
+        # example, a link to a build log that is being send via email).
+        #
+        brep-host https://example.org
 
         # Repository root. This is the part of the URL between the host name
         # and the start of the repository. For example, root value /pkg means
@@ -192,13 +213,15 @@ can also find this fragment in install/share/brep/etc/brep-apache2.conf):
         #  Require all granted
         #</Directory>
 
-The output content type of the brep module is application/xhtml+xml and if you
-would like to make sure it gets compressed (along with linked CSS), also add
-the following lines:
+The output content types of the brep module are application/xhtml+xml,
+text/manifest and text/plain. If you would like to make sure they get
+compressed (along with linked CSS), also add the following lines:
 
         # Compress brep output (xhtml+xml) and CSS.
         #
       	AddOutputFilterByType DEFLATE application/xhtml+xml
+        AddOutputFilterByType DEFLATE text/manifest
+        AddOutputFilterByType DEFLATE text/plain
 	AddOutputFilterByType DEFLATE text/css
 
 Restart Apache2:
@@ -338,14 +361,16 @@ Review brep-module.conf changes that may need to be merged:
 
 $ diff -u install/share/brep/etc/brep-module.conf config/brep-module.conf
 
-Migrate database schema:
+Migrate database schemes:
 
-$ install/bin/brep-migrate
+$ install/bin/brep-migrate package
+$ install/bin/brep-migrate build
 
-Note that if instead you need to recreate the whole database (e.g., migration
+Note that if instead you need to recreate the whole databases (e.g., migration
 is not possible), then one way to do it would be:
 
-$ psql -c 'DROP OWNED BY brep'
+$ psql -d brep_package -c 'DROP OWNED BY brep'
+$ psql -d brep_build -c 'DROP OWNED BY brep'
 
 If using systemd, then start and enable the loader:
 

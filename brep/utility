@@ -27,6 +27,6 @@ namespace brep
   // <butl/utility>
   //
   using butl::reverse_iterate;
-};
+}
 
 #endif // BREP_UTILITY

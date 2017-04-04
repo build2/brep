@@ -10,8 +10,14 @@ import int_libs  = libodb%lib{odb}
 import int_libs += libodb-pgsql%lib{odb-pgsql}
 import int_libs += libbutl%lib{butl}
 import int_libs += libbpkg%lib{bpkg}
+import int_libs += libbbot%lib{bbot}
 
 lib{brep}:                          \
+{hxx         cxx}{ build          } \
+{file           }{ build.xml      } \
+{hxx ixx     cxx}{ build-odb      } \
+{hxx         cxx}{ common         } \
+{hxx ixx     cxx}{ common-odb     } \
 {hxx         cxx}{ package        } \
 {file           }{ package.xml    } \
 {hxx ixx     cxx}{ package-odb    } \
@@ -23,7 +29,7 @@ lib{brep}:                          \
 {hxx            }{ version        } \
 {hxx            }{ wrapper-traits } \
                    $int_libs        \
-sql{package package-extra}
+sql{build package package-extra}
 
 # For pre-releases use the complete version to make sure they cannot be used
 # in place of another pre-release or the final version.

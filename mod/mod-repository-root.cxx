@@ -12,6 +12,9 @@
 
 #include <mod/module>
 #include <mod/options>
+#include <mod/mod-build-log>
+#include <mod/mod-build-task>
+#include <mod/mod-build-result>
 #include <mod/mod-package-search>
 #include <mod/mod-package-details>
 #include <mod/mod-repository-details>
@@ -55,7 +58,10 @@ namespace brep
       : package_search_ (make_shared<package_search> ()),
         package_details_ (make_shared<package_details> ()),
         package_version_details_ (make_shared<package_version_details> ()),
-        repository_details_ (make_shared<repository_details> ())
+        repository_details_ (make_shared<repository_details> ()),
+        build_task_ (make_shared<build_task> ()),
+        build_result_ (make_shared<build_result> ()),
+        build_log_ (make_shared<build_log> ())
   {
   }
 
@@ -83,6 +89,18 @@ namespace brep
           r.initialized_
           ? r.repository_details_
           : make_shared<repository_details> (*r.repository_details_)),
+        build_task_ (
+          r.initialized_
+          ? r.build_task_
+          : make_shared<build_task> (*r.build_task_)),
+        build_result_ (
+          r.initialized_
+          ? r.build_result_
+          : make_shared<build_result> (*r.build_result_)),
+        build_log_ (
+          r.initialized_
+          ? r.build_log_
+          : make_shared<build_log> (*r.build_log_)),
         options_ (
           r.initialized_
           ? r.options_
@@ -101,6 +119,9 @@ namespace brep
     append (r, package_details_->options ());
     append (r, package_version_details_->options ());
     append (r, repository_details_->options ());
+    append (r, build_task_->options ());
+    append (r, build_result_->options ());
+    append (r, build_log_->options ());
     return r;
   }
 
@@ -109,17 +130,38 @@ namespace brep
   void repository_root::
   init (const name_values& v)
   {
-    auto sub_init ([this, &v](module& m)
+    auto sub_init = [this, &v] (module& m, const char* name)
+    {
+      // Initialize sub-module. Intercept exception handling to add sub-module
+      // attribution.
+      //
+      try
       {
         m.init (filter (v, m.options ()), *log_);
-      });
+      }
+      catch (const std::exception& e)
+      {
+        // Any exception thrown by this function terminates the web server. All
+        // exception types inherited from std::exception are handled by the web
+        // server as std::exception. The only sensible way to handle them is to
+        // log the error prior terminating. By that reason it is valid to
+        // reduce all these types to a single one.
+        //
+        ostringstream os;
+        os << name << ": " << e;
+        throw runtime_error (os.str ());
+      }
+    };
 
     // Initialize sub-modules.
     //
-    sub_init (*package_search_);
-    sub_init (*package_details_);
-    sub_init (*package_version_details_);
-    sub_init (*repository_details_);
+    sub_init (*package_search_, "package_search");
+    sub_init (*package_details_, "package_details");
+    sub_init (*package_version_details_, "package_version_details");
+    sub_init (*repository_details_, "repository_details");
+    sub_init (*build_task_, "build_task");
+    sub_init (*build_result_, "build_result");
+    sub_init (*build_log_, "build_log");
 
     // Parse own configuration options.
     //
@@ -155,8 +197,7 @@ namespace brep
     // Delegate the request handling to the selected sub-module. Intercept
     // exception handling to add sub-module attribution.
     //
-    auto handle =
-      [&rs, this] (request& rq, const char* name) -> bool
+    auto handle = [&rs, this] (request& rq, const char* name) -> bool
     {
       try
       {
@@ -194,15 +235,24 @@ namespace brep
     //
     if (lpath.empty ())
     {
-      // Dispatch request handling to the repository_details or the
-      // package_search module depending on the function name passed as a
-      // first HTTP request parameter. The parameter should have no value
-      // specified. Example: cppget.org/?about
+      // Dispatch request handling to the repository_details, the build_task,
+      // the build_result or the package_search module depending on the
+      // function name passed as a first HTTP request parameter. The parameter
+      // should have no value specified. Example: cppget.org/?about
       //
       const name_values& params (rq.parameters ());
       if (!params.empty () && !params.front ().value)
       {
-        if (params.front ().name == "about")
+        // Cleanup not to confuse the selected module with the unknown
+        // parameter.
+        //
+        name_values p (params);
+        p.erase (p.begin ());
+
+        request_proxy rp (rq, p);
+        const string& fn (params.front ().name);
+
+        if (fn == "about")
         {
           if (handler_ == nullptr)
             handler_.reset (new repository_details (*repository_details_));
@@ -236,8 +286,9 @@ namespace brep
     }
     else
     {
-      // Dispatch request handling to the package_details or the
-      // package_version_details module depending on the HTTP request URL path.
+      // Dispatch request handling to the package_details, the
+      // package_version_details or the build_log module depending on the HTTP
+      // request URL path.
       //
       auto i (lpath.begin ());
       assert (i != lpath.end ());
@@ -279,6 +330,13 @@ namespace brep
 
           return handle (rq, "package_version_details");
         }
+        else if (*i == "log")
+        {
+          if (handler_ == nullptr)
+            handler_.reset (new build_log (*build_log_));
+
+          return handle (rq, "build_log");
+        }
       }
     }
 
@@ -295,6 +353,7 @@ namespace brep
 
     info << "module " << BREP_VERSION_STR
          << ", libbrep " << LIBBREP_VERSION_STR
+         << ", libbbot " << LIBBBOT_VERSION_STR
          << ", libbpkg " << LIBBPKG_VERSION_STR
          << ", libbutl " << LIBBUTL_VERSION_STR;
   }

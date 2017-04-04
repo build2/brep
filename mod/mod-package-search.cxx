@@ -44,14 +44,14 @@ init (scanner& s)
   options_ = make_shared<options::package_search> (
     s, unknown_mode::fail, unknown_mode::fail);
 
-  database_module::init (*options_);
+  database_module::init (*options_, options_->package_db_retry ());
 
   if (options_->root ().empty ())
     options_->root (dir_path ("/"));
 
-  // Check that the database schema matches the current one. It's enough to
-  // perform the check in just a single module implementation (and we don't
-  // do in the dispatcher because it doesn't use the database).
+  // Check that the database 'package' schema matches the current one. It's
+  // enough to perform the check in just a single module implementation (and we
+  // don't do in the dispatcher because it doesn't use the database).
   //
   // Note that the failure can be reported by each web server worker process.
   // While it could be tempting to move the check to the
@@ -59,8 +59,10 @@ init (scanner& s)
   // be called by a different process (usually the web server root one) not
   // having the proper permissions to access the database.
   //
-  if (schema_catalog::current_version (*db_) != db_->schema_version ())
-    fail << "database schema differs from the current one (module "
+  const string ds ("package");
+  if (schema_catalog::current_version (*package_db_, ds) !=
+      package_db_->schema_version (ds))
+    fail << "database 'package' schema differs from the current one (module "
          << BREP_VERSION_STR << ")";
 }
 
@@ -133,10 +135,10 @@ handle (request& rq, response& rs)
     <<     DIV(ID="content");
 
   session sn;
-  transaction t (db_->begin ());
+  transaction t (package_db_->begin ());
 
   auto pkg_count (
-    db_->query_value<latest_package_count> (
+    package_db_->query_value<latest_package_count> (
       search_param<latest_package_count> (squery)));
 
   s << FORM_SEARCH (squery)
@@ -146,13 +148,13 @@ handle (request& rq, response& rs)
   //
   s << DIV;
   for (const auto& pr:
-         db_->query<latest_package_search_rank> (
+         package_db_->query<latest_package_search_rank> (
            search_param<latest_package_search_rank> (squery) +
            "ORDER BY rank DESC, name" +
            "OFFSET" + to_string (page * res_page) +
            "LIMIT" + to_string (res_page)))
   {
-    shared_ptr<package> p (db_->load<package> (pr.id));
+    shared_ptr<package> p (package_db_->load<package> (pr.id));
 
     s << TABLE(CLASS="proplist package")
       <<   TBODY

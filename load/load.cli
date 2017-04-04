@@ -28,8 +28,8 @@ include <brep/types>;
    repository and package information into the database, suitable for
    consumption by the \cb{brep} web module.
 
-   Note that \cb{brep-load} expects the database schema to have already been
-   created using \l{brep-migrate(1)}.
+   Note that \cb{brep-load} expects the database \cb{package} schema to have
+   already been created using \l{brep-migrate(1)}.
 
    Also note that \cb{brep-load} requires \l{bpkg(1)} to fetch repository
    information. See \cb{--bpkg} for more information on the package manager
@@ -54,10 +54,11 @@ class options
      expected to work."
   }
 
-  std::string --db-name|-n = "brep"
+  std::string --db-name|-n = "brep_package"
   {
     "<name>",
-    "Database name. If not specified, then '\cb{brep}' is used by default."
+    "Database name. If not specified, then \cb{brep_package} is used by
+     default."
   }
 
   std::string --db-host|-h

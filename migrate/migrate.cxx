@@ -41,7 +41,7 @@ class schema
 {
 public:
   explicit
-  schema (const char* extra);
+  schema (const char* extra, string name);
 
   void
   create (database&) const;
@@ -50,12 +50,14 @@ public:
   drop (database&) const;
 
 private:
+  string name_;
   strings drop_statements_;
   strings create_statements_;
 };
 
 schema::
-schema (const char* s)
+schema (const char* s, string name)
+    : name_ (move (name))
 {
   // Remove comments, saving the cleaned SQL code into statements.
   //
@@ -176,7 +178,7 @@ drop (database& db) const
     //
     db.execute (s);
 
-  schema_catalog::drop_schema (db);
+  schema_catalog::drop_schema (db, name_);
 }
 
 void schema::
@@ -184,7 +186,7 @@ create (database& db) const
 {
   drop (db);
 
-  schema_catalog::create_schema (db);
+  schema_catalog::create_schema (db, name_);
 
   for (const auto& s: create_statements_)
     db.execute (s);
@@ -205,6 +207,7 @@ try
   {
     cout << "brep-migrate " << BREP_VERSION_STR << endl
          << "libbrep " << LIBBREP_VERSION_STR << endl
+         << "libbbot " << LIBBBOT_VERSION_STR << endl
          << "libbpkg " << LIBBPKG_VERSION_STR << endl
          << "libbutl " << LIBBUTL_VERSION_STR << endl
          << "Copyright (c) 2014-2017 Code Synthesis Ltd" << endl
@@ -229,7 +232,19 @@ try
     return p.wait () ? 0 : 1;
   }
 
-  if (argc > 1)
+  if (!scan.more ())
+  {
+    cerr << "error: no database schema specified" << endl
+         << help_info << endl;
+    return 1;
+  }
+
+  const string db_schema (scan.next ());
+
+  if (db_schema != "package" && db_schema != "build")
+    throw cli::unknown_argument (db_schema);
+
+  if (scan.more ())
   {
     cerr << "error: unexpected argument encountered" << endl
          << help_info << endl;
@@ -246,7 +261,9 @@ try
   odb::pgsql::database db (
     ops.db_user (),
     ops.db_password (),
-    ops.db_name (),
+    !ops.db_name ().empty ()
+    ? ops.db_name ()
+    : "brep_" + db_schema,
     ops.db_host (),
     ops.db_port (),
     "options='-c default_transaction_isolation=serializable'");
@@ -261,7 +278,7 @@ try
   // transaction useless as all consequitive queries in that transaction will
   // be ignored by PostgreSQL.
   //
-  schema_version schema_version (db.schema_version ());
+  schema_version schema_version (db.schema_version (db_schema));
 
   // It is impossible to operate with the database which is out of the
   // [base_version, current_version] range due to the lack of the knowlege
@@ -269,13 +286,13 @@ try
   //
   if (schema_version > 0)
   {
-    if (schema_version < schema_catalog::base_version (db))
+    if (schema_version < schema_catalog::base_version (db, db_schema))
     {
       cerr << "error: database schema is too old" << endl;
       throw failed ();
     }
 
-    if (schema_version > schema_catalog::current_version (db))
+    if (schema_version > schema_catalog::current_version (db, db_schema))
     {
       cerr << "error: database schema is too new" << endl;
       throw failed ();
@@ -292,7 +309,7 @@ try
   // database (followed with the database creation for the --recreate option).
   //
   if ((create || drop) && schema_version != 0 &&
-      schema_version != schema_catalog::current_version (db))
+      schema_version != schema_catalog::current_version (db, db_schema))
   {
     cerr << "error: database schema requires migration" << endl
          << "  info: either migrate the database first or drop the entire "
@@ -304,11 +321,14 @@ try
 
   if (create || drop)
   {
-    static const char extras[] = {
+    static const char package_extras[] = {
 #include <brep/package-extra>
       , '\0'};
 
-    schema s (extras);
+    schema s (db_schema == "package"
+              ? package_extras
+              : "",
+              db_schema);
 
     if (create)
       s.create (db);
@@ -319,10 +339,10 @@ try
   {
     // Register the data migration functions.
     //
-    // static const data_migration_entry<2, LIBBREP_SCHEMA_VERSION_BASE>
+    // static const data_migration_entry<2, LIBBREP_XXX_SCHEMA_VERSION_BASE>
     // migrate_v2_entry (&migrate_v2);
     //
-    schema_catalog::migrate (db);
+    schema_catalog::migrate (db, 0, db_schema);
   }
 
   t.commit ();

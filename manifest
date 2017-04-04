@@ -21,3 +21,4 @@ depends: libodb >= 2.5.0-a10
 depends: libodb-pgsql >= 2.5.0-a10
 depends: libbutl == 0.5.0-a1
 depends: libbpkg == 0.5.0-a1
+depends: libbbot == 0.5.0-a1

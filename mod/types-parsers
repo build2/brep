@@ -25,31 +25,38 @@ namespace brep
     struct parser;
 
     template <>
+    struct parser<path>
+    {
+      static void
+      parse (path&, bool&, scanner&);
+    };
+
+    template <>
     struct parser<dir_path>
     {
       static void
-      parse (dir_path&, scanner&);
+      parse (dir_path&, bool&, scanner&);
     };
 
     template <>
     struct parser<page_form>
     {
       static void
-      parse (page_form&, scanner&);
+      parse (page_form&, bool&, scanner&);
     };
 
     template <>
     struct parser<page_menu>
     {
       static void
-      parse (page_menu&, scanner&);
+      parse (page_menu&, bool&, scanner&);
     };
 
     template <>
     struct parser<web::xhtml::fragment>
     {
       static void
-      parse (web::xhtml::fragment&, scanner&);
+      parse (web::xhtml::fragment&, bool&, scanner&);
     };
   }
 }

@@ -42,7 +42,7 @@ init (scanner& s)
   options_ = make_shared<options::package_details> (
     s, unknown_mode::fail, unknown_mode::fail);
 
-  database_module::init (*options_);
+  database_module::init (*options_, options_->package_db_retry ());
 
   if (options_->root ().empty ())
     options_->root (dir_path ("/"));
@@ -148,17 +148,17 @@ handle (request& rq, response& rs)
     <<       ~DIV;
 
   session sn;
-  transaction t (db_->begin ());
+  transaction t (package_db_->begin ());
 
   shared_ptr<package> pkg;
   {
     latest_package lp;
-    if (!db_->query_one<latest_package> (
+    if (!package_db_->query_one<latest_package> (
           query<latest_package>(
             "(" + query<latest_package>::_val (name) + ")"), lp))
       throw invalid_request (404, "Package '" + name + "' not found");
 
-    pkg = db_->load<package> (lp.id);
+    pkg = package_db_->load<package> (lp.id);
   }
 
   const auto& licenses (pkg->license_alternatives);
@@ -187,7 +187,7 @@ handle (request& rq, response& rs)
   }
 
   auto pkg_count (
-    db_->query_value<package_count> (
+    package_db_->query_value<package_count> (
       search_params<package_count> (name, squery)));
 
   s << FORM_SEARCH (squery)
@@ -197,7 +197,7 @@ handle (request& rq, response& rs)
   //
   s << DIV;
   for (const auto& pr:
-         db_->query<package_search_rank> (
+         package_db_->query<package_search_rank> (
            search_params<package_search_rank> (name, squery) +
            "ORDER BY rank DESC, version_epoch DESC, "
            "version_canonical_upstream DESC, version_canonical_release DESC, "
@@ -205,7 +205,7 @@ handle (request& rq, response& rs)
            "OFFSET" + to_string (page * res_page) +
            "LIMIT" + to_string (res_page)))
   {
-    shared_ptr<package> p (db_->load<package> (pr.id));
+    shared_ptr<package> p (package_db_->load<package> (pr.id));
 
     s << TABLE(CLASS="proplist version")
       <<   TBODY

@@ -29,10 +29,12 @@
 #include <algorithm> // min()
 
 #include <butl/optional>
+#include <butl/timestamp>
 
 #include <web/mime-url-encoding>
 
 using namespace std;
+using namespace butl;
 
 namespace web
 {
@@ -519,10 +521,8 @@ namespace web
 
       if (max_age)
       {
-        chrono::system_clock::time_point tp (
-          chrono::system_clock::now () + *max_age);
-
-        time_t t (chrono::system_clock::to_time_t (tp));
+        timestamp tp (timestamp::clock::now () + *max_age);
+        time_t t (timestamp::clock::to_time_t (tp));
 
         // Assume global locale is not changed and still "C".
         //

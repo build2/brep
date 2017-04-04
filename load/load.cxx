@@ -50,12 +50,6 @@ struct failed {};
 static const char* help_info (
   "  info: run 'brep-load --help' for more information");
 
-static inline bool
-space (char c) noexcept
-{
-  return c == ' ' || c == '\t';
-}
-
 struct internal_repository
 {
   repository_location location;
@@ -297,7 +291,7 @@ repository_info (const options& lo, const string& rl, const cstrings& options)
   {
     cerr << "error: unable to execute " << args[0] << ": " << e << endl;
 
-    if (e.child ())
+    if (e.child)
       exit (1);
 
     throw failed ();
@@ -965,6 +959,7 @@ try
   {
     cout << "brep-load " << BREP_VERSION_STR << endl
          << "libbrep " << LIBBREP_VERSION_STR << endl
+         << "libbbot " << LIBBBOT_VERSION_STR << endl
          << "libbpkg " << LIBBPKG_VERSION_STR << endl
          << "libbutl " << LIBBUTL_VERSION_STR << endl
          << "Copyright (c) 2014-2017 Code Synthesis Ltd" << endl
@@ -1018,12 +1013,13 @@ try
 
   transaction t (db.begin ());
 
-  // Check that the database schema matches the current one.
+  // Check that the database 'package' schema matches the current one.
   //
-  if (schema_catalog::current_version (db) != db.schema_version ())
+  const string ds ("package");
+  if (schema_catalog::current_version (db, ds) != db.schema_version (ds))
   {
-    cerr << "error: database schema differs from the current one" << endl
-         << "  info: use brep-migrate to migrate the database" << endl;
+    cerr << "error: database 'package' schema differs from the current one"
+         << endl << "  info: use brep-migrate to migrate the database" << endl;
     return 1;
   }
 

@@ -36,17 +36,26 @@ namespace brep
       }
     }
 
-    void parser<dir_path>::
-    parse (dir_path& x, scanner& s)
+    void parser<path>::
+    parse (path& x, bool& xs, scanner& s)
     {
+      xs = true;
+      parse_path (x, s);
+    }
+
+    void parser<dir_path>::
+    parse (dir_path& x, bool& xs, scanner& s)
+    {
+      xs = true;
       parse_path (x, s);
     }
 
     // Parse page_form.
     //
     void parser<page_form>::
-    parse (page_form& x, scanner& s)
+    parse (page_form& x, bool& xs, scanner& s)
     {
+      xs = true;
       const char* o (s.next ());
 
       if (!s.more ())
@@ -64,8 +73,9 @@ namespace brep
     // Parse page_menu.
     //
     void parser<page_menu>::
-    parse (page_menu& x, scanner& s)
+    parse (page_menu& x, bool& xs, scanner& s)
     {
+      xs = true;
       const char* o (s.next ());
 
       if (!s.more ())
@@ -92,8 +102,9 @@ namespace brep
     // Parse web::xhtml::fragment.
     //
     void parser<fragment>::
-    parse (fragment& x, scanner& s)
+    parse (fragment& x, bool& xs, scanner& s)
     {
+      xs = true;
       const char* o (s.next ());
 
       if (!s.more ())

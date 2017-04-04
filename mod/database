@@ -10,17 +10,18 @@
 #include <brep/types>
 #include <brep/utility>
 
-#include <mod/options>
-
 namespace brep
 {
-  // Returns pointer to the shared database instance, creating one on the
-  // first call. On subsequent calls ensures passed host and port equals
-  // to ones of the existing database instance throwing runtime_error
-  // otherwise. Is not thread-safe.
+  // Return pointer to the shared database instance, creating one on the first
+  // call. Throw odb::exception on failure. Is not thread-safe.
   //
   shared_ptr<odb::core::database>
-  shared_database (const options::db&);
+  shared_database (string user,
+                   string password,
+                   string name,
+                   string host,
+                   uint16_t port,
+                   size_t max_connections);
 }
 
 #endif // MOD_DATABASE

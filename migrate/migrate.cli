@@ -17,13 +17,14 @@ include <cstdint>; // uint16_t
 
    \cb{brep-migrate --help}\n
    \cb{brep-migrate --version}\n
-   \c{\b{brep-migrate} [<options>]}
+   \c{\b{brep-migrate} [<options>] <schema>}
 
    \h|DESCRIPTION|
 
    In its default mode \cb{brep-migrate} creates the database schema if it
    doesn't already exist. Otherwise, it migrates the existing schema and data
-   to the current version, if needed.
+   to the current version, if needed. The valid schema names are \cb{package}
+   and \cb{build}.
 
    If the \cb{--recreate} option is specified, then \cb{brep-migrate} instead
    recreates the database schema. That is, it drops all the existing tables
@@ -66,10 +67,11 @@ class options
      expected to work."
   }
 
-  std::string --db-name|-n = "brep"
+  std::string --db-name|-n
   {
     "<name>",
-    "Database name. If not specified, then '\cb{brep}' is used by default."
+    "Database name. If not specified, then it is implicitly derived by
+     prefixing the schema name with \cb{brep_}."
   }
 
   std::string --db-host|-h

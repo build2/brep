@@ -43,7 +43,7 @@ init (scanner& s)
   options_ = make_shared<options::package_version_details> (
     s, unknown_mode::fail, unknown_mode::fail);
 
-  database_module::init (*options_);
+  database_module::init (*options_, options_->package_db_retry ());
 
   if (options_->root ().empty ())
     options_->root (dir_path ("/"));
@@ -130,11 +130,11 @@ handle (request& rq, response& rs)
   shared_ptr<package> pkg;
 
   session sn;
-  transaction t (db_->begin ());
+  transaction t (package_db_->begin ());
 
   try
   {
-    pkg = db_->load<package> (package_id (name, ver));
+    pkg = package_db_->load<package> (package_id (name, ver));
 
     // If the requested package turned up to be an "external" one just
     // respond that no "internal" package is present.

@@ -10,6 +10,8 @@
 #include <brep/types>
 #include <brep/utility>
 
+#include <bbot/build-config>
+
 #include <mod/module>
 #include <mod/options>
 
@@ -36,15 +38,31 @@ namespace brep
     //
     using module::init;
 
+    // Initialize the package database instance. Throw odb::exception on
+    // failure.
+    //
     void
-    init (const options::db&);
+    init (const options::package_db&, size_t retry);
+
+    // Initialize the build database instance and parse build configuration
+    // file. Throw odb::exception on database failure, tab_parsing on parsing
+    // error, system_error on the underlying OS error.
+    //
+    void
+    init (const options::build&, const options::build_db&, size_t retry);
 
     virtual bool
     handle (request&, response&) = 0;
 
   protected:
-    size_t retry_;
-    shared_ptr<odb::core::database> db_;
+    size_t retry_ = 0; // Max of all retries.
+
+    shared_ptr<odb::core::database> package_db_;
+
+    // These are NULL if not building.
+    //
+    shared_ptr<odb::core::database>       build_db_;
+    shared_ptr<const bbot::build_configs> build_conf_;
 
   private:
     virtual bool

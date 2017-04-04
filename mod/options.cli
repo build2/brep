@@ -18,13 +18,30 @@ namespace brep
     //
     class module
     {
+      string email
+      {
+        "<email>",
+        "Repository email. This email is used for the \cb{From:} header in
+         emails send by \cb{brep} (for example, build failure notifications)."
+      }
+
+      string host
+      {
+        "<host>",
+        "Repository host. It specifies the scheme and the host address (but
+         not the root path; see \cb{root} below) that will be used whenever
+         \cb{brep} needs to construct an absolute URL to one of its locations
+         (for example, a link to a build log that is being send via email)."
+      }
+
       dir_path root = "/"
       {
         "<path>"
         "Repository root. That is, this is the part of the URL between the
          host name and the start of the repository. For example, root value
-         '\cb{/pkg}' means the repository URL is http://example.org/pkg/.
-         Specify '\cb{/}' to use the web server root (http://example.org/)."
+         '\cb{/pkg}' means the repository URL is \cb{http://example.org/pkg/}.
+         Specify '\cb{/}' to use the web server root
+         (\cb{http://example.org/})."
       }
 
       uint16_t verbosity = 0
@@ -35,56 +52,124 @@ namespace brep
       }
     };
 
-    class db
+    class package_db
     {
-      string db-user
+      string package-db-user
       {
         "<user>",
-        "Database user name. If not specified, then operating system (login)
-         name is used."
+        "Package database user name. If not specified, then operating system
+         (login) name is used."
       }
 
-      string db-password
+      string package-db-password
       {
         "<pass>",
-        "Database password. If not specified, then login without password is
-         expected to work."
+        "Package database password. If not specified, then login without
+         password is expected to work."
       }
 
-      string db-name = "brep"
+      string package-db-name = "brep_package"
       {
         "<name>",
-        "Database name. If not specified, then '\cb{brep}' is used by
-         default."
+        "Package database name. If not specified, then \cb{brep_package} is
+         used by default."
       }
 
-      string db-host
+      string package-db-host
       {
         "<host>",
-        "Database host name, address, or socket. If not specified, then
+        "Package database host name, address, or socket. If not specified, then
          connect to \cb{localhost} using the operating system-default
          mechanism (Unix-domain socket, etc)."
       }
 
-      uint16_t db-port = 0
+      uint16_t package-db-port = 0
       {
         "<port>",
-        "Database port number. If not specified, the default port is used."
+        "Package database port number. If not specified, the default port is
+         used."
       }
 
-      size_t db-max-connections = 5
+      size_t package-db-max-connections = 5
       {
         "<num>",
-        "The maximum number of concurrent database connections per web server
-         process. If 0, then no limitation is applied. The default is 5."
+        "The maximum number of concurrent package database connections per web
+         server process. If 0, then no limitation is applied. The default is
+         5."
       }
 
-      size_t db-retry = 10
+      size_t package-db-retry = 10
       {
         "<num>",
-        "The maximum number of times to retry database transactions in the
-         face of recoverable failures (deadlock, loss of connection, etc). The
-         default is 10."
+        "The maximum number of times to retry package database transactions in
+         the face of recoverable failures (deadlock, loss of connection, etc).
+         The default is 10."
+      }
+    };
+
+    class build
+    {
+      path build-config
+      {
+        "<buildtab>",
+        "Build configuration file. If not specified, then the package building
+         functionality will be disabled. If specified, then the build database
+         must be configured (see \cb{build-db-*})."
+      }
+    };
+
+    class build_db
+    {
+      string build-db-user
+      {
+        "<user>",
+        "Build database user name. If not specified, then operating system
+         (login) name is used."
+      }
+
+      string build-db-password
+      {
+        "<pass>",
+        "Build database password. If not specified, then login without
+         password is expected to work."
+      }
+
+      string build-db-name = "brep_build"
+      {
+        "<name>",
+        "Build database name. If not specified, then \cb{brep_build} is used
+         by default."
+      }
+
+      string build-db-host
+      {
+        "<host>",
+        "Build database host name, address, or socket. If not specified, then
+         connect to \cb{localhost} using the operating system-default
+         mechanism (Unix-domain socket, etc)."
+      }
+
+      uint16_t build-db-port = 0
+      {
+        "<port>",
+        "Build database port number. If not specified, the default port is
+         used."
+      }
+
+      size_t build-db-max-connections = 5
+      {
+        "<num>",
+        "The maximum number of concurrent build database connections per web
+         server process. If 0, then no limitation is applied. The default is
+         5."
+      }
+
+      size_t build-db-retry = 10
+      {
+        "<num>",
+        "The maximum number of times to retry build database transactions in
+         the face of recoverable failures (deadlock, loss of connection, etc).
+         The default is 10."
       }
     };
 
@@ -141,7 +226,7 @@ namespace brep
 
     // Module options.
     //
-    class package_search: search, db, page, module
+    class package_search: search, package_db, page, module
     {
       string search-title = "Packages"
       {
@@ -151,19 +236,54 @@ namespace brep
       }
     };
 
-    class package_details: package, search, db, page, module
+    class package_details: package, search, package_db, page, module
     {
     };
 
-    class package_version_details: package, db, page, module
+    class package_version_details: package, package_db, page, module
     {
     };
 
-    class repository_details: db, page, module
+    class repository_details: package_db, page, module
     {
     };
 
     class repository_root: module
+    {
+    };
+
+    class build_task: build, package_db, build_db, module
+    {
+      size_t build-task-request-max-size = 102400
+      {
+        "<bytes>",
+        "The maximum size of the build task request manifest accepted. Note
+         that the HTTP POST request body is cached to retry database
+         transactions in the face of recoverable failures (deadlock, loss of
+         connection, etc). The default is 100K."
+      }
+
+      size_t build-result-timeout = 10800
+      {
+        "<minutes>",
+        "Time to wait before considering the expected task result lost. Must be
+         specified in seconds. The default is 3 hours."
+      }
+    };
+
+    class build_result: build, package_db, build_db, module
+    {
+      size_t build-result-request-max-size = 10240000
+      {
+        "<bytes>",
+        "The maximum size of the build result manifest accepted. Note that the
+         HTTP POST request body is cached to retry database transactions in the
+         face of recoverable failures (deadlock, loss of connection, etc). The
+         default is 10M."
+      }
+    };
+
+    class build_log: build, package_db, build_db, module
     {
     };
   }
@@ -209,6 +329,24 @@ namespace brep
     };
 
     class repository_details
+    {
+      // No parameters so far.
+      //
+    };
+
+    class build_task
+    {
+      // No parameters so far.
+      //
+    };
+
+    class build_result
+    {
+      // No parameters so far.
+      //
+    };
+
+    class build_log
     {
       // No parameters so far.
       //

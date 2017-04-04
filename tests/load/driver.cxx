@@ -63,7 +63,7 @@ main (int argc, char* argv[])
 
   string user;
   string password;
-  string name ("brep");
+  string name ("brep_package");
   string host;
   unsigned int port (0);
   int i (2);

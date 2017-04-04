@@ -11,30 +11,43 @@
 
 namespace brep
 {
-  namespace options
+  struct db_key
   {
-    bool
-    operator< (const db& x, const db& y)
-    {
-      int r;
-      if ((r = x.db_user ().compare (y.db_user ())) != 0 ||
-          (r = x.db_password ().compare (y.db_password ())) != 0 ||
-          (r = x.db_name ().compare (y.db_name ())) != 0 ||
-          (r = x.db_host ().compare (y.db_host ())))
-        return r < 0;
+    string user;
+    string password;
+    string name;
+    string host;
+    uint16_t port;
+  };
 
-      return x.db_port () < y.db_port ();
-    }
+  static bool
+  operator< (const db_key& x, const db_key& y)
+  {
+    int r;
+    if ((r = x.user.compare (y.user)) != 0 ||
+        (r = x.password.compare (y.password)) != 0 ||
+        (r = x.name.compare (y.name)) != 0 ||
+        (r = x.host.compare (y.host)))
+      return r < 0;
+
+    return x.port < y.port;
   }
 
   using namespace odb;
 
   shared_ptr<database>
-  shared_database (const options::db& o)
+  shared_database (string user,
+                   string password,
+                   string name,
+                   string host,
+                   uint16_t port,
+                   size_t max_connections)
   {
-    static std::map<options::db, weak_ptr<database>> databases;
+    static std::map<db_key, weak_ptr<database>> databases;
 
-    auto i (databases.find (o));
+    db_key k ({move (user), move (password), move (name), host, port});
+
+    auto i (databases.find (k));
     if (i != databases.end ())
     {
       if (shared_ptr<database> d = i->second.lock ())
@@ -42,19 +55,19 @@ namespace brep
     }
 
     unique_ptr<pgsql::connection_factory>
-      f (new pgsql::connection_pool_factory (o.db_max_connections ()));
+      f (new pgsql::connection_pool_factory (max_connections));
 
     shared_ptr<database> d (
       make_shared<pgsql::database> (
-        o.db_user (),
-        o.db_password (),
-        o.db_name (),
-        o.db_host (),
-        o.db_port (),
+        k.user,
+        k.password,
+        k.name,
+        k.host,
+        k.port,
         "options='-c default_transaction_isolation=serializable'",
         move (f)));
 
-    databases[o] = d;
+    databases[move (k)] = d;
     return d;
   }
 }

@@ -6,6 +6,7 @@
 
 #include <butl/version> // LIBBUTL_VERSION
 #include <bpkg/version> // LIBBPKG_VERSION
+#include <bbot/version> // LIBBBOT_VERSION
 
 // Version format is AABBCCDD where
 //
@@ -42,6 +43,10 @@
 
 #if LIBBPKG_VERSION != 49901
 #  error incompatible libbpkg version
+#endif
+
+#if LIBBBOT_VERSION != 49901
+#  error incompatible libbbot version
 #endif
 
 #endif // BREP_VERSION
