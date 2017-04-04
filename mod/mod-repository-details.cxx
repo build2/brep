@@ -18,7 +18,6 @@
 
 #include <web/xhtml>
 #include <web/module>
-#include <web/xhtml-fragment>
 #include <web/mime-url-encoding>
 
 #include <brep/package>
