@@ -40,7 +40,8 @@ namespace brep
     cookies () {return request_.cookies ();}
 
     virtual istream&
-    content (bool buffer) {return request_.content (buffer);}
+    content (size_t limit, size_t buffer) {
+      return request_.content (limit, buffer);}
 
   private:
     request& request_;
@@ -151,15 +152,15 @@ namespace brep
 
     const path& lpath (rpath.leaf (root));
 
-    // Delegate the request handling to the sub-module. Intercept exception
-    // handling to add sub-module attribution.
+    // Delegate the request handling to the selected sub-module. Intercept
+    // exception handling to add sub-module attribution.
     //
     auto handle =
-      [&rs, this] (module& m, request& rq, const char* name) -> bool
+      [&rs, this] (request& rq, const char* name) -> bool
     {
       try
       {
-        return m.handle (rq, rs, *log_);
+        return handler_->handle (rq, rs, *log_);
       }
       catch (const invalid_request&)
       {
@@ -184,6 +185,13 @@ namespace brep
       }
     };
 
+    // Note that while selecting the sub-module type for handling the request,
+    // we rely on the fact that the initial and all the subsequent function
+    // calls (that may take place after the retry exception is thrown) will
+    // end-up with the same type, and so using the single handler instance for
+    // all of these calls is safe. Note that the selection also sets up the
+    // handling context (sub-module name and optionally the request proxy).
+    //
     if (lpath.empty ())
     {
       // Dispatch request handling to the repository_details or the
@@ -196,23 +204,34 @@ namespace brep
       {
         if (params.front ().name == "about")
         {
-          // Cleanup not to confuse the selected module with the unknown
-          // parameter.
-          //
-          name_values p (params);
-          p.erase (p.begin ());
+          if (handler_ == nullptr)
+            handler_.reset (new repository_details (*repository_details_));
 
-          request_proxy rp (rq, p);
-          repository_details m (*repository_details_);
-          return handle (m, rp, "repository_details");
+          return handle (rp, "repository_details");
         }
+        else if (fn == "build-task")
+        {
+          if (handler_ == nullptr)
+            handler_.reset (new build_task (*build_task_));
 
-        throw invalid_request (400, "unknown function");
+          return handle (rp, "build_task");
+        }
+        else if (fn == "build-result")
+        {
+          if (handler_ == nullptr)
+            handler_.reset (new build_result (*build_result_));
+
+          return handle (rp, "build_result");
+        }
+        else
+          throw invalid_request (400, "unknown function");
       }
       else
       {
-        package_search m (*package_search_);
-        return handle (m, rq, "package_search");
+        if (handler_ == nullptr)
+          handler_.reset (new package_search (*package_search_));
+
+        return handle (rq, "package_search");
       }
     }
     else
@@ -227,29 +246,45 @@ namespace brep
 
       // Check if this is a package name and not a brep static content files
       // (CSS) directory name, a repository directory name, or a special file
-      // name (the one starting with '.').
+      // name (the one starting with '.'). Note that HTTP request URL path
+      // (without the root directory) must also have one of the following
+      // layouts:
+      //
+      // <package-name>
+      // <package-name>/<package-version>
+      // <package-name>/<package-version>/log[/...]
+      //
+      // If any of the checks fails, then the handling is declined.
       //
       // @@ Shouldn't we validate that the package name is not "@", is not
       //    digit-only, does not start with '.' while parsing and serializing
       //    the package manifest ? Probably also need to mention these
-      //    contraints in the manifest.txt file.
+      //    constraints in the manifest.txt file.
       //
       if (n != "@" && n.find_first_not_of ("0123456789") != string::npos &&
           n[0] != '.')
       {
         if (i == lpath.end ())
         {
-          package_details m (*package_details_);
-          return handle (m, rq, "package_details");
+          if (handler_ == nullptr)
+            handler_.reset (new package_details (*package_details_));
+
+          return handle (rq, "package_details");
         }
         else if (++i == lpath.end ())
         {
-          package_version_details m (*package_version_details_);
-          return handle (m, rq, "package_version_details");
+          if (handler_ == nullptr)
+            handler_.reset (
+              new package_version_details (*package_version_details_));
+
+          return handle (rq, "package_version_details");
         }
       }
     }
 
+    // We shouldn't be selecting a handler if decline to handle the request.
+    //
+    assert (handler_ == nullptr);
     return false;
   }
 
