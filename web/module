@@ -11,6 +11,7 @@
 #include <iosfwd>
 #include <chrono>
 #include <cstdint>   // uint16_t
+#include <cstddef>   // size_t
 #include <utility>   // move()
 #include <stdexcept> // runtime_error
 
@@ -111,13 +112,21 @@ namespace web
     virtual const name_values&
     cookies () = 0;
 
-    // Get the stream to read the request content from. If the buffer argument
-    // is false, then reading content after any unbuffered content has been
-    // written or after a retry is undefined behavior. The implementation may
-    // detect this and throw sequence_error but is not required to do so.
+    // Get the stream to read the request content from. If the limit argument
+    // is zero, then the content limit is left unchanged (unlimited initially).
+    // Otherwise the requested limit is set, and the invalid_request exception
+    // with the code 413 (payload too large) will be thrown when the specified
+    // limit is reached while reading from the stream. If the buffer argument
+    // is zero, then the buffer size is left unchanged (zero initially). If it
+    // is impossible to increase the buffer size (because, for example, some
+    // content is already read unbuffered), then the sequence_error is thrown.
+    //
+    // Note that unread input content is discarded when any unbuffered content
+    // is written, and any attempt to read it will result in the
+    // sequence_error exception being thrown.
     //
     virtual std::istream&
-    content (bool buffer = false) = 0;
+    content (size_t limit = 0, size_t buffer = 0) = 0;
   };
 
   class response

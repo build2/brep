@@ -50,17 +50,23 @@ namespace web
       writing
     };
 
+    // Extends istreambuf with read limit checking, caching, etc. (see the
+    // implementation for details).
+    //
+    class istreambuf_cache;
+
     class request: public web::request,
                    public web::response,
                    public stream_state
     {
       friend class service;
 
-      request (request_rec* rec) noexcept
-        : rec_ (rec)
-      {
-        rec_->status = HTTP_OK;
-      }
+      // Can not be inline/default due to the member of
+      // unique_ptr<istreambuf_cache> type. Note that istreambuf_cache type is
+      // incomplete.
+      //
+      request (request_rec* rec) noexcept;
+      ~request ();
 
       request_state
       state () const noexcept {return state_;}
@@ -87,7 +93,7 @@ namespace web
       // Get request body data stream.
       //
       virtual std::istream&
-      content (bool buffer = false);
+      content (size_t limit = 0, size_t buffer = 0);
 
       // Get request parameters.
       //
@@ -128,7 +134,10 @@ namespace web
               bool buffer = true);
 
     private:
-      // Get application/x-www-form-urlencoded form data.
+      // Get application/x-www-form-urlencoded form data. If request::content()
+      // was not called yet (and so limits are not specified) then set both of
+      // them to 64KB. Rewind the stream afterwards, so it's available for the
+      // application as well, unless no buffering were requested beforehand.
       //
       const std::string&
       form_data ();
@@ -152,6 +161,12 @@ namespace web
       virtual void
       set_write_state () {state (request_state::writing);}
 
+      // Rewind the input stream (that must exist). Throw sequence_error if
+      // some unbuffered content have already been read.
+      //
+      void
+      rewind_istream ();
+
     private:
       request_rec* rec_;
       request_state state_ = request_state::initial;
@@ -160,7 +175,8 @@ namespace web
       std::unique_ptr<name_values> parameters_;
       std::unique_ptr<name_values> cookies_;
       std::unique_ptr<std::string> form_data_;
-      std::unique_ptr<std::streambuf> in_buf_;
+
+      std::unique_ptr<istreambuf_cache> in_buf_;
       std::unique_ptr<std::istream> in_;
 
       std::unique_ptr<std::streambuf> out_buf_;

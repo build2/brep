@@ -113,7 +113,7 @@ namespace web
         setg (p, p, p);
       }
 
-    private:
+    protected:
       virtual int_type
       underflow ()
       {
@@ -138,7 +138,7 @@ namespace web
         return traits_type::to_int_type (*gptr ());
       }
 
-    private:
+    protected:
       size_t bufsize_;
       size_t putback_;
       std::vector<char> buf_;

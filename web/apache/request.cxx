@@ -10,9 +10,10 @@
 #include <httpd.h>         // request_rec, HTTP_*, OK
 #include <http_protocol.h> // ap_*()
 
-#include <strings.h> // strcasecmp()
+#include <strings.h> // strcasecmp(), strncasecmp()
 
 #include <ctime>     // strftime(), time_t
+#include <vector>
 #include <chrono>
 #include <memory>    // unique_ptr
 #include <string>
@@ -20,11 +21,12 @@
 #include <sstream>
 #include <ostream>
 #include <istream>
-#include <cstring>   // str*(), size_t
+#include <cstring>   // str*(), memcpy(), size_t
 #include <utility>   // move()
 #include <stdexcept> // invalid_argument
 #include <exception> // current_exception()
 #include <streambuf>
+#include <algorithm> // min()
 
 #include <butl/optional>
 
@@ -36,6 +38,211 @@ namespace web
 {
   namespace apache
   {
+    // Extend the Apache stream with checking for the read limit and caching
+    // the content if requested. Replay the cached content after rewind.
+    //
+    class istreambuf_cache: public istreambuf
+    {
+      enum class mode
+      {
+        cache,  // Read from Apache stream, save the read data into the cache.
+        replay, // Read from the cache.
+        proxy   // Read from Apache stream (don't save into the cache).
+      };
+
+    public:
+      istreambuf_cache (size_t read_limit, size_t cache_limit,
+                        request_rec* r,
+                        stream_state& s,
+                        size_t bufsize = 1024,
+                        size_t putback = 1)
+          : istreambuf (r, s, bufsize, putback),
+            read_limit_ (read_limit),
+            cache_limit_ (cache_limit)
+      {
+      }
+
+      void
+      rewind ()
+      {
+        // Fail if some content is already missed in the cache.
+        //
+        if (mode_ == mode::proxy)
+          throw sequence_error (
+            string ("web::apache::istreambuf_cache::rewind: ") +
+            (cache_limit_ > 0
+             ? "half-buffered"
+             : "unbuffered"));
+
+        mode_ = mode::replay;
+        replay_pos_ = 0;
+        setg (nullptr, nullptr, nullptr);
+      }
+
+      void
+      limits (size_t read_limit, size_t cache_limit)
+      {
+        if (read_limit > 0)
+          read_limit_ = read_limit;
+
+        if (cache_limit > 0)
+        {
+          // We can not increase the cache limit if some content is already
+          // missed in the cache.
+          //
+          if (cache_limit > cache_limit_ && mode_ == mode::proxy)
+            throw sequence_error (
+              "web::apache::istreambuf_cache::limits: unbuffered");
+
+          cache_limit_ = cache_limit;
+        }
+      }
+
+      size_t read_limit  () const noexcept {return read_limit_;}
+      size_t cache_limit () const noexcept {return cache_limit_;}
+
+    private:
+      virtual int_type
+      underflow ();
+
+    private:
+      // Limits
+      //
+      size_t read_limit_;
+      size_t cache_limit_;
+
+      // State
+      //
+      mode mode_ = mode::cache;
+      size_t read_bytes_ = 0;
+      bool eof_ = false;        // End of Apache stream is reached.
+
+      // Cache
+      //
+      struct chunk
+      {
+        vector<char> data;
+        size_t offset;
+
+        chunk (vector<char>&& d, size_t o): data (move (d)), offset (o) {}
+
+        // Make the type move constructible-only to avoid copying of chunks on
+        // vector growth.
+        //
+        chunk (chunk&&) = default;
+      };
+
+      vector<chunk> cache_;
+      size_t cache_size_ = 0;
+      size_t replay_pos_ = 0;
+    };
+
+    istreambuf_cache::int_type istreambuf_cache::
+    underflow ()
+    {
+      if (gptr () < egptr ())
+        return traits_type::to_int_type (*gptr ());
+
+      if (mode_ == mode::replay)
+      {
+        if (replay_pos_ < cache_.size ())
+        {
+          chunk& ch (cache_[replay_pos_++]);
+          char*  p  (ch.data.data ());
+          setg (p, p + ch.offset, p + ch.data.size ());
+          return traits_type::to_int_type (*gptr ());
+        }
+
+        // No more data to replay, so switch to the cache mode. That includes
+        // resetting eback, gptr and egptr, so they point into the istreambuf's
+        // internal buffer. Putback area should also be restored.
+        //
+        mode_ = mode::cache;
+
+        // Bailout if the end of stream is reached.
+        //
+        if (eof_)
+          return traits_type::eof ();
+
+        char* p (buf_.data () + putback_);
+        size_t pb (0);
+
+        // Restore putback area if there is any cached data. Thanks to
+        // istreambuf, it's all in a single chunk.
+        //
+        if (!cache_.empty ())
+        {
+          chunk& ch (cache_.back ());
+          pb = min (putback_, ch.data.size ());
+          memcpy (p - pb, ch.data.data () + ch.data.size () - pb, pb);
+        }
+
+        setg (p - pb, p, p);
+      }
+
+      // Delegate reading to the base class in the cache or proxy modes, but
+      // check for the read limit first.
+      //
+      if (read_limit_ && read_bytes_ >= read_limit_)
+        throw invalid_request (HTTP_REQUEST_ENTITY_TOO_LARGE,
+                               "payload too large");
+
+      // Throws the sequence_error exception if some unbuffered content is
+      // already written.
+      //
+      int_type r (istreambuf::underflow ());
+
+      if (r == traits_type::eof ())
+      {
+        eof_ = true;
+        return r;
+      }
+
+      // Increment the read bytes counter.
+      //
+      size_t rb (egptr () - gptr ());
+      read_bytes_ += rb;
+
+      // In the cache mode save the read data if the cache limit is not
+      // reached, otherwise switch to the proxy mode.
+      //
+      if (mode_ == mode::cache)
+      {
+        // Not to complicate things we will copy the buffer into the cache
+        // together with the putback area, which is OK as it usually takes a
+        // small fraction of the buffer. By the same reason we will cache the
+        // whole data read even though we can exceed the limits by
+        // bufsize - putback - 1 bytes.
+        //
+        if (cache_size_ < cache_limit_)
+        {
+          chunk ch (vector<char> (eback (), egptr ()),
+                    static_cast<size_t> (gptr () - eback ()));
+
+          cache_.emplace_back (move (ch));
+          cache_size_ += rb;
+        }
+        else
+          mode_ = mode::proxy;
+      }
+
+      return r;
+    }
+
+    // request
+    //
+    request::
+    request (request_rec* rec) noexcept
+      : rec_ (rec)
+    {
+      rec_->status = HTTP_OK;
+    }
+
+    request::
+    ~request ()
+    {
+    }
+
     void request::
     state (request_state s)
     {
@@ -84,49 +291,56 @@ namespace web
     void request::
     rewind ()
     {
-      // @@ Request content buffering, and response cookies buffering are not
-      //    supported yet. When done will be possible to rewind in broader
-      //    range of cases.
+      // @@ Response cookies buffering is not supported yet. When done will be
+      //    possible to rewind in broader range of cases.
       //
+      if (state_ > request_state::reading)
+        throw sequence_error ("web::apache::request::rewind: unbuffered");
 
-      if (state_ == request_state::initial ||
+      out_.reset ();
+      out_buf_.reset ();
 
-          // Form data have been read. Lucky case, can rewind.
-          //
-          (state_ == request_state::reading &&
-           dynamic_cast<stringbuf*> (in_buf_.get ()) != nullptr))
-      {
-        out_.reset ();
-        out_buf_.reset ();
+      rec_->status = HTTP_OK;
 
-        rec_->status = HTTP_OK;
+      ap_set_content_type (rec_, nullptr); // Unset the output content type.
 
-        ap_set_content_type (rec_, nullptr);
+      if (in_ != nullptr)
+        rewind_istream ();
+    }
 
-        if (in_)
-          in_->seekg (0);
-      }
-      else
-        throw sequence_error ("web::apache::request::rewind");
+    void request::
+    rewind_istream ()
+    {
+      assert (in_buf_ != nullptr && in_ != nullptr);
+
+      in_buf_->rewind (); // Throws if impossible to rewind.
+      in_->clear ();      // Clears *bit flags (in particular eofbit).
     }
 
     istream& request::
-    content (bool buffer)
+    content (size_t limit, size_t buffer)
     {
-      assert (!buffer); // Request content buffering is not implemented yet.
-
-      if (!in_)
+      // Create the input stream/streambuf if not present, otherwise adjust the
+      // limits.
+      //
+      if (in_ == nullptr)
       {
-        unique_ptr<streambuf> in_buf (new istreambuf (rec_, *this));
+        unique_ptr<istreambuf_cache> in_buf (
+          new istreambuf_cache (limit, buffer, rec_, *this));
 
         in_.reset (new istream (in_buf.get ()));
         in_buf_ = move (in_buf);
         in_->exceptions (istream::failbit | istream::badbit);
 
-        // Save form data now otherwise will not be available to do later
-        // when data already read from stream.
+        // Save form data now otherwise will not be available to do later when
+        // data is already read from stream.
         //
         form_data ();
+      }
+      else
+      {
+        assert (in_buf_ != nullptr);
+        in_buf_->limits (limit, buffer);
       }
 
       return *in_;
@@ -245,8 +459,8 @@ namespace web
 
       if (!buffer)
         // Request body will be discarded prior first byte of content is
-        // written. Save form data now to make it available for furture
-        // parameters () call.
+        // written. Save form data now to make it available for future
+        // parameters() call.
         //
         form_data ();
 
@@ -359,6 +573,53 @@ namespace web
 
         n = e ? e + 1 : nullptr;
       }
+    }
+
+    const string& request::
+    form_data ()
+    {
+      if (!form_data_)
+      {
+        form_data_.reset (new string ());
+
+        if (rec_->method_number == M_POST)
+        {
+          const char* ct (apr_table_get (rec_->headers_in, "Content-Type"));
+
+          if (ct != nullptr &&
+              strncasecmp ("application/x-www-form-urlencoded", ct, 33) == 0)
+          {
+            size_t limit  (0);
+            bool   rewind (true);
+
+            // Assign some reasonable (64K) input content read/cache limits if
+            // not done explicitly yet (with the request::content() call).
+            // Rewind afterwards unless the cache limit is set to zero.
+            //
+            if (in_buf_ == nullptr)
+              limit = 64 * 1024;
+            else
+              rewind = in_buf_->cache_limit () > 0;
+
+            istream& istr (content (limit, limit));
+
+            // Do not throw when eofbit is set (end of stream reached), and
+            // when failbit is set (getline() failed to extract any character).
+            //
+            istream::iostate e (istr.exceptions ()); // Save exception mask.
+            istr.exceptions (istream::badbit);
+            getline (istr, *form_data_);
+            istr.exceptions (e);                     // Restore exception mask.
+
+            // Rewind the stream unless no buffering were requested beforehand.
+            //
+            if (rewind)
+              rewind_istream ();
+          }
+        }
+      }
+
+      return *form_data_;
     }
   }
 }
