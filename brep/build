@@ -118,6 +118,10 @@ namespace brep
     //
     timestamp_type timestamp;
 
+    // True if the package rebuild has been forced.
+    //
+    //bool forced;
+
     // Present only if the state is 'tested'.
     //
     optional<result_status> status;
