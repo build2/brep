@@ -17,6 +17,7 @@
 #include <odb/transaction.hxx>
 
 #include <web/module>
+#include <web/mime-url-encoding>
 
 #include <brep/build>
 #include <brep/build-odb>
@@ -28,6 +29,7 @@
 using namespace std;
 using namespace butl;
 using namespace bbot;
+using namespace web;
 using namespace brep::cli;
 using namespace odb::core;
 
@@ -193,6 +195,9 @@ handle (request& rq, response&)
   // Load and update the package build configuration (if present).
   //
   shared_ptr<build> b;
+  optional<result_status> prev_status;
+  bool notify (false);
+
   {
     transaction t (build_db_->begin ());
     b = build_db_->find<build> (id);
@@ -200,26 +205,27 @@ handle (request& rq, response&)
     if (b == nullptr)
       warn_expired ("no package configuration");
     else if (b->state != build_state::testing)
-    {
       warn_expired ("package configuration state is " + to_string (b->state));
-      b = nullptr;
-    }
     else
     {
+      // Don's send email for the success-to-success status change, unless the
+      // build was forced.
+      //
+      notify = !(rqm.result.status == result_status::success &&
+                 b->status && *b->status == rqm.result.status && !b->forced);
+
+      prev_status = move (b->status);
+
       b->state = build_state::tested;
-      b->timestamp = timestamp::clock::now ();
-
-      assert (!b->status);
       b->status = rqm.result.status;
+      b->forced = false;
 
-      // Need to manually load the lazy-load section prior to changing its
-      // members and updating the object's persistent state.
+      // Mark the section as loaded, so results are updated.
       //
-      // @@ TODO: ODB now allows marking a section as loaded so can optimize
-      //    this.
-      //
-      build_db_->load (*b, b->results_section);
+      b->results_section.load ();
       b->results = move (rqm.result.results);
+
+      b->timestamp = timestamp::clock::now ();
 
       build_db_->update (b);
     }
@@ -227,15 +233,27 @@ handle (request& rq, response&)
     t.commit ();
   }
 
-  if (b == nullptr)
-    return true; // Warning is already logged.
+  if (!notify)
+    return true;
+
+  assert (b != nullptr);
 
   // Send email to the package owner.
   //
   try
   {
     string subj (b->package_name + '/' + b->package_version.string () + ' ' +
-                 b->configuration + " build: " + to_string (*b->status));
+                 b->configuration);
+
+    if (!prev_status)
+      subj += " build: " + to_string (*b->status);
+    else
+    {
+      subj += " rebuild: " + to_string (*b->status);
+
+      if (*prev_status != *b->status)
+        subj += " after " + to_string (*prev_status);
+    }
 
     // If the package email address is not specified, then it is assumed to be
     // the same as the project email address.
@@ -264,11 +282,27 @@ handle (request& rq, response&)
       sm.out << "No operations results available." << endl;
     else
     {
+      string url (options_->host () + options_->root ().string ());
+      string pkg (mime_url_encode (b->package_name));
+      string cfg (mime_url_encode (b->configuration));
+
+      // Note that '+' is the only package version character that potentially
+      // needs to be url-encoded, and only in the query part of the URL.
+      // However, we print the package version either as part of URL path or
+      // as the build-force URL query part (where it is not encoded by
+      // design).
+      //
+      const version& ver (b->package_version);
+
       for (const auto& r: b->results)
-        sm.out << r.operation << ": " << r.status << ", "
-               << options_->host () << options_->root ().representation ()
-               << b->package_name << '/' << b->package_version << "/log/"
-               << b->configuration << '/' << r.operation << endl;
+        sm.out << r.operation << ": " << r.status << ", " << url << '/' << pkg
+               << '/' << ver << "/log/" << cfg << '/' << r.operation << endl;
+
+      sm.out << endl
+             << "force rebuild: " << url << "?build-force&p=" << pkg
+             << "&v=" << ver << "&c=" << cfg << "&reason=" << endl << endl
+             << "Note: enter the rebuild reason in the above URL ("
+             << "using '+' instead of space characters)." << endl;
     }
 
     sm.out.close ();

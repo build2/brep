@@ -23,6 +23,7 @@ mod{brep}:                                                     \
               {hxx         cxx}{ database                    } \
               {hxx         cxx}{ database-module             } \
               {hxx         cxx}{ diagnostics                 } \
+              {hxx         cxx}{ mod-build-force             } \
               {hxx         cxx}{ mod-build-log               } \
               {hxx         cxx}{ mod-build-result            } \
               {hxx         cxx}{ mod-build-task              } \

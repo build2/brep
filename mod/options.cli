@@ -116,6 +116,20 @@ namespace brep
          functionality will be disabled. If specified, then the build database
          must be configured (see \cb{build-db-*})."
       }
+
+      size_t build-forced-rebuild-timeout = 600
+      {
+        "<seconds>",
+        "Time to wait before considering a package for a forced rebuild. Must
+         be specified in seconds. Default is 10 minutes."
+      }
+
+      size_t build-normal-rebuild-timeout = 86400
+      {
+        "<seconds>",
+        "Time to wait before considering a package for a normal rebuild. Must
+         be specified in seconds. Default is 24 hours."
+      }
     };
 
     class build_db
@@ -248,10 +262,6 @@ namespace brep
     {
     };
 
-    class repository_root: module
-    {
-    };
-
     class build_task: build, package_db, build_db, module
     {
       size_t build-task-request-max-size = 102400
@@ -265,7 +275,7 @@ namespace brep
 
       size_t build-result-timeout = 10800
       {
-        "<minutes>",
+        "<seconds>",
         "Time to wait before considering the expected task result lost. Must be
          specified in seconds. The default is 3 hours."
       }
@@ -284,6 +294,14 @@ namespace brep
     };
 
     class build_log: build, package_db, build_db, module
+    {
+    };
+
+    class build_force: build, package_db, build_db, module
+    {
+    };
+
+    class repository_root: module
     {
     };
   }
@@ -350,6 +368,33 @@ namespace brep
     {
       // No parameters so far.
       //
+    };
+
+    // All parameters are non-optional.
+    //
+    class build_force
+    {
+      // Package name.
+      //
+      string package | p;
+
+      // Package version. May not be url-encoded, in which case the plus
+      // character is considered literally (rather than as the encoded space
+      // character). In other words, after url-decoding the space character is
+      // treated the same way as the plus character.
+      //
+      // @@ Make it of the version type? Maybe after it get moved to bpkg/types
+      //    or at least the second use case appear.
+      //
+      string version | v;
+
+      // Package build configuration.
+      //
+      string configuration | c;
+
+      // Package rebuild reason. Must not be empty.
+      //
+      string reason;
     };
   }
 }

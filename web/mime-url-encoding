@@ -10,6 +10,10 @@
 
 namespace web
 {
+  // @@ Add the query flag (true by default). If true, then the encoding is
+  //    applied to the URL query part, and so the plus character is used to
+  //    encode the space character. Audit use cases afterwards.
+  //
   void
   mime_url_encode (const char* v, std::ostream& o);
 

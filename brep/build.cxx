@@ -39,7 +39,8 @@ namespace brep
         package_version (move (pvr)),
         configuration (id.configuration),
         state (build_state::testing),
-        timestamp (timestamp_type::clock::now ())
+        timestamp (timestamp_type::clock::now ()),
+        forced (false)
   {
   }
 }

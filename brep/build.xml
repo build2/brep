@@ -11,6 +11,7 @@
       <column name="package_version_release" type="TEXT" null="true"/>
       <column name="state" type="TEXT" null="false"/>
       <column name="timestamp" type="BIGINT" null="false"/>
+      <column name="forced" type="BOOLEAN" null="false"/>
       <column name="status" type="TEXT" null="true"/>
       <primary-key>
         <column name="package_name"/>

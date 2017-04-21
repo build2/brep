@@ -14,6 +14,7 @@
 #include <mod/options>
 #include <mod/mod-build-log>
 #include <mod/mod-build-task>
+#include <mod/mod-build-force>
 #include <mod/mod-build-result>
 #include <mod/mod-package-search>
 #include <mod/mod-package-details>
@@ -61,6 +62,7 @@ namespace brep
         repository_details_ (make_shared<repository_details> ()),
         build_task_ (make_shared<build_task> ()),
         build_result_ (make_shared<build_result> ()),
+        build_force_ (make_shared<build_force> ()),
         build_log_ (make_shared<build_log> ())
   {
   }
@@ -97,6 +99,10 @@ namespace brep
           r.initialized_
           ? r.build_result_
           : make_shared<build_result> (*r.build_result_)),
+        build_force_ (
+          r.initialized_
+          ? r.build_force_
+          : make_shared<build_force> (*r.build_force_)),
         build_log_ (
           r.initialized_
           ? r.build_log_
@@ -121,6 +127,7 @@ namespace brep
     append (r, repository_details_->options ());
     append (r, build_task_->options ());
     append (r, build_result_->options ());
+    append (r, build_force_->options ());
     append (r, build_log_->options ());
     return r;
   }
@@ -161,6 +168,7 @@ namespace brep
     sub_init (*repository_details_, "repository_details");
     sub_init (*build_task_, "build_task");
     sub_init (*build_result_, "build_result");
+    sub_init (*build_force_, "build_force");
     sub_init (*build_log_, "build_log");
 
     // Parse own configuration options.
@@ -235,10 +243,10 @@ namespace brep
     //
     if (lpath.empty ())
     {
-      // Dispatch request handling to the repository_details, the build_task,
-      // the build_result or the package_search module depending on the
-      // function name passed as a first HTTP request parameter. The parameter
-      // should have no value specified. Example: cppget.org/?about
+      // Dispatch request handling to the repository_details, the
+      // package_search or the one of build_* modules depending on the function
+      // name passed as a first HTTP request parameter. The parameter should
+      // have no value specified. Example: cppget.org/?about
       //
       const name_values& params (rq.parameters ());
       if (!params.empty () && !params.front ().value)
@@ -272,6 +280,13 @@ namespace brep
             handler_.reset (new build_result (*build_result_));
 
           return handle (rp, "build_result");
+        }
+        else if (fn == "build-force")
+        {
+          if (handler_ == nullptr)
+            handler_.reset (new build_force (*build_force_));
+
+          return handle (rp, "build_force");
         }
         else
           throw invalid_request (400, "unknown function");

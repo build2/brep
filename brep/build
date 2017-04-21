@@ -101,8 +101,8 @@ namespace brep
   public:
     using timestamp_type = brep::timestamp;
 
-    // Create the build object with the testing state, non-existent status and
-    // the timestamp set to now.
+    // Create the build object with the testing state, non-existent status,
+    // the timestamp set to now and the forced flag set to false.
     //
     build (string name, version, string configuration);
 
@@ -120,7 +120,7 @@ namespace brep
 
     // True if the package rebuild has been forced.
     //
-    //bool forced;
+    bool forced;
 
     // Present only if the state is 'tested'.
     //

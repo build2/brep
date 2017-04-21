@@ -127,22 +127,80 @@ handle (request& rq, response& rs)
 
   // Go through packages until we find one that has no build configuration
   // present in the database, or has the untested one, or in the testing state
-  // but expired, or the one, which build failed abnormally and expired. If
-  // such a package configuration is found then put it into the testing state,
-  // set the current timestamp and respond with the task for building this
-  // package configuration.
+  // but expired (collectively called unbuilt). If such a package
+  // configuration is found then put it into the testing state, set the
+  // current timestamp and respond with the task for building this package
+  // configuration.
+  //
+  // While trying to find a non-built package configuration we will also
+  // collect the list of the tested package configurations which it's time to
+  // rebuilt. So if no unbuilt package is found, we will pickup one to
+  // rebuild. The rebuild preference is given in the following order: the
+  // greater force flag, the greater overall status, the lower timestamp.
   //
   if (!cfg_machines.empty ())
   {
-    // Calculate the expiration time for package configurations being in the
-    // testing state or those, which build failed abnormally.
-    //
-    timestamp expiration (timestamp::clock::now () -
-                          chrono::seconds (options_->build_result_timeout ()));
+    vector<shared_ptr<build>> rebuilds;
 
-    uint64_t expiration_ns (
-      std::chrono::duration_cast<std::chrono::nanoseconds> (
-        expiration.time_since_epoch ()).count ());
+    // Create the task response manifest. The package must have the internal
+    // repository loaded.
+    //
+    auto task = [this] (shared_ptr<build>&& b,
+                        shared_ptr<package>&& p,
+                        const config_machine& cm) -> task_response_manifest
+    {
+      string session (b->package_name + '/' + b->package_version.string () +
+                      '/' + b->configuration);
+
+      string result_url (options_->host () + options_->root ().string () +
+                         "?build-result");
+
+      lazy_shared_ptr<repository> r (p->internal_repository);
+
+      strings fp;
+      if (r->certificate)
+        fp.emplace_back (move (r->certificate->fingerprint));
+
+      task_manifest task (move (b->package_name),
+                          move (b->package_version),
+                          move (r->location),
+                          move (fp),
+                          cm.machine->name,
+                          cm.config->target,
+                          cm.config->vars);
+
+      // @@ We don't support challenge at the moment.
+      //
+      return task_response_manifest (move (session),
+                                     nullopt,
+                                     move (result_url),
+                                     move (task));
+    };
+
+    // Calculate the expiration time for package configurations being in the
+    // testing (build expiration) or the tested (rebuild expiration) state.
+    //
+    timestamp now (timestamp::clock::now ());
+
+    auto expiration = [&now] (size_t timeout) -> timestamp
+    {
+      return now - chrono::seconds (timeout);
+    };
+
+    auto expiration_ns = [&expiration] (size_t timeout) -> uint64_t
+    {
+      return chrono::duration_cast<chrono::nanoseconds> (
+        expiration (timeout).time_since_epoch ()).count ();
+    };
+
+    uint64_t build_expiration_ns (
+      expiration_ns (options_->build_result_timeout ()));
+
+    timestamp forced_rebuild_expiration (
+      expiration (options_->build_forced_rebuild_timeout ()));
+
+    timestamp normal_rebuild_expiration (
+      expiration (options_->build_normal_rebuild_timeout ()));
 
     // Prepare the package version prepared query.
     //
@@ -188,10 +246,9 @@ handle (request& rq, response& rs)
     // configurations that have already been acted upon (initially empty).
     //
     // This is why we query the database for package configurations that
-    // should not be built (in the tested state with the build terminated
-    // normally or not expired, or in the testing state and not expired).
-    // Having such a list we will select the first build configuration that is
-    // not in the list (if available) for the response.
+    // should not be built (in the tested state, or in the testing state and
+    // not expired). Having such a list we will select the first build
+    // configuration that is not in the list (if available) for the response.
     //
     using bld_query = query<build>;
     using prep_bld_query = prepared_query<build>;
@@ -212,12 +269,9 @@ handle (request& rq, response& rs)
       bld_query::id.configuration.in_range (cfg_names.begin (),
                                             cfg_names.end ()) &&
 
-      ((bld_query::state == "tested" &&
-        ((bld_query::status != "abort" && bld_query::status != "abnormal") ||
-         bld_query::timestamp > expiration_ns)) ||
-
+      (bld_query::state == "tested" ||
        (bld_query::state == "testing" &&
-        bld_query::timestamp > expiration_ns)));
+        bld_query::timestamp > build_expiration_ns)));
 
     connection_ptr bld_conn (build_db_->connection ());
 
@@ -262,25 +316,33 @@ handle (request& rq, response& rs)
           // configurations that remained can be built. We will take the first
           // one, if present.
           //
+          // Also save the tested package configurations for which it's time
+          // to be rebuilt.
+          //
           config_machines configs (cfg_machines); // Make a copy for this pkg.
+          auto pkg_builds (bld_prep_query.execute ());
 
-          for (const auto& pc: bld_prep_query.execute ())
+          for (auto i (pkg_builds.begin ()); i != pkg_builds.end (); ++i)
           {
-            auto i (configs.find (pc.id.configuration.c_str ()));
+            auto j (configs.find (i->id.configuration.c_str ()));
 
             // Outdated configurations are already excluded with the database
             // query.
             //
-            assert (i != configs.end ());
-            configs.erase (i);
+            assert (j != configs.end ());
+            configs.erase (j);
+
+            if (i->state == build_state::tested &&
+                i->timestamp <= (i->forced
+                                 ? forced_rebuild_expiration
+                                 : normal_rebuild_expiration))
+              rebuilds.emplace_back (i.load ());
           }
 
           if (!configs.empty ())
           {
             config_machine& cm (configs.begin ()->second);
-            const build_config& cfg (*cm.config);
-
-            build_id bid (move (id), cfg.name);
+            build_id bid (move (id), cm.config->name);
             shared_ptr<build> b (build_db_->find<build> (bid));
 
             // If build configuration doesn't exist then create the new one
@@ -297,27 +359,30 @@ handle (request& rq, response& rs)
             }
             else
             {
-              // If the package configuration is in the tested state, then we
-              // need to cleanup the status and results prior to the update.
-              // Otherwise the status is already absent and there are no
-              // results.
+              // The package configuration can be in the testing or untested
+              // state, so the forced flag is false and the status is absent,
+              // unless in the testing state (in which case they may or may not
+              // be set/exist), and there are no results.
               //
-              // Load the section to make sure results are updated for the
-              // tested state, otherwise assert there are no results.
+              // Note that in the testing state the status can be present if
+              // the rebuild task have been issued. In both cases we keep the
+              // status intact to be able to compare it with the final one in
+              // the result request handling in order to decide if to send the
+              // notification email. The same is true for the forced flag. We
+              // just assert that if the force flag is set, then the status
+              // exists.
+              //
+              // Load the section to assert the above statement.
               //
               build_db_->load (*b, b->results_section);
 
-              if (b->state == build_state::tested)
-              {
-                assert (b->status);
-                b->status = nullopt;
+              assert (b->state != build_state::tested &&
 
-                b->results.clear ();
-              }
-              else
-              {
-                assert (!b->status && b->results.empty ());
-              }
+                      ((!b->forced && !b->status) ||
+                       (b->state == build_state::testing &&
+                        (!b->forced || b->status))) &&
+
+                      b->results.empty ());
 
               b->state = build_state::testing;
               b->timestamp = timestamp::clock::now ();
@@ -327,41 +392,21 @@ handle (request& rq, response& rs)
 
             // Finally, prepare the task response manifest.
             //
-            tsm.session = b->package_name + '/' +
-              b->package_version.string () + '/' + b->configuration;
-
-            // @@ We don't support challenge at the moment, so leave it absent.
-            //
-
-            tsm.result_url = options_->host () + options_->root ().string () +
-              "?build-result";
-
             // Switch to the package database transaction to load the package.
             //
             transaction::current (pt);
 
             shared_ptr<package> p (package_db_->load<package> (b->id.package));
-            shared_ptr<repository> r (p->internal_repository.load ());
+            p->internal_repository.load ();
 
             // Switch back to the build database transaction.
             //
             transaction::current (bt);
 
-            strings fp;
-            if (r->certificate)
-              fp.emplace_back (move (r->certificate->fingerprint));
-
-            tsm.task = task_manifest (
-              move (b->package_name),
-              move (b->package_version),
-              move (r->location),
-              move (fp),
-              move (cm.machine->name),
-              cfg.target,
-              cfg.vars);
+            tsm = task (move (b), move (p), cm);
           }
 
-          // If task response manifest is filled, then can bail out from the
+          // If the task response manifest is prepared, then bail out from the
           // package loop, commit transactions and respond.
           //
           if (!tsm.session.empty ())
@@ -373,6 +418,109 @@ handle (request& rq, response& rs)
 
       transaction::current (pt); // Switch to the package database transaction.
       pt.commit ();
+    }
+
+    // If we don't have an unbuilt package, then let's see if we have a
+    // package to rebuild.
+    //
+    if (tsm.session.empty () && !rebuilds.empty ())
+    {
+      // Sort the package configuration rebuild list with the following sort
+      // priority:
+      //
+      // 1: forced flag
+      // 2: overall status
+      // 3: timestamp (less is preferred)
+      //
+      auto cmp = [] (const shared_ptr<build>& x,
+                     const shared_ptr<build>& y) -> bool
+      {
+        if (x->forced != y->forced)
+          return x->forced > y->forced;     // Forced goes first.
+
+        assert (x->status && y->status);    // Both tested.
+
+        if (x->status != y->status)
+          return x->status > y->status;     // Larger status goes first.
+
+        return x->timestamp < y->timestamp; // Older goes first.
+      };
+
+      sort (rebuilds.begin (), rebuilds.end (), cmp);
+
+      // Pick the first package configuration from the ordered list.
+      //
+      // Note that the configurations may not match the required criteria
+      // anymore (as we have committed the database transactions that were
+      // used to collect this data) so we recheck. If we find one that matches
+      // then put it into the testing state, refresh the timestamp and
+      // update. Note that we don't amend the status and the force flag to
+      // have them available in the result request handling (see above).
+      //
+      for (auto& b: rebuilds)
+      {
+        try
+        {
+          transaction bt (build_db_->begin ());
+
+          b = build_db_->find<build> (b->id);
+
+          if (b != nullptr && b->state == build_state::tested &&
+              b->timestamp <= (b->forced
+                               ? forced_rebuild_expiration
+                               : normal_rebuild_expiration))
+          {
+            // Load the package (if still present).
+            //
+            transaction pt (package_db_->begin (), false);
+            transaction::current (pt);
+
+            shared_ptr<package> p (package_db_->find<package> (b->id.package));
+
+            if (p != nullptr)
+              p->internal_repository.load ();
+
+            // Commit the package database transaction and switch back to the
+            // build database transaction.
+            //
+            pt.commit ();
+            transaction::current (bt);
+
+            if (p != nullptr)
+            {
+              assert (b->status);
+
+              b->state = build_state::testing;
+
+              // Mark the section as loaded, so results are updated.
+              //
+              b->results_section.load ();
+              b->results.clear ();
+
+              b->timestamp = timestamp::clock::now ();
+
+              build_db_->update (b);
+
+              auto i (cfg_machines.find (b->id.configuration.c_str ()));
+
+              // Only actual package configurations are loaded (see above).
+              //
+              assert (i != cfg_machines.end ());
+
+              tsm = task (move (b), move (p), i->second);
+            }
+          }
+
+          bt.commit ();
+        }
+        catch (const odb::deadlock&) {} // Just try with the next rebuild.
+
+        // If the task response manifest is prepared, then bail out from the
+        // package configuration rebuilds loop and respond.
+        //
+        if (!tsm.session.empty ())
+          break;
+      }
     }
   }
 

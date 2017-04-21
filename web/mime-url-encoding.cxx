@@ -17,7 +17,7 @@ using namespace std;
 namespace web
 {
   // Encode characters different from unreserved ones specified in
-  // "2.3.  Unreserved Characters" of http://tools.ietf.org/html/rfc3986.
+  // "2.3. Unreserved Characters" of http://tools.ietf.org/html/rfc3986.
   //
   void
   mime_url_encode (const char* v, ostream& o)
