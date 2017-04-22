@@ -311,7 +311,7 @@ handle (request& rq, response&)
       sm.out << "No operations results available." << endl;
     else
     {
-      string url (options_->host () + options_->root ().string ());
+      string url (options_->host () + options_->root ().representation ());
       string pkg (mime_url_encode (b->package_name));
       string cfg (mime_url_encode (b->configuration));
 
@@ -324,12 +324,13 @@ handle (request& rq, response&)
       const version& ver (b->package_version);
 
       for (const auto& r: b->results)
-        sm.out << r.operation << ": " << r.status << ", " << url << '/' << pkg
-               << '/' << ver << "/log/" << cfg << '/' << r.operation << endl;
+        sm.out << r.operation << ": " << r.status << ", " << url << pkg << '/'
+               << ver << "/log/" << cfg << '/' << r.operation << endl;
 
       sm.out << endl
-             << "force rebuild: " << url << "?build-force&p=" << pkg
-             << "&v=" << ver << "&c=" << cfg << "&reason=" << endl << endl
+             << "force rebuild: " << options_->host () << options_->root ()
+             << "?build-force&p=" << pkg << "&v=" << ver << "&c=" << cfg
+             << "&reason=" << endl << endl
              << "Note: enter the rebuild reason in the above URL ("
              << "using '+' instead of space characters)." << endl;
     }
