@@ -99,11 +99,12 @@ handle (request& rq, response&)
     throw invalid_request (400, e.what ());
   }
 
-  // Parse the task response session to obtain the build configuration name,
-  // and to make sure the session matches the result manifest's package name
-  // and version.
+  // Parse the task response session to obtain the build configuration name and
+  // the timestamp, and to make sure the session matches the result manifest's
+  // package name and version.
   //
   build_id id;
+  timestamp session_timestamp;
 
   try
   {
@@ -144,10 +145,36 @@ handle (request& rq, response&)
     if (version != rqm.result.version)
       throw invalid_argument ("package version mismatch");
 
-    id = build_id (package_id (move (name), version), string (s, p + 1));
+    b = p + 1;           // Start of configuration name.
+    p = s.find ('/', b); // End of configuration name.
+
+    if (p == string::npos)
+      throw invalid_argument ("no timestamp");
+
+    id = build_id (package_id (move (name), version), string (s, b, p - b));
 
     if (id.configuration.empty ())
       throw invalid_argument ("empty configuration name");
+
+    try
+    {
+      size_t tsn;
+      string ts (s, p + 1);
+
+      session_timestamp = timestamp (
+        chrono::duration_cast<timestamp::duration> (
+          chrono::nanoseconds (stoull (ts, &tsn))));
+
+      if (tsn != ts.size ())
+        throw invalid_argument ("trailing junk");
+    }
+    // Handle invalid_argument or out_of_range (both derive from logic_error),
+    // that can be thrown by stoull().
+    //
+    catch (const logic_error& e)
+    {
+      throw invalid_argument (string ("invalid timestamp: ") + e.what ());
+    }
   }
   catch (const invalid_argument& e)
   {
@@ -206,6 +233,8 @@ handle (request& rq, response&)
       warn_expired ("no package configuration");
     else if (b->state != build_state::testing)
       warn_expired ("package configuration state is " + to_string (b->state));
+    else if (b->timestamp != session_timestamp)
+      warn_expired ("non-matching timestamp");
     else
     {
       // Don's send email for the success-to-success status change, unless the

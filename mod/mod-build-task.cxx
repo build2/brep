@@ -149,8 +149,12 @@ handle (request& rq, response& rs)
                         shared_ptr<package>&& p,
                         const config_machine& cm) -> task_response_manifest
     {
+      uint64_t ts (
+        chrono::duration_cast<std::chrono::nanoseconds> (
+          b->timestamp.time_since_epoch ()).count ());
+
       string session (b->package_name + '/' + b->package_version.string () +
-                      '/' + b->configuration);
+                      '/' + b->configuration + '/' + to_string (ts));
 
       string result_url (options_->host () + options_->root ().string () +
                          "?build-result");
