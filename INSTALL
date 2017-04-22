@@ -270,7 +270,7 @@ cron job is a natural choice.
 
 The following crontab entry will execute the loader every five minutes:
 
-$ crontab -
+$ crontab -l
 MAILTO=<brep-admin-email>
 PATH=/usr/local/bin:/bin:/usr/bin
 */5 * * * * $HOME/install/bin/brep-load $HOME/config/loadtab
@@ -353,7 +353,7 @@ $ sudo systemctl stop apache2
 
 Install new brep:
 
-$ rm -rf install/*
+$ rm -rf ../install/*
 $ bpkg install brep
 $ cd ..
 
