@@ -85,6 +85,15 @@ handle (request& rq, response& rs)
     <<   HEAD
     <<     TITLE << title << ~TITLE
     <<     CSS_LINKS (path ("repository-details.css"), root)
+    //
+    // This hack is required to avoid the "flash of unstyled content", which
+    // happens due to the presence of the autofocus attribute in the input
+    // element of the search form. The problem appears in Firefox and has a
+    // (4-year old, at the time of this writing) bug report:
+    //
+    // https://bugzilla.mozilla.org/show_bug.cgi?id=712130.
+    //
+    <<     SCRIPT << " " << ~SCRIPT
     <<   ~HEAD
     <<   BODY
     <<     DIV_HEADER (root, options_->logo (), options_->menu ())
