@@ -8,6 +8,7 @@ description-file: README
 changes-file: NEWS
 url: https://build2.org
 email: users@build2.org
+build-email: builds@build2.org
 requires: c++14
 requires: postgresql >= 9.0
 requires: apache2; Including development files (httpd.h header, etc).
