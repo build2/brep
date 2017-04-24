@@ -275,18 +275,8 @@ handle (request& rq, response&)
   //
   try
   {
-    string subj (b->package_name + '/' + b->package_version.string () + ' ' +
-                 b->configuration);
-
-    if (!prev_status)
-      subj += " build: " + to_string (*b->status);
-    else
-    {
-      subj += " rebuild: " + to_string (*b->status);
-
-      if (*prev_status != *b->status)
-        subj += " after " + to_string (*prev_status);
-    }
+    string subj (to_string (*b->status) + ": " + b->package_name + '/' +
+                 b->package_version.string () + '/' + b->configuration);
 
     // If the package build address is not specified, then it is assumed to be
     // the same as the package email address, if specified, otherwise as the
@@ -328,17 +318,21 @@ handle (request& rq, response&)
       // design).
       //
       const version& ver (b->package_version);
+      ostream& os (sm.out);
+
+      assert (b->status);
+      os << "combined: " << *b->status << endl << endl
+         << "  " << url << pkg << '/' << ver << "/log/" << cfg << endl << endl;
 
       for (const auto& r: b->results)
-        sm.out << r.operation << ": " << r.status << ", " << url << pkg << '/'
-               << ver << "/log/" << cfg << '/' << r.operation << endl;
+        os << r.operation << ": " << r.status << endl << endl
+           << "  " << url << pkg << '/' << ver << "/log/" << cfg << '/'
+           << r.operation << endl << endl;
 
-      sm.out << endl
-             << "force rebuild: " << options_->host () << options_->root ()
-             << "?build-force&p=" << pkg << "&v=" << ver << "&c=" << cfg
-             << "&reason=" << endl << endl
-             << "Note: enter the rebuild reason in the above URL ("
-             << "using '+' instead of space characters)." << endl;
+      os << "Force rebuild (enter the reason, use '+' instead of spaces):"
+         << endl << endl
+         << "  " << options_->host () << options_->root () << "?build-force&p="
+         << pkg << "&v=" << ver << "&c=" << cfg << "&reason=" << endl;
     }
 
     sm.out.close ();
