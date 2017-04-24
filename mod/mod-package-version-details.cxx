@@ -195,11 +195,11 @@ handle (request& rq, response& rs)
 
   const auto& pu (pkg->package_url);
   if (pu && *pu != pkg->url)
-    s << TR_URL (*pu, "pkg-url");
+    s << TR_URL (*pu, "package-url");
 
   const auto& pe (pkg->package_email);
   if (pe && *pe != em)
-    s << TR_EMAIL (*pe, "pkg-email");
+    s << TR_EMAIL (*pe, "package-email");
 
   const auto& be (pkg->build_email);
   if (be && ((pe && *be != *pe) || (!pe && *be != em)))

@@ -92,7 +92,7 @@ h1, h2, h3
   border: 1px outset rgba(230,230,230,.24);
   */
 }
-#version th {width: 7.6em;}
+#version th {width: 9.5em;}
 
 #version tr.version td .value,
 #version tr.priority td .value,
@@ -106,7 +106,7 @@ h1, h2, h3
 #version tr.sha256 td .value
 {
   /* Increase the chances of 64-char value not to be truncated. */
-  font-size: 0.88em;
+  font-size: 0.85em;
 }
 
 /*
@@ -117,7 +117,7 @@ h1, h2, h3
   margin-top: 1.2em;
   margin-bottom: 1em;
 }
-#package th {width: 7.6em;}
+#package th {width: 9.5em;}
 
 /*
  * Dependencies and requirements tables.
