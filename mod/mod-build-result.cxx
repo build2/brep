@@ -262,7 +262,11 @@ handle (request& rq, response&)
     t.commit ();
   }
 
-  if (!notify)
+  // Don't send the notification email if the empty package build email is
+  // specified.
+  //
+  const optional<email>& build_email (p->build_email);
+  if (!notify || (build_email && build_email->empty ()))
     return true;
 
   assert (b != nullptr);
@@ -284,12 +288,14 @@ handle (request& rq, response&)
         subj += " after " + to_string (*prev_status);
     }
 
-    // If the package email address is not specified, then it is assumed to be
-    // the same as the project email address.
+    // If the package build address is not specified, then it is assumed to be
+    // the same as the package email address, if specified, otherwise as the
+    // project email address.
     //
-    const string& to (p->package_email
-                      ? *p->package_email
-                      : p->email);
+    const string& to (build_email ? *build_email
+                      : p->package_email
+                        ? *p->package_email
+                        : p->email);
 
     auto print_args = [&trace, this] (const char* args[], size_t n)
     {
