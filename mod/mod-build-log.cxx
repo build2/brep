@@ -197,8 +197,24 @@ handle (request& rq, response& rs)
   //
   ostream& os (rs.content (200, "text/plain;charset=utf-8", false));
 
+  assert (b->machine && b->machine_summary);
+
+  os << "package: " << b->package_name << endl
+     << "version: " << b->package_version << endl
+     << "config: "  << b->configuration << endl
+     << "machine: " << *b->machine << " (" << *b->machine_summary << ")"
+                    << endl
+     << "target: "  << (i->target
+                        ? i->target->string ()
+                        : "default") << endl << endl;
+
   if (op.empty ())
   {
+    for (const auto& r: b->results)
+      os << r.operation << ": " << r.status << endl;
+
+    os << endl;
+
     for (const auto& r: b->results)
       os << r.log;
   }
@@ -213,7 +229,8 @@ handle (request& rq, response& rs)
     if (i == r.end ())
       config_expired ("no operation");
 
-    os << i->log;
+    os << op << ": " << i->status << endl << endl
+       << i->log;
   }
 
   return true;

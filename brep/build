@@ -104,7 +104,9 @@ namespace brep
     // Create the build object with the testing state, non-existent status,
     // the timestamp set to now and the forced flag set to false.
     //
-    build (string name, version, string configuration);
+    build (string name, version,
+           string configuration,
+           string machine, string machine_summary);
 
     build_id id;
 
@@ -125,6 +127,11 @@ namespace brep
     // Present only if the state is 'tested'.
     //
     optional<result_status> status;
+
+    // Present only if the state is 'testing' or 'tested'.
+    //
+    optional<string> machine;
+    optional<string> machine_summary;
 
     // Note that the logs are stored as std::string/TEXT which is Ok since
     // they are UTF-8 and our database is UTF-8.

@@ -106,7 +106,7 @@ handle (request& rq, response& rs)
   struct config_machine
   {
     const build_config* config;
-    const machine_header_manifest* machine;
+    machine_header_manifest* machine;
   };
 
   using config_machines = map<const char*, config_machine, compare_c_string>;
@@ -346,6 +346,7 @@ handle (request& rq, response& rs)
           if (!configs.empty ())
           {
             config_machine& cm (configs.begin ()->second);
+            machine_header_manifest& mh (*cm.machine);
             build_id bid (move (id), cm.config->name);
             shared_ptr<build> b (build_db_->find<build> (bid));
 
@@ -357,7 +358,9 @@ handle (request& rq, response& rs)
             {
               b = make_shared<build> (move (bid.package.name),
                                       move (pv.version),
-                                      move (bid.configuration));
+                                      move (bid.configuration),
+                                      mh.name,
+                                      move (mh.summary));
 
               build_db_->persist (b);
             }
@@ -389,6 +392,8 @@ handle (request& rq, response& rs)
                       b->results.empty ());
 
               b->state = build_state::testing;
+              b->machine = mh.name;
+              b->machine_summary = move (mh.summary);
               b->timestamp = timestamp::clock::now ();
 
               build_db_->update (b);
@@ -474,6 +479,14 @@ handle (request& rq, response& rs)
                                ? forced_rebuild_expiration
                                : normal_rebuild_expiration))
           {
+            auto i (cfg_machines.find (b->id.configuration.c_str ()));
+
+            // Only actual package configurations are loaded (see above).
+            //
+            assert (i != cfg_machines.end ());
+            const config_machine& cm (i->second);
+            const machine_header_manifest& mh (*cm.machine);
+
             // Load the package (if still present).
             //
             transaction pt (package_db_->begin (), false);
@@ -495,6 +508,11 @@ handle (request& rq, response& rs)
               assert (b->status);
 
               b->state = build_state::testing;
+              b->machine = mh.name;
+
+              // Can't move from, as may need it on the next iteration.
+              //
+              b->machine_summary = mh.summary;
 
               // Mark the section as loaded, so results are updated.
               //
@@ -505,13 +523,7 @@ handle (request& rq, response& rs)
 
               build_db_->update (b);
 
-              auto i (cfg_machines.find (b->id.configuration.c_str ()));
-
-              // Only actual package configurations are loaded (see above).
-              //
-              assert (i != cfg_machines.end ());
-
-              tsm = task (move (b), move (p), i->second);
+              tsm = task (move (b), move (p), cm);
             }
           }
 
