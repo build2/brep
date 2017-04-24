@@ -611,6 +611,7 @@ main (int argc, char* argv[])
       assert (!epv->package_url);
       assert (epv->email == email ("users@exp.com"));
       assert (!epv->package_email);
+      assert (epv->build_email && *epv->build_email == "builds@exp.com");
 
       assert (epv->internal_repository.load () == mr);
       assert (epv->other_repositories.empty ());
@@ -636,7 +637,7 @@ main (int argc, char* argv[])
 
       assert (check_location (epv));
       assert (epv->sha256sum && *epv->sha256sum ==
-        "49172533e10e1dd9b8f80bcd25d25397f143ba49a944cd8cb8fd273823b7c10e");
+        "96add9edada45f4ceee18b3ec344ca3c4fc1473d9aad22a13e97d7728a439087");
 
       // Verify libpq package version.
       //

@@ -9,10 +9,11 @@ tags: c++, exponent
 description: The exponent math function.
 url: http://www.exp.com
 email: users@exp.com
+build-email: builds@exp.com
 depends: libmisc
 depends: libpq >= 9.0.0
 location: libexp-1~1.2+1.tar.gz
-sha256sum: 49172533e10e1dd9b8f80bcd25d25397f143ba49a944cd8cb8fd273823b7c10e
+sha256sum: 96add9edada45f4ceee18b3ec344ca3c4fc1473d9aad22a13e97d7728a439087
 :
 name: libfoo
 version: 1.0
