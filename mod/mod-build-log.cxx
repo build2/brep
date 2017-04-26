@@ -201,12 +201,11 @@ handle (request& rq, response& rs)
 
   os << "package: " << b->package_name << endl
      << "version: " << b->package_version << endl
-     << "config: "  << b->configuration << endl
+     << "config:  " << b->configuration << endl
      << "machine: " << *b->machine << " (" << *b->machine_summary << ")"
                     << endl
-     << "target: "  << (i->target
-                        ? i->target->string ()
-                        : "default") << endl << endl;
+     << "target:  " << (i->target ? i->target->string () : "default") << endl
+                    << endl;
 
   if (op.empty ())
   {
