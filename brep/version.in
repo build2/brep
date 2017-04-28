@@ -49,4 +49,9 @@ $libbpkg.check(LIBBPKG_VERSION, LIBBPKG_SNAPSHOT)$
 
 $libbbot.check(LIBBBOT_VERSION, LIBBBOT_SNAPSHOT)$
 
+// For now these are the same.
+//
+#define LIBBREP_VERSION BREP_VERSION
+#define LIBBREP_VERSION_STR BREP_VERSION_STR
+
 #endif // BREP_VERSION
