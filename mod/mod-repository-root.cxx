@@ -8,8 +8,6 @@
 
 #include <web/module>
 
-#include <brep/version>
-
 #include <mod/module>
 #include <mod/options>
 #include <mod/mod-build-log>

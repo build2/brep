@@ -31,13 +31,16 @@ lib{brep}:                          \
                    $int_libs        \
 sql{build package package-extra}
 
+hxx{version}: in{version} $src_root/file{manifest}
+hxx{version}: dist = true
+
 # For pre-releases use the complete version to make sure they cannot be used
 # in place of another pre-release or the final version.
 #
-if $abi_prerelease
-  lib{brep}: bin.lib.version = @-$version
+if $version.pre_release
+  lib{brep}: bin.lib.version = @"-$version.project_id"
 else
-  lib{brep}: bin.lib.version = @-$abi_major.$abi_minor
+  lib{brep}: bin.lib.version = @"-$version.major.$version.minor"
 
 lib{brep}: cxx.export.poptions = "-I$out_root" "-I$src_root"
 lib{brep}: cxx.export.libs = $int_libs

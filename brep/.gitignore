@@ -6,3 +6,5 @@ package-extra
 
 build-odb*
 build.sql
+
+version

@@ -29,4 +29,6 @@ namespace brep
   using butl::reverse_iterate;
 }
 
+#include <brep/version>
+
 #endif // BREP_UTILITY

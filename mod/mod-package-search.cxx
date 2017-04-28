@@ -15,7 +15,6 @@
 #include <web/module>
 #include <web/mime-url-encoding>
 
-#include <brep/version>
 #include <brep/package>
 #include <brep/package-odb>
 

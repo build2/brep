@@ -17,7 +17,6 @@
 
 #include <brep/types>
 #include <brep/utility>
-#include <brep/version>
 
 #include <brep/database-lock>
 
