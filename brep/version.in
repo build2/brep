@@ -49,6 +49,23 @@ $libbpkg.check(LIBBPKG_VERSION, LIBBPKG_SNAPSHOT)$
 
 $libbbot.check(LIBBBOT_VERSION, LIBBBOT_SNAPSHOT)$
 
+#include <odb/version.hxx>
+
+$libodb.check(LIBODB_VERSION, LIBODB_SNAPSHOT)$
+
+#include <odb/pgsql/version.hxx>
+
+$libodb-pgsql.check(LIBODB_PGSQL_VERSION, LIBODB_PGSQL_SNAPSHOT)$
+
+// @@ Not really the correct place for the check since we don't use
+//    it here.
+//
+/*
+#include <xml/version>
+
+$libstudxml.check(LIBSTUDXML_VERSION, LIBSTUDXML_SNAPSHOT)$
+*/
+
 // For now these are the same.
 //
 #define LIBBREP_VERSION BREP_VERSION
