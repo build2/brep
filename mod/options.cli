@@ -2,11 +2,11 @@
 // copyright : Copyright (c) 2014-2017 Code Synthesis Ltd
 // license   : MIT; see accompanying LICENSE file
 
-include <web/xhtml-fragment>;
+include <web/xhtml-fragment.hxx>;
 
-include <brep/types>;
+include <libbrep/types.hxx>;
 
-include <mod/options-types>;
+include <mod/options-types.hxx>;
 
 namespace brep
 {

@@ -14,11 +14,11 @@
 #include <butl/process>
 #include <butl/filesystem>
 
-#include <brep/types>
-#include <brep/utility>
+#include <libbrep/types.hxx>
+#include <libbrep/utility.hxx>
 
-#include <brep/package>
-#include <brep/package-odb>
+#include <libbrep/package.hxx>
+#include <libbrep/package-odb.hxx>
 
 using namespace std;
 using namespace odb::core;

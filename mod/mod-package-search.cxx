@@ -2,7 +2,7 @@
 // copyright : Copyright (c) 2014-2017 Code Synthesis Ltd
 // license   : MIT; see accompanying LICENSE file
 
-#include <mod/mod-package-search>
+#include <mod/mod-package-search.hxx>
 
 #include <xml/serializer>
 
@@ -11,15 +11,15 @@
 #include <odb/transaction.hxx>
 #include <odb/schema-catalog.hxx>
 
-#include <web/xhtml>
-#include <web/module>
-#include <web/mime-url-encoding>
+#include <web/xhtml.hxx>
+#include <web/module.hxx>
+#include <web/mime-url-encoding.hxx>
 
-#include <brep/package>
-#include <brep/package-odb>
+#include <libbrep/package.hxx>
+#include <libbrep/package-odb.hxx>
 
-#include <mod/page>
-#include <mod/options>
+#include <mod/page.hxx>
+#include <mod/options.hxx>
 
 using namespace odb::core;
 using namespace brep::cli;

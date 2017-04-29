@@ -2,9 +2,9 @@
 // copyright : Copyright (c) 2014-2017 Code Synthesis Ltd
 // license   : MIT; see accompanying LICENSE file
 
-#include <load/types-parsers>
+#include <load/types-parsers.hxx>
 
-#include <load/load-options> // cli namespace
+#include <load/load-options.hxx> // cli namespace
 
 using namespace brep;
 

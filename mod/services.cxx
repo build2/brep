@@ -4,12 +4,12 @@
 
 #include <ap_config.h> // AP_MODULE_DECLARE_DATA
 
-#include <web/apache/service>
+#include <web/apache/service.hxx>
 
-#include <brep/types>
-#include <brep/utility>
+#include <libbrep/types.hxx>
+#include <libbrep/utility.hxx>
 
-#include <mod/mod-repository-root>
+#include <mod/mod-repository-root.hxx>
 
 static brep::repository_root mod;
 web::apache::service AP_MODULE_DECLARE_DATA brep_module ("brep", mod);

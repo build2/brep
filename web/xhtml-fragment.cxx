@@ -2,7 +2,7 @@
 // copyright : Copyright (c) 2014-2017 Code Synthesis Ltd
 // license   : MIT; see accompanying LICENSE file
 
-#include <web/xhtml-fragment>
+#include <web/xhtml-fragment.hxx>
 
 #include <string>
 #include <cassert>
@@ -10,7 +10,7 @@
 #include <xml/parser>
 #include <xml/serializer>
 
-#include <web/xhtml>
+#include <web/xhtml.hxx>
 
 using namespace std;
 using namespace xml;

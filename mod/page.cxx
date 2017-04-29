@@ -2,7 +2,7 @@
 // copyright : Copyright (c) 2014-2017 Code Synthesis Ltd
 // license   : MIT; see accompanying LICENSE file
 
-#include <mod/page>
+#include <mod/page.hxx>
 
 #include <set>
 #include <ios>       // hex, uppercase, right
@@ -12,11 +12,11 @@
 
 #include <xml/serializer>
 
-#include <web/xhtml>
-#include <web/mime-url-encoding>
+#include <web/xhtml.hxx>
+#include <web/mime-url-encoding.hxx>
 
-#include <brep/package>
-#include <brep/package-odb>
+#include <libbrep/package.hxx>
+#include <libbrep/package-odb.hxx>
 
 using namespace std;
 using namespace xml;

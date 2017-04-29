@@ -2,7 +2,7 @@
 // copyright : Copyright (c) 2014-2017 Code Synthesis Ltd
 // license   : MIT; see accompanying LICENSE file
 
-#include <mod/mod-build-task>
+#include <mod/mod-build-task.hxx>
 
 #include <map>
 #include <chrono>
@@ -12,20 +12,20 @@
 #include <butl/manifest-parser>
 #include <butl/manifest-serializer>
 
-#include <bbot/manifest>
-#include <bbot/build-config>
+#include <libbbot/manifest.hxx>
+#include <libbbot/build-config.hxx>
 
 #include <odb/database.hxx>
 #include <odb/transaction.hxx>
 
-#include <web/module>
+#include <web/module.hxx>
 
-#include <brep/build>
-#include <brep/build-odb>
-#include <brep/package>
-#include <brep/package-odb>
+#include <libbrep/build.hxx>
+#include <libbrep/build-odb.hxx>
+#include <libbrep/package.hxx>
+#include <libbrep/package-odb.hxx>
 
-#include <mod/options>
+#include <mod/options.hxx>
 
 using namespace std;
 using namespace butl;

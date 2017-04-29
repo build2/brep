@@ -2,7 +2,7 @@
 // copyright : Copyright (c) 2014-2017 Code Synthesis Ltd
 // license   : MIT; see accompanying LICENSE file
 
-#include <mod/mod-build-result>
+#include <mod/mod-build-result.hxx>
 
 #include <algorithm> // find_if()
 
@@ -11,20 +11,20 @@
 #include <butl/manifest-parser>
 #include <butl/manifest-serializer>
 
-#include <bbot/manifest>
+#include <libbbot/manifest.hxx>
 
 #include <odb/database.hxx>
 #include <odb/transaction.hxx>
 
-#include <web/module>
-#include <web/mime-url-encoding>
+#include <web/module.hxx>
+#include <web/mime-url-encoding.hxx>
 
-#include <brep/build>
-#include <brep/build-odb>
-#include <brep/package>
-#include <brep/package-odb>
+#include <libbrep/build.hxx>
+#include <libbrep/build-odb.hxx>
+#include <libbrep/package.hxx>
+#include <libbrep/package-odb.hxx>
 
-#include <mod/options>
+#include <mod/options.hxx>
 
 using namespace std;
 using namespace butl;

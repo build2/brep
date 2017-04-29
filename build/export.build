@@ -4,7 +4,7 @@
 
 $out_root/:
 {
-  include brep/
+  include libbrep/
 }
 
-export $out_root/brep/lib{brep}
+export $out_root/libbrep/lib{brep}

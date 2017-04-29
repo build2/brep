@@ -15,12 +15,12 @@
 
 #include <butl/pager>
 
-#include <brep/types>
-#include <brep/utility>
+#include <libbrep/types.hxx>
+#include <libbrep/utility.hxx>
 
-#include <brep/database-lock>
+#include <libbrep/database-lock.hxx>
 
-#include <migrate/migrate-options>
+#include <migrate/migrate-options.hxx>
 
 using namespace std;
 using namespace odb::core;
@@ -321,7 +321,7 @@ try
   if (create || drop)
   {
     static const char package_extras[] = {
-#include <brep/package-extra>
+#include <libbrep/package-extra.hxx>
       , '\0'};
 
     schema s (db_schema == "package"

@@ -2,7 +2,7 @@
 // copyright : Copyright (c) 2014-2017 Code Synthesis Ltd
 // license   : MIT; see accompanying LICENSE file
 
-#include <web/apache/service>
+#include <web/apache/service.hxx>
 
 #include <apr_pools.h> // apr_palloc()
 
@@ -18,8 +18,8 @@
 
 #include <butl/optional>
 
-#include <web/module>
-#include <web/apache/log>
+#include <web/module.hxx>
+#include <web/apache/log.hxx>
 
 using namespace std;
 

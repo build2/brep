@@ -27,14 +27,14 @@
 
 #include <bpkg/manifest>
 
-#include <brep/types>
-#include <brep/utility>
+#include <libbrep/types.hxx>
+#include <libbrep/utility.hxx>
 
-#include <brep/package>
-#include <brep/package-odb>
-#include <brep/database-lock>
+#include <libbrep/package.hxx>
+#include <libbrep/package-odb.hxx>
+#include <libbrep/database-lock.hxx>
 
-#include <load/load-options>
+#include <load/load-options.hxx>
 
 using namespace std;
 using namespace odb::core;

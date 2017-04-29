@@ -2,7 +2,7 @@
 // copyright : Copyright (c) 2014-2017 Code Synthesis Ltd
 // license   : MIT; see accompanying LICENSE file
 
-#include <mod/database-module>
+#include <mod/database-module.hxx>
 
 #include <errno.h> // EIO
 
@@ -12,9 +12,9 @@
 
 #include <butl/utility> // throw_generic_error()
 
-#include <mod/options>
-#include <mod/database>
-#include <mod/build-config>
+#include <mod/options.hxx>
+#include <mod/database.hxx>
+#include <mod/build-config.hxx>
 
 namespace brep
 {

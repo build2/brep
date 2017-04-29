@@ -2,7 +2,7 @@
 // copyright : Copyright (c) 2014-2017 Code Synthesis Ltd
 // license   : MIT; see accompanying LICENSE file
 
-#include <web/apache/request>
+#include <web/apache/request.hxx>
 
 #include <apr_tables.h>  // apr_table_*, apr_array_header_t
 #include <apr_strings.h> // apr_pstrdup()
@@ -31,7 +31,7 @@
 #include <butl/optional>
 #include <butl/timestamp>
 
-#include <web/mime-url-encoding>
+#include <web/mime-url-encoding.hxx>
 
 using namespace std;
 using namespace butl;

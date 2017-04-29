@@ -2,7 +2,7 @@
 // copyright : Copyright (c) 2014-2017 Code Synthesis Ltd
 // license   : MIT; see accompanying LICENSE file
 
-#include <web/mime-url-encoding>
+#include <web/mime-url-encoding.hxx>
 
 #include <ios>       // hex, uppercase, right
 #include <string>

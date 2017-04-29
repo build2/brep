@@ -2,22 +2,22 @@
 // copyright : Copyright (c) 2014-2017 Code Synthesis Ltd
 // license   : MIT; see accompanying LICENSE file
 
-#include <mod/mod-repository-root>
+#include <mod/mod-repository-root.hxx>
 
 #include <sstream>
 
-#include <web/module>
+#include <web/module.hxx>
 
-#include <mod/module>
-#include <mod/options>
-#include <mod/mod-build-log>
-#include <mod/mod-build-task>
-#include <mod/mod-build-force>
-#include <mod/mod-build-result>
-#include <mod/mod-package-search>
-#include <mod/mod-package-details>
-#include <mod/mod-repository-details>
-#include <mod/mod-package-version-details>
+#include <mod/module.hxx>
+#include <mod/options.hxx>
+#include <mod/mod-build-log.hxx>
+#include <mod/mod-build-task.hxx>
+#include <mod/mod-build-force.hxx>
+#include <mod/mod-build-result.hxx>
+#include <mod/mod-package-search.hxx>
+#include <mod/mod-package-details.hxx>
+#include <mod/mod-repository-details.hxx>
+#include <mod/mod-package-version-details.hxx>
 
 using namespace std;
 using namespace brep::cli;

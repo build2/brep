@@ -7,7 +7,7 @@
 
 #include <xml/serializer>
 
-#include <web/xhtml>
+#include <web/xhtml.hxx>
 
 using namespace std;
 using namespace xml;

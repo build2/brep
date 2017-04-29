@@ -6,7 +6,7 @@ include <vector>;
 include <string>;
 include <cstdint>; // uint16_t
 
-include <brep/types>;
+include <libbrep/types.hxx>;
 
 "\section=1"
 "\name=brep-load"

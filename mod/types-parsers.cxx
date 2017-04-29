@@ -2,9 +2,9 @@
 // copyright : Copyright (c) 2014-2017 Code Synthesis Ltd
 // license   : MIT; see accompanying LICENSE file
 
-#include <mod/types-parsers>
+#include <mod/types-parsers.hxx>
 
-#include <mod/options>
+#include <mod/options.hxx>
 
 using namespace std;
 using namespace web::xhtml;

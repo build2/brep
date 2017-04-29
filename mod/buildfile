@@ -16,7 +16,7 @@ import libs += libbutl%lib{butl}
 import libs += libbpkg%lib{bpkg}
 import libs += libbbot%lib{bbot}
 
-include ../brep/
+include ../libbrep/
 
 mod{brep}:                                                     \
               {hxx         cxx}{ build-config                } \
@@ -46,7 +46,7 @@ mod{brep}:                                                     \
 ../web/apache/{hxx ixx     cxx}{ request                     } \
 ../web/apache/{hxx     txx cxx}{ service                     } \
 ../web/apache/{hxx            }{ stream                      } \
-../brep/lib{brep} $libs
+../libbrep/lib{brep} $libs
 
 # Don't install any of the module's headers.
 #
@@ -62,9 +62,9 @@ if $cli.configured
   # Set option prefix to the empty value to handle all unknown request
   # parameters uniformly with a single catch block.
   #
-  cli.options += --std c++11 -I $src_root --include-with-brackets \
---include-prefix mod --guard-prefix MOD --generate-specifier \
---cxx-prologue "#include <mod/types-parsers>" \
+  cli.options += --std c++11 -I $src_root --include-with-brackets  \
+--include-prefix mod --guard-prefix MOD --generate-specifier       \
+--cxx-prologue "#include <mod/types-parsers.hxx>"                  \
 --cli-namespace brep::cli --generate-file-scanner --suppress-usage \
 --generate-modifier --generate-description --option-prefix ""
 

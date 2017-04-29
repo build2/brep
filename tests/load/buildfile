@@ -7,9 +7,9 @@ import libs += libbutl%lib{butl}
 import libs += libodb-pgsql%lib{odb-pgsql}
 import libs += libodb%lib{odb}
 
-include ../../brep/
+include ../../libbrep/
 
-exe{driver}: cxx{driver} ../../brep/lib{brep} $libs
+exe{driver}: cxx{driver} ../../libbrep/lib{brep} $libs
 
 # Disable for now until build2 test module supports running custom
 # commands, pre/post steps.

@@ -2,7 +2,7 @@
 // copyright : Copyright (c) 2014-2017 Code Synthesis Ltd
 // license   : MIT; see accompanying LICENSE file
 
-#include <mod/module>
+#include <mod/module.hxx>
 
 #include <httpd.h>
 #include <http_log.h>
@@ -11,10 +11,10 @@
 #include <cstring>    // strchr()
 #include <functional> // bind()
 
-#include <web/module>
-#include <web/apache/log>
+#include <web/module.hxx>
+#include <web/apache/log.hxx>
 
-#include <mod/options>
+#include <mod/options.hxx>
 
 using namespace std;
 using namespace placeholders; // For std::bind's _1, etc.
