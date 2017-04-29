@@ -228,7 +228,7 @@ handle (request& rq, response& rs)
     pkg_query pq ((pkg_query::internal_repository.is_not_null () &&
                    compare_version_ne (pkg_query::id.version,
                                        wildcard_version,
-                                       true)) +
+                                       false)) +
                   "ORDER BY" +
                   pkg_query::id.name + "," +
                   pkg_query::id.version.epoch + "," +
