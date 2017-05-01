@@ -14,8 +14,8 @@ $odb $lib -d pgsql --std c++11 --generate-query              \
     --hxx-prologue '#include <libbrep/wrapper-traits.hxx>'   \
     -DLIBODB_BUILD2 -DLIBODB_PGSQL_BUILD2                    \
     -I .. -I ../../libbbot -I ../../libbpkg -I ../../libbutl \
-    --hxx-suffix ".hxx" --include-with-brackets              \
-    --include-prefix libbrep --guard-prefix LIBBREP          \
+    --include-with-brackets --include-prefix libbrep         \
+    --guard-prefix LIBBREP \
     common.hxx
 
 $odb $lib -d pgsql --std c++11 --generate-query --generate-schema      \
@@ -24,8 +24,8 @@ $odb $lib -d pgsql --std c++11 --generate-query --generate-schema      \
     --hxx-prologue '#include <libbrep/package-traits.hxx>'             \
     --generate-prepared -DLIBODB_BUILD2 -DLIBODB_PGSQL_BUILD2          \
     -I .. -I ../../libbbot -I ../../libbpkg -I ../../libbutl           \
-    --hxx-suffix ".hxx" --include-with-brackets                        \
-    --include-prefix libbrep --guard-prefix LIBBREP                    \
+    --include-with-brackets --include-prefix libbrep                   \
+    --guard-prefix LIBBREP                                             \
     package.hxx
 
 xxd -i <package-extra.sql >package-extra.hxx
@@ -35,6 +35,6 @@ $odb $lib -d pgsql --std c++11 --generate-query --generate-schema    \
     --odb-epilogue '#include <libbrep/wrapper-traits.hxx>'           \
     --generate-prepared -DLIBODB_BUILD2 -DLIBODB_PGSQL_BUILD2        \
     -I .. -I ../../libbbot -I ../../libbpkg -I ../../libbutl         \
-    --hxx-suffix ".hxx" --include-with-brackets                      \
-    --include-prefix libbrep --guard-prefix LIBBREP                  \
+    --include-with-brackets --include-prefix libbrep                 \
+    --guard-prefix LIBBREP \
     build.hxx
