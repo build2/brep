@@ -11,7 +11,7 @@
 #include <cassert>  // assert()
 #include <iterator> // make_move_iterator()
 
-#include <butl/utility> // reverse_iterate(), operator<<(ostream, exception)
+#include <libbutl/utility.hxx> // reverse_iterate(), operator<<(ostream, exception)
 
 namespace brep
 {
@@ -24,7 +24,7 @@ namespace brep
   using std::make_move_iterator;
   using std::to_string;
 
-  // <butl/utility>
+  // <libbutl/utility.hxx>
   //
   using butl::reverse_iterate;
 }

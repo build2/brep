@@ -13,7 +13,7 @@
 
 #include <odb/pgsql/database.hxx>
 
-#include <butl/pager>
+#include <libbutl/pager.hxx>
 
 #include <libbrep/types.hxx>
 #include <libbrep/utility.hxx>

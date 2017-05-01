@@ -11,8 +11,8 @@
 
 #include <odb/pgsql/database.hxx>
 
-#include <butl/process>
-#include <butl/filesystem>
+#include <libbutl/process.hxx>
+#include <libbutl/filesystem.hxx>
 
 #include <libbrep/types.hxx>
 #include <libbrep/utility.hxx>

@@ -7,10 +7,10 @@
 #include <map>
 #include <chrono>
 
-#include <butl/utility>             // compare_c_string
-#include <butl/filesystem>          // path_match()
-#include <butl/manifest-parser>
-#include <butl/manifest-serializer>
+#include <libbutl/utility.hxx>             // compare_c_string
+#include <libbutl/filesystem.hxx>          // path_match()
+#include <libbutl/manifest-parser.hxx>
+#include <libbutl/manifest-serializer.hxx>
 
 #include <libbbot/manifest.hxx>
 #include <libbbot/build-config.hxx>

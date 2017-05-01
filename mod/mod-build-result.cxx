@@ -6,10 +6,10 @@
 
 #include <algorithm> // find_if()
 
-#include <butl/sendmail>
-#include <butl/process-io>
-#include <butl/manifest-parser>
-#include <butl/manifest-serializer>
+#include <libbutl/sendmail.hxx>
+#include <libbutl/process-io.hxx>
+#include <libbutl/manifest-parser.hxx>
+#include <libbutl/manifest-serializer.hxx>
 
 #include <libbbot/manifest.hxx>
 

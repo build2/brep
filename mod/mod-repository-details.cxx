@@ -14,7 +14,7 @@
 #include <odb/database.hxx>
 #include <odb/transaction.hxx>
 
-#include <butl/timestamp>
+#include <libbutl/timestamp.hxx>
 
 #include <web/xhtml.hxx>
 #include <web/module.hxx>

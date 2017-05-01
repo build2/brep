@@ -37,7 +37,7 @@
 #define BREP_SNAPSHOT      $brep.version.snapshot_sn$ULL
 #define BREP_SNAPSHOT_ID   "$brep.version.snapshot_id$"
 
-#include <butl/version>
+#include <libbutl/version.hxx>
 
 $libbutl.check(LIBBUTL_VERSION, LIBBUTL_SNAPSHOT)$
 

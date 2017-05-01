@@ -16,7 +16,7 @@
 #include <cstring>   // strlen(), strcmp()
 #include <exception>
 
-#include <butl/optional>
+#include <libbutl/optional.hxx>
 
 #include <web/module.hxx>
 #include <web/apache/log.hxx>

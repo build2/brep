@@ -17,13 +17,13 @@
 
 #include <odb/pgsql/database.hxx>
 
-#include <butl/pager>
-#include <butl/sha256>
-#include <butl/process>
-#include <butl/fdstream>
-#include <butl/filesystem>
-#include <butl/tab-parser>
-#include <butl/manifest-parser>
+#include <libbutl/pager.hxx>
+#include <libbutl/sha256.hxx>
+#include <libbutl/process.hxx>
+#include <libbutl/fdstream.hxx>
+#include <libbutl/filesystem.hxx>
+#include <libbutl/tab-parser.hxx>
+#include <libbutl/manifest-parser.hxx>
 
 #include <libbpkg/manifest.hxx>
 

@@ -22,10 +22,10 @@
 
 #include <odb/lazy-ptr.hxx>
 
-#include <butl/path>
-#include <butl/path-io>
-#include <butl/optional>
-#include <butl/timestamp>
+#include <libbutl/path.hxx>
+#include <libbutl/path-io.hxx>
+#include <libbutl/optional.hxx>
+#include <libbutl/timestamp.hxx>
 
 namespace brep
 {
@@ -65,7 +65,7 @@ namespace brep
   using std::system_error;
   using io_error = std::ios_base::failure;
 
-  // <butl/optional>
+  // <libbutl/optional.hxx>
   //
   using butl::optional;
   using butl::nullopt;
@@ -75,7 +75,7 @@ namespace brep
   using odb::lazy_shared_ptr;
   using odb::lazy_weak_ptr;
 
-  // <butl/path>
+  // <libbutl/path.hxx>
   //
   using butl::path;
   using butl::dir_path;
@@ -85,7 +85,7 @@ namespace brep
   using paths = std::vector<path>;
   using dir_paths = std::vector<dir_path>;
 
-  // <butl/timestamp>
+  // <libbutl/timestamp.hxx>
   //
   using butl::timestamp;
   using butl::timestamp_nonexistent;
