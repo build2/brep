@@ -41,7 +41,7 @@
 
 $libbutl.check(LIBBUTL_VERSION, LIBBUTL_SNAPSHOT)$
 
-#include <bpkg/version>
+#include <libbpkg/version.hxx>
 
 $libbpkg.check(LIBBPKG_VERSION, LIBBPKG_SNAPSHOT)$
 

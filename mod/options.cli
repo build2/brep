@@ -383,7 +383,7 @@ namespace brep
       // character). In other words, after url-decoding the space character is
       // treated the same way as the plus character.
       //
-      // @@ Make it of the version type? Maybe after it get moved to bpkg/types
+      // @@ Make it of the version type? Maybe after it get moved to libbpkg/types.hxx
       //    or at least the second use case appear.
       //
       string version | v;

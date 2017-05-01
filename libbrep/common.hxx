@@ -34,7 +34,7 @@ namespace brep
   };
 }
 
-#include <bpkg/manifest>
+#include <libbpkg/manifest.hxx>
 
 namespace brep
 {

@@ -25,7 +25,7 @@
 #include <butl/tab-parser>
 #include <butl/manifest-parser>
 
-#include <bpkg/manifest>
+#include <libbpkg/manifest.hxx>
 
 #include <libbrep/types.hxx>
 #include <libbrep/utility.hxx>
