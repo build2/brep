@@ -484,7 +484,8 @@ namespace brep
     package_id id;
   };
 
-  #pragma db view object(package)
+  #pragma db view object(package) \
+    object(repository: package::internal_repository)
   struct package_version
   {
     package_id id;
@@ -492,7 +493,6 @@ namespace brep
 
     // Database mapping.
     //
-    #pragma db member(id) column("")
     #pragma db member(version) set(this.version.init (this.id.version, (?)))
   };
 }

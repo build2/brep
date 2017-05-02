@@ -72,12 +72,12 @@ handle (request& rq, response& rs)
   if (build_db_ == nullptr)
     throw invalid_request (501, "not implemented");
 
-  // Make sure no parameters passed.
-  //
+  params::build_task params;
+
   try
   {
     name_value_scanner s (rq.parameters ());
-    params::build_task (s, unknown_mode::fail, unknown_mode::fail);
+    params = params::build_task (s, unknown_mode::fail, unknown_mode::fail);
   }
   catch (const cli::exception& e)
   {
@@ -225,17 +225,28 @@ handle (request& rq, response& rs)
 
     // Skip external and stub packages.
     //
-    pkg_query pq ((pkg_query::internal_repository.is_not_null () &&
-                   compare_version_ne (pkg_query::id.version,
-                                       wildcard_version,
-                                       false)) +
-                  "ORDER BY" +
-                  pkg_query::id.name + "," +
-                  pkg_query::id.version.epoch + "," +
-                  pkg_query::id.version.canonical_upstream + "," +
-                  pkg_query::id.version.canonical_release + "," +
-                  pkg_query::id.version.revision +
-                  "OFFSET" + pkg_query::_ref (offset) + "LIMIT 50");
+    pkg_query pq (pkg_query::package::internal_repository.is_not_null () &&
+                  compare_version_ne (pkg_query::package::id.version,
+                                      wildcard_version,
+                                      false));
+
+    // Filter by repositories display names (if requested).
+    //
+    const vector<string>& rp (params.repository ());
+
+    if (!rp.empty ())
+      pq = pq &&
+        pkg_query::repository::display_name.in_range (rp.begin (), rp.end ());
+
+    // Specify the portion.
+    //
+    pq += "ORDER BY" +
+      pkg_query::package::id.name + "," +
+      pkg_query::package::id.version.epoch + "," +
+      pkg_query::package::id.version.canonical_upstream + "," +
+      pkg_query::package::id.version.canonical_release + "," +
+      pkg_query::package::id.version.revision +
+      "OFFSET" + pkg_query::_ref (offset) + "LIMIT 50";
 
     connection_ptr pkg_conn (package_db_->connection ());
 

@@ -354,8 +354,9 @@ namespace brep
 
     class build_task
     {
-      // No parameters so far.
+      // Package repository display name.
       //
+      vector<string> repository | r;
     };
 
     class build_result
