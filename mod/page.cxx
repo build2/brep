@@ -10,7 +10,7 @@
 #include <iomanip>   // setw(), setfill()
 #include <algorithm> // min()
 
-#include <xml/serializer>
+#include <libstudxml/serializer.hxx>
 
 #include <web/xhtml.hxx>
 #include <web/mime-url-encoding.hxx>

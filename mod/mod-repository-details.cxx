@@ -9,7 +9,7 @@
 #include <sstream>
 #include <algorithm> // max()
 
-#include <xml/serializer>
+#include <libstudxml/serializer.hxx>
 
 #include <odb/database.hxx>
 #include <odb/transaction.hxx>

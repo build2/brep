@@ -5,7 +5,7 @@
 #ifndef WEB_XHTML_HXX
 #define WEB_XHTML_HXX
 
-#include <xml/serializer>
+#include <libstudxml/serializer.hxx>
 
 namespace web
 {

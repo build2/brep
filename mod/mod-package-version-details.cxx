@@ -4,7 +4,7 @@
 
 #include <mod/mod-package-version-details.hxx>
 
-#include <xml/serializer>
+#include <libstudxml/serializer.hxx>
 
 #include <odb/session.hxx>
 #include <odb/database.hxx>

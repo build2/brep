@@ -5,7 +5,7 @@
 #ifndef MOD_PAGE_HXX
 #define MOD_PAGE_HXX
 
-#include <xml/forward>
+#include <libstudxml/forward.hxx>
 
 #include <web/xhtml-fragment.hxx>
 

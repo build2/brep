@@ -5,7 +5,7 @@
 #include <iostream>
 #include <functional>
 
-#include <xml/serializer>
+#include <libstudxml/serializer.hxx>
 
 #include <web/xhtml.hxx>
 

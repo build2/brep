@@ -9,8 +9,8 @@
 #include <vector>
 #include <utility> // pair
 
-#include <xml/parser>
-#include <xml/forward>
+#include <libstudxml/parser.hxx>
+#include <libstudxml/forward.hxx>
 
 namespace web
 {
