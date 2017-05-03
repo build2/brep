@@ -20,7 +20,7 @@
 //
 #define LIBBREP_PACKAGE_SCHEMA_VERSION_BASE 4
 
-#pragma db model version(LIBBREP_PACKAGE_SCHEMA_VERSION_BASE, 4, open)
+#pragma db model version(LIBBREP_PACKAGE_SCHEMA_VERSION_BASE, 4, closed)
 
 namespace brep
 {
