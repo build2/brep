@@ -71,7 +71,7 @@ handle (request& rq, response& rs)
   //
   // Note that the URL path must be in the following form:
   //
-  // <package-name>/<package-version>/log/<config-name>[/<operation>]
+  // <pkg-name>/<pkg-version>/log/<cfg-name>/<toolchain-version>[/<operation>]
   //
   // Also note that the presence of the first 3 components is guaranteed by
   // the repository_root module.
@@ -93,29 +93,40 @@ handle (request& rq, response& rs)
 
     assert (i != lpath.end ());
 
-    version version;
+    auto parse_version = [] (const string& v, const char* what) -> version
+    {
+      // Intercept exception handling to add the parsing error attribution.
+      //
+      try
+      {
+        return brep::version (v);
+      }
+      catch (const invalid_argument& e)
+      {
+        throw invalid_argument (string ("invalid ") + what + ": " + e.what ());
+      }
+    };
 
-    // Intercept exception handling to add the parsing error attribution.
-    //
-    try
-    {
-      version = brep::version (*i++);
-    }
-    catch (const invalid_argument& e)
-    {
-      throw invalid_argument (
-        string ("invalid package version: ") + e.what ());
-    }
+    version package_version (parse_version (*i++, "package version"));
 
     assert (i != lpath.end () && *i == "log");
 
     if (++i == lpath.end ())
       throw invalid_argument ("no configuration name");
 
-    id = build_id (package_id (move (name), version), *i++);
+    string config (*i++);
 
-    if (id.configuration.empty ())
+    if (config.empty ())
       throw invalid_argument ("empty configuration name");
+
+    if (i == lpath.end ())
+      throw invalid_argument ("no toolchain version");
+
+    version toolchain_version (parse_version (*i++, "toolchain version"));
+
+    id = build_id (package_id (move (name), package_version),
+                   move (config),
+                   toolchain_version);
 
     if (i != lpath.end ())
       op = *i++;
@@ -199,13 +210,15 @@ handle (request& rq, response& rs)
 
   assert (b->machine && b->machine_summary);
 
-  os << "package: " << b->package_name << endl
-     << "version: " << b->package_version << endl
-     << "config:  " << b->configuration << endl
-     << "machine: " << *b->machine << " (" << *b->machine_summary << ")"
-                    << endl
-     << "target:  " << (i->target ? i->target->string () : "default") << endl
-                    << endl;
+  os << "package:   " << b->package_name << endl
+     << "version:   " << b->package_version << endl
+     << "config:    " << b->configuration << endl
+     << "toolchain: " << b->toolchain_name << '-' << b->toolchain_version
+                      << endl
+     << "machine:   " << *b->machine << " (" << *b->machine_summary << ")"
+                      << endl
+     << "target:    " << (i->target ? i->target->string () : "default") << endl
+                      << endl;
 
   if (op.empty ())
   {

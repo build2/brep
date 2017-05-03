@@ -154,7 +154,9 @@ handle (request& rq, response& rs)
           b->timestamp.time_since_epoch ()).count ());
 
       string session (b->package_name + '/' + b->package_version.string () +
-                      '/' + b->configuration + '/' + to_string (ts));
+                      '/' + b->configuration +
+                      '/' + b->toolchain_version.string () +
+                      '/' + to_string (ts));
 
       string result_url (options_->host () + options_->root ().string () +
                          "?build-result");
@@ -205,6 +207,10 @@ handle (request& rq, response& rs)
 
     timestamp normal_rebuild_expiration (
       expiration (options_->build_normal_rebuild_timeout ()));
+
+    // Convert butl::standard_version type to brep::version.
+    //
+    brep::version toolchain_version (tqm.toolchain_version.string ());
 
     // Prepare the package version prepared query.
     //
@@ -284,6 +290,10 @@ handle (request& rq, response& rs)
       bld_query::id.configuration.in_range (cfg_names.begin (),
                                             cfg_names.end ()) &&
 
+      compare_version_eq (bld_query::id.toolchain_version,
+                          toolchain_version,
+                          true) &&
+
       (bld_query::state == "tested" ||
        (bld_query::state == "testing" &&
         bld_query::timestamp > build_expiration_ns)));
@@ -358,7 +368,7 @@ handle (request& rq, response& rs)
           {
             config_machine& cm (configs.begin ()->second);
             machine_header_manifest& mh (*cm.machine);
-            build_id bid (move (id), cm.config->name);
+            build_id bid (move (id), cm.config->name, toolchain_version);
             shared_ptr<build> b (build_db_->find<build> (bid));
 
             // If build configuration doesn't exist then create the new one
@@ -370,6 +380,8 @@ handle (request& rq, response& rs)
               b = make_shared<build> (move (bid.package.name),
                                       move (pv.version),
                                       move (bid.configuration),
+                                      move (tqm.toolchain_name),
+                                      move (toolchain_version),
                                       mh.name,
                                       move (mh.summary));
 
@@ -403,6 +415,7 @@ handle (request& rq, response& rs)
                       b->results.empty ());
 
               b->state = build_state::testing;
+              b->toolchain_name = move (tqm.toolchain_name);
               b->machine = mh.name;
               b->machine_summary = move (mh.summary);
               b->timestamp = timestamp::clock::now ();
@@ -523,6 +536,7 @@ handle (request& rq, response& rs)
 
               // Can't move from, as may need it on the next iteration.
               //
+              b->toolchain_name = tqm.toolchain_name;
               b->machine_summary = mh.summary;
 
               // Mark the section as loaded, so results are updated.

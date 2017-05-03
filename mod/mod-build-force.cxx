@@ -79,7 +79,6 @@ handle (request& rq, response& rs)
     throw invalid_request (400, "missing rebuild reason");
 
   build_id id;
-  version version; // Keep for logging.
 
   try
   {
@@ -93,27 +92,38 @@ handle (request& rq, response& rs)
     // the space character (that is otherwise forbidden in version
     // representation) to the plus character.
     //
-    string& v (params.version ());
-    replace (v.begin (), v.end (), ' ', '+');
-
-    // Intercept exception handling to add the parsing error attribution.
+    // @@ Move to types-parsers.hxx?
     //
-    try
+    auto parse_version = [] (string& v, const char* what) -> version
     {
-      version = brep::version (v);
-    }
-    catch (const invalid_argument& e)
-    {
-      throw invalid_argument (
-        string ("invalid package version: ") + e.what ());
-    }
+      replace (v.begin (), v.end (), ' ', '+');
+
+      // Intercept exception handling to add the parsing error attribution.
+      //
+      try
+      {
+        return brep::version (v);
+      }
+      catch (const invalid_argument& e)
+      {
+        throw invalid_argument (string ("invalid ") + what + ": " + e.what ());
+      }
+    };
+
+    version package_version (parse_version (params.version (),
+                                            "package version"));
+
+    version toolchain_version (parse_version (params.toolchain_version (),
+                                              "toolchain version"));
 
     string& c (params.configuration ());
 
     if (c.empty ())
       throw invalid_argument ("no configuration name");
 
-    id = build_id (package_id (move (p), version), move (c));
+    id = build_id (package_id (move (p), package_version),
+                   move (c),
+                   toolchain_version);
   }
   catch (const invalid_argument& e)
   {
@@ -172,8 +182,10 @@ handle (request& rq, response& rs)
       build_db_->update (b);
 
       l1 ([&]{trace << "force rebuild for "
-                    << id.package.name << '/' << version << ' '
-                    << id.configuration << ": " << reason;});
+                    << b->package_name << '/' << b->package_version << ' '
+                    << b->configuration << ' '
+                    << b->toolchain_name << '-' << b->toolchain_version
+                    << ": " << reason;});
     }
 
     t.commit ();

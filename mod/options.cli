@@ -384,14 +384,18 @@ namespace brep
       // character). In other words, after url-decoding the space character is
       // treated the same way as the plus character.
       //
-      // @@ Make it of the version type? Maybe after it get moved to libbpkg/types.hxx
-      //    or at least the second use case appear.
+      // @@ Make it of the version type? Maybe after it get moved to
+      //    libbpkg/types.hxx or at least the second use case appear.
       //
       string version | v;
 
       // Package build configuration.
       //
       string configuration | c;
+
+      // Toolchain version. May not be url-encoded (see above).
+      //
+      string toolchain_version | t;
 
       // Package rebuild reason. Must not be empty.
       //

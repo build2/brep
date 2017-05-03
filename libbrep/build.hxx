@@ -39,10 +39,14 @@ namespace brep
   {
     package_id package;
     string configuration;
+    canonical_version toolchain_version;
 
     build_id () = default;
-    build_id (package_id p, string c)
-        : package (move (p)), configuration (move (c)) {}
+    build_id (package_id p, string c, const brep::version& v)
+        : package (move (p)),
+          configuration (move (c)),
+          toolchain_version {
+            v.epoch, v.canonical_upstream, v.canonical_release, v.revision} {}
   };
 
   inline bool
@@ -104,15 +108,18 @@ namespace brep
     // Create the build object with the testing state, non-existent status,
     // the timestamp set to now and the forced flag set to false.
     //
-    build (string name, version,
+    build (string package_name, version package_version,
            string configuration,
+           string toolchain_name, version toolchain_version,
            string machine, string machine_summary);
 
     build_id id;
 
-    string& package_name;             // Tracks id.package.name.
-    upstream_version package_version; // Original of id.package.version.
-    string& configuration;            // Tracks id.configuration.
+    string& package_name;               // Tracks id.package.name.
+    upstream_version package_version;   // Original of id.package.version.
+    string& configuration;              // Tracks id.configuration.
+    string toolchain_name;
+    upstream_version toolchain_version; // Original of id.toolchain_version.
 
     build_state state;
 
@@ -150,6 +157,8 @@ namespace brep
     #pragma db member(package_version) \
       set(this.package_version.init (this.id.package.version, (?)))
     #pragma db member(configuration) transient
+    #pragma db member(toolchain_version) \
+      set(this.toolchain_version.init (this.id.toolchain_version, (?)))
 
     #pragma db member(results) id_column("") value_column("")
 

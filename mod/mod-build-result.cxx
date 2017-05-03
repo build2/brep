@@ -128,30 +128,44 @@ handle (request& rq, response&)
     if (p == string::npos)
       throw invalid_argument ("no configuration name");
 
-    version version;
-
-    // Intercept exception handling to add the parsing error attribution.
-    //
-    try
+    auto parse_version = [&s, &b, &p] (const char* what) -> version
     {
-      version = brep::version (string (s, b, p - b));
-    }
-    catch (const invalid_argument& e)
-    {
-      throw invalid_argument (
-        string ("invalid package version: ") + e.what ());
-    }
+      // Intercept exception handling to add the parsing error attribution.
+      //
+      try
+      {
+        return brep::version (string (s, b, p - b));
+      }
+      catch (const invalid_argument& e)
+      {
+        throw invalid_argument (string ("invalid ") + what + ": " + e.what ());
+      }
+    };
 
-    if (version != rqm.result.version)
+    version package_version (parse_version ("package version"));
+
+    if (package_version != rqm.result.version)
       throw invalid_argument ("package version mismatch");
 
     b = p + 1;           // Start of configuration name.
     p = s.find ('/', b); // End of configuration name.
 
     if (p == string::npos)
+      throw invalid_argument ("no toolchain version");
+
+    string config (s, b, p - b);
+
+    b = p + 1;           // Start of toolchain version.
+    p = s.find ('/', b); // End of toolchain version.
+
+    if (p == string::npos)
       throw invalid_argument ("no timestamp");
 
-    id = build_id (package_id (move (name), version), string (s, b, p - b));
+    version toolchain_version (parse_version ("toolchain version"));
+
+    id = build_id (package_id (move (name), package_version),
+                   move (config),
+                   toolchain_version);
 
     if (id.configuration.empty ())
       throw invalid_argument ("empty configuration name");
@@ -276,7 +290,8 @@ handle (request& rq, response&)
   try
   {
     string subj (to_string (*b->status) + ": " + b->package_name + '/' +
-                 b->package_version.string () + '/' + b->configuration);
+                 b->package_version.string () + '/' + b->configuration + '/' +
+                 b->toolchain_name + '-' + b->toolchain_version.string ());
 
     // If the package build address is not specified, then it is assumed to be
     // the same as the package email address, if specified, otherwise as the
@@ -317,22 +332,25 @@ handle (request& rq, response&)
       // as the build-force URL query part (where it is not encoded by
       // design).
       //
-      const version& ver (b->package_version);
+      const version& pvr (b->package_version);
+      const version& tvr (b->toolchain_version);
       ostream& os (sm.out);
 
       assert (b->status);
       os << "combined: " << *b->status << endl << endl
-         << "  " << url << pkg << '/' << ver << "/log/" << cfg << endl << endl;
+         << "  " << url << pkg << '/' << pvr << "/log/" << cfg << '/' << tvr
+         << endl << endl;
 
       for (const auto& r: b->results)
         os << r.operation << ": " << r.status << endl << endl
-           << "  " << url << pkg << '/' << ver << "/log/" << cfg << '/'
-           << r.operation << endl << endl;
+           << "  " << url << pkg << '/' << pvr << "/log/" << cfg << '/'
+           << tvr << '/' << r.operation << endl << endl;
 
       os << "Force rebuild (enter the reason, use '+' instead of spaces):"
          << endl << endl
          << "  " << options_->host () << options_->root () << "?build-force&p="
-         << pkg << "&v=" << ver << "&c=" << cfg << "&reason=" << endl;
+         << pkg << "&v=" << pvr << "&c=" << cfg << "&t=" << tvr << "&reason="
+         << endl;
     }
 
     sm.out.close ();

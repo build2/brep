@@ -7,8 +7,15 @@
       <column name="package_version_canonical_release" type="TEXT" null="false" options="COLLATE &quot;C&quot;"/>
       <column name="package_version_revision" type="INTEGER" null="false"/>
       <column name="configuration" type="TEXT" null="false"/>
+      <column name="toolchain_version_epoch" type="INTEGER" null="false"/>
+      <column name="toolchain_version_canonical_upstream" type="TEXT" null="false"/>
+      <column name="toolchain_version_canonical_release" type="TEXT" null="false" options="COLLATE &quot;C&quot;"/>
+      <column name="toolchain_version_revision" type="INTEGER" null="false"/>
       <column name="package_version_upstream" type="TEXT" null="false"/>
       <column name="package_version_release" type="TEXT" null="true"/>
+      <column name="toolchain_name" type="TEXT" null="false"/>
+      <column name="toolchain_version_upstream" type="TEXT" null="false"/>
+      <column name="toolchain_version_release" type="TEXT" null="true"/>
       <column name="state" type="TEXT" null="false"/>
       <column name="timestamp" type="BIGINT" null="false"/>
       <column name="forced" type="BOOLEAN" null="false"/>
@@ -22,6 +29,10 @@
         <column name="package_version_canonical_release"/>
         <column name="package_version_revision"/>
         <column name="configuration"/>
+        <column name="toolchain_version_epoch"/>
+        <column name="toolchain_version_canonical_upstream"/>
+        <column name="toolchain_version_canonical_release"/>
+        <column name="toolchain_version_revision"/>
       </primary-key>
     </table>
     <table name="build_results" kind="container">
@@ -31,6 +42,10 @@
       <column name="package_version_canonical_release" type="TEXT" null="false" options="COLLATE &quot;C&quot;"/>
       <column name="package_version_revision" type="INTEGER" null="false"/>
       <column name="configuration" type="TEXT" null="false"/>
+      <column name="toolchain_version_epoch" type="INTEGER" null="false"/>
+      <column name="toolchain_version_canonical_upstream" type="TEXT" null="false"/>
+      <column name="toolchain_version_canonical_release" type="TEXT" null="false" options="COLLATE &quot;C&quot;"/>
+      <column name="toolchain_version_revision" type="INTEGER" null="false"/>
       <column name="index" type="BIGINT" null="false"/>
       <column name="operation" type="TEXT" null="false"/>
       <column name="status" type="TEXT" null="false"/>
@@ -42,6 +57,10 @@
         <column name="package_version_canonical_release"/>
         <column name="package_version_revision"/>
         <column name="configuration"/>
+        <column name="toolchain_version_epoch"/>
+        <column name="toolchain_version_canonical_upstream"/>
+        <column name="toolchain_version_canonical_release"/>
+        <column name="toolchain_version_revision"/>
         <references table="build">
           <column name="package_name"/>
           <column name="package_version_epoch"/>
@@ -49,6 +68,10 @@
           <column name="package_version_canonical_release"/>
           <column name="package_version_revision"/>
           <column name="configuration"/>
+          <column name="toolchain_version_epoch"/>
+          <column name="toolchain_version_canonical_upstream"/>
+          <column name="toolchain_version_canonical_release"/>
+          <column name="toolchain_version_revision"/>
         </references>
       </foreign-key>
       <index name="build_results_object_id_i">
@@ -58,6 +81,10 @@
         <column name="package_version_canonical_release"/>
         <column name="package_version_revision"/>
         <column name="configuration"/>
+        <column name="toolchain_version_epoch"/>
+        <column name="toolchain_version_canonical_upstream"/>
+        <column name="toolchain_version_canonical_release"/>
+        <column name="toolchain_version_revision"/>
       </index>
       <index name="build_results_index_i">
         <column name="index"/>

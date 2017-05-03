@@ -33,11 +33,16 @@ namespace brep
   // build
   //
   build::
-  build (string pnm, version pvr, string cfg, string mnm, string msm)
-      : id (package_id (move (pnm), pvr), move (cfg)),
+  build (string pnm, version pvr,
+         string cfg,
+         string tnm, version tvr,
+         string mnm, string msm)
+      : id (package_id (move (pnm), pvr), move (cfg), tvr),
         package_name (id.package.name),
         package_version (move (pvr)),
         configuration (id.configuration),
+        toolchain_name (move (tnm)),
+        toolchain_version (move (tvr)),
         state (build_state::testing),
         timestamp (timestamp_type::clock::now ()),
         forced (false),
