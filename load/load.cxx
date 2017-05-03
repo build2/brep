@@ -957,13 +957,13 @@ try
   //
   if (ops.version ())
   {
-    cout << "brep-load " << BREP_VERSION_STR << endl
-         << "libbrep " << LIBBREP_VERSION_STR << endl
-         << "libbbot " << LIBBBOT_VERSION_STR << endl
-         << "libbpkg " << LIBBPKG_VERSION_STR << endl
-         << "libbutl " << LIBBUTL_VERSION_STR << endl
+    cout << "brep-load " << BREP_VERSION_ID << endl
+         << "libbrep " << LIBBREP_VERSION_ID << endl
+         << "libbbot " << LIBBBOT_VERSION_ID << endl
+         << "libbpkg " << LIBBPKG_VERSION_ID << endl
+         << "libbutl " << LIBBUTL_VERSION_ID << endl
          << "Copyright (c) 2014-2017 Code Synthesis Ltd" << endl
-         << "MIT; see accompanying LICENSE file" << endl;
+         << "This is free software released under the MIT license." << endl;
 
     return 0;
   }

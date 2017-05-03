@@ -62,7 +62,7 @@ init (scanner& s)
   if (schema_catalog::current_version (*package_db_, ds) !=
       package_db_->schema_version (ds))
     fail << "database 'package' schema differs from the current one (module "
-         << BREP_VERSION_STR << ")";
+         << BREP_VERSION_ID << ")";
 }
 
 template <typename T>

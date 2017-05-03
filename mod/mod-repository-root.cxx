@@ -364,10 +364,10 @@ namespace brep
   {
     MODULE_DIAG;
 
-    info << "module " << BREP_VERSION_STR
-         << ", libbrep " << LIBBREP_VERSION_STR
-         << ", libbbot " << LIBBBOT_VERSION_STR
-         << ", libbpkg " << LIBBPKG_VERSION_STR
-         << ", libbutl " << LIBBUTL_VERSION_STR;
+    info << "module " << BREP_VERSION_ID
+         << ", libbrep " << LIBBREP_VERSION_ID
+         << ", libbbot " << LIBBBOT_VERSION_ID
+         << ", libbpkg " << LIBBPKG_VERSION_ID
+         << ", libbutl " << LIBBUTL_VERSION_ID;
   }
 }
