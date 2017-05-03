@@ -1,3 +1,9 @@
+Version 0.5.0
+
+  * Initial support for the bbot controller functionality. Currently packages
+    are built, notification emails are send, and logs can be viewed. However,
+    no build information is currently displayed on package version pages.
+
 Version 0.4.0
 
   * Support for signed repositories.
