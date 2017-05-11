@@ -7,6 +7,8 @@
 
 #include <libstudxml/serializer.hxx>
 
+#include <web/version.hxx>
+
 namespace web
 {
   // "Canonical" XHTML5 vocabulary.

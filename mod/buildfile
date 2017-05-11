@@ -40,6 +40,7 @@ mod{brep}:                                                     \
               {hxx         cxx}{ types-parsers               } \
        ../web/{hxx         cxx}{ mime-url-encoding           } \
        ../web/{hxx            }{ module                      } \
+       ../web/{hxx            }{ version                     } \
        ../web/{hxx            }{ xhtml                       } \
        ../web/{hxx         cxx}{ xhtml-fragment              } \
 ../web/apache/{hxx            }{ log                         } \
@@ -47,6 +48,9 @@ mod{brep}:                                                     \
 ../web/apache/{hxx     txx cxx}{ service                     } \
 ../web/apache/{hxx            }{ stream                      } \
 ../libbrep/lib{brep} $libs
+
+../web/hxx{version}: ../web/in{version} $src_root/file{manifest}
+../web/hxx{version}: dist = true
 
 # Don't install any of the module's headers.
 #
