@@ -10,6 +10,7 @@
 
 #include <mod/module.hxx>
 #include <mod/options.hxx>
+#include <mod/mod-builds.hxx>
 #include <mod/mod-build-log.hxx>
 #include <mod/mod-build-task.hxx>
 #include <mod/mod-build-force.hxx>
@@ -61,7 +62,8 @@ namespace brep
         build_task_ (make_shared<build_task> ()),
         build_result_ (make_shared<build_result> ()),
         build_force_ (make_shared<build_force> ()),
-        build_log_ (make_shared<build_log> ())
+        build_log_ (make_shared<build_log> ()),
+        builds_ (make_shared<builds> ())
   {
   }
 
@@ -105,6 +107,10 @@ namespace brep
           r.initialized_
           ? r.build_log_
           : make_shared<build_log> (*r.build_log_)),
+        builds_ (
+          r.initialized_
+          ? r.builds_
+          : make_shared<builds> (*r.builds_)),
         options_ (
           r.initialized_
           ? r.options_
@@ -127,6 +133,7 @@ namespace brep
     append (r, build_result_->options ());
     append (r, build_force_->options ());
     append (r, build_log_->options ());
+    append (r, builds_->options ());
     return r;
   }
 
@@ -168,6 +175,7 @@ namespace brep
     sub_init (*build_result_, "build_result");
     sub_init (*build_force_, "build_force");
     sub_init (*build_log_, "build_log");
+    sub_init (*builds_, "builds");
 
     // Parse own configuration options.
     //
@@ -285,6 +293,13 @@ namespace brep
             handler_.reset (new build_force (*build_force_));
 
           return handle (rp, "build_force");
+        }
+        else if (fn == "builds")
+        {
+          if (handler_ == nullptr)
+            handler_.reset (new builds (*builds_));
+
+          return handle (rp, "builds");
         }
         else
           throw invalid_request (400, "unknown function");

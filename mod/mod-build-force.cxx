@@ -141,12 +141,8 @@ handle (request& rq, response& rs)
 
   // Make sure the build configuration still exists.
   //
-  auto i (
-    find_if (
-      build_conf_->begin (), build_conf_->end (),
-      [&id] (const build_config& c) {return c.name == id.configuration;}));
-
-  if (i == build_conf_->end ())
+  if (build_conf_map_->find (id.configuration.c_str ()) ==
+      build_conf_map_->end ())
     config_expired ("no configuration");
 
   // Make sure the package still exists.

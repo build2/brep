@@ -7,6 +7,8 @@
 
 #include <libstudxml/forward.hxx>
 
+#include <libbbot/manifest.hxx>
+
 #include <web/xhtml-fragment.hxx>
 
 #include <libbrep/types.hxx>
@@ -88,6 +90,22 @@ namespace brep
     size_t count_;
     const char* singular_;
     const char* plural_;
+  };
+
+  // Generates table row element, that has the 'label: value' layout.
+  //
+  class TR_VALUE
+  {
+  public:
+    TR_VALUE (const string& l, const string& v)
+        : label_ (l), value_ (v) {}
+
+    void
+    operator() (xml::serializer&) const;
+
+  private:
+    const string& label_;
+    const string& value_;
   };
 
   // Generates package name element.
@@ -345,6 +363,20 @@ namespace brep
 
   private:
     const string& comment_;
+  };
+
+  // Generates package build result status element.
+  //
+  class SPAN_BUILD_RESULT_STATUS
+  {
+  public:
+    SPAN_BUILD_RESULT_STATUS (const bbot::result_status& s): status_ (s) {}
+
+    void
+    operator() (xml::serializer&) const;
+
+  private:
+    const bbot::result_status& status_;
   };
 
   // Generates package description element.

@@ -168,12 +168,8 @@ handle (request& rq, response& rs)
 
   // Make sure the build configuration still exists.
   //
-  auto i (
-    find_if (
-      build_conf_->begin (), build_conf_->end (),
-      [&id] (const build_config& c) {return c.name == id.configuration;}));
-
-  if (i == build_conf_->end ())
+  auto i (build_conf_map_->find (id.configuration.c_str ()));
+  if (i == build_conf_map_->end ())
     config_expired ("no configuration");
 
   // Make sure the package still exists.
@@ -217,7 +213,9 @@ handle (request& rq, response& rs)
                       << endl
      << "machine:   " << *b->machine << " (" << *b->machine_summary << ")"
                       << endl
-     << "target:    " << (i->target ? i->target->string () : "default") << endl
+     << "target:    " << (i->second->target
+                          ? i->second->target->string ()
+                          : "default") << endl
                       << endl;
 
   if (op.empty ())

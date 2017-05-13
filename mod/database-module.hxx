@@ -5,7 +5,11 @@
 #ifndef MOD_DATABASE_MODULE_HXX
 #define MOD_DATABASE_MODULE_HXX
 
+#include <map>
+
 #include <odb/forward.hxx> // database
+
+#include <libbutl/utility.hxx> // compare_c_string
 
 #include <libbrep/types.hxx>
 #include <libbrep/utility.hxx>
@@ -63,6 +67,12 @@ namespace brep
     //
     shared_ptr<odb::core::database>       build_db_;
     shared_ptr<const bbot::build_configs> build_conf_;
+    shared_ptr<const cstrings>            build_conf_names_;
+
+    shared_ptr<const std::map<const char*,
+                              const bbot::build_config*,
+                              butl::compare_c_string>>
+    build_conf_map_;
 
   private:
     virtual bool

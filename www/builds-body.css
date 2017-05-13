@@ -1,0 +1,44 @@
+/*
+ * Build count.
+ */
+#count
+{
+  font-size: 1.32em;
+  line-height: 1.4em;
+  color: #555;
+
+  margin: 1.2em 0 0 0;
+}
+
+/*
+ * Version table.
+ */
+.build
+{
+  margin-top: .8em;
+  margin-bottom: .8em;
+
+  padding-top: .4em;
+  padding-bottom: .4em;
+}
+.build:nth-child(even) {background-color: rgba(0, 0, 0, 0.07);}
+
+.build th {width: 6.4em;}
+
+.build tr.name td .value,
+.build tr.version td .value,
+.build tr.config td .value,
+.build tr.toolchain td .value,
+.build tr.machine td .value,
+.build tr.target td .value,
+.build tr.result td .value
+{
+  /* <code> style. */
+  font-family: monospace;
+  font-size: 0.94em;
+}
+
+.build .warning  {color: #ffa500;}
+.build .error    {color: #ff0000;}
+.build .abort    {color: #ff0000;}
+.build .abnormal {color: #ff0000;}

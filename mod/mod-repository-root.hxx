@@ -21,6 +21,7 @@ namespace brep
   class build_result;
   class build_force;
   class build_log;
+  class builds;
 
   class repository_root: public module
   {
@@ -63,6 +64,7 @@ namespace brep
     shared_ptr<build_result> build_result_;
     shared_ptr<build_force> build_force_;
     shared_ptr<build_log> build_log_;
+    shared_ptr<builds> builds_;
     shared_ptr<options::repository_root> options_;
 
     // Sub-module the request is dispatched to. Initially is NULL. It is set

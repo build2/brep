@@ -7,6 +7,10 @@
 #include <map>
 #include <chrono>
 
+#include <odb/database.hxx>
+#include <odb/transaction.hxx>
+#include <odb/schema-catalog.hxx>
+
 #include <libbutl/utility.hxx>             // compare_c_string
 #include <libbutl/filesystem.hxx>          // path_match()
 #include <libbutl/manifest-parser.hxx>
@@ -14,9 +18,6 @@
 
 #include <libbbot/manifest.hxx>
 #include <libbbot/build-config.hxx>
-
-#include <odb/database.hxx>
-#include <odb/transaction.hxx>
 
 #include <web/module.hxx>
 
@@ -56,9 +57,21 @@ init (scanner& s)
                          options_->package_db_retry ());
 
   if (options_->build_config_specified ())
+  {
     database_module::init (static_cast<options::build>    (*options_),
                            static_cast<options::build_db> (*options_),
                            options_->build_db_retry ());
+
+    // Check that the database 'build' schema matches the current one. It's
+    // enough to perform the check in just a single module implementation
+    // (more details in the comment in package_search::init()).
+    //
+    const string ds ("build");
+    if (schema_catalog::current_version (*build_db_, ds) !=
+        build_db_->schema_version (ds))
+      fail << "database 'build' schema differs from the current one (module "
+           << BREP_VERSION_ID << ")";
+  }
 
   if (options_->root ().empty ())
     options_->root (dir_path ("/"));

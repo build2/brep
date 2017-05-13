@@ -170,6 +170,18 @@ namespace brep
     build ()
         : package_name (id.package.name), configuration (id.configuration) {}
   };
+
+  #pragma db view object(build)
+  struct build_count
+  {
+    size_t result;
+
+    operator size_t () const {return result;}
+
+    // Database mapping.
+    //
+    #pragma db member(result) column("count(" + build::package_name + ")")
+  };
 }
 
 #endif // LIBBREP_BUILD_HXX

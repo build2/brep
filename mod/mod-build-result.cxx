@@ -4,7 +4,8 @@
 
 #include <mod/mod-build-result.hxx>
 
-#include <algorithm> // find_if()
+#include <odb/database.hxx>
+#include <odb/transaction.hxx>
 
 #include <libbutl/sendmail.hxx>
 #include <libbutl/process-io.hxx>
@@ -13,11 +14,7 @@
 
 #include <libbbot/manifest.hxx>
 
-#include <odb/database.hxx>
-#include <odb/transaction.hxx>
-
 #include <web/module.hxx>
-#include <web/mime-url-encoding.hxx>
 
 #include <libbrep/build.hxx>
 #include <libbrep/build-odb.hxx>
@@ -25,11 +22,11 @@
 #include <libbrep/package-odb.hxx>
 
 #include <mod/options.hxx>
+#include <mod/build-config.hxx> // *_url()
 
 using namespace std;
 using namespace butl;
 using namespace bbot;
-using namespace web;
 using namespace brep::cli;
 using namespace odb::core;
 
@@ -207,12 +204,8 @@ handle (request& rq, response&)
 
   // Make sure the build configuration still exists.
   //
-  auto i (
-    find_if (
-      build_conf_->begin (), build_conf_->end (),
-      [&id] (const build_config& c) {return c.name == id.configuration;}));
-
-  if (i == build_conf_->end ())
+  if (build_conf_map_->find (id.configuration.c_str ()) ==
+      build_conf_map_->end ())
   {
     warn_expired ("no build configuration");
     return true;
@@ -322,35 +315,23 @@ handle (request& rq, response&)
       sm.out << "No operations results available." << endl;
     else
     {
-      string url (options_->host () + options_->root ().representation ());
-      string pkg (mime_url_encode (b->package_name));
-      string cfg (mime_url_encode (b->configuration));
+      const string& host (options_->host ());
+      const dir_path& root (options_->root ());
 
-      // Note that '+' is the only package version character that potentially
-      // needs to be url-encoded, and only in the query part of the URL.
-      // However, we print the package version either as part of URL path or
-      // as the build-force URL query part (where it is not encoded by
-      // design).
-      //
-      const version& pvr (b->package_version);
-      const version& tvr (b->toolchain_version);
       ostream& os (sm.out);
 
       assert (b->status);
       os << "combined: " << *b->status << endl << endl
-         << "  " << url << pkg << '/' << pvr << "/log/" << cfg << '/' << tvr
-         << endl << endl;
+         << "  " << build_log_url (host, root, *b) << endl << endl;
 
       for (const auto& r: b->results)
         os << r.operation << ": " << r.status << endl << endl
-           << "  " << url << pkg << '/' << pvr << "/log/" << cfg << '/'
-           << tvr << '/' << r.operation << endl << endl;
+           << "  " << build_log_url (host, root, *b, &r.operation)
+           << endl << endl;
 
       os << "Force rebuild (enter the reason, use '+' instead of spaces):"
          << endl << endl
-         << "  " << options_->host () << options_->root () << "?build-force&p="
-         << pkg << "&v=" << pvr << "&c=" << cfg << "&t=" << tvr << "&reason="
-         << endl;
+         << "  " << force_rebuild_url (host, root, *b) << endl;
     }
 
     sm.out.close ();

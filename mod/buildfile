@@ -27,6 +27,7 @@ mod{brep}:                                                     \
               {hxx         cxx}{ mod-build-log               } \
               {hxx         cxx}{ mod-build-result            } \
               {hxx         cxx}{ mod-build-task              } \
+              {hxx         cxx}{ mod-builds                  } \
               {hxx         cxx}{ mod-package-details         } \
               {hxx         cxx}{ mod-package-search          } \
               {hxx         cxx}{ mod-package-version-details } \

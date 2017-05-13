@@ -111,6 +111,17 @@ namespace brep
       << ~DIV;
   }
 
+  // TR_VALUE
+  //
+  void TR_VALUE::
+  operator() (serializer& s) const
+  {
+    s << TR(CLASS=label_)
+      <<   TH << label_ << ~TH
+      <<   TD << SPAN(CLASS="value") << value_ << ~SPAN << ~TD
+      << ~TR;
+  }
+
   // TR_NAME
   //
   void TR_NAME::
@@ -135,6 +146,8 @@ namespace brep
       << ~TR;
   }
 
+  // TR_VERSION
+  //
   void TR_VERSION::
   operator() (serializer& s) const
   {
@@ -532,6 +545,14 @@ namespace brep
         << ~SPAN;
   }
 
+  // SPAN_BUILD_RESULT_STATUS
+  //
+  void SPAN_BUILD_RESULT_STATUS::
+  operator() (serializer& s) const
+  {
+    s << SPAN(CLASS=to_string (status_)) << status_ << ~SPAN;
+  }
+
   // P_DESCRIPTION
   //
   void P_DESCRIPTION::
@@ -662,6 +683,11 @@ namespace brep
         size_t offset (page_number_count_ / 2);
         size_t from (current_page_ > offset ? current_page_ - offset : 0);
         size_t to (min (from + page_number_count_, pcount));
+
+        // Display as many pages as allowed.
+        //
+        if (to - from < page_number_count_ && from > 0)
+          from -= min (from, page_number_count_ - (to - from));
 
         for (size_t p (from); p < to; ++p)
         {

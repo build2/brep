@@ -10,10 +10,11 @@ define scss: file
 scss{*}: extension = scss
 scss{*}: install = data/www/
 
-./: css{common brep-common					\
-        package-details package-details-body 			\
-        package-search package-search-body 			\
-        package-version-details package-version-details-body 	\
-        repository-details repository-details-body}       	\
-    scss{package-details package-search package-version-details \
+./: css{common brep-common					       \
+        builds builds-body                                             \
+        package-details package-details-body 			       \
+        package-search package-search-body 			       \
+        package-version-details package-version-details-body 	       \
+        repository-details repository-details-body}       	       \
+    scss{builds package-details package-search package-version-details \
          repository-details}

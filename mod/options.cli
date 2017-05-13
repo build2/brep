@@ -211,7 +211,7 @@ namespace brep
       uint16_t search-results = 10
       {
         "<num>",
-        "Number of results per page. The default is 10."
+        "Number of package search results per page. The default is 10."
       }
 
       uint16_t search-pages = 5
@@ -299,6 +299,21 @@ namespace brep
 
     class build_force: build, package_db, build_db, module
     {
+    };
+
+    class builds: build, package_db, build_db, page, module
+    {
+      uint16_t build-configurations = 10
+      {
+        "<num>",
+        "Number of packages build configurations per page. The default is 10."
+      }
+
+      uint16_t build-pages = 5
+      {
+        "<num>",
+        "Number of pages in navigation (pager). The default is 5."
+      }
     };
 
     class repository_root: module
@@ -400,6 +415,13 @@ namespace brep
       // Package rebuild reason. Must not be empty.
       //
       string reason;
+    };
+
+    class builds
+    {
+      // Display packages build configurations list starting from this page.
+      //
+      uint16_t page | p;
     };
   }
 }
