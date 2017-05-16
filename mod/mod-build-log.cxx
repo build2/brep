@@ -170,8 +170,8 @@ handle (request& rq, response& rs)
 
   // Make sure the build configuration still exists.
   //
-  auto i (build_conf_map_->find (id.configuration.c_str ()));
-  if (i == build_conf_map_->end ())
+  if (build_conf_map_->find (id.configuration.c_str ()) ==
+      build_conf_map_->end ())
     config_expired ("no configuration");
 
   // Make sure the package still exists.
@@ -215,9 +215,8 @@ handle (request& rq, response& rs)
      << "config:    " << b->configuration << endl
      << "machine:   " << *b->machine << " (" << *b->machine_summary << ")"
                       << endl
-     << "target:    " << (i->second->target
-                          ? i->second->target->string ()
-                          : "<default>") << endl
+     << "target:    " << (b->target ? b->target->string () : "<default>")
+                      << endl
      << "timestamp: ";
 
   butl::to_stream (os, b->timestamp, "%Y-%m-%d %H:%M:%S%[.N] %Z", true, true);

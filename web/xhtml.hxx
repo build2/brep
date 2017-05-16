@@ -301,28 +301,31 @@ namespace web
     };
     static const css_style_element CSS_STYLE;
 
-    static const element BODY   ("body");
-    static const element DIV    ("div");
-    static const element FORM   ("form");
-    static const element H1     ("h1");
-    static const element H2     ("h2");
-    static const element H3     ("h3");
-    static const element H4     ("h4");
-    static const element H5     ("h5");
-    static const element H6     ("h6");
-    static const element LI     ("li");
-    static const element LINK   ("link");
-    static const element META   ("meta");
-    static const element P      ("p");
-    static const element PRE    ("pre");
-    static const element SCRIPT ("script");
-    static const element TABLE  ("table");
-    static const element TBODY  ("tbody");
-    static const element TD     ("td");
-    static const element TH     ("th");
-    static const element TITLE  ("title");
-    static const element TR     ("tr");
-    static const element UL     ("ul");
+    static const element BODY     ("body");
+    static const element DATALIST ("datalist");
+    static const element DIV      ("div");
+    static const element FORM     ("form");
+    static const element H1       ("h1");
+    static const element H2       ("h2");
+    static const element H3       ("h3");
+    static const element H4       ("h4");
+    static const element H5       ("h5");
+    static const element H6       ("h6");
+    static const element LI       ("li");
+    static const element LINK     ("link");
+    static const element META     ("meta");
+    static const element OPTION   ("option");
+    static const element P        ("p");
+    static const element PRE      ("pre");
+    static const element SCRIPT   ("script");
+    static const element SELECT   ("select");
+    static const element TABLE    ("table");
+    static const element TBODY    ("tbody");
+    static const element TD       ("td");
+    static const element TH       ("th");
+    static const element TITLE    ("title");
+    static const element TR       ("tr");
+    static const element UL       ("ul");
 
     static const inline_element A     ("a");
     static const inline_element B     ("b");
@@ -337,16 +340,19 @@ namespace web
     // Attributes.
     //
 
-    static const attribute AUTOFOCUS ("autofocus");
-    static const attribute CLASS     ("class");
-    static const attribute CONTENT   ("content");
-    static const attribute HREF      ("href");
-    static const attribute ID        ("id");
-    static const attribute NAME      ("name");
-    static const attribute REL       ("rel");
-    static const attribute STYLE     ("style");
-    static const attribute TYPE      ("type");
-    static const attribute VALUE     ("value");
+    static const attribute AUTOFOCUS   ("autofocus");
+    static const attribute CLASS       ("class");
+    static const attribute CONTENT     ("content");
+    static const attribute HREF        ("href");
+    static const attribute ID          ("id");
+    static const attribute LIST        ("list");
+    static const attribute NAME        ("name");
+    static const attribute REL         ("rel");
+    static const attribute PLACEHOLDER ("placeholder");
+    static const attribute SELECTED    ("selected");
+    static const attribute STYLE       ("style");
+    static const attribute TYPE        ("type");
+    static const attribute VALUE       ("value");
   }
 }
 

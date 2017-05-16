@@ -318,10 +318,12 @@ namespace brep
 
   template <typename T>
   inline auto
-  order_by_version_desc (const T& x) -> //decltype ("ORDER BY" + x.epoch)
-                                        decltype (x.epoch == 0)
+  order_by_version_desc (
+    const T& x,
+    bool first = true) -> //decltype ("ORDER BY" + x.epoch)
+                          decltype (x.epoch == 0)
   {
-    return "ORDER BY"
+    return (first ? "ORDER BY" : ", ")
       + x.epoch + "DESC,"
       + x.canonical_upstream + "DESC,"
       + x.canonical_release + "DESC,"

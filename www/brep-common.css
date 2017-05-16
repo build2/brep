@@ -170,3 +170,12 @@
 #pager #curr:after {content: "]"; font-weight: normal;}
 
 #pager #next:after {content: "\A0>";}
+
+/* Use page rather than system font settings. */
+select
+{
+  font-family: inherit;
+  font-weight: inherit;
+  font-size:   inherit;
+  line-height: inherit;
+}

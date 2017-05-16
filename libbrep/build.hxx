@@ -10,6 +10,8 @@
 #include <odb/core.hxx>
 #include <odb/section.hxx>
 
+#include <libbutl/target-triplet.hxx>
+
 #include <libbbot/manifest.hxx>
 
 #include <libbrep/types.hxx>
@@ -19,9 +21,9 @@
 
 // Used by the data migration entries.
 //
-#define LIBBREP_BUILD_SCHEMA_VERSION_BASE 1
+#define LIBBREP_BUILD_SCHEMA_VERSION_BASE 2
 
-#pragma db model version(LIBBREP_BUILD_SCHEMA_VERSION_BASE, 1, closed)
+#pragma db model version(LIBBREP_BUILD_SCHEMA_VERSION_BASE, 2, open)
 
 // We have to keep these mappings at the global scope instead of inside
 // the brep namespace because they need to be also effective in the
@@ -92,6 +94,16 @@ namespace brep
          ? bbot::to_result_status (*(?))                          \
          : brep::optional_result_status ())
 
+  // target_triplet
+  //
+  using optional_target_triplet = optional<butl::target_triplet>;
+
+  #pragma db map type(optional_target_triplet) as(optional_string) \
+    to((?) ? (?)->string () : brep::optional_string ())            \
+    from((?)                                                       \
+         ? butl::target_triplet (*(?))                             \
+         : brep::optional_target_triplet ())
+
   // operation_results
   //
   using bbot::operation_result;
@@ -111,7 +123,8 @@ namespace brep
     build (string package_name, version package_version,
            string configuration,
            string toolchain_name, version toolchain_version,
-           string machine, string machine_summary);
+           string machine, string machine_summary,
+           optional<butl::target_triplet> target);
 
     build_id id;
 
@@ -140,13 +153,14 @@ namespace brep
     optional<string> machine;
     optional<string> machine_summary;
 
+    // Default for the machine if absent.
+    //
+    optional<butl::target_triplet> target;
+
     // Note that the logs are stored as std::string/TEXT which is Ok since
     // they are UTF-8 and our database is UTF-8.
     //
-    #pragma db section(results_section)
     operation_results results;
-
-    #pragma db load(lazy) update(always)
     odb::section results_section;
 
     // Database mapping.
@@ -160,7 +174,10 @@ namespace brep
     #pragma db member(toolchain_version) \
       set(this.toolchain_version.init (this.id.toolchain_version, (?)))
 
-    #pragma db member(results) id_column("") value_column("")
+    #pragma db member(results) id_column("") value_column("") \
+      section(results_section)
+
+    #pragma db member(results_section) load(lazy) update(always)
 
     build (const build&) = delete;
     build& operator= (const build&) = delete;
@@ -181,6 +198,43 @@ namespace brep
     // Database mapping.
     //
     #pragma db member(result) column("count(" + build::package_name + ")")
+  };
+
+  #pragma db view object(build) query(distinct)
+  struct toolchain
+  {
+    string name;
+    upstream_version version;
+
+    // Database mapping. Note that the version member must be loaded after
+    // the virtual members since the version_ member must filled by that time.
+    //
+    #pragma db member(name) column(build::toolchain_name)
+
+    #pragma db member(version) column(build::toolchain_version) \
+      set(this.version.init (this.version_, (?)))
+
+    #pragma db member(epoch) virtual(uint16_t)  \
+      before(version) access(version_.epoch)    \
+      column(build::id.toolchain_version.epoch)
+
+    #pragma db member(canonical_upstream) virtual(std::string) \
+      before(version) access(version_.canonical_upstream)      \
+      column(build::id.toolchain_version.canonical_upstream)
+
+    #pragma db member(canonical_release) virtual(std::string) \
+      before(version) access(version_.canonical_release)      \
+      column(build::id.toolchain_version.canonical_release)
+
+    #pragma db member(revision) virtual(uint16_t)  \
+      before(version) access(version_.revision)    \
+      column(build::id.toolchain_version.revision)
+
+  private:
+    friend class odb::access;
+
+    #pragma db transient
+    canonical_version version_;
   };
 }
 

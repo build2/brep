@@ -218,11 +218,22 @@ namespace brep
     // Delegate the request handling to the selected sub-module. Intercept
     // exception handling to add sub-module attribution.
     //
-    auto handle = [&rs, this] (request& rq, const char* name) -> bool
+    auto handle = [&rq, &rs, this] (const char* nm, bool fn = false) -> bool
     {
       try
       {
-        return handler_->handle (rq, rs, *log_);
+        // Delegate the handling straight away if the sub-module is not a
+        // function. Otherwise, cleanup the request not to confuse the
+        // sub-module with the unknown parameter.
+        //
+        if (!fn)
+          return handler_->handle (rq, rs, *log_);
+
+        name_values p (rq.parameters ());
+        p.erase (p.begin ());
+
+        request_proxy rp (rq, p);
+        return handler_->handle (rp, rs, *log_);
       }
       catch (const invalid_request&)
       {
@@ -242,7 +253,7 @@ namespace brep
         // module::handle() function call.
         //
         ostringstream os;
-        os << name << ": " << e;
+        os << nm << ": " << e;
         throw runtime_error (os.str ());
       }
     };
@@ -256,21 +267,15 @@ namespace brep
     //
     if (lpath.empty ())
     {
-      // Dispatch request handling to the repository_details, the
-      // package_search or the one of build_* modules depending on the function
-      // name passed as a first HTTP request parameter. The parameter should
-      // have no value specified. Example: cppget.org/?about
+      // Dispatch request handling to the repository_details or the one of
+      // build_* modules depending on the function name passed as a first HTTP
+      // request parameter (example: cppget.org/?about). Dispatch to the
+      // package_search module if the function name is unavailable (no
+      // parameters) or is not recognized.
       //
       const name_values& params (rq.parameters ());
-      if (!params.empty () && !params.front ().value)
+      if (!params.empty ())
       {
-        // Cleanup not to confuse the selected module with the unknown
-        // parameter.
-        //
-        name_values p (params);
-        p.erase (p.begin ());
-
-        request_proxy rp (rq, p);
         const string& fn (params.front ().name);
 
         if (fn == "about")
@@ -278,46 +283,42 @@ namespace brep
           if (handler_ == nullptr)
             handler_.reset (new repository_details (*repository_details_));
 
-          return handle (rp, "repository_details");
+          return handle ("repository_details", true);
         }
         else if (fn == "build-task")
         {
           if (handler_ == nullptr)
             handler_.reset (new build_task (*build_task_));
 
-          return handle (rp, "build_task");
+          return handle ("build_task", true);
         }
         else if (fn == "build-result")
         {
           if (handler_ == nullptr)
             handler_.reset (new build_result (*build_result_));
 
-          return handle (rp, "build_result");
+          return handle ("build_result", true);
         }
         else if (fn == "build-force")
         {
           if (handler_ == nullptr)
             handler_.reset (new build_force (*build_force_));
 
-          return handle (rp, "build_force");
+          return handle ("build_force", true);
         }
         else if (fn == "builds")
         {
           if (handler_ == nullptr)
             handler_.reset (new builds (*builds_));
 
-          return handle (rp, "builds");
+          return handle ("builds", true);
         }
-        else
-          throw invalid_request (400, "unknown function");
       }
-      else
-      {
-        if (handler_ == nullptr)
-          handler_.reset (new package_search (*package_search_));
 
-        return handle (rq, "package_search");
-      }
+      if (handler_ == nullptr)
+        handler_.reset (new package_search (*package_search_));
+
+      return handle ("package_search");
     }
     else
     {
@@ -355,7 +356,7 @@ namespace brep
           if (handler_ == nullptr)
             handler_.reset (new package_details (*package_details_));
 
-          return handle (rq, "package_details");
+          return handle ("package_details");
         }
         else if (++i == lpath.end ())
         {
@@ -363,14 +364,14 @@ namespace brep
             handler_.reset (
               new package_version_details (*package_version_details_));
 
-          return handle (rq, "package_version_details");
+          return handle ("package_version_details");
         }
         else if (*i == "log")
         {
           if (handler_ == nullptr)
             handler_.reset (new build_log (*build_log_));
 
-          return handle (rq, "build_log");
+          return handle ("build_log");
         }
       }
     }

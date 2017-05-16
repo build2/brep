@@ -396,7 +396,8 @@ handle (request& rq, response& rs)
                                       move (tqm.toolchain_name),
                                       move (toolchain_version),
                                       mh.name,
-                                      move (mh.summary));
+                                      move (mh.summary),
+                                      cm.config->target);
 
               build_db_->persist (b);
             }
@@ -431,6 +432,7 @@ handle (request& rq, response& rs)
               b->toolchain_name = move (tqm.toolchain_name);
               b->machine = mh.name;
               b->machine_summary = move (mh.summary);
+              b->target = cm.config->target;
               b->timestamp = timestamp::clock::now ();
 
               build_db_->update (b);
@@ -551,6 +553,8 @@ handle (request& rq, response& rs)
               //
               b->toolchain_name = tqm.toolchain_name;
               b->machine_summary = mh.summary;
+
+              b->target = cm.config->target;
 
               // Mark the section as loaded, so results are updated.
               //

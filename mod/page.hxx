@@ -108,6 +108,55 @@ namespace brep
     const string& value_;
   };
 
+  // Generates table row element, that has the 'label: <input type="text"/>'
+  // layout.
+  //
+  class TR_INPUT
+  {
+  public:
+    TR_INPUT (const string& l,
+              const string& n,
+              const string& v,
+              const string& p = string (),
+              bool a = false)
+        : label_ (l), name_ (n), value_ (v), placeholder_ (p), autofocus_ (a)
+    {
+    }
+
+    void
+    operator() (xml::serializer&) const;
+
+  private:
+    const string& label_;
+    const string& name_;
+    const string& value_;
+    const string& placeholder_;
+    bool autofocus_;
+  };
+
+  // Generates table row element, that has the 'label: <select></select>'
+  // layout. Option elements are represented as a list of value/inner-text
+  // pairs.
+  //
+  class TR_SELECT
+  {
+  public:
+    TR_SELECT (const string& l,
+               const string& n,
+               const string& v,
+               const vector<pair<string, string>>& o)
+        : label_ (l), name_ (n), value_ (v), options_ (o) {}
+
+    void
+    operator() (xml::serializer&) const;
+
+  private:
+    const string& label_;
+    const string& name_;
+    const string& value_;
+    const vector<pair<string, string>>& options_;
+  };
+
   // Generates package name element.
   //
   class TR_NAME

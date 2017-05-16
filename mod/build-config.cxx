@@ -65,9 +65,9 @@ namespace brep
     // encoded by design.
     //
     return host + root.string () +
-      "?build-force&p=" + mime_url_encode (b.package_name) +
-      "&v=" + b.package_version.string () +
-      "&c=" + mime_url_encode (b.configuration) +
-      "&t=" + b.toolchain_version.string () + "&reason=";
+      "?build-force&pn=" + mime_url_encode (b.package_name) +
+      "&pv=" + b.package_version.string () +
+      "&cf=" + mime_url_encode (b.configuration) +
+      "&tc=" + b.toolchain_version.string () + "&reason=";
   }
 }

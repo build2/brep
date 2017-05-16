@@ -392,7 +392,7 @@ namespace brep
     {
       // Package name.
       //
-      string package | p;
+      string package | pn;
 
       // Package version. May not be url-encoded, in which case the plus
       // character is considered literally (rather than as the encoded space
@@ -402,15 +402,15 @@ namespace brep
       // @@ Make it of the version type? Maybe after it get moved to
       //    libbpkg/types.hxx or at least the second use case appear.
       //
-      string version | v;
+      string version | pv;
 
       // Package build configuration.
       //
-      string configuration | c;
+      string configuration | cf;
 
       // Toolchain version. May not be url-encoded (see above).
       //
-      string toolchain_version | t;
+      string toolchain_version | tc;
 
       // Package rebuild reason. Must not be empty.
       //
@@ -422,6 +422,47 @@ namespace brep
       // Display packages build configurations list starting from this page.
       //
       uint16_t page | p;
+
+      // Package builds query filter options.
+      //
+
+      // Package name wildcard. An empty value is treated the same way as *.
+      //
+      string name | pn;
+
+      // Package version. If empty or *, then no version constraint is applied.
+      // Otherwise the build package version must match the value exactly.
+      //
+      string version | pv;
+
+      // Package build toolchain in the <name>-<version> form. If *, then no
+      // toolchain constraint is applied. Otherwise the build toolchain name
+      // and version must match the value exactly.
+      //
+      string toolchain | tc = "*";
+
+      // Package build configuration name wildcard. An empty value is treated
+      // the same way as *.
+      //
+      string configuration | cf;
+
+      // Package build machine name wildcard. An empty value is treated the
+      // same way as *.
+      //
+      string machine | mn;
+
+      // Package build target wildcard. If empty, then the default machine
+      // target is matched.
+      //
+      string target | tg = "*";
+
+      // Package build result. If empty or *, then no build result constraint
+      // is applied. Otherwise the value is supposed to be the one of the
+      // following (ordered) statuses: pending, building, success, warning,
+      // error, abort, abnormal. The first 3 statuses are checked for equality,
+      // the rest - for being greater or equal.
+      //
+      string result | rs;
     };
   }
 }

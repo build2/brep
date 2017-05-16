@@ -36,7 +36,8 @@ namespace brep
   build (string pnm, version pvr,
          string cfg,
          string tnm, version tvr,
-         string mnm, string msm)
+         string mnm, string msm,
+         optional<butl::target_triplet> trg)
       : id (package_id (move (pnm), pvr), move (cfg), tvr),
         package_name (id.package.name),
         package_version (move (pvr)),
@@ -47,7 +48,8 @@ namespace brep
         timestamp (timestamp_type::clock::now ()),
         forced (false),
         machine (move (mnm)),
-        machine_summary (move (msm))
+        machine_summary (move (msm)),
+        target (move (trg))
   {
   }
 }

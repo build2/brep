@@ -80,7 +80,7 @@ namespace brep
   {
     // The 'action' attribute is optional in HTML5. While the standard doesn't
     // specify browser behavior explicitly for the case the attribute is
-    // ommited, the only reasonable behavior is to default it to the current
+    // omitted, the only reasonable behavior is to default it to the current
     // document URL.
     //
     s << FORM(ID="search")
@@ -119,6 +119,56 @@ namespace brep
     s << TR(CLASS=label_)
       <<   TH << label_ << ~TH
       <<   TD << SPAN(CLASS="value") << value_ << ~SPAN << ~TD
+      << ~TR;
+  }
+
+  // TR_INPUT
+  //
+  void TR_INPUT::
+  operator() (serializer& s) const
+  {
+    s << TR(CLASS=label_)
+      <<   TH << label_ << ~TH
+      <<   TD
+      <<     INPUT(TYPE="text", NAME=name_);
+
+    if (!value_.empty ())
+      s << VALUE(value_);
+
+    if (!placeholder_.empty ())
+      s << PLACEHOLDER(placeholder_);
+
+    if (autofocus_)
+      s << AUTOFOCUS("autofocus");
+
+    s <<     ~INPUT
+      <<   ~TD
+      << ~TR;
+  }
+
+  // TR_SELECT
+  //
+  void TR_SELECT::
+  operator() (serializer& s) const
+  {
+    s << TR(CLASS=label_)
+      <<   TH << label_ << ~TH
+      <<   TD
+      <<     SELECT(NAME=name_);
+
+    for (const auto& o: options_)
+    {
+      s << OPTION(VALUE=o.first);
+
+      if (o.first == value_)
+        s << SELECTED("selected");
+
+      s <<   o.second
+        << ~OPTION;
+    }
+
+    s <<     ~SELECT
+      <<   ~TD
       << ~TR;
   }
 
