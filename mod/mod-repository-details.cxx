@@ -4,9 +4,6 @@
 
 #include <mod/mod-repository-details.hxx>
 
-#include <time.h> // tzset()
-
-#include <sstream>
 #include <algorithm> // max()
 
 #include <libstudxml/serializer.hxx>
@@ -14,7 +11,7 @@
 #include <odb/database.hxx>
 #include <odb/transaction.hxx>
 
-#include <libbutl/timestamp.hxx>
+#include <libbutl/timestamp.hxx> // to_string()
 
 #include <web/xhtml.hxx>
 #include <web/module.hxx>
@@ -53,8 +50,6 @@ init (scanner& s)
 
   if (options_->root ().empty ())
     options_->root (dir_path ("/"));
-
-  tzset (); // To use butl::to_stream() later on.
 }
 
 bool brep::repository_details::
@@ -125,14 +120,10 @@ handle (request& rq, response& rs)
       s << *BR;
     }
 
-    ostringstream o;
-    butl::to_stream (o,
-                     max (r.packages_timestamp, r.repositories_timestamp),
-                     "%Y-%m-%d %H:%M:%S%[.N] %Z",
-                     true,
-                     true);
-
-    s << o.str ()
+    s << butl::to_string (max (r.packages_timestamp, r.repositories_timestamp),
+                          "%Y-%m-%d %H:%M:%S%[.N] %Z",
+                          true,
+                          true)
       << ~P;
 
     if (r.description)

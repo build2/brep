@@ -23,7 +23,7 @@
 }
 .build:nth-child(even) {background-color: rgba(0, 0, 0, 0.07);}
 
-.build th {width: 6.4em;}
+.build th {width: 7.0em;}
 
 .build tr.name td .value,
 .build tr.version td .value,
@@ -31,6 +31,7 @@
 .build tr.toolchain td .value,
 .build tr.machine td .value,
 .build tr.target td .value,
+.build tr.timestamp td .value,
 .build tr.result td .value
 {
   /* <code> style. */
@@ -38,6 +39,7 @@
   font-size: 0.94em;
 }
 
+.build .success  {color: #00bb00;}
 .build .warning  {color: #ffa500;}
 .build .error    {color: #ff0000;}
 .build .abort    {color: #ff0000;}

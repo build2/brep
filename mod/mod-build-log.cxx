@@ -9,6 +9,8 @@
 #include <odb/database.hxx>
 #include <odb/transaction.hxx>
 
+#include <libbutl/timestamp.hxx> // to_stream()
+
 #include <web/module.hxx>
 
 #include <libbrep/build.hxx>
@@ -208,15 +210,18 @@ handle (request& rq, response& rs)
 
   os << "package:   " << b->package_name << endl
      << "version:   " << b->package_version << endl
-     << "config:    " << b->configuration << endl
      << "toolchain: " << b->toolchain_name << '-' << b->toolchain_version
                       << endl
+     << "config:    " << b->configuration << endl
      << "machine:   " << *b->machine << " (" << *b->machine_summary << ")"
                       << endl
      << "target:    " << (i->second->target
                           ? i->second->target->string ()
-                          : "default") << endl
-                      << endl;
+                          : "<default>") << endl
+     << "timestamp: ";
+
+  butl::to_stream (os, b->timestamp, "%Y-%m-%d %H:%M:%S%[.N] %Z", true, true);
+  os << endl << endl;
 
   if (op.empty ())
   {

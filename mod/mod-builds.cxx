@@ -9,6 +9,8 @@
 #include <odb/database.hxx>
 #include <odb/transaction.hxx>
 
+#include <libbutl/timestamp.hxx> // to_string()
+
 #include <web/xhtml.hxx>
 #include <web/module.hxx>
 
@@ -22,7 +24,6 @@
 #include <mod/build-config.hxx> // *_url()
 
 using namespace std;
-using namespace butl;
 using namespace bbot;
 using namespace odb::core;
 using namespace brep::cli;
@@ -137,16 +138,21 @@ handle (request& rq, response& rs)
     assert (i != build_conf_map_->end ());
     const build_config& c (*i->second);
 
+    string ts (butl::to_string (b.timestamp,
+                                "%Y-%m-%d %H:%M:%S%[.N] %Z",
+                                true, true));
+
     s << TABLE(CLASS="proplist build")
       <<   TBODY
       <<     TR_NAME (b.package_name, string (), root)
       <<     TR_VERSION (b.package_name, b.package_version, root)
-      <<     TR_VALUE ("config", b.configuration)
       <<     TR_VALUE ("toolchain",
                        b.toolchain_name + '-' +
                        b.toolchain_version.string ())
+      <<     TR_VALUE ("config", b.configuration)
       <<     TR_VALUE ("machine", *b.machine)
-      <<     TR_VALUE ("target", c.target ? c.target->string () : "default")
+      <<     TR_VALUE ("target", c.target ? c.target->string () : "<default>")
+      <<     TR_VALUE ("timestamp", ts)
       <<     TR(CLASS="result")
       <<       TH << "result" << ~TH
       <<       TD
@@ -160,42 +166,48 @@ handle (request& rq, response& rs)
 
       build_db_->load (b, b.results_section);
 
-      // If no results available, then print the overall build status.
-      // Otherwise print unsuccessful operations statuses with the links to the
+      // If no unsuccessful operations results available, then print the
+      // overall build status. If there are any operations results available,
+      // then also print unsuccessful operations statuses with the links to the
       // respective logs, followed with a link to the operations combined log.
-      // Print the forced package rebuild link afterwards.
+      // Print the forced package rebuild link afterwards, unless the package
+      // build is already pending.
       //
-      if (b.results.empty ())
+      if (b.results.empty () || *b.status == result_status::success)
       {
         assert (b.status);
-        s << SPAN_BUILD_RESULT_STATUS (*b.status);
+        s << SPAN_BUILD_RESULT_STATUS (*b.status) << " | ";
       }
-      else
+
+      if (!b.results.empty ())
       {
         for (const auto& r: b.results)
         {
           if (r.status != result_status::success)
-            s << SPAN_BUILD_RESULT_STATUS (r.status) << '('
+            s << SPAN_BUILD_RESULT_STATUS (r.status) << " ("
               << A
               <<   HREF
               <<     build_log_url (host, root, b, &r.operation)
               <<   ~HREF
               <<   r.operation
               << ~A
-              << ')' << ' ';
+              << ") | ";
         }
 
         s << A
           <<   HREF << build_log_url (host, root, b) << ~HREF
-          <<   "all"
-          << ~A;
+          <<   "log"
+          << ~A
+          << " | ";
       }
 
-      s << ' '
-        << A
-        <<   HREF << force_rebuild_url (host, root, b) << ~HREF
-        <<   "rebuild"
-        << ~A;
+      if (b.forced)
+        s << "pending";
+      else
+        s << A
+          <<   HREF << force_rebuild_url (host, root, b) << ~HREF
+          <<   "rebuild"
+          << ~A;
     }
 
     s <<         ~SPAN

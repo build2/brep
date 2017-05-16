@@ -4,6 +4,8 @@
 
 #include <mod/mod-repository-root.hxx>
 
+#include <time.h> // tzset()
+
 #include <sstream>
 
 #include <web/module.hxx>
@@ -193,6 +195,11 @@ namespace brep
 
     if (options_->root ().empty ())
       options_->root (dir_path ("/"));
+
+    // To use libbutl timestamp printing functions later on (specifically in
+    // sub-modules, while handling requests).
+    //
+    tzset ();
   }
 
   bool repository_root::
