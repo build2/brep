@@ -231,6 +231,7 @@ handle (request& rq, response&)
   shared_ptr<build> b;
   optional<result_status> prev_status;
   bool notify (false);
+  bool unforced (true);
 
   {
     transaction t (build_db_->begin ());
@@ -244,12 +245,13 @@ handle (request& rq, response&)
       warn_expired ("non-matching timestamp");
     else
     {
+      unforced = b->force == force_state::unforced;
+
       // Don's send email for the success-to-success status change, unless the
       // build was forced.
       //
       notify = !(rqm.result.status == result_status::success &&
-                 b->status && *b->status == rqm.result.status &&
-                 b->force == force_state::unforced);
+                 b->status && *b->status == rqm.result.status && unforced);
 
       prev_status = move (b->status);
 
@@ -283,7 +285,8 @@ handle (request& rq, response&)
   //
   try
   {
-    string subj (to_string (*b->status) + ": " + b->package_name + '/' +
+    string subj ((unforced ? "build " : "rebuild ") +
+                 to_string (*b->status) + ": " + b->package_name + '/' +
                  b->package_version.string () + '/' + b->configuration + '/' +
                  b->toolchain_name + '-' + b->toolchain_version.string ());
 
