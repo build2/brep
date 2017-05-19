@@ -82,6 +82,28 @@ namespace brep
     to(to_string (?))                         \
     from(brep::to_build_state (?))
 
+  // force_state
+  //
+  enum class force_state: std::uint8_t
+  {
+    unforced,
+    forcing,  // Rebuild is forced while being in the building state.
+    forced    // Rebuild is forced while being in the built state.
+  };
+
+  string
+  to_string (force_state);
+
+  force_state
+  to_force_state (const string&); // May throw invalid_argument.
+
+  inline ostream&
+  operator<< (ostream& os, force_state s) {return os << to_string (s);}
+
+  #pragma db map type(force_state) as(string) \
+    to(to_string (?))                         \
+    from(brep::to_force_state (?))
+
   // result_status
   //
   using bbot::result_status;
@@ -118,7 +140,7 @@ namespace brep
     using timestamp_type = brep::timestamp;
 
     // Create the build object with the building state, non-existent status,
-    // the timestamp set to now and the forced flag set to false.
+    // the timestamp set to now and the force state set to unforced.
     //
     build (string package_name, version package_version,
            string configuration,
@@ -140,9 +162,7 @@ namespace brep
     //
     timestamp_type timestamp;
 
-    // True if the package rebuild has been forced.
-    //
-    bool forced;
+    force_state force;
 
     // Must present for the built state, may present for the building state.
     //

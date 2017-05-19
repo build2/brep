@@ -169,12 +169,17 @@ handle (request& rq, response& rs)
     // Respond with 409 (conflict) if the package configuration is in
     // inappropriate state for being rebuilt.
     //
-    else if (b->state != build_state::built)
+    else if (b->state != build_state::built &&
+             b->state != build_state::building)
       throw invalid_request (409, "state is " + to_string (b->state));
 
-    if (!b->forced)
+    force_state force (b->state == build_state::built
+                       ? force_state::forced
+                       : force_state::forcing);
+
+    if (b->force != force)
     {
-      b->forced = true;
+      b->force = force;
       build_db_->update (b);
 
       l1 ([&]{trace << "force rebuild for "

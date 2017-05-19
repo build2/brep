@@ -248,13 +248,14 @@ handle (request& rq, response&)
       // build was forced.
       //
       notify = !(rqm.result.status == result_status::success &&
-                 b->status && *b->status == rqm.result.status && !b->forced);
+                 b->status && *b->status == rqm.result.status &&
+                 b->force == force_state::unforced);
 
       prev_status = move (b->status);
 
-      b->state = build_state::built;
+      b->state  = build_state::built;
       b->status = rqm.result.status;
-      b->forced = false;
+      b->force  = force_state::unforced;
 
       // Mark the section as loaded, so results are updated.
       //

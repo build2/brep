@@ -149,7 +149,7 @@ handle (request& rq, response& rs)
   // collect the list of the built package configurations which it's time to
   // rebuilt. So if no unbuilt package is found, we will pickup one to
   // rebuild. The rebuild preference is given in the following order: the
-  // greater force flag, the greater overall status, the lower timestamp.
+  // greater force state, the greater overall status, the lower timestamp.
   //
   if (!cfg_machines.empty ())
   {
@@ -212,14 +212,17 @@ handle (request& rq, response& rs)
         expiration (timeout).time_since_epoch ()).count ();
     };
 
-    uint64_t build_expiration_ns (
+    uint64_t normal_result_expiration_ns (
       expiration_ns (options_->build_result_timeout ()));
 
-    timestamp forced_rebuild_expiration (
-      expiration (options_->build_forced_rebuild_timeout ()));
+    uint64_t forced_result_expiration_ns (
+      expiration_ns (options_->build_forced_rebuild_timeout ()));
 
     timestamp normal_rebuild_expiration (
       expiration (options_->build_normal_rebuild_timeout ()));
+
+    timestamp forced_rebuild_expiration (
+      expiration (options_->build_forced_rebuild_timeout ()));
 
     // Convert butl::standard_version type to brep::version.
     //
@@ -309,7 +312,10 @@ handle (request& rq, response& rs)
 
       (bld_query::state == "built" ||
        (bld_query::state == "building" &&
-        bld_query::timestamp > build_expiration_ns)));
+        ((bld_query::force == "forcing" &&
+          bld_query::timestamp > forced_result_expiration_ns) ||
+         (bld_query::force != "forcing" && // Unforced or forced.
+          bld_query::timestamp > normal_result_expiration_ns)))));
 
     connection_ptr bld_conn (build_db_->connection ());
 
@@ -370,11 +376,15 @@ handle (request& rq, response& rs)
             assert (j != configs.end ());
             configs.erase (j);
 
-            if (i->state == build_state::built &&
-                i->timestamp <= (i->forced
-                                 ? forced_rebuild_expiration
-                                 : normal_rebuild_expiration))
-              rebuilds.emplace_back (i.load ());
+            if (i->state == build_state::built)
+            {
+              assert (i->force != force_state::forcing);
+
+              if (i->timestamp <= (i->force == force_state::forced
+                                   ? forced_rebuild_expiration
+                                   : normal_rebuild_expiration))
+                rebuilds.emplace_back (i.load ());
+            }
           }
 
           if (!configs.empty ())
@@ -404,31 +414,29 @@ handle (request& rq, response& rs)
             else
             {
               // The package configuration can be in the building or unbuilt
-              // state, so the forced flag is false and the status is absent,
-              // unless in the building state (in which case they may or may
-              // not be set/exist), and there are no results.
+              // state, and there are no results.
               //
-              // Note that in the building state the status can be present if
-              // the rebuild task have been issued. In both cases we keep the
-              // status intact to be able to compare it with the final one in
-              // the result request handling in order to decide if to send the
-              // notification email. The same is true for the forced flag. We
-              // just assert that if the force flag is set, then the status
-              // exists.
+              // Note that in both cases we keep the status intact to be able
+              // to compare it with the final one in the result request
+              // handling in order to decide if to send the notification email.
+              // The same is true for the forced flag (in the sense that we
+              // don't set the force state to unforced).
               //
               // Load the section to assert the above statement.
               //
               build_db_->load (*b, b->results_section);
 
-              assert (b->state != build_state::built &&
-
-                      ((!b->forced && !b->status) ||
-                       (b->state == build_state::building &&
-                        (!b->forced || b->status))) &&
-
-                      b->results.empty ());
+              assert (b->state != build_state::built && b->results.empty ());
 
               b->state = build_state::building;
+
+              // Switch the force state not to reissue the task after the
+              // forced rebuild timeout. Note that the result handler will
+              // still recognize that the rebuild was forced.
+              //
+              if (b->force == force_state::forcing)
+                b->force = force_state::forced;
+
               b->toolchain_name = move (tqm.toolchain_name);
               b->machine = mh.name;
               b->machine_summary = move (mh.summary);
@@ -476,15 +484,15 @@ handle (request& rq, response& rs)
       // Sort the package configuration rebuild list with the following sort
       // priority:
       //
-      // 1: forced flag
+      // 1: force state
       // 2: overall status
       // 3: timestamp (less is preferred)
       //
       auto cmp = [] (const shared_ptr<build>& x,
                      const shared_ptr<build>& y) -> bool
       {
-        if (x->forced != y->forced)
-          return x->forced > y->forced;     // Forced goes first.
+        if (x->force != y->force)
+          return x->force > y->force;       // Forced goes first.
 
         assert (x->status && y->status);    // Both built.
 
@@ -502,7 +510,7 @@ handle (request& rq, response& rs)
       // anymore (as we have committed the database transactions that were
       // used to collect this data) so we recheck. If we find one that matches
       // then put it into the building state, refresh the timestamp and
-      // update. Note that we don't amend the status and the force flag to
+      // update. Note that we don't amend the status and the force state to
       // have them available in the result request handling (see above).
       //
       for (auto& b: rebuilds)
@@ -514,7 +522,7 @@ handle (request& rq, response& rs)
           b = build_db_->find<build> (b->id);
 
           if (b != nullptr && b->state == build_state::built &&
-              b->timestamp <= (b->forced
+              b->timestamp <= (b->force == force_state::forced
                                ? forced_rebuild_expiration
                                : normal_rebuild_expiration))
           {

@@ -162,7 +162,7 @@ build_query (const C& configs, const brep::params::builds& params)
     if (rs != "*")
     {
       if (rs == "pending")
-        q = q && query::forced;
+        q = q && query::force != "unforced";
       else if (rs == "building")
         q = q && query::state == "building";
       else
@@ -382,7 +382,7 @@ handle (request& rq, response& rs)
       <<         SPAN(CLASS="value");
 
     if (b.state == build_state::building)
-      s << "building";
+      s << "building | ";
     else
     {
       assert (b.state == build_state::built);
@@ -423,15 +423,17 @@ handle (request& rq, response& rs)
           << ~A
           << " | ";
       }
-
-      if (b.forced)
-        s << "pending";
-      else
-        s << A
-          <<   HREF << force_rebuild_url (host, root, b) << ~HREF
-          <<   "rebuild"
-          << ~A;
     }
+
+    if (b.force == (b.state == build_state::building
+                    ? force_state::forcing
+                    : force_state::forced))
+      s << "pending";
+    else
+      s << A
+        <<   HREF << force_rebuild_url (host, root, b) << ~HREF
+        <<   "rebuild"
+        << ~A;
 
     s <<         ~SPAN
       <<       ~TD

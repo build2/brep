@@ -30,6 +30,30 @@ namespace brep
     else throw invalid_argument ("invalid build state '" + s + "'");
   }
 
+  // force_state
+  //
+  string
+  to_string (force_state s)
+  {
+    switch (s)
+    {
+    case force_state::unforced: return "unforced";
+    case force_state::forcing:  return "forcing";
+    case force_state::forced:   return "forced";
+    }
+
+    return string (); // Should never reach.
+  }
+
+  force_state
+  to_force_state (const string& s)
+  {
+         if (s == "unforced") return force_state::unforced;
+    else if (s == "forcing")  return force_state::forcing;
+    else if (s == "forced")   return force_state::forced;
+    else throw invalid_argument ("invalid force state '" + s + "'");
+  }
+
   // build
   //
   build::
@@ -46,7 +70,7 @@ namespace brep
         toolchain_version (move (tvr)),
         state (build_state::building),
         timestamp (timestamp_type::clock::now ()),
-        forced (false),
+        force (force_state::unforced),
         machine (move (mnm)),
         machine_summary (move (msm)),
         target (move (trg))
