@@ -64,9 +64,9 @@ namespace brep
   //
   enum class build_state: std::uint8_t
   {
-    untested,
-    testing,
-    tested
+    unbuilt,
+    building,
+    built
   };
 
   string
@@ -117,7 +117,7 @@ namespace brep
   public:
     using timestamp_type = brep::timestamp;
 
-    // Create the build object with the testing state, non-existent status,
+    // Create the build object with the building state, non-existent status,
     // the timestamp set to now and the forced flag set to false.
     //
     build (string package_name, version package_version,
@@ -144,11 +144,11 @@ namespace brep
     //
     bool forced;
 
-    // Present only if the state is 'tested'.
+    // Must present for the built state, may present for the building state.
     //
     optional<result_status> status;
 
-    // Present only if the state is 'testing' or 'tested'.
+    // Present only for building and built states.
     //
     optional<string> machine;
     optional<string> machine_summary;

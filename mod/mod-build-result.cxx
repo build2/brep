@@ -238,7 +238,7 @@ handle (request& rq, response&)
 
     if (b == nullptr)
       warn_expired ("no package configuration");
-    else if (b->state != build_state::testing)
+    else if (b->state != build_state::building)
       warn_expired ("package configuration state is " + to_string (b->state));
     else if (b->timestamp != session_timestamp)
       warn_expired ("non-matching timestamp");
@@ -252,7 +252,7 @@ handle (request& rq, response&)
 
       prev_status = move (b->status);
 
-      b->state = build_state::tested;
+      b->state = build_state::built;
       b->status = rqm.result.status;
       b->forced = false;
 

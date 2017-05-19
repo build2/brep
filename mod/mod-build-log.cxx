@@ -194,7 +194,7 @@ handle (request& rq, response& rs)
 
     if (b == nullptr)
       config_expired ("no package configuration");
-    else if (b->state != build_state::tested)
+    else if (b->state != build_state::built)
       config_expired ("state is " + to_string (b->state));
     else
       build_db_->load (*b, b->results_section);

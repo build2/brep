@@ -13,9 +13,9 @@ namespace brep
   {
     switch (s)
     {
-    case build_state::untested: return "untested";
-    case build_state::testing:  return "testing";
-    case build_state::tested:   return "tested";
+    case build_state::unbuilt:  return "unbuilt";
+    case build_state::building: return "building";
+    case build_state::built:    return "built";
     }
 
     return string (); // Should never reach.
@@ -24,9 +24,9 @@ namespace brep
   build_state
   to_build_state (const string& s)
   {
-         if (s == "untested") return build_state::untested;
-    else if (s == "testing")  return build_state::testing;
-    else if (s == "tested")   return build_state::tested;
+         if (s == "unbuilt")  return build_state::unbuilt;
+    else if (s == "building") return build_state::building;
+    else if (s == "built")    return build_state::built;
     else throw invalid_argument ("invalid build state '" + s + "'");
   }
 
@@ -44,7 +44,7 @@ namespace brep
         configuration (id.configuration),
         toolchain_name (move (tnm)),
         toolchain_version (move (tvr)),
-        state (build_state::testing),
+        state (build_state::building),
         timestamp (timestamp_type::clock::now ()),
         forced (false),
         machine (move (mnm)),

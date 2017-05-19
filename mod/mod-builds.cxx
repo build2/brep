@@ -97,7 +97,7 @@ build_query (const C& configs, const brep::params::builds& params)
 
   query q (
     query::id.configuration.in_range (configs.begin (), configs.end ()) &&
-    (query::state == "testing" || query::state == "tested"));
+    (query::state == "building" || query::state == "built"));
 
   // Note that there is no error reported if the filter parameters parsing
   // fails. Instead, it is considered that no package builds match such a
@@ -164,7 +164,7 @@ build_query (const C& configs, const brep::params::builds& params)
       if (rs == "pending")
         q = q && query::forced;
       else if (rs == "building")
-        q = q && query::state == "testing";
+        q = q && query::state == "building";
       else
       {
         query sq (query::status == rs);
@@ -381,11 +381,11 @@ handle (request& rq, response& rs)
       <<       TD
       <<         SPAN(CLASS="value");
 
-    if (b.state == build_state::testing)
+    if (b.state == build_state::building)
       s << "building";
     else
     {
-      assert (b.state == build_state::tested);
+      assert (b.state == build_state::built);
 
       build_db_->load (b, b.results_section);
 

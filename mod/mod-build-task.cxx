@@ -139,14 +139,14 @@ handle (request& rq, response& rs)
   }
 
   // Go through packages until we find one that has no build configuration
-  // present in the database, or has the untested one, or in the testing state
+  // present in the database, or has the unbuilt one, or in the building state
   // but expired (collectively called unbuilt). If such a package
-  // configuration is found then put it into the testing state, set the
+  // configuration is found then put it into the building state, set the
   // current timestamp and respond with the task for building this package
   // configuration.
   //
   // While trying to find a non-built package configuration we will also
-  // collect the list of the tested package configurations which it's time to
+  // collect the list of the built package configurations which it's time to
   // rebuilt. So if no unbuilt package is found, we will pickup one to
   // rebuild. The rebuild preference is given in the following order: the
   // greater force flag, the greater overall status, the lower timestamp.
@@ -197,7 +197,7 @@ handle (request& rq, response& rs)
     };
 
     // Calculate the expiration time for package configurations being in the
-    // testing (build expiration) or the tested (rebuild expiration) state.
+    // building (build expiration) or the built (rebuild expiration) state.
     //
     timestamp now (timestamp::clock::now ());
 
@@ -280,7 +280,7 @@ handle (request& rq, response& rs)
     // configurations that have already been acted upon (initially empty).
     //
     // This is why we query the database for package configurations that
-    // should not be built (in the tested state, or in the testing state and
+    // should not be built (in the built state, or in the building state and
     // not expired). Having such a list we will select the first build
     // configuration that is not in the list (if available) for the response.
     //
@@ -307,8 +307,8 @@ handle (request& rq, response& rs)
                           toolchain_version,
                           true) &&
 
-      (bld_query::state == "tested" ||
-       (bld_query::state == "testing" &&
+      (bld_query::state == "built" ||
+       (bld_query::state == "building" &&
         bld_query::timestamp > build_expiration_ns)));
 
     connection_ptr bld_conn (build_db_->connection ());
@@ -354,7 +354,7 @@ handle (request& rq, response& rs)
           // configurations that remained can be built. We will take the first
           // one, if present.
           //
-          // Also save the tested package configurations for which it's time
+          // Also save the built package configurations for which it's time
           // to be rebuilt.
           //
           config_machines configs (cfg_machines); // Make a copy for this pkg.
@@ -370,7 +370,7 @@ handle (request& rq, response& rs)
             assert (j != configs.end ());
             configs.erase (j);
 
-            if (i->state == build_state::tested &&
+            if (i->state == build_state::built &&
                 i->timestamp <= (i->forced
                                  ? forced_rebuild_expiration
                                  : normal_rebuild_expiration))
@@ -385,7 +385,7 @@ handle (request& rq, response& rs)
             shared_ptr<build> b (build_db_->find<build> (bid));
 
             // If build configuration doesn't exist then create the new one
-            // and persist. Otherwise put it into the testing state, refresh
+            // and persist. Otherwise put it into the building state, refresh
             // the timestamp and update.
             //
             if (b == nullptr)
@@ -403,12 +403,12 @@ handle (request& rq, response& rs)
             }
             else
             {
-              // The package configuration can be in the testing or untested
+              // The package configuration can be in the building or unbuilt
               // state, so the forced flag is false and the status is absent,
-              // unless in the testing state (in which case they may or may not
-              // be set/exist), and there are no results.
+              // unless in the building state (in which case they may or may
+              // not be set/exist), and there are no results.
               //
-              // Note that in the testing state the status can be present if
+              // Note that in the building state the status can be present if
               // the rebuild task have been issued. In both cases we keep the
               // status intact to be able to compare it with the final one in
               // the result request handling in order to decide if to send the
@@ -420,15 +420,15 @@ handle (request& rq, response& rs)
               //
               build_db_->load (*b, b->results_section);
 
-              assert (b->state != build_state::tested &&
+              assert (b->state != build_state::built &&
 
                       ((!b->forced && !b->status) ||
-                       (b->state == build_state::testing &&
+                       (b->state == build_state::building &&
                         (!b->forced || b->status))) &&
 
                       b->results.empty ());
 
-              b->state = build_state::testing;
+              b->state = build_state::building;
               b->toolchain_name = move (tqm.toolchain_name);
               b->machine = mh.name;
               b->machine_summary = move (mh.summary);
@@ -486,7 +486,7 @@ handle (request& rq, response& rs)
         if (x->forced != y->forced)
           return x->forced > y->forced;     // Forced goes first.
 
-        assert (x->status && y->status);    // Both tested.
+        assert (x->status && y->status);    // Both built.
 
         if (x->status != y->status)
           return x->status > y->status;     // Larger status goes first.
@@ -501,7 +501,7 @@ handle (request& rq, response& rs)
       // Note that the configurations may not match the required criteria
       // anymore (as we have committed the database transactions that were
       // used to collect this data) so we recheck. If we find one that matches
-      // then put it into the testing state, refresh the timestamp and
+      // then put it into the building state, refresh the timestamp and
       // update. Note that we don't amend the status and the force flag to
       // have them available in the result request handling (see above).
       //
@@ -513,7 +513,7 @@ handle (request& rq, response& rs)
 
           b = build_db_->find<build> (b->id);
 
-          if (b != nullptr && b->state == build_state::tested &&
+          if (b != nullptr && b->state == build_state::built &&
               b->timestamp <= (b->forced
                                ? forced_rebuild_expiration
                                : normal_rebuild_expiration))
@@ -546,7 +546,7 @@ handle (request& rq, response& rs)
             {
               assert (b->status);
 
-              b->state = build_state::testing;
+              b->state = build_state::building;
               b->machine = mh.name;
 
               // Can't move from, as may need it on the next iteration.

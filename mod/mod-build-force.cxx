@@ -169,7 +169,7 @@ handle (request& rq, response& rs)
     // Respond with 409 (conflict) if the package configuration is in
     // inappropriate state for being rebuilt.
     //
-    else if (b->state != build_state::tested)
+    else if (b->state != build_state::built)
       throw invalid_request (409, "state is " + to_string (b->state));
 
     if (!b->forced)
