@@ -144,7 +144,7 @@ build_query (const C& configs, const brep::params::builds& params)
     // Build machine name.
     //
     if (!params.machine ().empty ())
-      query::machine.like (transform (params.machine ()));
+      q = q && query::machine.like (transform (params.machine ()));
 
     // Build target.
     //
@@ -185,7 +185,10 @@ build_query (const C& configs, const brep::params::builds& params)
             sq = sq || query::status == to_string (st);
         }
 
-        q = q && sq;
+        // Note that the result status may present for the building state as
+        // well (rebuild).
+        //
+        q = q && query::state == "built" && sq;
       }
     }
   }
