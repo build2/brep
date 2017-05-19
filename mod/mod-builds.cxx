@@ -159,7 +159,7 @@ build_query (const C& configs, const brep::params::builds& params)
     //
     const string& rs (params.result ());
 
-    if (!rs.empty () && rs != "*")
+    if (rs != "*")
     {
       if (rs == "pending")
         q = q && query::forced;
@@ -196,6 +196,16 @@ build_query (const C& configs, const brep::params::builds& params)
 
   return q;
 }
+
+static const vector<pair<string, string>> build_results ({
+    {"*", "*"},
+    {"pending", "pending"},
+    {"building", "building"},
+    {"success", "success"},
+    {"warning", "warning"},
+    {"error", "error"},
+    {"abort", "abort"},
+    {"abnormal", "abnormal"}});
 
 bool brep::builds::
 handle (request& rq, response& rs)
@@ -269,7 +279,7 @@ handle (request& rq, response& rs)
     // the * wildcard selection.
     //
     string tc ("*");
-    vector<pair<string,string>> toolchains ({{"*", "*"}});
+    vector<pair<string, string>> toolchains ({{"*", "*"}});
     {
       using query = query<toolchain>;
 
@@ -317,9 +327,9 @@ handle (request& rq, response& rs)
       <<         ~TD
       <<       ~TR
 
-      <<       TR_INPUT ("machine", "mn", params.machine (), "*")
-      <<       TR_INPUT ("target", "tg", params.target (), "<default>")
-      <<       TR_INPUT ("result", "rs", params.result (), "*")
+      <<       TR_INPUT  ("machine", "mn", params.machine (), "*")
+      <<       TR_INPUT  ("target", "tg", params.target (), "<default>")
+      <<       TR_SELECT ("result", "rs", params.result (), build_results)
       <<     ~TBODY
       <<   ~TABLE
       <<   TABLE(CLASS="form-table")
@@ -454,7 +464,7 @@ handle (request& rq, response& rs)
   add_filter ("cf", params.configuration ());
   add_filter ("mn", params.machine ());
   add_filter ("tg", params.target (), "*");
-  add_filter ("rs", params.result ());
+  add_filter ("rs", params.result (), "*");
 
   s <<       DIV_PAGER (page, count, page_configs, options_->build_pages (), u)
     <<     ~DIV

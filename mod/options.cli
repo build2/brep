@@ -456,13 +456,13 @@ namespace brep
       //
       string target | tg = "*";
 
-      // Package build result. If empty or *, then no build result constraint
-      // is applied. Otherwise the value is supposed to be the one of the
+      // Package build result. If *, then no build result constraint is
+      // applied. Otherwise the value is supposed to be the one of the
       // following (ordered) statuses: pending, building, success, warning,
       // error, abort, abnormal. The first 3 statuses are checked for equality,
       // the rest - for being greater or equal.
       //
-      string result | rs;
+      string result | rs = "*";
     };
   }
 }
