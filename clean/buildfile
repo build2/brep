@@ -1,0 +1,30 @@
+# file      : clean/buildfile
+# copyright : Copyright (c) 2014-2017 Code Synthesis Ltd
+# license   : MIT; see accompanying LICENSE file
+
+import libs  = libodb%lib{odb}
+import libs += libodb-pgsql%lib{odb-pgsql}
+import libs += libbutl%lib{butl}
+import libs += libbbot%lib{bbot}
+
+include ../libbrep/
+
+exe{brep-clean}: {hxx ixx cxx}{* -clean-options} \
+                 {hxx ixx cxx}{clean-options}    \
+                 ../libbrep/lib{brep} $libs
+
+# Generated options parser.
+#
+if $cli.configured
+{
+  cli.cxx{clean-options}: cli{clean}
+
+  cli.options += -I $src_root --include-with-brackets --include-prefix clean \
+--guard-prefix CLEAN --generate-specifier --page-usage print_ --ansi-color   \
+--cxx-prologue "#include <clean/types-parsers.hxx>"                          \
+--long-usage
+
+  # Include generated cli files into the distribution.
+  #
+  cli.cxx{clean-options}: dist = true
+}

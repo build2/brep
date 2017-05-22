@@ -10,25 +10,25 @@ include <libbrep/types.hxx>;
 
 "\section=1"
 "\name=brep-load"
-"\summary=load build2 repositories into database"
+"\summary=load build2 repositories into brep package database"
 
 {
-  "<options> <loadtab-file>",
+  "<options> <loadtab>",
 
   "\h|SYNOPSIS|
 
    \cb{brep-load --help}\n
    \cb{brep-load --version}\n
-   \c{\b{brep-load} [<options>] <loadtab-file>}
+   \c{\b{brep-load} [<options>] <loadtab>}
 
    \h|DESCRIPTION|
 
    \cb{brep-load} reads the list of repositories from the specified
-   configuration <loadtab-file>, fetches their manifest files, and loads the
-   repository and package information into the database, suitable for
-   consumption by the \cb{brep} web module.
+   <loadtab> configuration file, fetches their manifest files, and loads the
+   repository and package information into the \cb{package} database, suitable
+   for consumption by the \cb{brep} web module.
 
-   Note that \cb{brep-load} expects the database \cb{package} schema to have
+   Note that \cb{brep-load} expects the \cb{package} database schema to have
    already been created using \l{brep-migrate(1)}.
 
    Also note that \cb{brep-load} requires \l{bpkg(1)} to fetch repository
@@ -119,12 +119,22 @@ class options
 
 "\h|EXIT STATUS|
 
-\cb{0}      Successful termination.
+\dl|
 
-\cb{1}      Fatal error.
+\li|\cb{0}
 
-\cb{2}      \cb{brep-load} or \l{brep-migrate(1)} instance is running. Try
-            again.
+Success.|
 
-\cb{3}      The database recoverable error. Try again.
+\li|\cb{1}
+
+Fatal error.|
+
+\li|\cb{2}
+
+An instance of \cb{brep-load} or \l{brep-migrate(1)} is already running. Try
+again.|
+
+\li|\cb{3}
+
+Recoverable database error. Try again.||
 "

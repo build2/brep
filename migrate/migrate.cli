@@ -8,7 +8,7 @@ include <cstdint>; // uint16_t
 
 "\section=1"
 "\name=brep-migrate"
-"\summary=create/drop/migrate build2 repository database"
+"\summary=create/drop/migrate brep databases"
 
 {
   "<options>",
@@ -114,12 +114,22 @@ class options
 
 "\h|EXIT STATUS|
 
-\cb{0}      Successful termination.
+\dl|
 
-\cb{1}      Fatal error.
+\li|\cb{0}
 
-\cb{2}      \cb{brep-migrate} or \l{brep-load(1)} instance is running. Try
-            again.
+Success.|
 
-\cb{3}      The database recoverable error. Try again.
+\li|\cb{1}
+
+Fatal error.|
+
+\li|\cb{2}
+
+An instance of \cb{brep-migrate} or \l{brep-load(1)} is already running. Try
+again.|
+
+\li|\cb{3}
+
+Recoverable database error. Try again.||
 "

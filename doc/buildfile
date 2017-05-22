@@ -3,7 +3,8 @@
 # license   : MIT; see accompanying LICENSE file
 
 cmds =             \
-brep-load 	   \
+brep-clean         \
+brep-load          \
 brep-migrate
 
 define css: file

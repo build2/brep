@@ -15,9 +15,6 @@
 
 #include <libbutl/pager.hxx>
 
-#include <libbrep/types.hxx>
-#include <libbrep/utility.hxx>
-
 #include <libbrep/database-lock.hxx>
 
 #include <migrate/migrate-options.hxx>
@@ -28,7 +25,7 @@ using namespace brep;
 
 // Operation failed, diagnostics has already been issued.
 //
-struct failed: std::exception {};
+struct failed {};
 
 static const char* help_info (
   "  info: run 'brep-migrate --help' for more information");
@@ -349,12 +346,12 @@ try
 }
 catch (const database_locked&)
 {
-  cerr << "brep-migrate or brep-load instance is running" << endl;
+  cerr << "brep-migrate or brep-load is running" << endl;
   return 2;
 }
 catch (const recoverable& e)
 {
-  cerr << "database recoverable error: " << e << endl;
+  cerr << "recoverable database error: " << e << endl;
   return 3;
 }
 catch (const cli::exception& e)

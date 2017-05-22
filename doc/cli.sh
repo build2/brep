@@ -53,7 +53,7 @@ o="--output-prefix brep-"
 #
 #compile "brep" $o --output-prefix ""
 
-pages="load/load migrate/migrate"
+pages="clean/clean load/load migrate/migrate"
 
 for p in $pages; do
   compile $p $o

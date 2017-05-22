@@ -1,14 +1,14 @@
-// file      : load/types-parsers.hxx -*- C++ -*-
+// file      : clean/types-parsers.hxx -*- C++ -*-
 // copyright : Copyright (c) 2014-2017 Code Synthesis Ltd
 // license   : MIT; see accompanying LICENSE file
 
 // CLI parsers, included into the generated source files.
 //
 
-#ifndef LOAD_TYPES_PARSERS_HXX
-#define LOAD_TYPES_PARSERS_HXX
+#ifndef CLEAN_TYPES_PARSERS_HXX
+#define CLEAN_TYPES_PARSERS_HXX
 
-#include <libbrep/types.hxx>
+#include <clean/options-types.hxx>
 
 namespace cli
 {
@@ -18,11 +18,11 @@ namespace cli
   struct parser;
 
   template <>
-  struct parser<brep::path>
+  struct parser<brep::toolchain_timeouts>
   {
     static void
-    parse (brep::path&, bool&, scanner&);
+    parse (brep::toolchain_timeouts&, bool&, scanner&);
   };
 }
 
-#endif // LOAD_TYPES_PARSERS_HXX
+#endif // CLEAN_TYPES_PARSERS_HXX

@@ -27,9 +27,6 @@
 
 #include <libbpkg/manifest.hxx>
 
-#include <libbrep/types.hxx>
-#include <libbrep/utility.hxx>
-
 #include <libbrep/package.hxx>
 #include <libbrep/package-odb.hxx>
 #include <libbrep/database-lock.hxx>
@@ -986,7 +983,7 @@ try
 
   if (argc < 2)
   {
-    cerr << "error: configuration file path argument expected" << endl
+    cerr << "error: configuration file expected" << endl
          << help_info << endl;
     return 1;
   }
@@ -1018,7 +1015,7 @@ try
   const string ds ("package");
   if (schema_catalog::current_version (db, ds) != db.schema_version (ds))
   {
-    cerr << "error: database 'package' schema differs from the current one"
+    cerr << "error: package database schema differs from the current one"
          << endl << "  info: use brep-migrate to migrate the database" << endl;
     return 1;
   }
@@ -1091,12 +1088,12 @@ try
 }
 catch (const database_locked&)
 {
-  cerr << "brep-load or brep-migrate instance is running" << endl;
+  cerr << "brep-load or brep-migrate is running" << endl;
   return 2;
 }
 catch (const recoverable& e)
 {
-  cerr << "database recoverable error: " << e << endl;
+  cerr << "recoverable database error: " << e << endl;
   return 3;
 }
 catch (const cli::exception& e)

@@ -6,8 +6,9 @@ replace systemctl commands with the equivalent init.d ones.
 
 1. Create 'brep' User
 
-This user will be used to run the brep repository loader. We will also use its
-home directory to build and install the brep module, store its configuration,
+This user will be used to run the brep package database loader, build database
+cleaner, and the database schemes migration utility. We will also use its home
+directory to build and install the brep module, store its configuration,
 etc. We create this user with a disabled password so only root will be able to
 operate as brep. Because of this restriction we will allow brep to run sudo
 without a password:
@@ -255,36 +256,42 @@ $ cd install/share/brep/www/
 $ for i in *.scss; do sassc -s compressed $i `basename -s .scss $i`.css; done
 
 
-8. Setup Periodic Loader Execution
+8. Setup Periodic Loader and Cleaner Execution
 
 Initially this guide suggested using systemd user session support to run the
-loader. However, the current state of user sessions has one major drawback:
-they are not started/attached-to when logging in with su -l (see Debian bug
-#813789 for details). This limitation makes them unusable in our setup. If you
-still would like to use systemd to run the loader, then you can set it up as a
-system-wide service which runs the loader as the brep user/group. Otherwise, a
-cron job is a natural choice.
+loader and the cleaner. However, the current state of user sessions has one
+major drawback: they are not started/attached-to when logging in with su -l
+(see Debian bug #813789 for details). This limitation makes them unusable in
+our setup. If you still would like to use systemd to run the loader and the
+cleaner, then you can set it up as a system-wide service which runs the
+utilities as the brep user/group. Otherwise, a cron job is a natural choice.
 
+Note that the cleaner execution is optional and is only required if the build2
+build bot functionality is enabled (see the build bot documentation for
+details). If it is disabled in you setup, then skip the cleaner-related
+parts in the subsequent subsections.
 
-8.a Setup Periodic Loader Execution with cron
+8.a Setup Periodic Loader and Cleaner Execution with cron
 
-The following crontab entry will execute the loader every five minutes:
+The following crontab entries will execute the loader every five minutes
+and the cleaner once a day at midnight:
 
 $ crontab -l
 MAILTO=<brep-admin-email>
 PATH=/usr/local/bin:/bin:/usr/bin
 */5 * * * * $HOME/install/bin/brep-load $HOME/config/loadtab
+0 0 * * * $HOME/install/bin/brep-clean $HOME/config/buildtab
 ^D
 
 Note that here we assume that bpkg (which is executed by brep-load) is in one
 of the PATH's directories (usually /usr/local/bin).
 
 
-8.b Setup Periodic Loader Execution with systemd
+8.b Setup Periodic Loader and Cleaner Execution with systemd
 
 In this version we will use the systemd user session to periodically run the
-loader as the brep user. If your installation doesn't use systemd, then a cron
-job would be a natural alternative (see above).
+loader and the cleaner as the brep user. If your installation doesn't use
+systemd, then a cron job would be a natural alternative (see above).
 
 As the first step, make sure systemd user sessions support is working for the
 brep user:
@@ -296,26 +303,32 @@ installed, relogin as brep, and try again. If it still doesn't work, google
 for the error message and your distribution name.
 
 Next enable the brep's systemd session to remain running after logging off
-since we want the loader to run even when we are not logged in:
+since we want the utilities to run even when we are not logged in:
 
 $ sudo loginctl enable-linger brep
 
 $ mkdir -p .config/systemd/user
 $ cp install/share/brep/etc/systemd/brep-load.* .config/systemd/user/
+$ cp install/share/brep/etc/systemd/brep-clean.* .config/systemd/user/
 
 Start the service to make sure there are no issues:
 
 $ systemctl --user start brep-load.service
 $ journalctl
 
-Start the timer and monitor it to make sure it fires:
+$ systemctl --user start brep-clean.service
+$ journalctl
+
+Start the timers and monitor them to make sure they fire:
 
 $ systemctl --user start brep-load.timer
+$ systemctl --user start brep-clean.timer
 $ journalctl -f
 
 If everything looks good, enable the timer to be started at boot time:
 
 $ systemctl --user enable brep-load.timer
+$ systemctl --user enable brep-clean.timer
 
 
 9. Upgrade Procedure
@@ -337,15 +350,18 @@ $ cd brep
 $ bpkg fetch
 $ bpkg build brep
 
-If you are using a systemd-based setup, then stop and disable the loader:
+If you are using a systemd-based setup, then stop and disable the loader and
+the cleaner:
 
 $ systemctl --user disable --now brep-load.timer
+$ systemctl --user disable --now brep-clean.timer
 $ systemctl --user stop brep-load.service
+$ systemctl --user stop brep-clean.service
 
 If you are using a cron-based setup, then it is not worth it commenting out the
-job entry. If the new version of the loader gets executed before or during the
-migration, then it will fail and you will get an email with the diagnostics.
-Other than that, it should be harmless.
+job entries. If the new version of the loader or the cleaner gets executed
+before or during the migration, then it will fail and you will get an email
+with the diagnostics. Other than that, it should be harmless.
 
 Stop apache:
 
@@ -372,14 +388,17 @@ is not possible), then one way to do it would be:
 $ psql -d brep_package -c 'DROP OWNED BY brep'
 $ psql -d brep_build -c 'DROP OWNED BY brep'
 
-If using systemd, then start and enable the loader:
+If using systemd, then start and enable the loader and the cleaner:
 
 $ systemctl --user start brep-load.service
 $ systemctl --user status brep-load.service
+$ systemctl --user start brep-clean.service
+$ systemctl --user status brep-clean.service
 
 If everything looks good, enable periodic execution:
 
 $ systemctl --user enable --now brep-load.timer
+$ systemctl --user enable --now brep-clean.timer
 
 If using cron, then simply wait for the next run.
 

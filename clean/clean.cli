@@ -1,0 +1,164 @@
+// file      : clean/clean.cli
+// copyright : Copyright (c) 2014-2017 Code Synthesis Ltd
+// license   : MIT; see accompanying LICENSE file
+
+include <vector>;
+include <string>;
+include <cstdint>; // uint16_t
+
+include <clean/options-types.hxx>;
+
+"\section=1"
+"\name=brep-clean"
+"\summary=clean brep build database"
+
+{
+  "<options> <buildtab>",
+
+  "\h|SYNOPSIS|
+
+   \cb{brep-clean --help}\n
+   \cb{brep-clean --version}\n
+   \c{\b{brep-clean} [<options>] <buildtab>}
+
+   \h|DESCRIPTION|
+
+   \cb{brep-clean} deletes expired package builds from the brep \cb{build}
+   database. The build is considered expired if the package version is not
+   in the \cb{package} database, or the configuration is not listed in the
+   <buildtab> file, or the timestamp is older than the one specified for
+   this build's toolchain (see \cb{--stale-timeout}).
+
+   Note that \cb{brep-clean} expects the \cb{build} and \cb{package} database
+   schemas to have already been created using \l{brep-migrate(1)}."
+}
+
+class options
+{
+  "\h|OPTIONS|"
+
+  brep::toolchain_timeouts --stale-timeout
+  {
+    "[<name>=]<days>",
+    "Number of days to wait before considering builds for the named toolchain
+     as stale. Specify zero for <days> to make builds for a toolchain never
+     expire. Omit <name> (including \cb{=}) to specify the default timeout.
+     It will apply to all the toolchains that don't have a timeout specified
+     explicitly. If unspecified, the default timeout is zero (never expire)."
+  }
+
+  std::string --build-db-user
+  {
+    "<user>",
+    "Build database user name. If not specified, then operating system (login)
+     name is used."
+  }
+
+  std::string --build-db-password
+  {
+    "<pass>",
+    "Build database password. If not specified, then login without password is
+     expected to work."
+  }
+
+  std::string --build-db-name = "brep_build"
+  {
+    "<name>",
+    "Build database name. If not specified, then \cb{brep_build} is used by
+     default."
+  }
+
+  std::string --build-db-host
+  {
+    "<host>",
+    "Build database host name, address, or socket. If not specified, then
+     connect to \cb{localhost} using the operating system-default mechanism
+     (Unix-domain socket, etc)."
+  }
+
+  std::uint16_t --build-db-port = 0
+  {
+    "<port>",
+    "Build database port number. If not specified, the default port is used."
+  }
+
+  std::string --package-db-user
+  {
+    "<user>",
+    "Package database user name. If not specified, then operating system
+     (login) name is used."
+  }
+
+  std::string --package-db-password
+  {
+    "<pass>",
+    "Package database password. If not specified, then login without password
+     is expected to work."
+  }
+
+  std::string --package-db-name = "brep_package"
+  {
+    "<name>",
+    "Package database name. If not specified, then \cb{brep_package} is used by
+     default."
+  }
+
+  std::string --package-db-host
+  {
+    "<host>",
+    "Package database host name, address, or socket. If not specified, then
+     connect to \cb{localhost} using the operating system-default mechanism
+     (Unix-domain socket, etc)."
+  }
+
+  std::uint16_t --package-db-port = 0
+  {
+    "<port>",
+    "Package database port number. If not specified, the default port is used."
+  }
+
+  std::string --pager // String to allow empty value.
+  {
+    "<path>",
+    "The pager program to be used to show long text. Commonly used pager
+     programs are \cb{less} and \cb{more}. You can also specify additional
+     options that should be passed to the pager program with
+     \cb{--pager-option}. If an empty string is specified as the pager
+     program, then no pager will be used. If the pager program is not
+     explicitly specified, then \cb{brep-clean} will try to use \cb{less}.
+     If it is not available, then no pager will be used."
+  }
+
+  std::vector<std::string> --pager-option
+  {
+    "<opt>",
+    "Additional option to be passed to the pager program. See \cb{--pager}
+     for more information on the pager program. Repeat this option to
+     specify multiple pager options."
+  }
+
+  bool --help {"Print usage information and exit."}
+  bool --version {"Print version and exit."}
+};
+
+"\h|EXIT STATUS|
+
+\dl|
+
+\li|\cb{0}
+
+Success.|
+
+\li|\cb{1}
+
+Fatal error.|
+
+\li|\cb{2}
+
+An instance of \cb{brep-clean} or \l{brep-migrate(1)} is already running. Try
+again.|
+
+\li|\cb{3}
+
+Recoverable database error. Try again.||
+"
