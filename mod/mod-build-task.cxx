@@ -11,8 +11,12 @@
 #include <odb/transaction.hxx>
 #include <odb/schema-catalog.hxx>
 
+#include <libbutl/sha256.hxx>
 #include <libbutl/utility.hxx>             // compare_c_string
+#include <libbutl/openssl.hxx>
+#include <libbutl/fdstream.hxx>            // nullfd
 #include <libbutl/filesystem.hxx>          // path_match()
+#include <libbutl/process-io.hxx>
 #include <libbutl/manifest-parser.hxx>
 #include <libbutl/manifest-serializer.hxx>
 
@@ -110,6 +114,21 @@ handle (request& rq, response& rs)
     throw invalid_request (400, e.what ());
   }
 
+  // Obtain the agent's public key fingerprint if requested. If the fingerprint
+  // is requested but is not present in the request or is unknown, then respond
+  // with 401 HTTP code (unauthorized).
+  //
+  optional<string> agent_fp;
+
+  if (bot_agent_keys_ != nullptr)
+  {
+    if (!tqm.fingerprint ||
+        bot_agent_keys_->find (*tqm.fingerprint) == bot_agent_keys_->end ())
+      throw invalid_request (401, "unauthorized");
+
+    agent_fp = move (tqm.fingerprint);
+  }
+
   task_response_manifest tsm;
 
   // Map build configurations to machines that are capable of building them.
@@ -188,10 +207,8 @@ handle (request& rq, response& rs)
                           cm.config->target,
                           cm.config->vars);
 
-      // @@ We don't support challenge at the moment.
-      //
       return task_response_manifest (move (session),
-                                     nullopt,
+                                     move (b->agent_challenge),
                                      move (result_url),
                                      move (task));
     };
@@ -223,6 +240,61 @@ handle (request& rq, response& rs)
 
     timestamp forced_rebuild_expiration (
       expiration (options_->build_forced_rebuild_timeout ()));
+
+    // Return the challenge (nonce) if brep is configured to authenticate bbot
+    // agents. Return nullopt otherwise.
+    //
+    // Nonce generator must guarantee a probabilistically insignificant chance
+    // of repeating a previously generated value. The common approach is to use
+    // counters or random number generators (alone or in combination), that
+    // produce values of the sufficient length. 64-bit non-repeating and
+    // 512-bit random numbers are considered to be more than sufficient for
+    // most practical purposes.
+    //
+    // We will produce the challenge as the sha256sum of the 512-bit random
+    // number and the 64-bit current timestamp combination. The latter is
+    // not really a non-repeating counter and can't be used alone. However
+    // adding it is a good and cheap uniqueness improvement.
+    //
+    auto challenge = [&agent_fp, &now, &fail, &trace, this] ()
+    {
+      optional<string> r;
+
+      if (agent_fp)
+      {
+        try
+        {
+          auto print_args = [&trace, this] (const char* args[], size_t n)
+          {
+            l2 ([&]{trace << process_args {args, n};});
+          };
+
+          openssl os (print_args,
+                      nullfd, path ("-"), 2,
+                      options_->openssl (), "rand",
+                      options_->openssl_option (), 64);
+
+          vector<char> nonce (os.in.read_binary ());
+          os.in.close ();
+
+          if (!os.wait () || nonce.size () != 64)
+            fail << "unable to generate nonce";
+
+          uint64_t t (chrono::duration_cast<std::chrono::nanoseconds> (
+                        now.time_since_epoch ()).count ());
+
+          sha256 cs (nonce.data (), nonce.size ());
+          cs.append (&t, sizeof (t));
+          r = cs.string ();
+        }
+        catch (const system_error& e)
+        {
+          fail << "unable to generate nonce: " << e;
+        }
+      }
+
+      return r;
+    };
 
     // Convert butl::standard_version type to brep::version.
     //
@@ -393,6 +465,7 @@ handle (request& rq, response& rs)
             machine_header_manifest& mh (*cm.machine);
             build_id bid (move (id), cm.config->name, toolchain_version);
             shared_ptr<build> b (build_db_->find<build> (bid));
+            optional<string> cl (challenge ());
 
             // If build configuration doesn't exist then create the new one
             // and persist. Otherwise put it into the building state, refresh
@@ -405,6 +478,8 @@ handle (request& rq, response& rs)
                                       move (bid.configuration),
                                       move (tqm.toolchain_name),
                                       move (toolchain_version),
+                                      move (agent_fp),
+                                      move (cl),
                                       mh.name,
                                       move (mh.summary),
                                       cm.config->target);
@@ -438,6 +513,8 @@ handle (request& rq, response& rs)
                 b->force = force_state::forced;
 
               b->toolchain_name = move (tqm.toolchain_name);
+              b->agent_fingerprint = move (agent_fp);
+              b->agent_challenge = move (cl);
               b->machine = mh.name;
               b->machine_summary = move (mh.summary);
               b->target = cm.config->target;
@@ -504,6 +581,8 @@ handle (request& rq, response& rs)
 
       sort (rebuilds.begin (), rebuilds.end (), cmp);
 
+      optional<string> cl (challenge ());
+
       // Pick the first package configuration from the ordered list.
       //
       // Note that the configurations may not match the required criteria
@@ -557,8 +636,10 @@ handle (request& rq, response& rs)
               b->state = build_state::building;
               b->machine = mh.name;
 
-              // Can't move from, as may need it on the next iteration.
+              // Can't move from, as may need them on the next iteration.
               //
+              b->agent_fingerprint = agent_fp;
+              b->agent_challenge = cl;
               b->toolchain_name = tqm.toolchain_name;
               b->machine_summary = mh.summary;
 

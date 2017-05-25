@@ -5,18 +5,26 @@
 #include <mod/build-config.hxx>
 
 #include <map>
+#include <sstream>
+
+#include <libbutl/sha256.hxx>
+#include <libbutl/utility.hxx>    // throw_generic_error()
+#include <libbutl/openssl.hxx>
+#include <libbutl/filesystem.hxx>
 
 #include <web/mime-url-encoding.hxx>
 
 namespace brep
 {
+  using namespace std;
   using namespace web;
+  using namespace butl;
   using namespace bbot;
 
   shared_ptr<const build_configs>
   shared_build_config (const path& p)
   {
-    static std::map<path, weak_ptr<build_configs>> configs;
+    static map<path, weak_ptr<build_configs>> configs;
 
     auto i (configs.find (p));
     if (i != configs.end ())
@@ -30,6 +38,73 @@ namespace brep
 
     configs[p] = c;
     return c;
+  }
+
+  shared_ptr<const bot_agent_keys>
+  shared_bot_agent_keys (const options::openssl_options& o, const dir_path& d)
+  {
+    static map<dir_path, weak_ptr<bot_agent_keys>> keys;
+
+    auto i (keys.find (d));
+    if (i != keys.end ())
+    {
+      if (shared_ptr<bot_agent_keys> k = i->second.lock ())
+        return k;
+    }
+
+    shared_ptr<bot_agent_keys> ak (make_shared<bot_agent_keys> ());
+
+    // Intercept exception handling to make error descriptions more
+    // informative.
+    //
+    // Path of the key being converted. Used for diagnostics.
+    //
+    path p;
+
+    try
+    {
+      for (const dir_entry& de: dir_iterator (d))
+      {
+        if (de.path ().extension () == "pem" &&
+            de.type () == entry_type::regular)
+        {
+          p = d / de.path ();
+
+          openssl os (p, path ("-"), 2,
+                      o.openssl (), "pkey",
+                      o.openssl_option (), "-pubin", "-outform", "DER");
+
+          vector<char> k (os.in.read_binary ());
+          os.in.close ();
+
+          if (!os.wait ())
+            throw io_error ("");
+
+          ak->emplace (sha256 (k.data (), k.size ()).string (), move (p));
+        }
+      }
+    }
+    catch (const io_error&)
+    {
+      ostringstream os;
+      os << "unable to convert bbot agent pubkey " << p;
+      throw_generic_error (EIO, os.str ().c_str ());
+    }
+    catch (const process_error& e)
+    {
+      ostringstream os;
+      os << "unable to convert bbot agent pubkey " << p;
+      throw_generic_error (e.code ().value (), os.str ().c_str ());
+    }
+    catch (const system_error& e)
+    {
+      ostringstream os;
+      os<< "unable to iterate over agents keys directory '" << d << "'";
+      throw_generic_error (e.code ().value (), os.str ().c_str ());
+    }
+
+    keys[d] = ak;
+    return ak;
   }
 
   string

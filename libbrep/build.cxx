@@ -60,6 +60,7 @@ namespace brep
   build (string pnm, version pvr,
          string cfg,
          string tnm, version tvr,
+         optional<string> afp, optional<string> ach,
          string mnm, string msm,
          optional<butl::target_triplet> trg)
       : id (package_id (move (pnm), pvr), move (cfg), tvr),
@@ -71,6 +72,7 @@ namespace brep
         state (build_state::building),
         timestamp (timestamp_type::clock::now ()),
         force (force_state::unforced),
+        agent_fingerprint (move (afp)), agent_challenge (move (ach)),
         machine (move (mnm)),
         machine_summary (move (msm)),
         target (move (trg))

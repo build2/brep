@@ -261,7 +261,7 @@ namespace brep
     const char* name_;
     const void* data_;
   };
-  typedef diag_mark<basic_mark_base> basic_mark;
+  using basic_mark = diag_mark<basic_mark_base>;
 
   template <typename E>
   struct fail_mark_base

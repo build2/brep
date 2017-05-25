@@ -18,6 +18,7 @@
 
 #include <mod/module.hxx>
 #include <mod/options.hxx>
+#include <mod/build-config.hxx>
 
 namespace brep
 {
@@ -73,6 +74,8 @@ namespace brep
                               const bbot::build_config*,
                               butl::compare_c_string>>
     build_conf_map_;
+
+    shared_ptr<const bot_agent_keys> bot_agent_keys_;
 
   private:
     virtual bool

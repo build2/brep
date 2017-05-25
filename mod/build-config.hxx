@@ -5,12 +5,16 @@
 #ifndef MOD_BUILD_CONFIG_HXX
 #define MOD_BUILD_CONFIG_HXX
 
+#include <map>
+
 #include <libbbot/build-config.hxx>
 
 #include <libbrep/types.hxx>
 #include <libbrep/utility.hxx>
 
 #include <libbrep/build.hxx>
+
+#include <mod/options.hxx>
 
 namespace brep
 {
@@ -20,6 +24,17 @@ namespace brep
   //
   shared_ptr<const bbot::build_configs>
   shared_build_config (const path&);
+
+  // Map of build bot agent public keys fingerprints to the key file paths.
+  //
+  using bot_agent_keys = std::map<string, path>;
+
+  // Return pointer to the shared build bot agent public keys map, creating
+  // one on the first call. Throw system_error on the underlying openssl or OS
+  // error. Not thread-safe.
+  //
+  shared_ptr<const bot_agent_keys>
+  shared_bot_agent_keys (const options::openssl_options&, const dir_path&);
 
   // Return the package configuration build log url. By default the url is to
   // the operations combined log.

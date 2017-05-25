@@ -7,7 +7,9 @@
 #include <odb/database.hxx>
 #include <odb/transaction.hxx>
 
+#include <libbutl/openssl.hxx>
 #include <libbutl/sendmail.hxx>
+#include <libbutl/fdstream.hxx>
 #include <libbutl/process-io.hxx>
 #include <libbutl/manifest-parser.hxx>
 #include <libbutl/manifest-serializer.hxx>
@@ -226,6 +228,11 @@ handle (request& rq, response&)
     return true;
   }
 
+  auto print_args = [&trace, this] (const char* args[], size_t n)
+  {
+    l2 ([&]{trace << process_args {args, n};});
+  };
+
   // Load and update the package build configuration (if present).
   //
   shared_ptr<build> b;
@@ -245,28 +252,109 @@ handle (request& rq, response&)
       warn_expired ("non-matching timestamp");
     else
     {
-      unforced = b->force == force_state::unforced;
-
-      // Don's send email for the success-to-success status change, unless the
-      // build was forced.
+      // Check the challenge.
       //
-      notify = !(rqm.result.status == result_status::success &&
-                 b->status && *b->status == rqm.result.status && unforced);
-
-      prev_status = move (b->status);
-
-      b->state  = build_state::built;
-      b->status = rqm.result.status;
-      b->force  = force_state::unforced;
-
-      // Mark the section as loaded, so results are updated.
+      // If the challenge doesn't match expectations (probably due to the
+      // authentication settings change), then we log this case with the
+      // warning severity and respond with the 200 HTTP code as if the
+      // challenge is valid. The thinking is that we shouldn't alarm a
+      // law-abaiding agent and shouldn't provide any information to a
+      // malicious one.
       //
-      b->results_section.load ();
-      b->results = move (rqm.result.results);
+      auto warn_auth = [&rqm, &warn] (const string& d)
+      {
+        warn << "session '" << rqm.session << "' authentication failed: " << d;
+      };
 
-      b->timestamp = timestamp::clock::now ();
+      bool auth (false);
 
-      build_db_->update (b);
+      // Must both be present or absent.
+      //
+      if (!b->agent_challenge != !rqm.challenge)
+        warn_auth (rqm.challenge
+                   ? "unexpected challenge"
+                   : "challenge is expected");
+      else if (bot_agent_keys_ == nullptr) // Authentication is disabled.
+        auth = true;
+      else if (!b->agent_challenge) // Authentication is recently enabled.
+        warn_auth ("challenge is required now");
+      else
+      {
+        assert (b->agent_fingerprint && rqm.challenge);
+        auto i (bot_agent_keys_->find (*b->agent_fingerprint));
+
+        // The agent's key is recently replaced.
+        //
+        if (i == bot_agent_keys_->end ())
+          warn_auth ("agent's public key not found");
+        else
+        {
+          try
+          {
+            openssl os (print_args,
+                        path ("-"), fdstream_mode::text, 2,
+                        options_->openssl (), "rsautl",
+                        options_->openssl_option (),
+                        "-verify", "-pubin", "-inkey", i->second);
+
+            for (const auto& c: *rqm.challenge)
+              os.out.put (c); // Sets badbit on failure.
+
+            os.out.close ();
+
+            string s;
+            getline (os.in, s);
+
+            bool v (os.in.eof ());
+            os.in.close ();
+
+            if (os.wait () && v)
+            {
+              auth = s == *b->agent_challenge;
+
+              if (!auth)
+                warn_auth ("challenge mismatched");
+            }
+            else // The signature is presumably meaningless.
+              warn_auth ("unable to verify challenge");
+          }
+          catch (const system_error& e)
+          {
+            fail << "unable to verify challenge: " << e;
+          }
+        }
+      }
+
+      if (auth)
+      {
+        unforced = b->force == force_state::unforced;
+
+        // Don's send email for the success-to-success status change, unless
+        // the build was forced.
+        //
+        notify = !(rqm.result.status == result_status::success &&
+                   b->status && *b->status == rqm.result.status && unforced);
+
+        prev_status = move (b->status);
+
+        b->state  = build_state::built;
+        b->status = rqm.result.status;
+        b->force  = force_state::unforced;
+
+        // Cleanup the authentication data.
+        //
+        b->agent_fingerprint = nullopt;
+        b->agent_challenge = nullopt;
+
+        // Mark the section as loaded, so results are updated.
+        //
+        b->results_section.load ();
+        b->results = move (rqm.result.results);
+
+        b->timestamp = timestamp::clock::now ();
+
+        build_db_->update (b);
+      }
     }
 
     t.commit ();
@@ -298,11 +386,6 @@ handle (request& rq, response&)
                       : p->package_email
                         ? *p->package_email
                         : p->email);
-
-    auto print_args = [&trace, this] (const char* args[], size_t n)
-    {
-      l2 ([&]{trace << process_args {args, n};});
-    };
 
     // Redirect the diagnostics to webserver error log.
     //

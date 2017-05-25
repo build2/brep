@@ -20,6 +20,8 @@
       <column name="timestamp" type="BIGINT" null="false"/>
       <column name="force" type="TEXT" null="false"/>
       <column name="status" type="TEXT" null="true"/>
+      <column name="agent_fingerprint" type="TEXT" null="true"/>
+      <column name="agent_challenge" type="TEXT" null="true"/>
       <column name="machine" type="TEXT" null="true"/>
       <column name="machine_summary" type="TEXT" null="true"/>
       <column name="target" type="TEXT" null="true"/>

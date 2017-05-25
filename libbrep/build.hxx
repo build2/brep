@@ -145,6 +145,8 @@ namespace brep
     build (string package_name, version package_version,
            string configuration,
            string toolchain_name, version toolchain_version,
+           optional<string> agent_fingerprint,
+           optional<string> agent_challenge,
            string machine, string machine_summary,
            optional<butl::target_triplet> target);
 
@@ -164,9 +166,15 @@ namespace brep
 
     force_state force;
 
-    // Must present for the built state, may present for the building state.
+    // Must be present for the built state, may be present for the building
+    // state.
     //
     optional<result_status> status;
+
+    // May be present only for the building state.
+    //
+    optional<string> agent_fingerprint;
+    optional<string> agent_challenge;
 
     // Present only for building and built states.
     //

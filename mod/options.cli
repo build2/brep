@@ -52,6 +52,27 @@ namespace brep
       }
     };
 
+    class openssl_options
+    {
+      path openssl = "openssl"
+      {
+        "<path>",
+        "The openssl program to be used for crypto operations. You can also
+         specify additional options that should be passed to the openssl
+         program with \cb{openssl-option}. If the openssl program is not
+         explicitly specified, then \cb{brep} will use \cb{openssl} by
+         default."
+      }
+
+      strings openssl-option
+      {
+        "<opt>",
+        "Additional option to be passed to the openssl program (see
+         \cb{openssl} for details). Repeat this option to specify multiple
+         openssl options."
+      }
+    };
+
     class package_db
     {
       string package-db-user
@@ -107,14 +128,31 @@ namespace brep
       }
     };
 
-    class build
+    class build: openssl_options
     {
       path build-config
       {
         "<buildtab>",
         "Build configuration file. If not specified, then the package building
          functionality will be disabled. If specified, then the build database
-         must be configured (see \cb{build-db-*})."
+         must be configured (see \cb{build-db-*}). The \cb{brep} instance
+         needs to be restarted after modifying <buildtab> for the changes to
+         take effect."
+      }
+
+      dir_path build-bot-agent-keys
+      {
+        "<dir>",
+        "Directory containing build bot agent public keys. If specified, then
+         \cb{brep} will perform agent authentication and will reject build
+         results from unauthenticated ones. If not specified, then build
+         results are accepted from all agents (which will be a security
+         risk if the \cb{brep} instance is publicly accessible).
+
+         The directory is expected to contain one PEM-encoded public key
+         per file with the \cb{.pem} extension. All other files and
+         subdirectories are ignored. The \cb{brep} instance needs to be
+         restarted after adding new key files for the changes to take effect."
       }
 
       size_t build-forced-rebuild-timeout = 600

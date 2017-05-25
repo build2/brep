@@ -34,7 +34,8 @@ namespace brep
         build_db_ (r.initialized_ ? r.build_db_ : nullptr),
         build_conf_ (r.initialized_ ? r.build_conf_ : nullptr),
         build_conf_names_ (r.initialized_ ? r.build_conf_names_ : nullptr),
-        build_conf_map_ (r.initialized_ ? r.build_conf_map_ : nullptr)
+        build_conf_map_ (r.initialized_ ? r.build_conf_map_ : nullptr),
+        bot_agent_keys_ (r.initialized_ ? r.bot_agent_keys_ : nullptr)
   {
   }
 
@@ -66,6 +67,9 @@ namespace brep
 
       throw_generic_error (EIO, os.str ().c_str ());
     }
+
+    if (bo.build_bot_agent_keys_specified ())
+      bot_agent_keys_ = shared_bot_agent_keys (bo, bo.build_bot_agent_keys ());
 
     cstrings conf_names;
 
