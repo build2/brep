@@ -179,7 +179,7 @@ try
   prep_pkg_query pkg_prep_query (
     pkg_conn->prepare_query<package_version> ("package-version-query", pq));
 
-  while (true)
+  for (bool ne (true); ne; )
   {
     // Start the build database transaction.
     //
@@ -189,7 +189,7 @@ try
     //
     auto builds (bld_prep_query.execute ());
 
-    if (!builds.empty ())
+    if ((ne = !builds.empty ()))
     {
       // Start the package database transaction.
       //
@@ -252,9 +252,6 @@ try
     }
 
     bt.commit ();
-
-    if (builds.empty ())
-      break;
   }
 
   return 0;
