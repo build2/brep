@@ -271,7 +271,9 @@ handle (request& rq, response& rs)
 
           openssl os (print_args,
                       nullfd, path ("-"), 2,
-                      options_->openssl (), "rand",
+                      process_env (options_->openssl (),
+                                   options_->openssl_envvar ()),
+                      "rand",
                       options_->openssl_option (), 64);
 
           vector<char> nonce (os.in.read_binary ());

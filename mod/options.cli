@@ -71,6 +71,21 @@ namespace brep
          \cb{openssl} for details). Repeat this option to specify multiple
          openssl options."
       }
+
+      strings openssl-envvar
+      {
+        "<name>[=value]",
+        "Environment variable to be set (<name>=<value>) or unset (just
+         <name>) for the openssl program (see \cb{openssl} for details).
+         Repeat this option to specify multiple openssl variables. Note
+         that unspecified variables are inherited from the web server
+         process.
+
+         You need to at least set the \cb{RANDFILE} environment variable
+         to change the default location of the openssl program seed file
+         and maybe also the \cb{OPENSSL_CONF} variable if you would like
+         to use a custom openssl configuration file."
+      }
     };
 
     class package_db

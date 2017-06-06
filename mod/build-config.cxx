@@ -71,7 +71,8 @@ namespace brep
           p = d / de.path ();
 
           openssl os (p, path ("-"), 2,
-                      o.openssl (), "pkey",
+                      process_env (o.openssl (), o.openssl_envvar ()),
+                      "pkey",
                       o.openssl_option (), "-pubin", "-outform", "DER");
 
           vector<char> k (os.in.read_binary ());

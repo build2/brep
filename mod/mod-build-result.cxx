@@ -293,7 +293,9 @@ handle (request& rq, response&)
           {
             openssl os (print_args,
                         path ("-"), fdstream_mode::text, 2,
-                        options_->openssl (), "rsautl",
+                        process_env (options_->openssl (),
+                                     options_->openssl_envvar ()),
+                        "rsautl",
                         options_->openssl_option (),
                         "-verify", "-pubin", "-inkey", i->second);
 
