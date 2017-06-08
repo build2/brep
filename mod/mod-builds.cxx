@@ -352,6 +352,8 @@ handle (request& rq, response& rs)
   else
     s << DIV_COUNTER (count, "Build", "Builds");
 
+  timestamp now (timestamp::clock::now ());
+
   // Enclose the subsequent tables to be able to use nth-child CSS selector.
   //
   s << DIV;
@@ -364,9 +366,10 @@ handle (request& rq, response& rs)
     assert (b.machine);
 
     string ts (butl::to_string (b.timestamp,
-                                "%Y-%m-%d %H:%M:%S%[.N] %Z",
+                                "%Y-%m-%d %H:%M:%S %Z",
                                 true,
-                                true));
+                                true) +
+               " (" + butl::to_string (now - b.timestamp, false) + " ago)");
 
     s << TABLE(CLASS="proplist build")
       <<   TBODY
