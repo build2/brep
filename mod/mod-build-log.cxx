@@ -206,14 +206,12 @@ handle (request& rq, response& rs)
   //
   ostream& os (rs.content (200, "text/plain;charset=utf-8", false));
 
-  assert (b->machine && b->machine_summary);
-
   os << "package:   " << b->package_name << endl
      << "version:   " << b->package_version << endl
      << "toolchain: " << b->toolchain_name << '-' << b->toolchain_version
                       << endl
      << "config:    " << b->configuration << endl
-     << "machine:   " << *b->machine << " (" << *b->machine_summary << ")"
+     << "machine:   " << b->machine << " (" << b->machine_summary << ")"
                       << endl
      << "target:    " << (b->target ? b->target->string () : "<default>")
                       << endl

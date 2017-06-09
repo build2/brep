@@ -158,11 +158,10 @@ handle (request& rq, response& rs)
   }
 
   // Go through packages until we find one that has no build configuration
-  // present in the database, or has the unbuilt one, or in the building state
-  // but expired (collectively called unbuilt). If such a package
-  // configuration is found then put it into the building state, set the
-  // current timestamp and respond with the task for building this package
-  // configuration.
+  // present in the database, or is in the building state but expired
+  // (collectively called unbuilt). If such a package configuration is found
+  // then put it into the building state, set the current timestamp and respond
+  // with the task for building this package configuration.
   //
   // While trying to find a non-built package configuration we will also
   // collect the list of the built package configurations which it's time to
@@ -213,8 +212,8 @@ handle (request& rq, response& rs)
                                      move (task));
     };
 
-    // Calculate the expiration time for package configurations being in the
-    // building (build expiration) or the built (rebuild expiration) state.
+    // Calculate the build (building state) or rebuild (built state) expiration
+    // time for package configurations
     //
     timestamp now (timestamp::clock::now ());
 
@@ -385,11 +384,10 @@ handle (request& rq, response& rs)
                           true) &&
 
       (bld_query::state == "built" ||
-       (bld_query::state == "building" &&
-        ((bld_query::force == "forcing" &&
-          bld_query::timestamp > forced_result_expiration_ns) ||
-         (bld_query::force != "forcing" && // Unforced or forced.
-          bld_query::timestamp > normal_result_expiration_ns)))));
+       ((bld_query::force == "forcing" &&
+         bld_query::timestamp > forced_result_expiration_ns) ||
+        (bld_query::force != "forcing" && // Unforced or forced.
+         bld_query::timestamp > normal_result_expiration_ns))));
 
     connection_ptr bld_conn (build_db_->connection ());
 
@@ -490,8 +488,8 @@ handle (request& rq, response& rs)
             }
             else
             {
-              // The package configuration can be in the building or unbuilt
-              // state, and there are no results.
+              // The package configuration is in the building state, and there
+              // are no results.
               //
               // Note that in both cases we keep the status intact to be able
               // to compare it with the final one in the result request
@@ -503,7 +501,8 @@ handle (request& rq, response& rs)
               //
               build_db_->load (*b, b->results_section);
 
-              assert (b->state != build_state::built && b->results.empty ());
+              assert (b->state == build_state::building &&
+                      b->results.empty ());
 
               b->state = build_state::building;
 

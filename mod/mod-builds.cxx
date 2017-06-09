@@ -96,8 +96,7 @@ build_query (const C& configs, const brep::params::builds& params)
   };
 
   query q (
-    query::id.configuration.in_range (configs.begin (), configs.end ()) &&
-    (query::state == "building" || query::state == "built"));
+    query::id.configuration.in_range (configs.begin (), configs.end ()));
 
   // Note that there is no error reported if the filter parameters parsing
   // fails. Instead, it is considered that no package builds match such a
@@ -363,8 +362,6 @@ handle (request& rq, response& rs)
          "OFFSET" + to_string (page * page_configs) +
          "LIMIT" + to_string (page_configs)))
   {
-    assert (b.machine);
-
     string ts (butl::to_string (b.timestamp,
                                 "%Y-%m-%d %H:%M:%S %Z",
                                 true,
@@ -376,10 +373,9 @@ handle (request& rq, response& rs)
       <<     TR_NAME (b.package_name, string (), root)
       <<     TR_VERSION (b.package_name, b.package_version, root)
       <<     TR_VALUE ("toolchain",
-                       b.toolchain_name + '-' +
-                       b.toolchain_version.string ())
+                       b.toolchain_name + '-' + b.toolchain_version.string ())
       <<     TR_VALUE ("config", b.configuration)
-      <<     TR_VALUE ("machine", *b.machine)
+      <<     TR_VALUE ("machine", b.machine)
       <<     TR_VALUE ("target", b.target ? b.target->string () : "<default>")
       <<     TR_VALUE ("timestamp", ts)
       <<     TR(CLASS="result")
@@ -391,8 +387,6 @@ handle (request& rq, response& rs)
       s << "building | ";
     else
     {
-      assert (b.state == build_state::built);
-
       build_db_->load (b, b.results_section);
 
       // If no unsuccessful operations results available, then print the

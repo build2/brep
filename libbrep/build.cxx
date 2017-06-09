@@ -13,7 +13,6 @@ namespace brep
   {
     switch (s)
     {
-    case build_state::unbuilt:  return "unbuilt";
     case build_state::building: return "building";
     case build_state::built:    return "built";
     }
@@ -24,8 +23,7 @@ namespace brep
   build_state
   to_build_state (const string& s)
   {
-         if (s == "unbuilt")  return build_state::unbuilt;
-    else if (s == "building") return build_state::building;
+         if (s == "building") return build_state::building;
     else if (s == "built")    return build_state::built;
     else throw invalid_argument ("invalid build state '" + s + "'");
   }

@@ -64,7 +64,6 @@ namespace brep
   //
   enum class build_state: std::uint8_t
   {
-    unbuilt,
     building,
     built
   };
@@ -176,10 +175,8 @@ namespace brep
     optional<string> agent_fingerprint;
     optional<string> agent_challenge;
 
-    // Present only for building and built states.
-    //
-    optional<string> machine;
-    optional<string> machine_summary;
+    string machine;
+    string machine_summary;
 
     // Default for the machine if absent.
     //
