@@ -495,6 +495,19 @@ namespace brep
     //
     #pragma db member(version) set(this.version.init (this.id.version, (?)))
   };
+
+  #pragma db view object(package) \
+    object(repository: package::internal_repository)
+  struct package_version_count
+  {
+    size_t result;
+
+    operator size_t () const {return result;}
+
+    // Database mapping.
+    //
+    #pragma db member(result) column("count(" + package::id.name + ")")
+  };
 }
 
 #endif // LIBBREP_PACKAGE_HXX
