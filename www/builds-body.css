@@ -42,8 +42,8 @@
 
 .build tr.name td .value,
 .build tr.version td .value,
-.build tr.config td .value,
 .build tr.toolchain td .value,
+.build tr.config td .value,
 .build tr.machine td .value,
 .build tr.target td .value,
 .build tr.timestamp td .value,

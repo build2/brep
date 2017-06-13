@@ -328,9 +328,9 @@ handle (request& rq, response& rs)
     if (params.page () == 0)
     {
       // Populate the toolchains list with the distinct list of toolchain
-      // name/version pairs from all the existing package builds. Make sure the
-      // selected toolchain still present in the database. Otherwise fallback
-      // to the * wildcard selection.
+      // name/version pairs from all the existing package builds. Make sure
+      // the selected toolchain is still present in the database. Otherwise
+      // fallback to the * wildcard selection.
       //
       string ctc ("*");
       vector<pair<string, string>> toolchain_opts ({{"*", "*"}});
@@ -408,12 +408,11 @@ handle (request& rq, response& rs)
   {
     transaction t (build_db_->begin ());
 
-    // Having packages and packages configurations builds in different
-    // databases, we unable to filter out builds for non-existent packages at
-    // the query level. Doing that in the C++ code would complicate it
+    // Having packages and package configuration builds in different
+    // databases, we are unable to filter out builds for non-existent packages
+    // at the query level. Doing that in the C++ code would complicate it
     // significantly. So we will print all the builds, relying on the sorting
-    // algorithm, that will likely to place expired ones at the end of the
-    // query result.
+    // algorithm which will place expired ones at the end of the query result.
     //
     count = build_db_->query_value<build_count> (
       build_query<build_count> (*build_conf_names_, params));
@@ -442,6 +441,9 @@ handle (request& rq, response& rs)
                                   true) +
                  " (" + butl::to_string (now - b.timestamp, false) + " ago)");
 
+      if (b.state == build_state::built)
+        build_db_->load (b, b.results_section);
+
       s << TABLE(CLASS="proplist build")
         <<   TBODY
         <<     TR_NAME (b.package_name, string (), root)
@@ -454,66 +456,7 @@ handle (request& rq, response& rs)
         <<     TR_VALUE ("target",
                          b.target ? b.target->string () : "<default>")
         <<     TR_VALUE ("timestamp", ts)
-        <<     TR(CLASS="result")
-        <<       TH << "result" << ~TH
-        <<       TD
-        <<         SPAN(CLASS="value");
-
-      if (b.state == build_state::building)
-        s << "building | ";
-      else
-      {
-        build_db_->load (b, b.results_section);
-
-        // If no unsuccessful operations results available, then print the
-        // overall build status. If there are any operations results available,
-        // then also print unsuccessful operations statuses with the links to
-        // the respective logs, followed with a link to the operations combined
-        // log. Print the forced package rebuild link afterwards, unless the
-        // package build is already pending.
-        //
-        if (b.results.empty () || *b.status == result_status::success)
-        {
-          assert (b.status);
-          s << SPAN_BUILD_RESULT_STATUS (*b.status) << " | ";
-        }
-
-        if (!b.results.empty ())
-        {
-          for (const auto& r: b.results)
-          {
-            if (r.status != result_status::success)
-              s << SPAN_BUILD_RESULT_STATUS (r.status) << " ("
-                << A
-                <<   HREF
-                <<     build_log_url (host, root, b, &r.operation)
-                <<   ~HREF
-                <<   r.operation
-                << ~A
-                << ") | ";
-          }
-
-          s << A
-            <<   HREF << build_log_url (host, root, b) << ~HREF
-            <<   "log"
-            << ~A
-            << " | ";
-        }
-      }
-
-      if (b.force == (b.state == build_state::building
-                      ? force_state::forcing
-                      : force_state::forced))
-        s << "pending";
-      else
-        s << A
-          <<   HREF << force_rebuild_url (host, root, b) << ~HREF
-          <<   "rebuild"
-          << ~A;
-
-      s <<         ~SPAN
-        <<       ~TD
-        <<     ~TR
+        <<     TR_BUILD_RESULT (b, host, root)
         <<   ~TBODY
         << ~TABLE;
     }
@@ -618,10 +561,10 @@ handle (request& rq, response& rs)
         }
       }
 
-      // Calculate the number of unbuilt package configuration as a difference
-      // between the maximum possible number of unbuilt configurations and the
-      // number of configurations being in the built or building state (see
-      // above).
+      // Calculate the number of unbuilt package configurations as a
+      // difference between the maximum possible number of unbuilt
+      // configurations and the number of configurations being in the built or
+      // building state (see above).
       //
       transaction t (package_db_->begin ());
 
@@ -652,12 +595,12 @@ handle (request& rq, response& rs)
     // from the very beginning and skip the appropriate number of them while
     // iterating through the query result.
     //
-    // Note that such an approach has a security implication. HTTP request
+    // Note that such an approach has a security implication. An HTTP request
     // with a large page number will be quite expensive to process, as it
-    // effectively results in traversing all package versions and all the built
-    // configurations. To address this problem we may consider to reduce the
-    // pager to just '<Prev' '1' 'Next>' links, and pass the offset as a URL
-    // query parameter. Alternatively, we may invent the page number cap.
+    // effectively results in traversing all the package versions and all the
+    // built configurations. To address this problem we may consider to reduce
+    // the pager to just '<Prev' '1' 'Next>' links, and pass the offset as a
+    // URL query parameter. Alternatively, we can invent the page number cap.
     //
     using pkg_query = query<package_version>;
     using prep_pkg_query = prepared_query<package_version>;
@@ -743,7 +686,7 @@ handle (request& rq, response& rs)
         {
           id = move (pv.id);
 
-          // Iterate through the package configurations builds and erase them
+          // Iterate through the package configuration builds and erase them
           // from the unbuilt configurations set.
           //
           // Make a copy for this package.

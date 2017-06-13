@@ -307,7 +307,10 @@ namespace brep
     {
     };
 
-    class package_version_details: package, package_db, page, module
+    class package_version_details: package, package_db,
+                                   build, build_db,
+                                   page,
+                                   module
     {
     };
 

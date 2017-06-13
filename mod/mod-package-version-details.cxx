@@ -14,6 +14,8 @@
 #include <web/module.hxx>
 #include <web/mime-url-encoding.hxx>
 
+#include <libbrep/build.hxx>
+#include <libbrep/build-odb.hxx>
 #include <libbrep/package.hxx>
 #include <libbrep/package-odb.hxx>
 
@@ -45,6 +47,11 @@ init (scanner& s)
 
   database_module::init (*options_, options_->package_db_retry ());
 
+  if (options_->build_config_specified ())
+    database_module::init (static_cast<options::build>    (*options_),
+                           static_cast<options::build_db> (*options_),
+                           options_->build_db_retry ());
+
   if (options_->root ().empty ())
     options_->root (dir_path ("/"));
 }
@@ -58,6 +65,7 @@ handle (request& rq, response& rs)
 
   MODULE_DIAG;
 
+  const string& host (options_->host ());
   const dir_path& root (options_->root ());
 
   auto i (rq.path ().rbegin ());
@@ -315,6 +323,55 @@ handle (request& rq, response& rs)
 
     s <<   ~TBODY
       << ~TABLE;
+  }
+
+  // Don't display the section for stub packages.
+  //
+  if (build_db_ != nullptr && ver.compare (wildcard_version, true) != 0)
+  {
+    s << H3 << "Built" << ~H3
+      << DIV(ID="built");
+
+    timestamp now (timestamp::clock::now ());
+    transaction t (build_db_->begin ());
+
+    using query = query<build>;
+
+    for (auto& b: build_db_->query<build> (
+           (query::id.package.name == name &&
+            compare_version_eq (query::id.package.version, ver, true) &&
+
+            query::id.configuration.in_range (build_conf_names_->begin (),
+                                              build_conf_names_->end ())) +
+
+           "ORDER BY" + query::timestamp + "DESC"))
+    {
+      string ts (butl::to_string (b.timestamp,
+                                  "%Y-%m-%d %H:%M:%S %Z",
+                                  true,
+                                  true) +
+                 " (" + butl::to_string (now - b.timestamp, false) + " ago)");
+
+      if (b.state == build_state::built)
+        build_db_->load (b, b.results_section);
+
+      s << TABLE(CLASS="proplist build")
+        <<   TBODY
+        <<     TR_VALUE ("toolchain",
+                         b.toolchain_name + '-' +
+                         b.toolchain_version.string ())
+        <<     TR_VALUE ("config",
+                         b.configuration + " / " + b.machine + " / " +
+                         (b.target ? b.target->string () : "<default>"))
+        <<     TR_VALUE ("timestamp", ts)
+        <<     TR_BUILD_RESULT (b, host, root)
+        <<   ~TBODY
+        << ~TABLE;
+    }
+
+    t.commit ();
+
+    s << ~DIV;
   }
 
   const auto& ch (pkg->changes);

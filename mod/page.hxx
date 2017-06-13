@@ -14,6 +14,7 @@
 #include <libbrep/types.hxx>
 #include <libbrep/utility.hxx>
 
+#include <libbrep/build.hxx>
 #include <libbrep/package.hxx>
 
 #include <mod/options-types.hxx> // page_menu
@@ -398,6 +399,23 @@ namespace brep
 
   private:
     const string& sha256sum_;
+  };
+
+  // Generates build results element.
+  //
+  class TR_BUILD_RESULT
+  {
+  public:
+    TR_BUILD_RESULT (const build& b, const string& h, const dir_path& r):
+        build_ (b), host_ (h), root_ (r) {}
+
+    void
+    operator() (xml::serializer&) const;
+
+  private:
+    const build& build_;
+    const string& host_;
+    const dir_path& root_;
   };
 
   // Generates comment element.

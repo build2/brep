@@ -18,6 +18,8 @@
 #include <libbrep/package.hxx>
 #include <libbrep/package-odb.hxx>
 
+#include <mod/build-config.hxx> // build_log_url()
+
 using namespace std;
 using namespace xml;
 using namespace web;
@@ -581,6 +583,71 @@ namespace brep
     s << TR(CLASS="sha256")
       <<   TH << "sha256" << ~TH
       <<   TD << SPAN(CLASS="value") << sha256sum_ << ~SPAN << ~TD
+      << ~TR;
+  }
+
+  // BUILD_RESULT
+  //
+  void TR_BUILD_RESULT::
+  operator() (serializer& s) const
+  {
+    s << TR(CLASS="result")
+      <<   TH << "result" << ~TH
+      <<   TD
+      <<     SPAN(CLASS="value");
+
+    if (build_.state == build_state::building)
+      s << "building | ";
+    else
+    {
+      // If no unsuccessful operation results available, then print the
+      // overall build status. If there are any operation results available,
+      // then also print unsuccessful operation statuses with the links to the
+      // respective logs, followed with a link to the operation's combined
+      // log. Print the forced package rebuild link afterwards, unless the
+      // package build is already pending.
+      //
+      if (build_.results.empty () || *build_.status == result_status::success)
+      {
+        assert (build_.status);
+        s << SPAN_BUILD_RESULT_STATUS (*build_.status) << " | ";
+      }
+
+      if (!build_.results.empty ())
+      {
+        for (const auto& r: build_.results)
+        {
+          if (r.status != result_status::success)
+            s << SPAN_BUILD_RESULT_STATUS (r.status) << " ("
+              << A
+              <<   HREF
+              <<     build_log_url (host_, root_, build_, &r.operation)
+              <<   ~HREF
+              <<   r.operation
+              << ~A
+              << ") | ";
+        }
+
+        s << A
+          <<   HREF << build_log_url (host_, root_, build_) << ~HREF
+          <<   "log"
+          << ~A
+          << " | ";
+      }
+    }
+
+    if (build_.force == (build_.state == build_state::building
+                         ? force_state::forcing
+                         : force_state::forced))
+      s << "pending";
+    else
+      s << A
+        <<   HREF << force_rebuild_url (host_, root_, build_) << ~HREF
+        <<   "rebuild"
+        << ~A;
+
+    s <<     ~SPAN
+      <<   ~TD
       << ~TR;
   }
 
