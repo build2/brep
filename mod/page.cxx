@@ -597,7 +597,7 @@ namespace brep
       <<     SPAN(CLASS="value");
 
     if (build_.state == build_state::building)
-      s << "building | ";
+      s << SPAN(CLASS="building") << "building" << ~SPAN << " | ";
     else
     {
       // If no unsuccessful operation results available, then print the
@@ -639,7 +639,7 @@ namespace brep
     if (build_.force == (build_.state == build_state::building
                          ? force_state::forcing
                          : force_state::forced))
-      s << "pending";
+      s << SPAN(CLASS="pending") << "pending" << ~SPAN;
     else
       s << A
         <<   HREF << force_rebuild_url (host_, root_, build_) << ~HREF

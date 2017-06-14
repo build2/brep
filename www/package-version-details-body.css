@@ -57,7 +57,6 @@ h3
 
   margin: 1.8em 0 0 0;
 }
-h3:after{content: ":";}
 
 h1, h2, h3
 {
@@ -163,7 +162,7 @@ h1, h2, h3
 /*
  * Builds.
  */
-#built {margin-bottom: 1em;}
+#builds {margin-bottom: 1em;}
 
 .build
 {
@@ -190,8 +189,10 @@ h1, h2, h3
   font-size: 0.94em;
 }
 
+.build .pending  {color: #c0a500;}
+.build .building {color: #c0a500;}
 .build .success  {color: #00bb00;}
-.build .warning  {color: #ffa500;}
+.build .warning  {color: #ff8000;}
 .build .error    {color: #ff0000;}
 .build .abort    {color: #ff0000;}
 .build .abnormal {color: #ff0000;}

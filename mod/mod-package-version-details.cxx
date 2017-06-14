@@ -329,8 +329,8 @@ handle (request& rq, response& rs)
   //
   if (build_db_ != nullptr && ver.compare (wildcard_version, true) != 0)
   {
-    s << H3 << "Built" << ~H3
-      << DIV(ID="built");
+    s << H3 << "Builds" << ~H3
+      << DIV(ID="builds");
 
     timestamp now (timestamp::clock::now ());
     transaction t (build_db_->begin ());
@@ -361,7 +361,7 @@ handle (request& rq, response& rs)
                          b.toolchain_name + '-' +
                          b.toolchain_version.string ())
         <<     TR_VALUE ("config",
-                         b.configuration + " / " + b.machine + " / " +
+                         b.configuration + " / " +
                          (b.target ? b.target->string () : "<default>"))
         <<     TR_VALUE ("timestamp", ts)
         <<     TR_BUILD_RESULT (b, host, root)
