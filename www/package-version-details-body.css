@@ -189,10 +189,10 @@ h1, h2, h3
   font-size: 0.94em;
 }
 
-.build .pending  {color: #c0a500;}
-.build .building {color: #c0a500;}
+.build .pending  {color: #d1943c;}
+.build .building {color: #d1943c;}
 .build .success  {color: #00bb00;}
-.build .warning  {color: #ff8000;}
+.build .warning  {color: #fe7c04;}
 .build .error    {color: #ff0000;}
 .build .abort    {color: #ff0000;}
 .build .abnormal {color: #ff0000;}
