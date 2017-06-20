@@ -204,7 +204,8 @@ handle (request& rq, response& rs)
                           move (fp),
                           cm.machine->name,
                           cm.config->target,
-                          cm.config->vars);
+                          cm.config->vars,
+                          cm.config->warning_regexes);
 
       return task_response_manifest (move (session),
                                      move (b->agent_challenge),
