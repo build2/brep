@@ -401,7 +401,7 @@ handle (request& rq, response&)
                  {to});
 
     if (b->results.empty ())
-      sm.out << "No operations results available." << endl;
+      sm.out << "No operation results available." << endl;
     else
     {
       const string& host (options_->host ());
