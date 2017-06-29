@@ -12,24 +12,26 @@ import int_libs += libbutl%lib{butl}
 import int_libs += libbpkg%lib{bpkg}
 import int_libs += libbbot%lib{bbot}
 
-lib{brep}:                          \
-{hxx         cxx}{ build          } \
-{file           }{ build.xml      } \
-{hxx ixx     cxx}{ build-odb      } \
-{hxx         cxx}{ common         } \
-{hxx ixx     cxx}{ common-odb     } \
-{hxx         cxx}{ package        } \
-{file           }{ package.xml    } \
-{hxx ixx     cxx}{ package-odb    } \
-{hxx            }{ package-extra  } \
-{hxx         cxx}{ package-traits } \
-{hxx         cxx}{ database-lock  } \
-{hxx            }{ types          } \
-{hxx            }{ utility        } \
-{hxx            }{ version        } \
-{hxx            }{ wrapper-traits } \
-                   $int_libs        \
-sql{build package package-extra}
+lib{brep}:                             \
+{hxx         cxx}{ build             } \
+{file           }{ build.xml         } \
+{hxx ixx     cxx}{ build-odb         } \
+{hxx            }{ build-package     } \
+{hxx ixx     cxx}{ build-package-odb } \
+{hxx         cxx}{ common            } \
+{hxx ixx     cxx}{ common-odb        } \
+{hxx         cxx}{ package           } \
+{file           }{ package.xml       } \
+{hxx ixx     cxx}{ package-odb       } \
+{hxx            }{ package-extra     } \
+{hxx         cxx}{ package-traits    } \
+{hxx         cxx}{ database-lock     } \
+{hxx            }{ types             } \
+{hxx            }{ utility           } \
+{hxx            }{ version           } \
+{hxx            }{ wrapper-traits    } \
+                   $int_libs           \
+sql{build build-extra package package-extra}
 
 hxx{version}: in{version} $src_root/file{manifest}
 hxx{version}: dist = true

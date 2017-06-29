@@ -17,6 +17,7 @@ namespace brep
   //
   shared_ptr<odb::core::database>
   shared_database (string user,
+                   string role,
                    string password,
                    string name,
                    string host,

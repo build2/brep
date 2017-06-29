@@ -93,8 +93,16 @@ namespace brep
       string package-db-user
       {
         "<user>",
-        "Package database user name. If not specified, then operating system
-         (login) name is used."
+        "Package database login user name. If not specified, then operating
+         system (login) name is used. See also \c{package-db-role}."
+      }
+
+      string package-db-role = "brep"
+      {
+        "<user>",
+        "Package database execution user name. If not empty then the login
+         user will be switched (with \c{SET ROLE}) to this user prior to
+         executing any statements. If not specified, then \cb{brep} is used."
       }
 
       string package-db-password
@@ -190,8 +198,16 @@ namespace brep
       string build-db-user
       {
         "<user>",
-        "Build database user name. If not specified, then operating system
-         (login) name is used."
+        "Build database login user name. If not specified, then operating
+         system (login) name is used. See also \c{build-db-role}."
+      }
+
+      string build-db-role = "brep"
+      {
+        "<user>",
+        "Build database execution user name. If not empty then the login
+         user will be switched (with \c{SET ROLE}) to this user  prior to
+         executing any statements. If not specified, then \cb{brep} is used."
       }
 
       string build-db-password

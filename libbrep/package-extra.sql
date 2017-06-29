@@ -3,7 +3,7 @@
 --
 -- * comments must start with -- at the beginning of the line (ignoring
 --   leading spaces)
--- * only CREATE and DROP statements for FUNCTION and TYPE
+-- * only CREATE and DROP statements for FUNCTION, TYPE and FOREIGN TABLE
 -- * function bodies must be defined using $$-quoted strings
 -- * strings other then function bodies must be quoted with ' or "
 -- * statements must end with ";\n"

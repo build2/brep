@@ -17,7 +17,10 @@
 #include <libbrep/types.hxx>
 #include <libbrep/utility.hxx>
 
-#include <libbrep/common.hxx> // Must be included last (see assert).
+// Must be included last (see assert in libbrep/common.hxx).
+//
+#include <libbrep/common.hxx>
+#include <libbrep/build-package.hxx>
 
 // Used by the data migration entries.
 //
@@ -260,6 +263,40 @@ namespace brep
 
     #pragma db transient
     canonical_version version_;
+  };
+
+  // Build of an existing internal package.
+  //
+  #pragma db view                                               \
+    object(build)                                               \
+    object(build_package inner:                                 \
+           build::id.package.name == build_package::id.name &&  \
+           brep::compare_version_eq (build::id.package.version, \
+                                     build_package::id.version, \
+                                     true) &&                   \
+           build_package::internal_repository.is_not_null ())
+  struct package_build
+  {
+    shared_ptr<brep::build> build;
+  };
+
+  #pragma db view                                               \
+    object(build)                                               \
+    object(build_package inner:                                 \
+           build::id.package.name == build_package::id.name &&  \
+           brep::compare_version_eq (build::id.package.version, \
+                                     build_package::id.version, \
+                                     true) &&                   \
+           build_package::internal_repository.is_not_null ())
+  struct package_build_count
+  {
+    size_t result;
+
+    operator size_t () const {return result;}
+
+    // Database mapping.
+    //
+    #pragma db member(result) column("count(" + build::id.package.name + ")")
   };
 }
 

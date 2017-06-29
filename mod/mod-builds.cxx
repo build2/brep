@@ -22,8 +22,8 @@
 
 #include <libbrep/build.hxx>
 #include <libbrep/build-odb.hxx>
-#include <libbrep/package.hxx>
-#include <libbrep/package-odb.hxx>
+#include <libbrep/build-package.hxx>
+#include <libbrep/build-package-odb.hxx>
 
 #include <mod/page.hxx>
 #include <mod/options.hxx>
@@ -54,8 +54,6 @@ init (scanner& s)
 
   options_ = make_shared<options::builds> (
     s, unknown_mode::fail, unknown_mode::fail);
-
-  database_module::init (*options_, options_->package_db_retry ());
 
   if (options_->build_config_specified ())
     database_module::init (static_cast<options::build>    (*options_),
@@ -98,9 +96,9 @@ build_query (const brep::cstrings& configs, const brep::params::builds& params)
 {
   using namespace brep;
   using query = query<T>;
+  using qb = typename query::build;
 
-  query q (
-    query::id.configuration.in_range (configs.begin (), configs.end ()));
+  query q (qb::id.configuration.in_range (configs.begin (), configs.end ()));
 
   // Note that there is no error reported if the filter parameters parsing
   // fails. Instead, it is considered that no package builds match such a
@@ -111,12 +109,12 @@ build_query (const brep::cstrings& configs, const brep::params::builds& params)
     // Package name.
     //
     if (!params.name ().empty ())
-      q = q && query::id.package.name.like (transform (params.name ()));
+      q = q && qb::id.package.name.like (transform (params.name ()));
 
     // Package version.
     //
     if (!params.version ().empty () && params.version () != "*")
-      q = q && compare_version_eq (query::id.package.version,
+      q = q && compare_version_eq (qb::id.package.version,
                                    version (params.version ()), // May throw.
                                    true);
 
@@ -133,20 +131,19 @@ build_query (const brep::cstrings& configs, const brep::params::builds& params)
       string  tn (tc, 0, p);
       version tv (string (tc, p + 1)); // May throw invalid_argument.
 
-      q = q && query::toolchain_name == tn &&
-        compare_version_eq (query::id.toolchain_version, tv, true);
+      q = q && qb::toolchain_name == tn &&
+        compare_version_eq (qb::id.toolchain_version, tv, true);
     }
 
     // Build configuration name.
     //
     if (!params.configuration ().empty ())
-      q = q && query::id.configuration.like (
-        transform (params.configuration ()));
+      q = q && qb::id.configuration.like (transform (params.configuration ()));
 
     // Build machine name.
     //
     if (!params.machine ().empty ())
-      q = q && query::machine.like (transform (params.machine ()));
+      q = q && qb::machine.like (transform (params.machine ()));
 
     // Build target.
     //
@@ -154,8 +151,8 @@ build_query (const brep::cstrings& configs, const brep::params::builds& params)
 
     if (tg != "*")
       q = q && (tg.empty ()
-                ? query::target.is_null ()
-                : query::target.like (transform (tg)));
+                ? qb::target.is_null ()
+                : qb::target.like (transform (tg)));
 
     // Build result.
     //
@@ -164,12 +161,12 @@ build_query (const brep::cstrings& configs, const brep::params::builds& params)
     if (rs != "*")
     {
       if (rs == "pending")
-        q = q && query::force != "unforced";
+        q = q && qb::force != "unforced";
       else if (rs == "building")
-        q = q && query::state == "building";
+        q = q && qb::state == "building";
       else
       {
-        query sq (query::status == rs);
+        query sq (qb::status == rs);
         result_status st (to_result_status(rs)); // May throw invalid_argument.
 
         if (st != result_status::success)
@@ -184,13 +181,13 @@ build_query (const brep::cstrings& configs, const brep::params::builds& params)
           };
 
           while (next ())
-            sq = sq || query::status == to_string (st);
+            sq = sq || qb::status == to_string (st);
         }
 
         // Note that the result status may present for the building state as
         // well (rebuild).
         //
-        q = q && query::state == "built" && sq;
+        q = q && qb::state == "built" && sq;
       }
     }
   }
@@ -211,10 +208,8 @@ package_query (const brep::params::builds& params)
 
   // Skip external and stub packages.
   //
-  query q (query::package::internal_repository.is_not_null () &&
-           compare_version_ne (query::package::id.version,
-                               wildcard_version,
-                               false));
+  query q (query::internal_repository.is_not_null () &&
+           compare_version_ne (query::id.version, wildcard_version, false));
 
   // Note that there is no error reported if the filter parameters parsing
   // fails. Instead, it is considered that no packages match such a query.
@@ -224,12 +219,12 @@ package_query (const brep::params::builds& params)
     // Package name.
     //
     if (!params.name ().empty ())
-      q = q && query::package::id.name.like (transform (params.name ()));
+      q = q && query::id.name.like (transform (params.name ()));
 
     // Package version.
     //
     if (!params.version ().empty () && params.version () != "*")
-      q = q && compare_version_eq (query::package::id.version,
+      q = q && compare_version_eq (query::id.version,
                                    version (params.version ()), // May throw.
                                    true);
   }
@@ -272,8 +267,7 @@ handle (request& rq, response& rs)
   try
   {
     name_value_scanner s (rq.parameters ());
-    params = params::builds (
-      s, unknown_mode::fail, unknown_mode::fail);
+    params = params::builds (s, unknown_mode::fail, unknown_mode::fail);
   }
   catch (const cli::exception& e)
   {
@@ -303,7 +297,7 @@ handle (request& rq, response& rs)
     <<     DIV(ID="content");
 
   // Return the list of distinct toolchain name/version pairs. The build db
-  // transaction must be started and be the current one.
+  // transaction must be started.
   //
   using toolchains = vector<pair<string, version>>;
 
@@ -408,14 +402,8 @@ handle (request& rq, response& rs)
   {
     transaction t (build_db_->begin ());
 
-    // Having packages and package configuration builds in different
-    // databases, we are unable to filter out builds for non-existent packages
-    // at the query level. Doing that in the C++ code would complicate it
-    // significantly. So we will print all the builds, relying on the sorting
-    // algorithm which will place expired ones at the end of the query result.
-    //
-    count = build_db_->query_value<build_count> (
-      build_query<build_count> (*build_conf_names_, params));
+    count = build_db_->query_value<package_build_count> (
+      build_query<package_build_count> (*build_conf_names_, params));
 
     // Print the filter form.
     //
@@ -429,12 +417,14 @@ handle (request& rq, response& rs)
     // Enclose the subsequent tables to be able to use nth-child CSS selector.
     //
     s << DIV;
-    for (auto& b: build_db_->query<build> (
-           build_query<build> (*build_conf_names_, params) +
+    for (auto& pb: build_db_->query<package_build> (
+           build_query<package_build> (*build_conf_names_, params) +
            "ORDER BY" + query<build>::timestamp + "DESC" +
            "OFFSET" + to_string (page * page_configs) +
            "LIMIT" + to_string (page_configs)))
     {
+      build& b (*pb.build);
+
       string ts (butl::to_string (b.timestamp,
                                   "%Y-%m-%d %H:%M:%S %Z",
                                   true,
@@ -474,25 +464,13 @@ handle (request& rq, response& rs)
     bld_params.machine ().clear ();
     bld_params.result () = "*";
 
-    // Query toolchains, and the number of package configurations being present
-    // in the build database and satisfying the specified filter arguments.
-    // Later we will subtract it from the maximum number of unbuilt package
-    // configurations, to get the real number of them.
+    // Query toolchains, filter build configurations and toolchains, and
+    // create the set of configuration/toolchain combinations, that we will
+    // print for packages. Also calculate the number of unbuilt package
+    // configurations.
     //
     toolchains toolchains;
-    {
-      transaction t (build_db_->begin ());
-      toolchains = query_toolchains ();
 
-      count = build_db_->query_value<build_count> (
-        build_query<build_count> (*build_conf_names_, bld_params));
-
-      t.commit ();
-    }
-
-    // Filter build configurations and toolchains, and create the set of
-    // configuration/toolchain combinations, that we will print for packages.
-    //
     struct config_toolchain
     {
       const string& configuration;
@@ -514,37 +492,47 @@ handle (request& rq, response& rs)
       }
     };
 
+    // Note that config_toolchains contains shallow references to the toolchain
+    // names and versions, and in particular to the selected ones (tc_name and
+    // tc_version).
+    //
     string tc_name;
     version tc_version;
-    const string& tc (params.toolchain ());
-
-    if (tc != "*")
-    try
-    {
-      size_t p (tc.find ('-'));
-      if (p == string::npos)         // Invalid format.
-        throw invalid_argument ("");
-
-      tc_name.assign (tc, 0, p);
-      tc_version = version (string (tc, p + 1)); // May throw invalid_argument.
-    }
-    catch (const invalid_argument&)
-    {
-      // This is unlikely to be the user fault, as he selects the toolchain
-      // from the list.
-      //
-      throw invalid_request (400, "invalid toolchain");
-    }
-
     set<config_toolchain> config_toolchains;
+
     {
+      transaction t (build_db_->begin ());
+      toolchains = query_toolchains ();
+
+      const string& tc (params.toolchain ());
+
+      if (tc != "*")
+      try
+      {
+        size_t p (tc.find ('-'));
+        if (p == string::npos)         // Invalid format.
+          throw invalid_argument ("");
+
+        tc_name.assign (tc, 0, p);
+
+        // May throw invalid_argument.
+        //
+        tc_version = version (string (tc, p + 1));
+      }
+      catch (const invalid_argument&)
+      {
+        // This is unlikely to be the user fault, as he selects the toolchain
+        // from the list.
+        //
+        throw invalid_request (400, "invalid toolchain");
+      }
+
       const string& pc (params.configuration ());
       const string& tg (params.target ());
 
       for (const auto& c: *build_conf_)
       {
         if ((pc.empty () || path_match (pc, c.name)) && // Filter by name.
-
 
             (tg.empty ()                                // Filter by target.
              ? !c.target
@@ -563,16 +551,18 @@ handle (request& rq, response& rs)
 
       // Calculate the number of unbuilt package configurations as a
       // difference between the maximum possible number of unbuilt
-      // configurations and the number of configurations being in the built or
-      // building state (see above).
+      // configurations and the number of existing package builds.
       //
-      transaction t (package_db_->begin ());
+      size_t nmax (config_toolchains.size () *
+                   build_db_->query_value<build_package_count> (
+                     package_query<build_package_count> (params)));
 
-      size_t n (config_toolchains.size () *
-                package_db_->query_value<package_version_count> (
-                  package_query<package_version_count> (params)));
+      size_t ncur = build_db_->query_value<package_build_count> (
+        build_query<package_build_count> (*build_conf_names_, bld_params));
 
-      count = n > count ? n - count : 0;
+      assert (nmax >= ncur);
+      count = nmax - ncur;
+
       t.commit ();
     }
 
@@ -588,24 +578,24 @@ handle (request& rq, response& rs)
     // 4: toolchain name
     // 5: toolchain version (descending)
     //
-    // Prepare the package version prepared query.
+    // Prepare the build package prepared query.
     //
     // Note that we can't skip the proper number of packages in the database
     // query for a page numbers greater than one. So we will query packages
     // from the very beginning and skip the appropriate number of them while
     // iterating through the query result.
     //
-    // Note that such an approach has a security implication. An HTTP request
-    // with a large page number will be quite expensive to process, as it
-    // effectively results in traversing all the package versions and all the
+    // Also note that such an approach has a security implication. An HTTP
+    // request with a large page number will be quite expensive to process, as
+    // it effectively results in traversing all the build package and all the
     // built configurations. To address this problem we may consider to reduce
     // the pager to just '<Prev' '1' 'Next>' links, and pass the offset as a
     // URL query parameter. Alternatively, we can invent the page number cap.
     //
-    using pkg_query = query<package_version>;
-    using prep_pkg_query = prepared_query<package_version>;
+    using pkg_query = query<build_package>;
+    using prep_pkg_query = prepared_query<build_package>;
 
-    pkg_query pq (package_query<package_version> (params));
+    pkg_query pq (package_query<build_package> (params));
 
     // Specify the portion. Note that we will still be querying packages in
     // chunks, not to hold locks for too long.
@@ -613,32 +603,35 @@ handle (request& rq, response& rs)
     size_t offset (0);
 
     pq += "ORDER BY" +
-      pkg_query::package::id.name +
-      order_by_version_desc (pkg_query::package::id.version, false) +
+      pkg_query::id.name +
+      order_by_version_desc (pkg_query::id.version, false) +
       "OFFSET" + pkg_query::_ref (offset) + "LIMIT 50";
 
-    connection_ptr pkg_conn (package_db_->connection ());
+    connection_ptr conn (build_db_->connection ());
 
     prep_pkg_query pkg_prep_query (
-      pkg_conn->prepare_query<package_version> (
-        "mod-builds-package-version-query", pq));
+      conn->prepare_query<build_package> ("mod-builds-package-query", pq));
 
     // Prepare the build prepared query.
     //
-    using bld_query = query<build>;
-    using prep_bld_query = prepared_query<build>;
-
-    package_id id; // See the build query.
-
-    const auto& qv (bld_query::id.package.version);
+    // For each package we will generate a set of all possible builds. Then,
+    // iterating over the actual builds for the package we will exclude them
+    // from the set of possible ones. The resulted set represents unbuilt
+    // package configurations, and so will be printed.
+    //
+    using bld_query = query<package_build>;
+    using prep_bld_query = prepared_query<package_build>;
 
     // We will use specific package name and version for each database query.
     //
     bld_params.name ().clear ();
     bld_params.version ().clear ();
 
+    package_id id;
+    const auto& qv (bld_query::build::id.package.version);
+
     bld_query bq (
-      bld_query::id.package.name == bld_query::_ref (id.name) &&
+      bld_query::build::id.package.name == bld_query::_ref (id.name) &&
 
       qv.epoch == bld_query::_ref (id.version.epoch) &&
       qv.canonical_upstream ==
@@ -646,13 +639,11 @@ handle (request& rq, response& rs)
       qv.canonical_release ==
       bld_query::_ref (id.version.canonical_release) &&
       qv.revision == bld_query::_ref (id.version.revision) &&
-      build_query<build_count> (*build_conf_names_, bld_params));
 
-    connection_ptr bld_conn (build_db_->connection ());
+      build_query<package_build> (*build_conf_names_, bld_params));
 
     prep_bld_query bld_prep_query (
-      bld_conn->prepare_query<build> (
-        "mod-builds-package-build-query", bq));
+      conn->prepare_query<package_build> ("mod-builds-build-query", bq));
 
     size_t skip (page * page_configs);
     size_t print (page_configs);
@@ -662,39 +653,37 @@ handle (request& rq, response& rs)
     s << DIV;
     for (bool prn (true); prn; )
     {
-      // Start the package database transaction.
-      //
-      transaction pt (pkg_conn->begin ());
+      transaction t (conn->begin ());
 
-      // Query package versions.
+      // Query (and cache) build packages.
       //
-      auto package_versions (pkg_prep_query.execute ());
+      auto packages (pkg_prep_query.execute ());
 
-      if ((prn = !package_versions.empty ()))
+      if ((prn = !packages.empty ()))
       {
-        offset += package_versions.size ();
-
-        // Start the build database transaction.
-        //
-        transaction bt (bld_conn->begin (), false);
-        transaction::current (bt);
+        offset += packages.size ();
 
         // Iterate over packages and print unbuilt configurations. Skip the
         // appropriate number of them first (for page number greater than one).
         //
-        for (auto& pv: package_versions)
+        for (auto& pv: packages)
         {
           id = move (pv.id);
+
+          // Make a copy for this package.
+          //
+          auto unbuilt_configs (config_toolchains);
 
           // Iterate through the package configuration builds and erase them
           // from the unbuilt configurations set.
           //
-          // Make a copy for this package.
-          //
-          auto unbuilt_configs (config_toolchains);
-          for (const auto& b: bld_prep_query.execute ())
+          for (const auto& pb: bld_prep_query.execute ())
+          {
+            build& b (*pb.build);
+
             unbuilt_configs.erase ({
                 b.id.configuration, b.toolchain_name, b.toolchain_version});
+          }
 
           // Print unbuilt package configurations.
           //
@@ -733,14 +722,9 @@ handle (request& rq, response& rs)
           if (!prn)
             break;
         }
-
-        // Commit the build database transaction and switch to the package
-        // database transaction.
-        bt.commit ();
-        transaction::current (pt);
       }
 
-      pt.commit ();
+      t.commit ();
     }
     s << ~DIV;
   }

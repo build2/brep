@@ -3,6 +3,9 @@ opposed to a "development" one (see INSTALL-DEV for the latter). Here we assume
 you are using a systemd-based distribution. If not, then you will need to
 replace systemctl commands with the equivalent init.d ones.
 
+The below instructions include steps for setting up brep as the build2 build
+bot controller. This functionality is optional and if not needed, then the
+corresponding steps can be omitted.
 
 1. Create 'brep' User
 
@@ -31,7 +34,13 @@ a) Install a C++ compiler using your distribution's package.
 
    Also make sure the pkg-config (or one of its replacements) is installed.
 
-b) Install PostgreSQL 9.x and Apache2 using your distribution's packages.
+b) Install PostgreSQL 9.3 or above (including the contrib package containing
+   the postgres_fdw extension) as well as Apache2 using your distribution's
+   packages. Below are the names of these packages for some distributions:
+
+   Debian/Ubuntu: postgresql-server    postgresql-contrib    apache2
+   Fedora/RHEL:   postgresql-server    postgresql-contrib    httpd
+   FreeBSD:       postgresqlXY-server  postgresqlXY-contrib  apache24
 
    Also check that the files in /home/brep are readable by "others". If they
    are not, then run the following command to grant Apache2 read access:
@@ -52,7 +61,7 @@ c) Install PostgreSQL and Apache2 development files. Specifically, we need
 
    Debian/Ubuntu: libpq-dev            libapr1-dev  apache2-dev
    Fedora/RHEL:   posqtgresql-devel    apr-devel    httpd-devel
-   FreeBSD:       postgresql94-client  apr          apache24
+   FreeBSD:       postgresqlXY-client  apr          apache24
 
 d) Unless you already have the build2 toolchain installed, download (normally
    from https://download.build2.org) and install build2-toolchain by following
@@ -94,15 +103,35 @@ $ cd .. # Back to brep home.
 
 4. Create PostgreSQL User and Databases
 
+Note that the brep_package and brep_build databases can reside in different
+database instances, potentially on different hosts. If this is the case then
+the following commands must be adjusted accordingly.
+
+Note also that below unless you set a custom password for the brep-build
+database user, any locally logged-in user will be able to login as brep-build
+and gain full access to the brep_package database.
+
 $ sudo sudo -u postgres psql # Note: double sudo is not a mistake.
 
-CREATE DATABASE brep_package TEMPLATE template0 ENCODING 'UTF8'
-LC_COLLATE 'en_US.UTF8' LC_CTYPE 'en_US.UTF8';
-CREATE DATABASE brep_build TEMPLATE template0 ENCODING 'UTF8'
-LC_COLLATE 'en_US.UTF8' LC_CTYPE 'en_US.UTF8';
+CREATE DATABASE brep_package
+  TEMPLATE template0
+  ENCODING 'UTF8'
+  LC_COLLATE 'en_US.UTF8'
+  LC_CTYPE 'en_US.UTF8';
+
+CREATE DATABASE brep_build
+  TEMPLATE template0
+  ENCODING 'UTF8'
+  LC_COLLATE 'en_US.UTF8'
+  LC_CTYPE 'en_US.UTF8';
+
 CREATE USER brep;
+
 GRANT ALL PRIVILEGES ON DATABASE brep_package, brep_build TO brep;
+
 CREATE USER "www-data" INHERIT IN ROLE brep;
+
+CREATE USER "brep-build" INHERIT IN ROLE brep PASSWORD '-';
 
 Exit psql (^D), then make sure the logins work:
 
@@ -116,6 +145,35 @@ $ sudo sudo -u www-data psql -d brep_build
 ^D
 
 To troubleshoot, see PostgreSQL logs.
+
+Next setup the connection between databases:
+
+$ sudo sudo -u postgres psql -d brep_build
+
+CREATE EXTENSION postgres_fdw;
+
+CREATE SERVER package_server
+  FOREIGN DATA WRAPPER postgres_fdw
+  OPTIONS (dbname 'brep_package', updatable 'false');
+
+GRANT USAGE ON FOREIGN SERVER package_server to brep;
+
+CREATE USER MAPPING FOR PUBLIC
+  SERVER package_server
+  OPTIONS (user 'brep-build', password '-');
+
+Exit psql (^D)
+
+The user brep-build is required (by the postgres_fdw extension) to login with
+password. To accomplish this, add the following line to the PostgreSQL client
+authentication configuration file (pg_hba.conf):
+
+# TYPE  DATABASE      USER        ADDRESS  METHOD
+local   brep_package  brep-build           md5
+
+Restart PostgreSQL:
+
+$ sudo systemctl restart postgresql
 
 
 5. Create Database Schemes and Load Repositories
@@ -132,6 +190,7 @@ To verify:
 
 $ psql -d brep_package -c 'SELECT name, summary FROM repository'
 $ psql -d brep_build -c 'SELECT package_name FROM build' # Empty row set.
+$ psql -d brep_build -c 'SELECT DISTINCT name FROM build_package'
 
 
 6. Setup Apache2 Module
@@ -139,9 +198,8 @@ $ psql -d brep_build -c 'SELECT package_name FROM build' # Empty row set.
 $ cp install/share/brep/etc/brep-module.conf config/
 $ edit config/brep-module.conf # Adjust default values if required.
 
-If you are happy to run with the default values, you can instead do:
-
-$ ln -s ../install/share/brep/etc/brep-module.conf config/
+Note that to enable the build2 build bot controller functionality you need to
+set the build-config option in brep-module.conf.
 
 Here we assume you have setup an appropriate Apache2 virtual server. Open the
 corresponding Apache2 .conf file and add the following inside VirtualHost (you

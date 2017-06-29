@@ -93,21 +93,23 @@ schema (const char* s, string name)
     {
       string statement (op);
 
-      auto read_until = [&i, &statement](const char stop[2]) -> bool
+      auto read_until = [&i, &statement] (const char stop[2]) -> bool
+      {
+        for (char prev ('\0'), c; i.get (c); prev = c)
         {
-          for (char prev ('\0'), c; i.get (c); prev = c)
-          {
-            statement.push_back (c);
+          statement.push_back (c);
 
-            if (stop[0] == prev && stop[1] == c)
-              return true;
-          }
+          if (stop[0] == prev && stop[1] == c)
+            return true;
+        }
 
-          return false;
-        };
+        return false;
+      };
 
       if (strcasecmp (op.c_str (), "CREATE") == 0)
       {
+        bool valid (true);
+
         string kw;
         i >> kw;
         statement += " " + kw;
@@ -125,7 +127,18 @@ schema (const char* s, string name)
         {
           // Fall through.
         }
+        else if (strcasecmp (kw.c_str (), "FOREIGN") == 0)
+        {
+          i >> kw;
+          statement += " " + kw;
+          valid = strcasecmp (kw.c_str (), "TABLE") == 0;
+
+          // Fall through.
+        }
         else
+          valid = false;
+
+        if (!valid)
         {
           cerr << "error: unexpected CREATE statement" << endl;
           throw failed ();
@@ -321,9 +334,11 @@ try
 #include <libbrep/package-extra.hxx>
       , '\0'};
 
-    schema s (db_schema == "package"
-              ? package_extras
-              : "",
+    static const char build_extras[] = {
+#include <libbrep/build-extra.hxx>
+      , '\0'};
+
+    schema s (db_schema == "package" ? package_extras : build_extras,
               db_schema);
 
     if (create)

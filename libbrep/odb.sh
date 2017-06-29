@@ -38,3 +38,13 @@ $odb $lib -d pgsql --std c++11 --generate-query --generate-schema    \
     --include-with-brackets --include-prefix libbrep                 \
     --guard-prefix LIBBREP \
     build.hxx
+
+$odb $lib -d pgsql --std c++11 --generate-query               \
+    --odb-epilogue '#include <libbrep/wrapper-traits.hxx>'    \
+    --generate-prepared -DLIBODB_BUILD2 -DLIBODB_PGSQL_BUILD2 \
+    -I .. -I ../../libbbot -I ../../libbpkg -I ../../libbutl  \
+    --include-with-brackets --include-prefix libbrep          \
+    --guard-prefix LIBBREP                                    \
+    build-package.hxx
+
+xxd -i <build-extra.sql >build-extra.hxx

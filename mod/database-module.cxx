@@ -43,6 +43,7 @@ namespace brep
   init (const options::package_db& o, size_t retry)
   {
     package_db_ = shared_database (o.package_db_user (),
+                                   o.package_db_role (),
                                    o.package_db_password (),
                                    o.package_db_name (),
                                    o.package_db_host (),
@@ -89,6 +90,7 @@ namespace brep
     build_conf_map_ = make_shared<conf_map_type> (move (conf_map));
 
     build_db_ = shared_database (dbo.build_db_user (),
+                                 dbo.build_db_role (),
                                  dbo.build_db_password (),
                                  dbo.build_db_name (),
                                  dbo.build_db_host (),
