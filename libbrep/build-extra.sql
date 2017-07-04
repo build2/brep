@@ -3,11 +3,22 @@
 -- file for details.
 --
 
+DROP FOREIGN TABLE IF EXISTS build_package;
+
+DROP FOREIGN TABLE IF EXISTS build_repository;
+
+-- The foreign table for build_repository object.
+--
+--
+CREATE FOREIGN TABLE build_repository (
+  name TEXT NOT NULL,
+  location TEXT NOT NULL,
+  certificate_fingerprint TEXT NULL)
+SERVER package_server OPTIONS (table_name 'repository');
+
 -- The foreign table for build_package object.
 --
 --
-DROP FOREIGN TABLE IF EXISTS build_package;
-
 CREATE FOREIGN TABLE build_package (
   name TEXT NOT NULL,
   version_epoch INTEGER NOT NULL,

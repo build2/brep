@@ -15,8 +15,6 @@
 
 #include <libbrep/build.hxx>
 #include <libbrep/build-odb.hxx>
-#include <libbrep/package.hxx>
-#include <libbrep/package-odb.hxx>
 
 #include <mod/options.hxx>
 
@@ -43,9 +41,6 @@ init (scanner& s)
 
   options_ = make_shared<options::build_log> (
     s, unknown_mode::fail, unknown_mode::fail);
-
-  database_module::init (static_cast<options::package_db> (*options_),
-                         options_->package_db_retry ());
 
   if (options_->build_config_specified ())
     database_module::init (static_cast<options::build>    (*options_),
@@ -174,27 +169,19 @@ handle (request& rq, response& rs)
       build_conf_map_->end ())
     config_expired ("no configuration");
 
-  // Make sure the package still exists.
-  //
-  {
-    transaction t (package_db_->begin ());
-    shared_ptr<package> p (package_db_->find<package> (id.package));
-    t.commit ();
-
-    if (p == nullptr)
-      config_expired ("no package");
-  }
-
   // Load the package build configuration (if present).
   //
   shared_ptr<build> b;
   {
     transaction t (build_db_->begin ());
-    b = build_db_->find<build> (id);
 
-    if (b == nullptr)
-      config_expired ("no package configuration");
-    else if (b->state != build_state::built)
+    package_build pb;
+    if (!build_db_->query_one<package_build> (
+          query<package_build>::build::id == id, pb))
+      config_expired ("no package build");
+
+    b = pb.build;
+    if (b->state != build_state::built)
       config_expired ("state is " + to_string (b->state));
     else
       build_db_->load (*b, b->results_section);

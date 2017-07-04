@@ -14,13 +14,39 @@
 
 namespace brep
 {
-  // This is a "foreign object" that is mapped to the subset of package object
-  // using PostgreSQL foreign table mechanism. Note that since we maintain the
-  // two in sync by hand, we should only a have a minimal subset of "core"
-  // members (ideally just the primary key) that are unlikly to disappear or
-  // change.
+  // These are "foreign objects" that are mapped to subsets of the package
+  // database objects using the PostgreSQL foreign table mechanism. Note that
+  // since we maintain the pair in sync by hand, we should only have a minimal
+  // subset of "core" members (ideally just the primary key) that are unlikly
+  // to disappear or change.
   //
-  // The mapping is established in build-extra.sql.
+  // The mapping is established in build-extra.sql. We also explicitly mark
+  // non-primary key foreign-mapped members in the source object.
+  //
+  // Foreign object that is mapped to the subset of repository object.
+  //
+  #pragma db object table("build_repository") pointer(shared_ptr) readonly
+  class build_repository
+  {
+  public:
+    string name; // Object id (canonical name).
+    repository_location location;
+    optional<string> certificate_fingerprint;
+
+    // Database mapping.
+    //
+    #pragma db member(name) id
+
+    #pragma db member(location)                                  \
+      set(this.location = std::move (?);                         \
+          assert (this.name == this.location.canonical_name ()))
+
+  private:
+    friend class odb::access;
+    build_repository () = default;
+  };
+
+  // Foreign object that is mapped to the subset of package object.
   //
   #pragma db object table("build_package") pointer(shared_ptr) readonly
   class build_package
@@ -28,7 +54,7 @@ namespace brep
   public:
     package_id id;
     upstream_version version;
-    optional<string> internal_repository;
+    lazy_shared_ptr<build_repository> internal_repository;
 
     // Database mapping.
     //
@@ -40,8 +66,33 @@ namespace brep
     build_package () = default;
   };
 
-  #pragma db view object(build_package)
-  struct build_package_count
+  // Packages that can potentially be built (internal non-stub).
+  //
+  #pragma db view                                                          \
+    object(build_package)                                                  \
+    object(build_repository inner:                                         \
+           build_package::internal_repository == build_repository::name && \
+           brep::compare_version_ne (build_package::id.version,            \
+                                     brep::wildcard_version,               \
+                                     false))
+  struct buildable_package
+  {
+    package_id id;
+    upstream_version version;
+
+    // Database mapping.
+    //
+    #pragma db member(version) set(this.version.init (this.id.version, (?)))
+  };
+
+  #pragma db view                                                          \
+    object(build_package)                                                  \
+    object(build_repository inner:                                         \
+           build_package::internal_repository == build_repository::name && \
+           brep::compare_version_ne (build_package::id.version,            \
+                                     brep::wildcard_version,               \
+                                     false))
+  struct buildable_package_count
   {
     size_t result;
 

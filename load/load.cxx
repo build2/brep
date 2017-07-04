@@ -1010,7 +1010,7 @@ try
 
   transaction t (db.begin ());
 
-  // Check that the database 'package' schema matches the current one.
+  // Check that the package database schema matches the current one.
   //
   const string ds ("package");
   if (schema_catalog::current_version (db, ds) != db.schema_version (ds))

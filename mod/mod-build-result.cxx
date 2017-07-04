@@ -215,6 +215,12 @@ handle (request& rq, response&)
 
   // Load the built package (if present).
   //
+  // The only way not to deal with 2 databases simultaneously is to pull
+  // another bunch of the package fields into the build_package foreign
+  // object, which is a pain (see build_package.hxx for details). Doesn't seem
+  // worth it here: email members are really secondary and we don't need to
+  // switch transactions back and forth.
+  //
   shared_ptr<package> p;
   {
     transaction t (package_db_->begin ());
@@ -242,11 +248,12 @@ handle (request& rq, response&)
 
   {
     transaction t (build_db_->begin ());
-    b = build_db_->find<build> (id);
 
-    if (b == nullptr)
-      warn_expired ("no package configuration");
-    else if (b->state != build_state::building)
+    package_build pb;
+    if (!build_db_->query_one<package_build> (
+          query<package_build>::build::id == id, pb))
+      warn_expired ("no package build");
+    else if ((b = pb.build)->state != build_state::building)
       warn_expired ("package configuration state is " + to_string (b->state));
     else if (b->timestamp != session_timestamp)
       warn_expired ("non-matching timestamp");

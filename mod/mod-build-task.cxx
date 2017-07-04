@@ -27,8 +27,8 @@
 
 #include <libbrep/build.hxx>
 #include <libbrep/build-odb.hxx>
-#include <libbrep/package.hxx>
-#include <libbrep/package-odb.hxx>
+#include <libbrep/build-package.hxx>
+#include <libbrep/build-package-odb.hxx>
 
 #include <mod/options.hxx>
 
@@ -56,9 +56,6 @@ init (scanner& s)
 
   options_ = make_shared<options::build_task> (
     s, unknown_mode::fail, unknown_mode::fail);
-
-  database_module::init (static_cast<options::package_db> (*options_),
-                         options_->package_db_retry ());
 
   if (options_->build_config_specified ())
   {
@@ -165,7 +162,7 @@ handle (request& rq, response& rs)
   //
   // While trying to find a non-built package configuration we will also
   // collect the list of the built package configurations which it's time to
-  // rebuilt. So if no unbuilt package is found, we will pickup one to
+  // rebuild. So if no unbuilt package is found, we will pickup one to
   // rebuild. The rebuild preference is given in the following order: the
   // greater force state, the greater overall status, the lower timestamp.
   //
@@ -177,7 +174,7 @@ handle (request& rq, response& rs)
     // repository loaded.
     //
     auto task = [this] (shared_ptr<build>&& b,
-                        shared_ptr<package>&& p,
+                        shared_ptr<build_package>&& p,
                         const config_machine& cm) -> task_response_manifest
     {
       uint64_t ts (
@@ -192,11 +189,11 @@ handle (request& rq, response& rs)
       string result_url (options_->host () + options_->root ().string () +
                          "?build-result");
 
-      lazy_shared_ptr<repository> r (p->internal_repository);
+      lazy_shared_ptr<build_repository> r (p->internal_repository);
 
       strings fp;
-      if (r->certificate)
-        fp.emplace_back (move (r->certificate->fingerprint));
+      if (r->certificate_fingerprint)
+        fp.emplace_back (move (*r->certificate_fingerprint));
 
       task_manifest task (move (b->package_name),
                           move (b->package_version),
@@ -302,7 +299,7 @@ handle (request& rq, response& rs)
     //
     brep::version toolchain_version (tqm.toolchain_version.string ());
 
-    // Prepare the package version prepared query.
+    // Prepare the buildable package prepared query.
     //
     // Note that the number of packages can be large and so, in order not to
     // hold locks for too long, we will restrict the number of packages being
@@ -314,41 +311,36 @@ handle (request& rq, response& rs)
     // harmful in that: updates are infrequent and missed packages will be
     // picked up on the next request.
     //
-    using pkg_query = query<package_version>;
-    using prep_pkg_query = prepared_query<package_version>;
+    using pkg_query = query<buildable_package>;
+    using prep_pkg_query = prepared_query<buildable_package>;
 
-    size_t offset (0); // See the package version query.
+    pkg_query pq (true);
 
-    // Skip external and stub packages.
-    //
-    pkg_query pq (pkg_query::package::internal_repository.is_not_null () &&
-                  compare_version_ne (pkg_query::package::id.version,
-                                      wildcard_version,
-                                      false));
-
-    // Filter by repositories display names (if requested).
+    // Filter by repositories canonical names (if requested).
     //
     const vector<string>& rp (params.repository ());
 
     if (!rp.empty ())
       pq = pq &&
-        pkg_query::repository::display_name.in_range (rp.begin (), rp.end ());
+        pkg_query::build_repository::name.in_range (rp.begin (), rp.end ());
 
     // Specify the portion.
     //
+    size_t offset (0);
+
     pq += "ORDER BY" +
-      pkg_query::package::id.name + "," +
-      pkg_query::package::id.version.epoch + "," +
-      pkg_query::package::id.version.canonical_upstream + "," +
-      pkg_query::package::id.version.canonical_release + "," +
-      pkg_query::package::id.version.revision +
+      pkg_query::build_package::id.name + "," +
+      pkg_query::build_package::id.version.epoch + "," +
+      pkg_query::build_package::id.version.canonical_upstream + "," +
+      pkg_query::build_package::id.version.canonical_release + "," +
+      pkg_query::build_package::id.version.revision +
       "OFFSET" + pkg_query::_ref (offset) + "LIMIT 50";
 
-    connection_ptr pkg_conn (package_db_->connection ());
+    connection_ptr conn (build_db_->connection ());
 
     prep_pkg_query pkg_prep_query (
-      pkg_conn->prepare_query<package_version> (
-        "mod-build-task-package-version-query", pq));
+      conn->prepare_query<buildable_package> (
+        "mod-build-task-package-query", pq));
 
     // Prepare the build prepared query.
     //
@@ -364,8 +356,7 @@ handle (request& rq, response& rs)
     using bld_query = query<build>;
     using prep_bld_query = prepared_query<build>;
 
-    package_id id; // See the build query.
-
+    package_id id;
     const auto& qv (bld_query::id.package.version);
 
     bld_query bq (
@@ -390,169 +381,147 @@ handle (request& rq, response& rs)
         (bld_query::force != "forcing" && // Unforced or forced.
          bld_query::timestamp > normal_result_expiration_ns))));
 
-    connection_ptr bld_conn (build_db_->connection ());
-
     prep_bld_query bld_prep_query (
-      bld_conn->prepare_query<build> (
-        "mod-build-task-package-build-query", bq));
+      conn->prepare_query<build> ("mod-build-task-build-query", bq));
 
     while (tsm.session.empty ())
     {
-      // Start the package database transaction.
-      //
-      transaction pt (pkg_conn->begin ());
+      transaction t (conn->begin ());
 
-      // Query package versions.
+      // Query (and cache) buildable packages.
       //
-      auto package_versions (pkg_prep_query.execute ());
+      auto packages (pkg_prep_query.execute ());
 
       // Bail out if there is nothing left.
       //
-      if (package_versions.empty ())
+      if (packages.empty ())
       {
-        pt.commit ();
+        t.commit ();
         break;
       }
 
-      offset += package_versions.size ();
+      offset += packages.size ();
 
-      // Start the build database transaction.
+      // Iterate over packages until we find one that needs building.
       //
+      for (auto& bp: packages)
       {
-        transaction bt (bld_conn->begin (), false);
-        transaction::current (bt);
+        id = move (bp.id);
 
-        // Iterate over packages until we find one that needs building.
+        // Iterate through the package configurations and erase those that
+        // don't need building from the build configuration map. All those
+        // configurations that remained can be built. We will take the first
+        // one, if present.
         //
-        for (auto& pv: package_versions)
+        // Also save the built package configurations for which it's time to be
+        // rebuilt.
+        //
+        config_machines configs (cfg_machines); // Make a copy for this pkg.
+        auto pkg_builds (bld_prep_query.execute ());
+
+        for (auto i (pkg_builds.begin ()); i != pkg_builds.end (); ++i)
         {
-          id = move (pv.id);
+          auto j (configs.find (i->id.configuration.c_str ()));
 
-          // Iterate through the package configurations and erase those that
-          // don't need building from the build configuration map. All those
-          // configurations that remained can be built. We will take the first
-          // one, if present.
+          // Outdated configurations are already excluded with the database
+          // query.
           //
-          // Also save the built package configurations for which it's time
-          // to be rebuilt.
-          //
-          config_machines configs (cfg_machines); // Make a copy for this pkg.
-          auto pkg_builds (bld_prep_query.execute ());
+          assert (j != configs.end ());
+          configs.erase (j);
 
-          for (auto i (pkg_builds.begin ()); i != pkg_builds.end (); ++i)
+          if (i->state == build_state::built)
           {
-            auto j (configs.find (i->id.configuration.c_str ()));
+            assert (i->force != force_state::forcing);
 
-            // Outdated configurations are already excluded with the database
-            // query.
-            //
-            assert (j != configs.end ());
-            configs.erase (j);
-
-            if (i->state == build_state::built)
-            {
-              assert (i->force != force_state::forcing);
-
-              if (i->timestamp <= (i->force == force_state::forced
-                                   ? forced_rebuild_expiration
-                                   : normal_rebuild_expiration))
-                rebuilds.emplace_back (i.load ());
-            }
+            if (i->timestamp <= (i->force == force_state::forced
+                                 ? forced_rebuild_expiration
+                                 : normal_rebuild_expiration))
+              rebuilds.emplace_back (i.load ());
           }
-
-          if (!configs.empty ())
-          {
-            config_machine& cm (configs.begin ()->second);
-            machine_header_manifest& mh (*cm.machine);
-            build_id bid (move (id), cm.config->name, toolchain_version);
-            shared_ptr<build> b (build_db_->find<build> (bid));
-            optional<string> cl (challenge ());
-
-            // If build configuration doesn't exist then create the new one
-            // and persist. Otherwise put it into the building state, refresh
-            // the timestamp and update.
-            //
-            if (b == nullptr)
-            {
-              b = make_shared<build> (move (bid.package.name),
-                                      move (pv.version),
-                                      move (bid.configuration),
-                                      move (tqm.toolchain_name),
-                                      move (toolchain_version),
-                                      move (agent_fp),
-                                      move (cl),
-                                      mh.name,
-                                      move (mh.summary),
-                                      cm.config->target);
-
-              build_db_->persist (b);
-            }
-            else
-            {
-              // The package configuration is in the building state, and there
-              // are no results.
-              //
-              // Note that in both cases we keep the status intact to be able
-              // to compare it with the final one in the result request
-              // handling in order to decide if to send the notification email.
-              // The same is true for the forced flag (in the sense that we
-              // don't set the force state to unforced).
-              //
-              // Load the section to assert the above statement.
-              //
-              build_db_->load (*b, b->results_section);
-
-              assert (b->state == build_state::building &&
-                      b->results.empty ());
-
-              b->state = build_state::building;
-
-              // Switch the force state not to reissue the task after the
-              // forced rebuild timeout. Note that the result handler will
-              // still recognize that the rebuild was forced.
-              //
-              if (b->force == force_state::forcing)
-                b->force = force_state::forced;
-
-              b->toolchain_name = move (tqm.toolchain_name);
-              b->agent_fingerprint = move (agent_fp);
-              b->agent_challenge = move (cl);
-              b->machine = mh.name;
-              b->machine_summary = move (mh.summary);
-              b->target = cm.config->target;
-              b->timestamp = timestamp::clock::now ();
-
-              build_db_->update (b);
-            }
-
-            // Finally, prepare the task response manifest.
-            //
-            // Switch to the package database transaction to load the package.
-            //
-            transaction::current (pt);
-
-            shared_ptr<package> p (package_db_->load<package> (b->id.package));
-            p->internal_repository.load ();
-
-            // Switch back to the build database transaction.
-            //
-            transaction::current (bt);
-
-            tsm = task (move (b), move (p), cm);
-          }
-
-          // If the task response manifest is prepared, then bail out from the
-          // package loop, commit transactions and respond.
-          //
-          if (!tsm.session.empty ())
-            break;
         }
 
-        bt.commit ();  // Commit the build database transaction.
+        if (!configs.empty ())
+        {
+          config_machine& cm (configs.begin ()->second);
+          machine_header_manifest& mh (*cm.machine);
+          build_id bid (move (id), cm.config->name, toolchain_version);
+          shared_ptr<build> b (build_db_->find<build> (bid));
+          optional<string> cl (challenge ());
+
+          // If build configuration doesn't exist then create the new one and
+          // persist. Otherwise put it into the building state, refresh the
+          // timestamp and update.
+          //
+          if (b == nullptr)
+          {
+            b = make_shared<build> (move (bid.package.name),
+                                    move (bp.version),
+                                    move (bid.configuration),
+                                    move (tqm.toolchain_name),
+                                    move (toolchain_version),
+                                    move (agent_fp),
+                                    move (cl),
+                                    mh.name,
+                                    move (mh.summary),
+                                    cm.config->target);
+
+            build_db_->persist (b);
+          }
+          else
+          {
+            // The package configuration is in the building state, and there
+            // are no results.
+            //
+            // Note that in both cases we keep the status intact to be able to
+            // compare it with the final one in the result request handling in
+            // order to decide if to send the notification email. The same is
+            // true for the forced flag (in the sense that we don't set the
+            // force state to unforced).
+            //
+            // Load the section to assert the above statement.
+            //
+            build_db_->load (*b, b->results_section);
+
+            assert (b->state == build_state::building && b->results.empty ());
+
+            b->state = build_state::building;
+
+            // Switch the force state not to reissue the task after the forced
+            // rebuild timeout. Note that the result handler will still
+            // recognize that the rebuild was forced.
+            //
+            if (b->force == force_state::forcing)
+              b->force = force_state::forced;
+
+            b->toolchain_name = move (tqm.toolchain_name);
+            b->agent_fingerprint = move (agent_fp);
+            b->agent_challenge = move (cl);
+            b->machine = mh.name;
+            b->machine_summary = move (mh.summary);
+            b->target = cm.config->target;
+            b->timestamp = timestamp::clock::now ();
+
+            build_db_->update (b);
+          }
+
+          // Finally, prepare the task response manifest.
+          //
+          shared_ptr<build_package> p (
+            build_db_->load<build_package> (b->id.package));
+
+          p->internal_repository.load ();
+
+          tsm = task (move (b), move (p), cm);
+        }
+
+        // If the task response manifest is prepared, then bail out from the
+        // package loop, commit transactions and respond.
+        //
+        if (!tsm.session.empty ())
+          break;
       }
 
-      transaction::current (pt); // Switch to the package database transaction.
-      pt.commit ();
+      t.commit ();
     }
 
     // If we don't have an unbuilt package, then let's see if we have a
@@ -598,7 +567,7 @@ handle (request& rq, response& rs)
       {
         try
         {
-          transaction bt (build_db_->begin ());
+          transaction t (build_db_->begin ());
 
           b = build_db_->find<build> (b->id);
 
@@ -617,19 +586,8 @@ handle (request& rq, response& rs)
 
             // Load the package (if still present).
             //
-            transaction pt (package_db_->begin (), false);
-            transaction::current (pt);
-
-            shared_ptr<package> p (package_db_->find<package> (b->id.package));
-
-            if (p != nullptr)
-              p->internal_repository.load ();
-
-            // Commit the package database transaction and switch back to the
-            // build database transaction.
-            //
-            pt.commit ();
-            transaction::current (bt);
+            shared_ptr<build_package> p (
+              build_db_->find<build_package> (b->id.package));
 
             if (p != nullptr)
             {
@@ -656,11 +614,13 @@ handle (request& rq, response& rs)
 
               build_db_->update (b);
 
+              p->internal_repository.load ();
+
               tsm = task (move (b), move (p), cm);
             }
           }
 
-          bt.commit ();
+          t.commit ();
         }
         catch (const odb::deadlock&) {} // Just try with the next rebuild.
 

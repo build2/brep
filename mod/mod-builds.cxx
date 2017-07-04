@@ -205,11 +205,9 @@ package_query (const brep::params::builds& params)
 {
   using namespace brep;
   using query = query<T>;
+  using qp = typename query::build_package;
 
-  // Skip external and stub packages.
-  //
-  query q (query::internal_repository.is_not_null () &&
-           compare_version_ne (query::id.version, wildcard_version, false));
+  query q (true);
 
   // Note that there is no error reported if the filter parameters parsing
   // fails. Instead, it is considered that no packages match such a query.
@@ -219,12 +217,12 @@ package_query (const brep::params::builds& params)
     // Package name.
     //
     if (!params.name ().empty ())
-      q = q && query::id.name.like (transform (params.name ()));
+      q = q && qp::id.name.like (transform (params.name ()));
 
     // Package version.
     //
     if (!params.version ().empty () && params.version () != "*")
-      q = q && compare_version_eq (query::id.version,
+      q = q && compare_version_eq (qp::id.version,
                                    version (params.version ()), // May throw.
                                    true);
   }
@@ -554,8 +552,8 @@ handle (request& rq, response& rs)
       // configurations and the number of existing package builds.
       //
       size_t nmax (config_toolchains.size () *
-                   build_db_->query_value<build_package_count> (
-                     package_query<build_package_count> (params)));
+                   build_db_->query_value<buildable_package_count> (
+                     package_query<buildable_package_count> (params)));
 
       size_t ncur = build_db_->query_value<package_build_count> (
         build_query<package_build_count> (*build_conf_names_, bld_params));
@@ -592,10 +590,10 @@ handle (request& rq, response& rs)
     // the pager to just '<Prev' '1' 'Next>' links, and pass the offset as a
     // URL query parameter. Alternatively, we can invent the page number cap.
     //
-    using pkg_query = query<build_package>;
-    using prep_pkg_query = prepared_query<build_package>;
+    using pkg_query = query<buildable_package>;
+    using prep_pkg_query = prepared_query<buildable_package>;
 
-    pkg_query pq (package_query<build_package> (params));
+    pkg_query pq (package_query<buildable_package> (params));
 
     // Specify the portion. Note that we will still be querying packages in
     // chunks, not to hold locks for too long.
@@ -603,14 +601,14 @@ handle (request& rq, response& rs)
     size_t offset (0);
 
     pq += "ORDER BY" +
-      pkg_query::id.name +
-      order_by_version_desc (pkg_query::id.version, false) +
+      pkg_query::build_package::id.name +
+      order_by_version_desc (pkg_query::build_package::id.version, false) +
       "OFFSET" + pkg_query::_ref (offset) + "LIMIT 50";
 
     connection_ptr conn (build_db_->connection ());
 
     prep_pkg_query pkg_prep_query (
-      conn->prepare_query<build_package> ("mod-builds-package-query", pq));
+      conn->prepare_query<buildable_package> ("mod-builds-package-query", pq));
 
     // Prepare the build prepared query.
     //
@@ -655,7 +653,7 @@ handle (request& rq, response& rs)
     {
       transaction t (conn->begin ());
 
-      // Query (and cache) build packages.
+      // Query (and cache) buildable packages.
       //
       auto packages (pkg_prep_query.execute ());
 

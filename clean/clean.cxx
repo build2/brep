@@ -17,8 +17,8 @@
 
 #include <libbrep/build.hxx>
 #include <libbrep/build-odb.hxx>
-#include <libbrep/package.hxx>
-#include <libbrep/package-odb.hxx>
+#include <libbrep/build-package.hxx>
+#include <libbrep/build-package-odb.hxx>
 #include <libbrep/database-lock.hxx>
 
 #include <clean/clean-options.hxx>
@@ -101,19 +101,11 @@ try
   }
 
   odb::pgsql::database build_db (
-    ops.build_db_user (),
-    ops.build_db_password (),
-    ops.build_db_name (),
-    ops.build_db_host (),
-    ops.build_db_port (),
-    "options='-c default_transaction_isolation=serializable'");
-
-  odb::pgsql::database package_db (
-    ops.package_db_user (),
-    ops.package_db_password (),
-    ops.package_db_name (),
-    ops.package_db_host (),
-    ops.package_db_port (),
+    ops.db_user (),
+    ops.db_password (),
+    ops.db_name (),
+    ops.db_host (),
+    ops.db_port (),
     "options='-c default_transaction_isolation=serializable'");
 
   // Prevent several brep-clean/migrate instances from updating build database
@@ -121,22 +113,13 @@ try
   //
   database_lock l (build_db);
 
-  // Check that the build and package database schemas match the current ones.
+  // Check that the build database schema matches the current one.
   //
   const string bs ("build");
   if (schema_catalog::current_version (build_db, bs) !=
       build_db.schema_version (bs))
   {
     cerr << "error: build database schema differs from the current one"
-         << endl << "  info: use brep-migrate to migrate the database" << endl;
-    return 1;
-  }
-
-  const string ps ("package");
-  if (schema_catalog::current_version (package_db, ps) !=
-      package_db.schema_version (ps))
-  {
-    cerr << "error: package database schema differs from the current one"
          << endl << "  info: use brep-migrate to migrate the database" << endl;
     return 1;
   }
@@ -155,35 +138,32 @@ try
                 order_by_version_desc (bld_query::id.package.version, false) +
                 "OFFSET" + bld_query::_ref (offset) + "LIMIT 100");
 
-  connection_ptr bld_conn (build_db.connection ());
+  connection_ptr conn (build_db.connection ());
 
   prep_bld_query bld_prep_query (
-    bld_conn->prepare_query<build> ("build-query", bq));
+    conn->prepare_query<build> ("build-query", bq));
 
   // Prepare the package version query.
   //
-  // Query package versions every time the new package name is encountered
+  // Query buildable packages every time the new package name is encountered
   // during iterating over the package builds. Such a query will be made once
   // per package name due to the builds query sorting criteria (see above).
   //
-  using pkg_query = query<package_version>;
-  using prep_pkg_query = prepared_query<package_version>;
+  using pkg_query = query<buildable_package>;
+  using prep_pkg_query = prepared_query<buildable_package>;
 
   string package_name;
   set<version> package_versions;
 
-  pkg_query pq (pkg_query::package::id.name == pkg_query::_ref (package_name));
-
-  connection_ptr pkg_conn (package_db.connection ());
+  pkg_query pq (
+    pkg_query::build_package::id.name == pkg_query::_ref (package_name));
 
   prep_pkg_query pkg_prep_query (
-    pkg_conn->prepare_query<package_version> ("package-version-query", pq));
+    conn->prepare_query<buildable_package> ("package-query", pq));
 
   for (bool ne (true); ne; )
   {
-    // Start the build database transaction.
-    //
-    transaction bt (bld_conn->begin ());
+    transaction t (conn->begin ());
 
     // Query builds.
     //
@@ -191,10 +171,6 @@ try
 
     if ((ne = !builds.empty ()))
     {
-      // Start the package database transaction.
-      //
-      transaction pt (pkg_conn->begin (), false);
-
       for (const auto& b: builds)
       {
         auto i (timeouts.find (b.toolchain_name));
@@ -221,19 +197,11 @@ try
         {
           if (package_name != b.package_name)
           {
-            // Switch to the package database transaction.
-            //
-            transaction::current (pt);
-
             package_name = b.package_name;
             package_versions.clear ();
 
             for (auto& v: pkg_prep_query.execute ())
               package_versions.emplace (move (v.version));
-
-            // Switch back to the build database transaction.
-            //
-            transaction::current (bt);
           }
 
           cleanup = package_versions.find (b.package_version) ==
@@ -245,13 +213,9 @@ try
         else
           ++offset;
       }
-
-      // Commit the package database transaction.
-      //
-      pt.commit ();
     }
 
-    bt.commit ();
+    t.commit ();
   }
 
   return 0;

@@ -47,28 +47,28 @@ class options
      explicitly. If unspecified, the default timeout is zero (never expire)."
   }
 
-  std::string --build-db-user
+  std::string --db-user
   {
     "<user>",
     "Build database user name. If not specified, then operating system (login)
      name is used."
   }
 
-  std::string --build-db-password
+  std::string --db-password
   {
     "<pass>",
     "Build database password. If not specified, then login without password is
      expected to work."
   }
 
-  std::string --build-db-name = "brep_build"
+  std::string --db-name = "brep_build"
   {
     "<name>",
     "Build database name. If not specified, then \cb{brep_build} is used by
      default."
   }
 
-  std::string --build-db-host
+  std::string --db-host
   {
     "<host>",
     "Build database host name, address, or socket. If not specified, then
@@ -76,45 +76,10 @@ class options
      (Unix-domain socket, etc)."
   }
 
-  std::uint16_t --build-db-port = 0
+  std::uint16_t --db-port = 0
   {
     "<port>",
     "Build database port number. If not specified, the default port is used."
-  }
-
-  std::string --package-db-user
-  {
-    "<user>",
-    "Package database user name. If not specified, then operating system
-     (login) name is used."
-  }
-
-  std::string --package-db-password
-  {
-    "<pass>",
-    "Package database password. If not specified, then login without password
-     is expected to work."
-  }
-
-  std::string --package-db-name = "brep_package"
-  {
-    "<name>",
-    "Package database name. If not specified, then \cb{brep_package} is used by
-     default."
-  }
-
-  std::string --package-db-host
-  {
-    "<host>",
-    "Package database host name, address, or socket. If not specified, then
-     connect to \cb{localhost} using the operating system-default mechanism
-     (Unix-domain socket, etc)."
-  }
-
-  std::uint16_t --package-db-port = 0
-  {
-    "<port>",
-    "Package database port number. If not specified, the default port is used."
   }
 
   std::string --pager // String to allow empty value.

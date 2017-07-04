@@ -57,10 +57,36 @@ namespace brep
   inline bool
   operator< (const build_id& x, const build_id& y)
   {
-    return
-      x.package < y.package ? true :
-      y.package < x.package ? false :
-      x.configuration < y.configuration;
+    if (x.package != y.package)
+      return x.package < y.package;
+
+    if (int r = x.configuration.compare (y.configuration))
+      return r < 0;
+
+    return compare_version_lt (x.toolchain_version, y.toolchain_version, true);
+  }
+
+  // These allow comparing objects that have package, configuration and
+  // toolchain_version data members to build_id values. The idea is that this
+  // works for both query members of build id types as well as for values of
+  // the build_id type.
+  //
+  template <typename T>
+  inline auto
+  operator== (const T& x, const build_id& y)
+    -> decltype (x.package == y.package)
+  {
+    return x.package == y.package && x.configuration == y.configuration &&
+      compare_version_eq (x.toolchain_version, y.toolchain_version, true);
+  }
+
+  template <typename T>
+  inline auto
+  operator!= (const T& x, const build_id& y)
+    -> decltype (x.package == y.package)
+  {
+    return x.package != y.package || x.configuration != y.configuration ||
+      compare_version_ne (x.toolchain_version, y.toolchain_version, true);
   }
 
   // build_state
@@ -267,26 +293,23 @@ namespace brep
 
   // Build of an existing internal package.
   //
-  #pragma db view                                               \
-    object(build)                                               \
-    object(build_package inner:                                 \
-           build::id.package.name == build_package::id.name &&  \
-           brep::compare_version_eq (build::id.package.version, \
-                                     build_package::id.version, \
-                                     true) &&                   \
+  // Note that ADL can't find the equal operator, so we use the function call
+  // notation.
+  //
+  #pragma db view                                                     \
+    object(build)                                                     \
+    object(build_package inner:                                       \
+           brep::operator== (build::id.package, build_package::id) && \
            build_package::internal_repository.is_not_null ())
   struct package_build
   {
     shared_ptr<brep::build> build;
   };
 
-  #pragma db view                                               \
-    object(build)                                               \
-    object(build_package inner:                                 \
-           build::id.package.name == build_package::id.name &&  \
-           brep::compare_version_eq (build::id.package.version, \
-                                     build_package::id.version, \
-                                     true) &&                   \
+  #pragma db view                                                     \
+    object(build)                                                     \
+    object(build_package inner:                                       \
+           brep::operator== (build::id.package, build_package::id) && \
            build_package::internal_repository.is_not_null ())
   struct package_build_count
   {

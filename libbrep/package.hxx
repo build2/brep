@@ -164,18 +164,11 @@ namespace brep
 
   #pragma db value(requirement_alternatives) definition
 
-  // repository_location
-  //
-  using bpkg::repository_location;
-
-  #pragma db map type(repository_location) as(string)     \
-    to((?).string ()) from(brep::repository_location (?))
-
   #pragma db value
   class certificate
   {
   public:
-    string fingerprint;  // SHA256 fingerprint.
+    string fingerprint;  // SHA256 fingerprint. Note: foreign-mapped in build.
     string name;         // CN component of Subject.
     string organization; // O component of Subject.
     string email;        // email: in Subject Alternative Name.
@@ -202,8 +195,8 @@ namespace brep
     explicit
     repository (repository_location);
 
-    string name; // Object id (canonical name).
-    repository_location location;
+    string name;                  // Object id (canonical name).
+    repository_location location; // Note: foreign-mapped in build.
     string display_name;
 
     // The order in the internal repositories configuration file, starting from
@@ -224,7 +217,8 @@ namespace brep
     //
     repository_location cache_location;
 
-    // Present only for internal signed repositories.
+    // Present only for internal signed repositories. Note that it is
+    // foreign-mapped in build.
     //
     optional<certificate_type> certificate;
 
@@ -342,6 +336,9 @@ namespace brep
     optional<email_type> build_email;
     dependencies_type dependencies;
     requirements_type requirements;
+
+    // Note that it is foreign-mapped in build.
+    //
     lazy_shared_ptr<repository_type> internal_repository;
 
     // Path to the package file. Present only for internal packages.
@@ -482,31 +479,6 @@ namespace brep
   struct latest_package
   {
     package_id id;
-  };
-
-  #pragma db view object(package) \
-    object(repository: package::internal_repository)
-  struct package_version
-  {
-    package_id id;
-    upstream_version version;
-
-    // Database mapping.
-    //
-    #pragma db member(version) set(this.version.init (this.id.version, (?)))
-  };
-
-  #pragma db view object(package) \
-    object(repository: package::internal_repository)
-  struct package_version_count
-  {
-    size_t result;
-
-    operator size_t () const {return result;}
-
-    // Database mapping.
-    //
-    #pragma db member(result) column("count(" + package::id.name + ")")
   };
 }
 

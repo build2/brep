@@ -441,7 +441,7 @@ namespace brep
 
     class build_task
     {
-      // Package repository display name.
+      // Package repository canonical name.
       //
       vector<string> repository | r;
     };

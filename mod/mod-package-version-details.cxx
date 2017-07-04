@@ -338,8 +338,7 @@ handle (request& rq, response& rs)
     using query = query<build>;
 
     for (auto& b: build_db_->query<build> (
-           (query::id.package.name == name &&
-            compare_version_eq (query::id.package.version, ver, true) &&
+           (query::id.package == pkg->id &&
 
             query::id.configuration.in_range (build_conf_names_->begin (),
                                               build_conf_names_->end ())) +

@@ -201,6 +201,13 @@ namespace brep
     }
   };
 
+  // repository_location
+  //
+  using bpkg::repository_location;
+
+  #pragma db map type(repository_location) as(string)     \
+    to((?).string ()) from(brep::repository_location (?))
+
   // Version comparison operators.
   //
   // They allow comparing objects that have epoch, canonical_upstream,
@@ -330,6 +337,8 @@ namespace brep
       + x.revision + "DESC";
   }
 
+  // Package id comparison operators.
+  //
   inline bool
   operator< (const package_id& x, const package_id& y)
   {
@@ -337,6 +346,26 @@ namespace brep
       return r < 0;
 
     return compare_version_lt (x.version, y.version, true);
+  }
+
+  // They allow comparing objects that have name and version data members. The
+  // idea is that this works for both query members of package id types (in
+  // particular in join conditions) as well as for values of package_id type.
+  //
+  template <typename T1, typename T2>
+  inline auto
+  operator== (const T1& x, const T2& y)
+    -> decltype (x.name == y.name && x.version.epoch == y.version.epoch)
+  {
+    return x.name == y.name && compare_version_eq (x.version, y.version, true);
+  }
+
+  template <typename T1, typename T2>
+  inline auto
+  operator!= (const T1& x, const T2& y)
+    -> decltype (x.name == y.name && x.version.epoch == y.version.epoch)
+  {
+    return x.name != y.name || compare_version_ne (x.version, y.version, true);
   }
 }
 
