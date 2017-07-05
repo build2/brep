@@ -16,6 +16,7 @@ lib{brep}:                             \
 {hxx         cxx}{ build             } \
 {file           }{ build.xml         } \
 {hxx ixx     cxx}{ build-odb         } \
+{hxx            }{ build-extra       } \
 {hxx            }{ build-package     } \
 {hxx ixx     cxx}{ build-package-odb } \
 {hxx         cxx}{ common            } \
