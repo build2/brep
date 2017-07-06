@@ -46,6 +46,16 @@ check_external (const package& p)
     p.requirements.empty () && !p.sha256sum;
 }
 
+namespace bpkg
+{
+  static bool
+  operator== (const build_constraint& x, const build_constraint& y)
+  {
+    return x.exclusion == y.exclusion && x.config == y.config &&
+      x.target == y.target && x.comment == y.comment;
+  }
+}
+
 int
 main (int argc, char* argv[])
 {
@@ -237,13 +247,11 @@ main (int argc, char* argv[])
       assert (fpv2->dependencies[0].size () == 1);
       assert (fpv2->dependencies[1].size () == 1);
 
-      auto dep (
-        [&db](const char* n,
-              const optional<dependency_constraint>& c) -> dependency
-        {
-          return {
-            lazy_shared_ptr<package> (db, package_id (n, version ())), c};
-        });
+      auto dep = [&db] (
+        const char* n, const optional<dependency_constraint>& c) -> dependency
+      {
+        return {lazy_shared_ptr<package> (db, package_id (n, version ())), c};
+      };
 
       assert (fpv2->dependencies[0][0] ==
               dep (
@@ -635,9 +643,17 @@ main (int argc, char* argv[])
 
       assert (epv->requirements.empty ());
 
+      db.load (*epv, epv->build_section);
+
+      assert (
+        epv->build_constraints ==
+        build_constraints ({
+          build_constraint (false, "linux*", nullopt, ""),
+          build_constraint (true, "*", nullopt, "Only supported on Linux.")}));
+
       assert (check_location (epv));
       assert (epv->sha256sum && *epv->sha256sum ==
-        "96add9edada45f4ceee18b3ec344ca3c4fc1473d9aad22a13e97d7728a439087");
+        "0a7414d06ad26d49dad203deaf3841f3df97f1fe27c5bf190c1c20dfeb7f84e0");
 
       // Verify libpq package version.
       //

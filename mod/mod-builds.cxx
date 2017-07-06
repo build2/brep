@@ -98,7 +98,9 @@ build_query (const brep::cstrings& configs, const brep::params::builds& params)
   using query = query<T>;
   using qb = typename query::build;
 
-  query q (qb::id.configuration.in_range (configs.begin (), configs.end ()));
+  query q (!configs.empty ()
+           ? qb::id.configuration.in_range (configs.begin (), configs.end ())
+           : query (true));
 
   // Note that there is no error reported if the filter parameters parsing
   // fails. Instead, it is considered that no package builds match such a
@@ -199,13 +201,12 @@ build_query (const brep::cstrings& configs, const brep::params::builds& params)
   return q;
 }
 
-template <typename T>
+template <typename T, typename P = typename query<T>::build_package>
 static inline query<T>
 package_query (const brep::params::builds& params)
 {
   using namespace brep;
   using query = query<T>;
-  using qp = typename query::build_package;
 
   query q (true);
 
@@ -217,12 +218,12 @@ package_query (const brep::params::builds& params)
     // Package name.
     //
     if (!params.name ().empty ())
-      q = q && qp::id.name.like (transform (params.name ()));
+      q = q && P::id.name.like (transform (params.name ()));
 
     // Package version.
     //
     if (!params.version ().empty () && params.version () != "*")
-      q = q && compare_version_eq (qp::id.version,
+      q = q && compare_version_eq (P::id.version,
                                    version (params.version ()), // May throw.
                                    true);
   }
@@ -232,6 +233,20 @@ package_query (const brep::params::builds& params)
   }
 
   return q;
+}
+
+template <typename T, typename ID>
+static inline query<T>
+package_id_eq (const ID& x, const brep::package_id& y)
+{
+  using query = query<T>;
+  const auto& qv (x.version);
+
+  return x.name == query::_ref (y.name) &&
+    qv.epoch == query::_ref (y.version.epoch) &&
+    qv.canonical_upstream == query::_ref (y.version.canonical_upstream) &&
+    qv.canonical_release == query::_ref (y.version.canonical_release) &&
+    qv.revision == query::_ref (y.version.revision);
 }
 
 static const vector<pair<string, string>> build_results ({
@@ -283,7 +298,7 @@ handle (request& rq, response& rs)
     //
     // This hack is required to avoid the "flash of unstyled content", which
     // happens due to the presence of the autofocus attribute in the input
-    // element of the search form. The problem appears in Firefox and has a
+    // element of the filter form. The problem appears in Firefox and has a
     // (4-year old, at the time of this writing) bug report:
     //
     // https://bugzilla.mozilla.org/show_bug.cgi?id=712130.
@@ -491,17 +506,15 @@ handle (request& rq, response& rs)
     };
 
     // Note that config_toolchains contains shallow references to the toolchain
-    // names and versions, and in particular to the selected ones (tc_name and
-    // tc_version).
+    // names and versions.
     //
-    string tc_name;
-    version tc_version;
     set<config_toolchain> config_toolchains;
-
     {
       transaction t (build_db_->begin ());
       toolchains = query_toolchains ();
 
+      string tc_name;
+      version tc_version;
       const string& tc (params.toolchain ());
 
       if (tc != "*")
@@ -527,6 +540,7 @@ handle (request& rq, response& rs)
 
       const string& pc (params.configuration ());
       const string& tg (params.target ());
+      vector<const build_config*> configs;
 
       for (const auto& c: *build_conf_)
       {
@@ -537,11 +551,13 @@ handle (request& rq, response& rs)
              : tg == "*" ||
                (c.target && path_match (tg, c.target->string ()))))
         {
-          if (tc != "*") // Filter by toolchain.
-            config_toolchains.insert ({c.name, tc_name, tc_version});
-          else           // Add all toolchains.
+          configs.push_back (&c);
+
+          for (const auto& t: toolchains)
           {
-            for (const auto& t: toolchains)
+            // Filter by toolchain.
+            //
+            if (tc == "*" || (t.first == tc_name && t.second == tc_version))
               config_toolchains.insert ({c.name, t.first, t.second});
           }
         }
@@ -551,12 +567,78 @@ handle (request& rq, response& rs)
       // difference between the maximum possible number of unbuilt
       // configurations and the number of existing package builds.
       //
+      // Note that we also need to deduct the package-excluded configurations
+      // count from the maximum possible number of unbuilt configurations. The
+      // only way to achieve this is to traverse through the build-constrained
+      // packages and match their constraints against our configurations.
+      //
+      // Also note that some existing builds can now be excluded by packages
+      // due to the build configuration target change. We should deduct such
+      // builds count from the number of existing package builds.
+      //
       size_t nmax (config_toolchains.size () *
                    build_db_->query_value<buildable_package_count> (
                      package_query<buildable_package_count> (params)));
 
       size_t ncur = build_db_->query_value<package_build_count> (
         build_query<package_build_count> (*build_conf_names_, bld_params));
+
+      // From now we will be using specific package name and version for each
+      // build database query.
+      //
+      bld_params.name ().clear ();
+      bld_params.version ().clear ();
+
+      if (!config_toolchains.empty ())
+      {
+        // Prepare the build count prepared query.
+        //
+        // For each package-excluded configuration we will query the number of
+        // existing builds.
+        //
+        using bld_query = query<package_build_count>;
+        using prep_bld_query = prepared_query<package_build_count>;
+
+        package_id id;
+        string config;
+
+        bld_query bq (
+          package_id_eq<package_build_count> (
+            bld_query::build::id.package, id) &&
+          bld_query::build::id.configuration == bld_query::_ref (config) &&
+          build_query<package_build_count> (cstrings (), bld_params));
+
+        prep_bld_query bld_prep_query (
+          build_db_->prepare_query<package_build_count> (
+            "mod-builds-build-count-query", bq));
+
+        size_t nt (tc == "*" ? toolchains.size () : 1);
+
+        // The number of build-constrained packages can potentially be large,
+        // and we may implement some caching in the future. However, the
+        // caching will not be easy as the cached values depend on the filter
+        // form parameters.
+        //
+        using query = query<build_constrained_package>;
+        query q (package_query<build_constrained_package, query> (params));
+
+        for (const auto& p: build_db_->query<build_constrained_package> (q))
+        {
+          const build_package& bp (*p.package);
+          id = bp.id;
+
+          for (const auto& c: configs)
+          {
+            if (exclude (bp, *c))
+            {
+              nmax -= nt;
+
+              config = c->name;
+              ncur -= bld_prep_query.execute_value ();
+            }
+          }
+        }
+      }
 
       assert (nmax >= ncur);
       count = nmax - ncur;
@@ -620,28 +702,29 @@ handle (request& rq, response& rs)
     using bld_query = query<package_build>;
     using prep_bld_query = prepared_query<package_build>;
 
-    // We will use specific package name and version for each database query.
-    //
-    bld_params.name ().clear ();
-    bld_params.version ().clear ();
-
     package_id id;
-    const auto& qv (bld_query::build::id.package.version);
 
     bld_query bq (
-      bld_query::build::id.package.name == bld_query::_ref (id.name) &&
-
-      qv.epoch == bld_query::_ref (id.version.epoch) &&
-      qv.canonical_upstream ==
-      bld_query::_ref (id.version.canonical_upstream) &&
-      qv.canonical_release ==
-      bld_query::_ref (id.version.canonical_release) &&
-      qv.revision == bld_query::_ref (id.version.revision) &&
-
+      package_id_eq<package_build> (bld_query::build::id.package, id) &&
       build_query<package_build> (*build_conf_names_, bld_params));
 
     prep_bld_query bld_prep_query (
       conn->prepare_query<package_build> ("mod-builds-build-query", bq));
+
+    // Prepare the build-constrained package prepared query.
+    //
+    // For each build-constrained package we will exclude the corresponding
+    // configurations from being printed.
+    //
+    using ctr_query = query<build_constrained_package>;
+    using prep_ctr_query = prepared_query<build_constrained_package>;
+
+    ctr_query cq (
+      package_id_eq<build_constrained_package> (ctr_query::id, id));
+
+    prep_ctr_query ctr_prep_query (
+      conn->prepare_query<build_constrained_package> (
+        "mod-builds-build-constrained-package-query", cq));
 
     size_t skip (page * page_configs);
     size_t print (page_configs);
@@ -649,7 +732,7 @@ handle (request& rq, response& rs)
     // Enclose the subsequent tables to be able to use nth-child CSS selector.
     //
     s << DIV;
-    for (bool prn (true); prn; )
+    while (print != 0)
     {
       transaction t (conn->begin ());
 
@@ -657,27 +740,47 @@ handle (request& rq, response& rs)
       //
       auto packages (pkg_prep_query.execute ());
 
-      if ((prn = !packages.empty ()))
+      if (packages.empty ())
+        print = 0;
+      else
       {
         offset += packages.size ();
 
         // Iterate over packages and print unbuilt configurations. Skip the
         // appropriate number of them first (for page number greater than one).
         //
-        for (auto& pv: packages)
+        for (auto& p: packages)
         {
-          id = move (pv.id);
+          id = move (p.id);
 
-          // Make a copy for this package.
+          // Copy configuration/toolchain combinations for this package,
+          // skipping explicitly excluded configurations.
           //
-          auto unbuilt_configs (config_toolchains);
+          set<config_toolchain> unbuilt_configs;
+          {
+            build_constrained_package p;
+            if (ctr_prep_query.execute_one (p))
+            {
+              const build_package& bp (*p.package);
+              for (const auto& ct: config_toolchains)
+              {
+                auto i (build_conf_map_->find (ct.configuration.c_str ()));
+                assert (i != build_conf_map_->end ());
+
+                if (!exclude (bp, *i->second))
+                  unbuilt_configs.insert (ct);
+              }
+            }
+            else
+              unbuilt_configs = config_toolchains;
+          }
 
           // Iterate through the package configuration builds and erase them
           // from the unbuilt configurations set.
           //
           for (const auto& pb: bld_prep_query.execute ())
           {
-            build& b (*pb.build);
+            const build& b (*pb.build);
 
             unbuilt_configs.erase ({
                 b.id.configuration, b.toolchain_name, b.toolchain_version});
@@ -693,12 +796,6 @@ handle (request& rq, response& rs)
               continue;
             }
 
-            if (print-- == 0)
-            {
-              prn = false;
-              break;
-            }
-
             auto i (build_conf_map_->find (ct.configuration.c_str ()));
             assert (i != build_conf_map_->end ());
 
@@ -707,7 +804,7 @@ handle (request& rq, response& rs)
             s << TABLE(CLASS="proplist build")
               <<   TBODY
               <<     TR_NAME (id.name, string (), root)
-              <<     TR_VERSION (id.name, pv.version, root)
+              <<     TR_VERSION (id.name, p.version, root)
               <<     TR_VALUE ("toolchain",
                                string (ct.toolchain_name) + '-' +
                                ct.toolchain_version.string ())
@@ -715,9 +812,12 @@ handle (request& rq, response& rs)
               <<     TR_VALUE ("target", tg ? tg->string () : "<default>")
               <<   ~TBODY
               << ~TABLE;
+
+            if (--print == 0) // Bail out the configuration loop.
+              break;
           }
 
-          if (!prn)
+          if (print == 0) // Bail out the package loop.
             break;
         }
       }

@@ -10,6 +10,8 @@
 #include <odb/database.hxx>
 #include <odb/transaction.hxx>
 
+#include <libbutl/utility.hxx> // alpha(), ucase(), lcase()
+
 #include <web/xhtml.hxx>
 #include <web/module.hxx>
 #include <web/mime-url-encoding.hxx>
@@ -23,6 +25,7 @@
 #include <mod/options.hxx>
 
 using namespace std;
+using namespace butl;
 using namespace odb::core;
 using namespace brep::cli;
 
@@ -280,6 +283,14 @@ handle (request& rq, response& rs)
       << ~TABLE;
   }
 
+  // Don't display the page builds section for stub packages.
+  //
+  bool builds (build_db_ != nullptr &&
+               ver.compare (wildcard_version, true) != 0);
+
+  if (builds)
+    package_db_->load (*pkg, pkg->build_section);
+
   t.commit ();
 
   const auto& rm (pkg->requirements);
@@ -325,9 +336,7 @@ handle (request& rq, response& rs)
       << ~TABLE;
   }
 
-  // Don't display the section for stub packages.
-  //
-  if (build_db_ != nullptr && ver.compare (wildcard_version, true) != 0)
+  if (builds)
   {
     s << H3 << "Builds" << ~H3
       << DIV(ID="builds");
@@ -335,6 +344,8 @@ handle (request& rq, response& rs)
     timestamp now (timestamp::clock::now ());
     transaction t (build_db_->begin ());
 
+    // Print built package configurations.
+    //
     using query = query<build>;
 
     for (auto& b: build_db_->query<build> (
@@ -366,6 +377,60 @@ handle (request& rq, response& rs)
         <<     TR_BUILD_RESULT (b, host, root)
         <<   ~TBODY
         << ~TABLE;
+    }
+
+    // Print configurations that are excluded by the package.
+    //
+    auto excluded = [&pkg] (const bbot::build_config& c, string& reason)
+    {
+      for (const auto& bc: pkg->build_constraints)
+      {
+        if (!bc.exclusion && match (bc.config, bc.target, c))
+          return false;
+      }
+
+      for (const auto& bc: pkg->build_constraints)
+      {
+        if (bc.exclusion && match (bc.config, bc.target, c))
+        {
+          // Save the first sentence of the exclusion comment, lower-case the
+          // first letter if the beginning looks like a word (the second
+          // character is the lower-case letter or space).
+          //
+          reason = bc.comment.substr (0, bc.comment.find ('.'));
+
+          char c;
+          size_t n (reason.size ());
+          if (n > 0 && alpha (c = reason[0]) && c == ucase (c) &&
+              (n == 1 ||
+               (alpha (c = reason[1]) && c == lcase (c)) ||
+               c == ' '))
+            reason[0] = lcase (reason[0]);
+
+          return true;
+        }
+      }
+
+      return false;
+    };
+
+    for (const auto& c: *build_conf_)
+    {
+      string reason;
+      if (excluded (c, reason))
+      {
+        s << TABLE(CLASS="proplist build")
+          <<   TBODY
+          <<     TR_VALUE ("config",
+                           c.name + " / " +
+                           (c.target ? c.target->string () : "<default>"))
+          <<     TR_VALUE ("result",
+                           !reason.empty ()
+                           ? "excluded (" + reason + ')'
+                           : "excluded")
+          <<   ~TBODY
+          << ~TABLE;
+      }
     }
 
     t.commit ();

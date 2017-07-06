@@ -12,8 +12,10 @@ email: users@exp.com
 build-email: builds@exp.com
 depends: libmisc
 depends: libpq >= 9.0.0
+build-include: linux*
+build-exclude: *; Only supported on Linux.
 location: libexp-1~1.2+1.tar.gz
-sha256sum: 96add9edada45f4ceee18b3ec344ca3c4fc1473d9aad22a13e97d7728a439087
+sha256sum: 0a7414d06ad26d49dad203deaf3841f3df97f1fe27c5bf190c1c20dfeb7f84e0
 :
 name: libfoo
 version: 1.0

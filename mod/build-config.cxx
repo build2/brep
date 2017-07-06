@@ -146,4 +146,31 @@ namespace brep
       "&cf=" + mime_url_encode (b.configuration) +
       "&tc=" + b.toolchain_version.string () + "&reason=";
   }
+
+  bool
+  match (const string& config_pattern, const optional<string>& target_pattern,
+         const build_config& c)
+  {
+    return path_match (config_pattern, c.name) &&
+      (!target_pattern ||
+       (c.target && path_match (*target_pattern, c.target->string ())));
+  }
+
+  bool
+  exclude (const build_package& p, const build_config& c)
+  {
+    for (const auto& bc: p.constraints)
+    {
+      if (!bc.exclusion && match (bc.config, bc.target, c))
+        return false;
+    }
+
+    for (const auto& bc: p.constraints)
+    {
+      if (bc.exclusion && match (bc.config, bc.target, c))
+        return true;
+    }
+
+    return false;
+  }
 }

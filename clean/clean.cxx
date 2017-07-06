@@ -200,8 +200,8 @@ try
             package_name = b.package_name;
             package_versions.clear ();
 
-            for (auto& v: pkg_prep_query.execute ())
-              package_versions.emplace (move (v.version));
+            for (auto& p: pkg_prep_query.execute ())
+              package_versions.emplace (move (p.version));
           }
 
           cleanup = package_versions.find (b.package_version) ==

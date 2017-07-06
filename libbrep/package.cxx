@@ -62,6 +62,7 @@ namespace brep
            optional<email_type> be,
            dependencies_type dp,
            requirements_type rq,
+           build_constraints_type bc,
            optional<path> lc,
            optional<string> sh,
            shared_ptr<repository_type> rp)
@@ -80,6 +81,10 @@ namespace brep
         build_email (move (be)),
         dependencies (move (dp)),
         requirements (move (rq)),
+        build_constraints (
+          version.compare (wildcard_version, true) != 0
+          ? move (bc)
+          : build_constraints_type ()),
         internal_repository (move (rp)),
         location (move (lc)),
         sha256sum (move (sh))

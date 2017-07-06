@@ -442,80 +442,94 @@ handle (request& rq, response& rs)
 
         if (!configs.empty ())
         {
-          config_machine& cm (configs.begin ()->second);
-          machine_header_manifest& mh (*cm.machine);
-          build_id bid (move (id), cm.config->name, toolchain_version);
-          shared_ptr<build> b (build_db_->find<build> (bid));
-          optional<string> cl (challenge ());
-
-          // If build configuration doesn't exist then create the new one and
-          // persist. Otherwise put it into the building state, refresh the
-          // timestamp and update.
+          // Find the first build configuration that is not excluded by the
+          // package.
           //
-          if (b == nullptr)
+          shared_ptr<build_package> p (build_db_->load<build_package> (id));
+
+          auto i (configs.begin ());
+          auto e (configs.end ());
+          for (; i != e && exclude (*p, *i->second.config); ++i) ;
+
+          if (i != e)
           {
-            b = make_shared<build> (move (bid.package.name),
-                                    move (bp.version),
-                                    move (bid.configuration),
-                                    move (tqm.toolchain_name),
-                                    move (toolchain_version),
-                                    move (agent_fp),
-                                    move (cl),
-                                    mh.name,
-                                    move (mh.summary),
-                                    cm.config->target);
+            config_machine& cm (i->second);
+            machine_header_manifest& mh (*cm.machine);
+            build_id bid (move (id), cm.config->name, toolchain_version);
+            shared_ptr<build> b (build_db_->find<build> (bid));
+            optional<string> cl (challenge ());
 
-            build_db_->persist (b);
+            // If build configuration doesn't exist then create the new one and
+            // persist. Otherwise put it into the building state, refresh the
+            // timestamp and update.
+            //
+            if (b == nullptr)
+            {
+              b = make_shared<build> (move (bid.package.name),
+                                      move (bp.version),
+                                      move (bid.configuration),
+                                      move (tqm.toolchain_name),
+                                      move (toolchain_version),
+                                      move (agent_fp),
+                                      move (cl),
+                                      mh.name,
+                                      move (mh.summary),
+                                      cm.config->target);
+
+              build_db_->persist (b);
+            }
+            else
+            {
+              // The package configuration is in the building state, and there
+              // are no results.
+              //
+              // Note that in both cases we keep the status intact to be able
+              // to compare it with the final one in the result request
+              // handling in order to decide if to send the notification email.
+              // The same is true for the forced flag (in the sense that we
+              // don't set the force state to unforced).
+              //
+              // Load the section to assert the above statement.
+              //
+              build_db_->load (*b, b->results_section);
+
+              assert (b->state == build_state::building &&
+                      b->results.empty ());
+
+              b->state = build_state::building;
+
+              // Switch the force state not to reissue the task after the
+              // forced rebuild timeout. Note that the result handler will
+              // still recognize that the rebuild was forced.
+              //
+              if (b->force == force_state::forcing)
+                b->force = force_state::forced;
+
+              b->toolchain_name = move (tqm.toolchain_name);
+              b->agent_fingerprint = move (agent_fp);
+              b->agent_challenge = move (cl);
+              b->machine = mh.name;
+              b->machine_summary = move (mh.summary);
+              b->target = cm.config->target;
+              b->timestamp = timestamp::clock::now ();
+
+              build_db_->update (b);
+            }
+
+            // Finally, prepare the task response manifest.
+            //
+            // We iterate over buildable packages.
+            //
+            assert (p->internal_repository != nullptr);
+
+            p->internal_repository.load ();
+
+            tsm = task (move (b), move (p), cm);
           }
-          else
-          {
-            // The package configuration is in the building state, and there
-            // are no results.
-            //
-            // Note that in both cases we keep the status intact to be able to
-            // compare it with the final one in the result request handling in
-            // order to decide if to send the notification email. The same is
-            // true for the forced flag (in the sense that we don't set the
-            // force state to unforced).
-            //
-            // Load the section to assert the above statement.
-            //
-            build_db_->load (*b, b->results_section);
-
-            assert (b->state == build_state::building && b->results.empty ());
-
-            b->state = build_state::building;
-
-            // Switch the force state not to reissue the task after the forced
-            // rebuild timeout. Note that the result handler will still
-            // recognize that the rebuild was forced.
-            //
-            if (b->force == force_state::forcing)
-              b->force = force_state::forced;
-
-            b->toolchain_name = move (tqm.toolchain_name);
-            b->agent_fingerprint = move (agent_fp);
-            b->agent_challenge = move (cl);
-            b->machine = mh.name;
-            b->machine_summary = move (mh.summary);
-            b->target = cm.config->target;
-            b->timestamp = timestamp::clock::now ();
-
-            build_db_->update (b);
-          }
-
-          // Finally, prepare the task response manifest.
-          //
-          shared_ptr<build_package> p (
-            build_db_->load<build_package> (b->id.package));
-
-          p->internal_repository.load ();
-
-          tsm = task (move (b), move (p), cm);
         }
 
         // If the task response manifest is prepared, then bail out from the
-        // package loop, commit transactions and respond.
+        // package loop, commit the transaction and respond.
         //
         if (!tsm.session.empty ())
           break;
@@ -556,10 +570,10 @@ handle (request& rq, response& rs)
 
       // Pick the first package configuration from the ordered list.
       //
-      // Note that the configurations may not match the required criteria
-      // anymore (as we have committed the database transactions that were
-      // used to collect this data) so we recheck. If we find one that matches
-      // then put it into the building state, refresh the timestamp and
+      // Note that the configurations and packages may not match the required
+      // criteria anymore (as we have committed the database transactions that
+      // were used to collect this data) so we recheck. If we find one that
+      // matches then put it into the building state, refresh the timestamp and
       // update. Note that we don't amend the status and the force state to
       // have them available in the result request handling (see above).
       //
@@ -582,25 +596,28 @@ handle (request& rq, response& rs)
             //
             assert (i != cfg_machines.end ());
             const config_machine& cm (i->second);
-            const machine_header_manifest& mh (*cm.machine);
 
-            // Load the package (if still present).
+            // Rebuild the package if still present, is buildable and doesn't
+            // exclude the configuration.
             //
             shared_ptr<build_package> p (
               build_db_->find<build_package> (b->id.package));
 
-            if (p != nullptr)
+            if (p != nullptr && p->internal_repository != nullptr &&
+                !exclude (*p, *cm.config))
             {
               assert (b->status);
 
               b->state = build_state::building;
-              b->machine = mh.name;
 
               // Can't move from, as may need them on the next iteration.
               //
               b->agent_fingerprint = agent_fp;
               b->agent_challenge = cl;
               b->toolchain_name = tqm.toolchain_name;
+
+              const machine_header_manifest& mh (*cm.machine);
+              b->machine = mh.name;
               b->machine_summary = mh.summary;
 
               b->target = cm.config->target;

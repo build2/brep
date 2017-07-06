@@ -13,9 +13,12 @@
 #include <libbrep/utility.hxx>
 
 #include <libbrep/build.hxx>
+#include <libbrep/build-package.hxx>
 
 #include <mod/options.hxx>
 
+// Various build-related state and utilities.
+//
 namespace brep
 {
   // Return pointer to the shared build configurations instance, creating one
@@ -48,6 +51,18 @@ namespace brep
   //
   string
   force_rebuild_url (const string& host, const dir_path& root, const build&);
+
+  // Match a build configuration against the name and target patterns.
+  //
+  bool
+  match (const string& config_pattern,
+         const optional<string>& target_pattern,
+         const bbot::build_config&);
+
+  // Return true if a package excludes the specified build configuration.
+  //
+  bool
+  exclude (const build_package&, const bbot::build_config&);
 }
 
 #endif // MOD_BUILD_CONFIG_HXX

@@ -9,6 +9,7 @@
 #include <chrono>
 
 #include <odb/core.hxx>
+#include <odb/section.hxx>
 #include <odb/nested-container.hxx>
 
 #include <libbrep/types.hxx>
@@ -18,9 +19,9 @@
 
 // Used by the data migration entries.
 //
-#define LIBBREP_PACKAGE_SCHEMA_VERSION_BASE 4
+#define LIBBREP_PACKAGE_SCHEMA_VERSION_BASE 5
 
-#pragma db model version(LIBBREP_PACKAGE_SCHEMA_VERSION_BASE, 4, closed)
+#pragma db model version(LIBBREP_PACKAGE_SCHEMA_VERSION_BASE, 5, open)
 
 namespace brep
 {
@@ -164,6 +165,13 @@ namespace brep
 
   #pragma db value(requirement_alternatives) definition
 
+  // build_constraints
+  //
+  using bpkg::build_constraint;
+  using build_constraints = vector<build_constraint>;
+
+  #pragma db value(build_constraint) definition
+
   #pragma db value
   class certificate
   {
@@ -285,8 +293,10 @@ namespace brep
     using email_type = brep::email;
     using dependencies_type = brep::dependencies;
     using requirements_type = brep::requirements;
+    using build_constraints_type = brep::build_constraints;
 
-    // Create internal package object.
+    // Create internal package object. Note that for stubs the build
+    // constraints are meaningless, and so not saved.
     //
     package (string name,
              version_type,
@@ -303,6 +313,7 @@ namespace brep
              optional<email_type> build_email,
              dependencies_type,
              requirements_type,
+             build_constraints_type,
              optional<path> location,
              optional<string> sha256sum,
              shared_ptr<repository_type>);
@@ -336,6 +347,9 @@ namespace brep
     optional<email_type> build_email;
     dependencies_type dependencies;
     requirements_type requirements;
+
+    build_constraints_type build_constraints; // Note: foreign-mapped in build.
+    odb::section build_section;
 
     // Note that it is foreign-mapped in build.
     //
@@ -413,9 +427,16 @@ namespace brep
       set(odb::nested_set (this.requirements, std::move (?))) \
       id_column("") key_column("") value_column("id")
 
+    // build_constraints
+    //
+    #pragma db member(build_constraints) id_column("") value_column("") \
+      section(build_section)
+
+    #pragma db member(build_section) load(lazy) update(always)
+
     // other_repositories
     //
-    #pragma db member(other_repositories)                  \
+    #pragma db member(other_repositories)                     \
       id_column("") value_column("repository") value_not_null
 
     // search_index
