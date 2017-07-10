@@ -772,7 +772,11 @@ handle (request& rq, response& rs)
               }
             }
             else
-              unbuilt_configs = config_toolchains;
+              // For libc++, the set's copy-assignment operator requires the
+              // element type to be copy-assignable, for some reason.
+              //
+              unbuilt_configs.insert (config_toolchains.begin (),
+                                      config_toolchains.end ());
           }
 
           // Iterate through the package configuration builds and erase them
