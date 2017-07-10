@@ -6,33 +6,24 @@ define sql: file
 sql{*}: extension = sql
 sql{*}: install = data/
 
+# @@ ODB: these are ODB changelogs that are both generated and stored in the
+#         repository (what if src != out?). Will need to think how to handle
+#         them properly (always generate in src_base?).
+#
+define xml: file
+xml{*}: extension = xml
+
 import int_libs  = libodb%lib{odb}
 import int_libs += libodb-pgsql%lib{odb-pgsql}
 import int_libs += libbutl%lib{butl}
 import int_libs += libbpkg%lib{bpkg}
 import int_libs += libbbot%lib{bbot}
 
-lib{brep}:                             \
-{hxx         cxx}{ build             } \
-{file           }{ build.xml         } \
-{hxx ixx     cxx}{ build-odb         } \
-{hxx            }{ build-extra       } \
-{hxx            }{ build-package     } \
-{hxx ixx     cxx}{ build-package-odb } \
-{hxx         cxx}{ common            } \
-{hxx ixx     cxx}{ common-odb        } \
-{hxx         cxx}{ package           } \
-{file           }{ package.xml       } \
-{hxx ixx     cxx}{ package-odb       } \
-{hxx            }{ package-extra     } \
-{hxx         cxx}{ package-traits    } \
-{hxx         cxx}{ database-lock     } \
-{hxx            }{ types             } \
-{hxx            }{ utility           } \
-{hxx            }{ version           } \
-{hxx            }{ wrapper-traits    } \
-                   $int_libs           \
-sql{build build-extra package package-extra}
+lib{brep}:                                                              \
+  {hxx ixx txx cxx}{* -version -*-odb}                                  \
+  {hxx            }{version}                                            \
+  {hxx ixx     cxx}{common-odb package-odb build-odb build-package-odb} \
+  $int_libs xml{*} sql{*}
 
 hxx{version}: in{version} $src_root/file{manifest}
 hxx{version}: dist = true

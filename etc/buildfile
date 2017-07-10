@@ -2,8 +2,7 @@
 # copyright : Copyright (c) 2014-2017 Code Synthesis Ltd
 # license   : MIT; see accompanying LICENSE file
 
-./: file{brep-module.conf brep-apache2.conf} \
-systemd/file{brep-load.service brep-load.timer}
+./: file{** -buildfile}
 
 *: install = data/etc/
 *: install.subdirs = true # Recreate subdirectories.

@@ -9,11 +9,8 @@ import libs += libbpkg%lib{bpkg}
 
 include ../libbrep/
 
-exe{brep-load}:                    \
-{            cxx}{ load          } \
-{hxx ixx     cxx}{ load-options  } \
-{hxx         cxx}{ types-parsers } \
-../libbrep/lib{brep} $libs
+exe{brep-load}: {hxx ixx cxx}{* -load-options} {hxx ixx cxx}{load-options} \
+                ../libbrep/lib{brep} $libs
 
 # Generated options parser.
 #
@@ -28,5 +25,5 @@ if $cli.configured
 
   # Include generated cli files into the distribution.
   #
-  cli.cxx{load-options}: dist = true
+  cli.cxx{*}: dist = true
 }

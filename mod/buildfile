@@ -18,36 +18,11 @@ import libs += libbbot%lib{bbot}
 
 include ../libbrep/
 
-mod{brep}:                                                     \
-              {hxx         cxx}{ build-config                } \
-              {hxx         cxx}{ database                    } \
-              {hxx         cxx}{ database-module             } \
-              {hxx         cxx}{ diagnostics                 } \
-              {hxx         cxx}{ mod-build-force             } \
-              {hxx         cxx}{ mod-build-log               } \
-              {hxx         cxx}{ mod-build-result            } \
-              {hxx         cxx}{ mod-build-task              } \
-              {hxx         cxx}{ mod-builds                  } \
-              {hxx         cxx}{ mod-package-details         } \
-              {hxx         cxx}{ mod-package-search          } \
-              {hxx         cxx}{ mod-package-version-details } \
-              {hxx         cxx}{ mod-repository-details      } \
-              {hxx         cxx}{ mod-repository-root         } \
-              {hxx         cxx}{ module                      } \
-              {hxx ixx     cxx}{ options                     } \
-              {hxx            }{ options-types               } \
-              {hxx         cxx}{ page                        } \
-              {            cxx}{ services                    } \
-              {hxx         cxx}{ types-parsers               } \
-       ../web/{hxx         cxx}{ mime-url-encoding           } \
-       ../web/{hxx            }{ module                      } \
-       ../web/{hxx            }{ version                     } \
-       ../web/{hxx            }{ xhtml                       } \
-       ../web/{hxx         cxx}{ xhtml-fragment              } \
-../web/apache/{hxx            }{ log                         } \
-../web/apache/{hxx ixx     cxx}{ request                     } \
-../web/apache/{hxx     txx cxx}{ service                     } \
-../web/apache/{hxx            }{ stream                      } \
+mod{brep}:    {hxx ixx txx cxx}{* -options} \
+              {hxx ixx     cxx}{   options} \
+       ../web/{hxx ixx txx cxx}{* -version} \
+       ../web/{hxx            }{   version} \
+../web/apache/{hxx ixx txx cxx}{*         } \
 ../libbrep/lib{brep} $libs
 
 ../web/hxx{version}: ../web/in{version} $src_root/file{manifest}
@@ -55,7 +30,7 @@ mod{brep}:                                                     \
 
 # Don't install any of the module's headers.
 #
-{hxx ixx txx}{*}: install = false
+       {hxx ixx txx}{*}: install = false
 ../web/{hxx ixx txx}{*}: install = false
 
 # Generated options parser.
@@ -75,5 +50,5 @@ if $cli.configured
 
   # Include generated cli files into the distribution.
   #
-  cli.cxx{options}: dist = true
+  cli.cxx{*}: dist = true
 }

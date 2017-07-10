@@ -9,13 +9,14 @@ import libs += libodb%lib{odb}
 
 include ../../libbrep/
 
-exe{driver}: cxx{driver} ../../libbrep/lib{brep} $libs
+./: exe{driver} file{loadtab cert *.pem openssl.cnf */**}
 
-# Disable for now until build2 test module supports running custom
-# commands, pre/post steps.
+exe{driver}: cxx{*} ../../libbrep/lib{brep} $libs
+
+# Disable until testscript is implemented.
 #
 exe{driver}: test = false
 
-# precondition: PostgreSQL server running port 8432 with brep schema created.
+# precondition: the environment is setup according to INSTALL-DEV file.
 # test:
-# ./driver ../../load/brep-load --db-host localhost --db-port 8432 ./loadtab
+# ./driver ../../load/brep-load --bpkg ../../../bpkg/bpkg/bpkg ./loadtab
