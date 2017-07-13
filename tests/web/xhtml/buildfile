@@ -4,7 +4,7 @@
 
 import libs = libstudxml%lib{studxml}
 
-exe{driver}: cxx{*} $libs
+exe{driver}: {hxx cxx}{*} $libs
 exe{driver}: test.output = test.out
 
 # @@ The rule doesn't trigger the target generating. Will be fixed when we add

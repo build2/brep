@@ -11,7 +11,7 @@ include ../../libbrep/
 
 ./: exe{driver} file{loadtab cert *.pem openssl.cnf */**}
 
-exe{driver}: cxx{*} ../../libbrep/lib{brep} $libs
+exe{driver}: {hxx cxx}{*} ../../libbrep/lib{brep} $libs
 
 # Disable until testscript is implemented.
 #
