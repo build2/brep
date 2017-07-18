@@ -371,8 +371,7 @@ handle (request& rq, response& rs)
                          b.toolchain_name + '-' +
                          b.toolchain_version.string ())
         <<     TR_VALUE ("config",
-                         b.configuration + " / " +
-                         (b.target ? b.target->string () : "<default>"))
+                         b.configuration + " / " + b.target.string ())
         <<     TR_VALUE ("timestamp", ts)
         <<     TR_BUILD_RESULT (b, host, root)
         <<   ~TBODY
@@ -421,9 +420,7 @@ handle (request& rq, response& rs)
       {
         s << TABLE(CLASS="proplist build")
           <<   TBODY
-          <<     TR_VALUE ("config",
-                           c.name + " / " +
-                           (c.target ? c.target->string () : "<default>"))
+          <<     TR_VALUE ("config", c.name + " / " + c.target.string ())
           <<     TR_VALUE ("result",
                            !reason.empty ()
                            ? "excluded (" + reason + ')'

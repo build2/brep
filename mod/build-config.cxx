@@ -152,8 +152,7 @@ namespace brep
          const build_config& c)
   {
     return path_match (config_pattern, c.name) &&
-      (!target_pattern ||
-       (c.target && path_match (*target_pattern, c.target->string ())));
+      (!target_pattern || path_match (*target_pattern, c.target.string ()));
   }
 
   bool

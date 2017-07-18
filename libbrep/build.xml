@@ -24,7 +24,7 @@
       <column name="agent_challenge" type="TEXT" null="true"/>
       <column name="machine" type="TEXT" null="false"/>
       <column name="machine_summary" type="TEXT" null="false"/>
-      <column name="target" type="TEXT" null="true"/>
+      <column name="target" type="TEXT" null="false"/>
       <primary-key>
         <column name="package_name"/>
         <column name="package_version_epoch"/>

@@ -149,12 +149,8 @@ build_query (const brep::cstrings& configs, const brep::params::builds& params)
 
     // Build target.
     //
-    const string& tg (params.target ());
-
-    if (tg != "*")
-      q = q && (tg.empty ()
-                ? qb::target.is_null ()
-                : qb::target.like (transform (tg)));
+    if (!params.target ().empty ())
+      q = q && qb::target.like (transform (params.target ()));
 
     // Build result.
     //
@@ -386,7 +382,7 @@ handle (request& rq, response& rs)
         <<       ~TR
 
         <<       TR_INPUT  ("machine", "mn", params.machine (), "*")
-        <<       TR_INPUT  ("target", "tg", params.target (), "<default>")
+        <<       TR_INPUT  ("target", "tg", params.target (), "*")
         <<       TR_SELECT ("result", "rs", params.result (), build_results)
         <<     ~TBODY
         <<   ~TABLE
@@ -456,8 +452,7 @@ handle (request& rq, response& rs)
                          b.toolchain_version.string ())
         <<     TR_VALUE ("config", b.configuration)
         <<     TR_VALUE ("machine", b.machine)
-        <<     TR_VALUE ("target",
-                         b.target ? b.target->string () : "<default>")
+        <<     TR_VALUE ("target", b.target.string ())
         <<     TR_VALUE ("timestamp", ts)
         <<     TR_BUILD_RESULT (b, host, root)
         <<   ~TBODY
@@ -546,10 +541,9 @@ handle (request& rq, response& rs)
       {
         if ((pc.empty () || path_match (pc, c.name)) && // Filter by name.
 
-            (tg.empty ()                                // Filter by target.
-             ? !c.target
-             : tg == "*" ||
-               (c.target && path_match (tg, c.target->string ()))))
+            // Filter by target.
+            //
+            (tg.empty () || path_match (tg, c.target.string ())))
         {
           configs.push_back (&c);
 
@@ -803,8 +797,6 @@ handle (request& rq, response& rs)
             auto i (build_conf_map_->find (ct.configuration.c_str ()));
             assert (i != build_conf_map_->end ());
 
-            const optional<target_triplet>& tg (i->second->target);
-
             s << TABLE(CLASS="proplist build")
               <<   TBODY
               <<     TR_NAME (id.name, string (), root)
@@ -813,7 +805,7 @@ handle (request& rq, response& rs)
                                string (ct.toolchain_name) + '-' +
                                ct.toolchain_version.string ())
               <<     TR_VALUE ("config", ct.configuration)
-              <<     TR_VALUE ("target", tg ? tg->string () : "<default>")
+              <<     TR_VALUE ("target", i->second->target.string ())
               <<   ~TBODY
               << ~TABLE;
 
@@ -851,7 +843,7 @@ handle (request& rq, response& rs)
   add_filter ("tc", params.toolchain (), "*");
   add_filter ("cf", params.configuration ());
   add_filter ("mn", params.machine ());
-  add_filter ("tg", params.target (), "*");
+  add_filter ("tg", params.target ());
   add_filter ("rs", params.result (), "*");
 
   s <<       DIV_PAGER (page, count, page_configs, options_->build_pages (), u)

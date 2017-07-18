@@ -146,13 +146,9 @@ namespace brep
 
   // target_triplet
   //
-  using optional_target_triplet = optional<butl::target_triplet>;
-
-  #pragma db map type(optional_target_triplet) as(optional_string) \
-    to((?) ? (?)->string () : brep::optional_string ())            \
-    from((?)                                                       \
-         ? butl::target_triplet (*(?))                             \
-         : brep::optional_target_triplet ())
+  #pragma db map type(butl::target_triplet) as(string) \
+    to((?).string ())                                  \
+    from(butl::target_triplet (?))
 
   // operation_results
   //
@@ -176,7 +172,7 @@ namespace brep
            optional<string> agent_fingerprint,
            optional<string> agent_challenge,
            string machine, string machine_summary,
-           optional<butl::target_triplet> target);
+           butl::target_triplet);
 
     build_id id;
 
@@ -206,10 +202,7 @@ namespace brep
 
     string machine;
     string machine_summary;
-
-    // Default for the machine if absent.
-    //
-    optional<butl::target_triplet> target;
+    butl::target_triplet target;
 
     // Note that the logs are stored as std::string/TEXT which is Ok since
     // they are UTF-8 and our database is UTF-8.

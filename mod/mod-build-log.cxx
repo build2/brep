@@ -200,8 +200,7 @@ handle (request& rq, response& rs)
      << "config:    " << b->configuration << endl
      << "machine:   " << b->machine << " (" << b->machine_summary << ")"
                       << endl
-     << "target:    " << (b->target ? b->target->string () : "<default>")
-                      << endl
+     << "target:    " << b->target.string () << endl
      << "timestamp: ";
 
   butl::to_stream (os, b->timestamp, "%Y-%m-%d %H:%M:%S%[.N] %Z", true, true);

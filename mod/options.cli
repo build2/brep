@@ -523,10 +523,10 @@ namespace brep
       //
       string machine | mn;
 
-      // Package build target wildcard. If empty, then the default machine
-      // target is matched.
+      // Package build target wildcard. An empty value is treated the same way
+      // as *.
       //
-      string target | tg = "*";
+      string target | tg;
 
       // Package build result. If *, then no build result constraint is
       // applied. Otherwise the value is supposed to be the one of the

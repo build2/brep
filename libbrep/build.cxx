@@ -60,7 +60,7 @@ namespace brep
          string tnm, version tvr,
          optional<string> afp, optional<string> ach,
          string mnm, string msm,
-         optional<butl::target_triplet> trg)
+         butl::target_triplet trg)
       : id (package_id (move (pnm), pvr), move (cfg), tvr),
         package_name (id.package.name),
         package_version (move (pvr)),
