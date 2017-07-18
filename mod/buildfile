@@ -23,7 +23,7 @@ mod{brep}:    {hxx ixx txx cxx}{* -options} \
        ../web/{hxx ixx txx cxx}{* -version} \
        ../web/{hxx            }{   version} \
 ../web/apache/{hxx ixx txx cxx}{*         } \
-../libbrep/lib{brep} $libs
+../libbrep/libs{brep} $libs
 
 ../web/hxx{version}: ../web/in{version} $src_root/file{manifest}
 ../web/hxx{version}: dist = true
