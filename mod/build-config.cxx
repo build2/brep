@@ -160,14 +160,8 @@ namespace brep
   {
     for (const auto& bc: p.constraints)
     {
-      if (!bc.exclusion && match (bc.config, bc.target, c))
-        return false;
-    }
-
-    for (const auto& bc: p.constraints)
-    {
-      if (bc.exclusion && match (bc.config, bc.target, c))
-        return true;
+      if (match (bc.config, bc.target, c))
+        return bc.exclusion;
     }
 
     return false;

@@ -384,14 +384,11 @@ handle (request& rq, response& rs)
     {
       for (const auto& bc: pkg->build_constraints)
       {
-        if (!bc.exclusion && match (bc.config, bc.target, c))
-          return false;
-      }
-
-      for (const auto& bc: pkg->build_constraints)
-      {
-        if (bc.exclusion && match (bc.config, bc.target, c))
+        if (match (bc.config, bc.target, c))
         {
+          if (!bc.exclusion)
+            return false;
+
           // Save the first sentence of the exclusion comment, lower-case the
           // first letter if the beginning looks like a word (the second
           // character is the lower-case letter or space).
