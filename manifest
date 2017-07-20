@@ -9,9 +9,9 @@ changes-file: NEWS
 url: https://build2.org
 email: users@build2.org
 build-email: builds@build2.org
-build-exclude: * ; Only supports Linux and FreeBSD.
 build-include: linux*
 build-include: freebsd*
+build-exclude: * ; Only supports Linux and FreeBSD.
 requires: c++14
 requires: postgresql >= 9.0
 requires: apache2; Including development files (httpd.h header, etc).
