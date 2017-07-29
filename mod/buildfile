@@ -6,32 +6,22 @@ define mod: libs
 mod{*}: bin.lib.prefix = mod_
 mod{*}: install = libexec/
 
-# While we don't need to link to APR, we need to find its header location.
-#
-import libs  = libapr1%lib{apr-1}
-import libs += libstudxml%lib{studxml}
-import libs += libodb%lib{odb}
+import libs  = libodb%lib{odb}
 import libs += libodb-pgsql%lib{odb-pgsql}
 import libs += libbutl%lib{butl}
 import libs += libbpkg%lib{bpkg}
 import libs += libbbot%lib{bbot}
 
 include ../libbrep/
+include ../web/
 
-mod{brep}:    {hxx ixx txx cxx}{* -options} \
-              {hxx ixx     cxx}{   options} \
-       ../web/{hxx ixx txx cxx}{* -version} \
-       ../web/{hxx            }{   version} \
-../web/apache/{hxx ixx txx cxx}{*         } \
-../libbrep/libs{brep} $libs
-
-../web/hxx{version}: ../web/in{version} $src_root/file{manifest}
-../web/hxx{version}: dist = true
+mod{brep}: {hxx ixx txx cxx}{* -options} \
+           {hxx ixx     cxx}{   options} \
+           ../libbrep/libs{brep} ../web/libus{web} $libs
 
 # Don't install any of the module's headers.
 #
-       {hxx ixx txx}{*}: install = false
-../web/{hxx ixx txx}{*}: install = false
+{hxx ixx txx}{*}: install = false
 
 # Generated options parser.
 #

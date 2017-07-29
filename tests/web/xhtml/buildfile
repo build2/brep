@@ -2,12 +2,6 @@
 # copyright : Copyright (c) 2014-2017 Code Synthesis Ltd
 # license   : MIT; see accompanying LICENSE file
 
-import libs = libstudxml%lib{studxml}
-
-exe{driver}: {hxx cxx}{*} $libs
+include ../../../web/
+exe{driver}: {hxx cxx}{*} ../../../web/libus{web}
 exe{driver}: test.output = test.out
-
-# @@ The rule doesn't trigger the target generating. Will be fixed when we add
-#    support for utility library.
-#
-../../../web/hxx{version}: ../../../web/in{version} $src_root/file{manifest}

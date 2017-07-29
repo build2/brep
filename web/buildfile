@@ -1,0 +1,19 @@
+# file      : web/buildfile
+# copyright : Copyright (c) 2014-2017 Code Synthesis Ltd
+# license   : MIT; see accompanying LICENSE file
+
+# This is currently part of the brep apache module but lives in a separate
+# directory. Thus the strange choices: libus{}, no header installation, etc.
+
+# While we don't need to link to APR, we need to find its header location.
+#
+import libs  = libapr1%lib{apr-1}
+import libs += libstudxml%lib{studxml}
+import libs += libbutl%lib{butl}
+
+libus{web}: {hxx ixx txx cxx}{** -version} {hxx}{version} $libs
+
+hxx{version}: in{version} $src_root/file{manifest}
+hxx{version}: dist = true
+
+{hxx ixx txx}{*}: install = false
