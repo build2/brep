@@ -195,6 +195,12 @@ handle (request& rq, response& rs)
     <<     TR_URL (pkg->url)
     <<     TR_EMAIL (em);
 
+  if (pkg->doc_url)
+    s << TR_URL (*pkg->doc_url, "doc-url");
+
+  if (pkg->src_url)
+    s << TR_URL (*pkg->src_url, "src-url");
+
   const auto& pu (pkg->package_url);
   if (pu && *pu != pkg->url)
     s << TR_URL (*pu, "package-url");

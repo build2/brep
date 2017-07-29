@@ -84,6 +84,10 @@
       <column name="changes" type="TEXT" null="false"/>
       <column name="url" type="TEXT" null="false"/>
       <column name="url_comment" type="TEXT" null="false"/>
+      <column name="doc_url" type="TEXT" null="true"/>
+      <column name="doc_url_comment" type="TEXT" null="true"/>
+      <column name="src_url" type="TEXT" null="true"/>
+      <column name="src_url_comment" type="TEXT" null="true"/>
       <column name="package_url" type="TEXT" null="true"/>
       <column name="package_url_comment" type="TEXT" null="true"/>
       <column name="email" type="TEXT" null="false"/>

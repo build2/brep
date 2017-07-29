@@ -404,6 +404,8 @@ load_packages (const shared_ptr<repository>& rp, database& db)
           move (dsc),
           move (chn),
           move (pm.url),
+          move (pm.doc_url),
+          move (pm.src_url),
           move (pm.package_url),
           move (pm.email),
           move (pm.package_email),

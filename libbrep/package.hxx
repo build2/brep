@@ -307,6 +307,8 @@ namespace brep
              optional<string> description,
              string changes,
              url_type,
+             optional<url_type> doc_url,
+             optional<url_type> src_url,
              optional<url_type> package_url,
              email_type,
              optional<email_type> package_email,
@@ -341,6 +343,8 @@ namespace brep
     optional<string> description;
     string changes;
     url_type url;
+    optional<url_type> doc_url;
+    optional<url_type> src_url;
     optional<url_type> package_url;
     email_type email;
     optional<email_type> package_email;

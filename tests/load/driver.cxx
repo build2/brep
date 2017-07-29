@@ -511,6 +511,10 @@ main (int argc, char* argv[])
               "MATLAB.\n\nUseful for conversion of research code into "
               "production environments.");
       assert (fpv5->url == "http://www.example.com/foo/");
+      assert (fpv5->doc_url && *fpv5->doc_url ==
+              "http://www.example.org/projects/libfoo/man.xhtml");
+      assert (fpv5->src_url &&
+              *fpv5->src_url == "https://git.example.org/cgit/libfoo/tree/");
       assert (fpv5->package_url &&
               *fpv5->package_url == "http://www.example.com/foo/pack");
       assert (fpv5->email == "foo-users@example.com");
@@ -602,7 +606,7 @@ main (int argc, char* argv[])
       assert (check_location (fpv5));
 
       assert (fpv5->sha256sum && *fpv5->sha256sum ==
-        "6bf9de8c4647a32dee79ad5e787c10311495e3f6b5727bfd03b2d9dcd6a16eed");
+        "2d912d510b42b1fa04028b0c6a31158ec14b225431b9c2ac0c953d46a7304225");
 
       // Verify libexp package version.
       //
@@ -648,8 +652,8 @@ main (int argc, char* argv[])
       assert (
         epv->build_constraints ==
         build_constraints ({
-          build_constraint (false, "linux*", nullopt, ""),
-          build_constraint (true, "*", nullopt, "Only supported on Linux.")}));
+          build_constraint (true, "*", nullopt, "Only supported on Linux."),
+          build_constraint (false, "linux*", nullopt, "")}));
 
       assert (check_location (epv));
       assert (epv->sha256sum && *epv->sha256sum ==

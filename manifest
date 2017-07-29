@@ -8,6 +8,7 @@ description-file: README
 changes-file: NEWS
 url: https://build2.org
 email: users@build2.org
+src-url: https://git.build2.org/cgit/brep/tree/
 build-email: builds@build2.org
 build-include: linux*
 build-include: freebsd*

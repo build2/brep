@@ -180,8 +180,15 @@ handle (request& rq, response& rs)
       <<   TBODY
       <<     TR_LICENSE (licenses)
       <<     TR_URL (pkg->url)
-      <<     TR_EMAIL (pkg->email)
-      <<     TR_TAGS (pkg->tags, root)
+      <<     TR_EMAIL (pkg->email);
+
+    if (pkg->doc_url)
+      s << TR_URL (*pkg->doc_url, "doc-url");
+
+    if (pkg->src_url)
+      s << TR_URL (*pkg->src_url, "src-url");
+
+    s <<     TR_TAGS (pkg->tags, root)
       <<   ~TBODY
       << ~TABLE;
   }

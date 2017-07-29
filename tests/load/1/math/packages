@@ -12,8 +12,8 @@ email: users@exp.com
 build-email: builds@exp.com
 depends: libmisc
 depends: libpq >= 9.0.0
-build-include: linux*
 build-exclude: *; Only supported on Linux.
+build-include: linux*
 location: libexp-1~1.2+1.tar.gz
 sha256sum: 0a7414d06ad26d49dad203deaf3841f3df97f1fe27c5bf190c1c20dfeb7f84e0
 :
@@ -51,8 +51,10 @@ changes: \
  * test suite extended significantly
 \
 url: http://www.example.com/foo/; Project home page.
-package-url: http://www.example.com/foo/pack; Package details.
 email: foo-users@example.com; Public mailing list. Read FAQ before posting.
+doc-url: http://www.example.org/projects/libfoo/man.xhtml; documentation page
+src-url: https://git.example.org/cgit/libfoo/tree/; source tree url
+package-url: http://www.example.com/foo/pack; Package details.
 package-email: pack@example.com; Current packager.
 depends: libmisc < 1.1 | libmisc > 2.3.0; Crashes with 1.1.0-2.3.0.
 depends: libexp >= 1.0
@@ -62,7 +64,7 @@ requires: c++11
 requires: ? ; libc++ standard library if using Clang on Mac OS X.
 requires: ? vc++ >= 12.0; Only if using VC++ on Windows.
 location: libfoo-1.2.4+1.tar.gz
-sha256sum: 6bf9de8c4647a32dee79ad5e787c10311495e3f6b5727bfd03b2d9dcd6a16eed
+sha256sum: 2d912d510b42b1fa04028b0c6a31158ec14b225431b9c2ac0c953d46a7304225
 :
 name: libpq
 version: 0
@@ -92,8 +94,8 @@ https://git.build2.org/cgit/packaging/postgresql/
 
 \
 url: https://www.postgresql.org/
-package-url: https://git.build2.org/cgit/packaging/postgresql/
 email: pgsql-general@postgresql.org; Mailing list.
+package-url: https://git.build2.org/cgit/packaging/postgresql/
 package-email: packaging@build2.org; Mailing list.
 requires: build2 >= 0.4.0
 location: libpq-0.tar.gz
