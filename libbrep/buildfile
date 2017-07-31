@@ -41,4 +41,4 @@ lib{brep}: cxx.export.libs = $int_libs
 
 # Install into the libbrep/ subdirectory of, say, /usr/include/.
 #
-install.include = $install.include/libbrep/
+{hxx ixx txx}{*}: install = include/libbrep/
