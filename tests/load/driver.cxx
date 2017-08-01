@@ -510,11 +510,17 @@ main (int argc, char* argv[])
               "total with an extensive test suite. The API is\nsimilar to "
               "MATLAB.\n\nUseful for conversion of research code into "
               "production environments.");
+
       assert (fpv5->url == "http://www.example.com/foo/");
+
       assert (fpv5->doc_url && *fpv5->doc_url ==
-              "http://www.example.org/projects/libfoo/man.xhtml");
-      assert (fpv5->src_url &&
-              *fpv5->src_url == "https://git.example.org/cgit/libfoo/tree/");
+              "http://www.example.org/projects/libfoo/man.xhtml" &&
+              fpv5->doc_url->comment == "Documentation page.");
+
+      assert (fpv5->src_url && *fpv5->src_url ==
+              "http://scm.example.com/?p=odb/libodb.git;a=tree" &&
+              fpv5->src_url->comment == "Source tree url.");
+
       assert (fpv5->package_url &&
               *fpv5->package_url == "http://www.example.com/foo/pack");
       assert (fpv5->email == "foo-users@example.com");
@@ -606,7 +612,7 @@ main (int argc, char* argv[])
       assert (check_location (fpv5));
 
       assert (fpv5->sha256sum && *fpv5->sha256sum ==
-        "2d912d510b42b1fa04028b0c6a31158ec14b225431b9c2ac0c953d46a7304225");
+        "c5e593d8efdc34a258f8c0b8cc352dc7193ea4a1d666bcf8d48708c7dd82d0d6");
 
       // Verify libexp package version.
       //

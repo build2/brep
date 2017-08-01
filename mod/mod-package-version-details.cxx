@@ -171,7 +171,6 @@ handle (request& rq, response& rs)
 
   assert (pkg->location && pkg->sha256sum);
 
-  const email& em (pkg->email);
   const repository_location& rl (pkg->internal_repository.load ()->location);
 
   s << TABLE(CLASS="proplist", ID="version")
@@ -192,8 +191,7 @@ handle (request& rq, response& rs)
 
     << TABLE(CLASS="proplist", ID="package")
     <<   TBODY
-    <<     TR_URL (pkg->url)
-    <<     TR_EMAIL (em);
+    <<     TR_URL (pkg->url);
 
   if (pkg->doc_url)
     s << TR_URL (*pkg->doc_url, "doc-url");
@@ -204,6 +202,9 @@ handle (request& rq, response& rs)
   const auto& pu (pkg->package_url);
   if (pu && *pu != pkg->url)
     s << TR_URL (*pu, "package-url");
+
+  const email& em (pkg->email);
+  s << TR_EMAIL (em);
 
   const auto& pe (pkg->package_email);
   if (pe && *pe != em)
