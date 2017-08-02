@@ -7,8 +7,9 @@ tags: build2, c++, package, repository, web, interface, apache, module
 description-file: README
 changes-file: NEWS
 url: https://build2.org
-email: users@build2.org
+doc-url: https://build2.org/doc.xhtml
 src-url: https://git.build2.org/cgit/brep/tree/
+email: users@build2.org
 build-email: builds@build2.org
 build-include: linux*
 build-include: freebsd*
