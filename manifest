@@ -1,6 +1,6 @@
 : 1
 name: brep
-version: 0.6.0-a.0.z
+version: 0.6.0
 summary: build2 package repository web interface
 license: MIT
 tags: build2, c++, package, repository, web, interface, apache, module
@@ -17,14 +17,14 @@ build-exclude: * ; Only supports Linux and FreeBSD.
 requires: c++14
 requires: postgresql >= 9.0
 requires: apache2; Including development files (httpd.h header, etc).
-depends: * build2 >= 0.5.0-
-depends: * bpkg >= 0.5.0-
+depends: * build2 >= 0.6.0-
+depends: * bpkg >= 0.6.0-
 # @@ Should probably become conditional dependency.
 requires: ? cli ; Only required if changing .cli files.
 depends: libapr1
-depends: libstudxml [1.1.0-b.1.1 1.1.0-b.2)
-depends: libodb [2.5.0-b.4.1 2.5.0-b.5)
-depends: libodb-pgsql [2.5.0-b.4.1 2.5.0-b.5)
-depends: libbutl [0.6.0-a.0.1 0.6.0-a.1)
-depends: libbpkg [0.6.0-a.0.1 0.6.0-a.1)
-depends: libbbot [0.6.0-a.0.1 0.6.0-a.1)
+depends: libstudxml == 1.1.0-b.2
+depends: libodb == 2.5.0-b.5
+depends: libodb-pgsql == 2.5.0-b.5
+depends: libbutl [0.6.0 0.7.0-); 0.6.X
+depends: libbpkg [0.6.0 0.7.0-); 0.6.X
+depends: libbbot [0.6.0 0.7.0-); 0.6.X
