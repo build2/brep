@@ -1,3 +1,16 @@
+Version 0.6.0
+
+  * Support for displaying package builds both on individual package pages
+    as well as overall for all packages.
+
+  * Support for bbot agent authentication.
+
+  * Support for build-include and build-exclude package manifest values.
+
+  * Support for specifying custom warning detection regular expressions.
+
+  * Support for displaying doc-url and src-url package manifest values.
+
 Version 0.5.0
 
   * Initial support for the bbot controller functionality. Currently packages
