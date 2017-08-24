@@ -8,5 +8,3 @@ build-odb.?xx
 build-package-odb.?xx
 build.sql
 build-extra.hxx
-
-version.hxx

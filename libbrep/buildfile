@@ -25,7 +25,13 @@ libs{brep}:                                                             \
   {hxx ixx     cxx}{common-odb package-odb build-odb build-package-odb} \
   $int_libs xml{*} sql{*}
 
+# Include the generated version header into the distribution (so that we don't
+# pick up an installed one) and don't remove it when cleaning in src (so that
+# clean results in a state identical to distributed).
+#
 hxx{version}: in{version} $src_root/file{manifest}
+hxx{version}: dist  = true
+hxx{version}: clean = ($src_root != $out_root)
 
 # For pre-releases use the complete version to make sure they cannot be used
 # in place of another pre-release or the final version.

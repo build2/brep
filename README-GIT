@@ -1,0 +1,4 @@
+The checked out libbrep/version.hxx will be overwritten during the build
+process but these changes should be ignored. To do this automatically, run:
+
+git update-index --assume-unchanged libbrep/version.hxx
