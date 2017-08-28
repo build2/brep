@@ -421,7 +421,7 @@ handle (request& rq, response& rs)
     // Print package build configurations ordered by the timestamp (later goes
     // first).
     //
-    timestamp now (timestamp::clock::now ());
+    timestamp now (system_clock::now ());
 
     // Enclose the subsequent tables to be able to use nth-child CSS selector.
     //

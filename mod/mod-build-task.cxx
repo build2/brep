@@ -213,7 +213,7 @@ handle (request& rq, response& rs)
     // Calculate the build (building state) or rebuild (built state) expiration
     // time for package configurations
     //
-    timestamp now (timestamp::clock::now ());
+    timestamp now (system_clock::now ());
 
     auto expiration = [&now] (size_t timeout) -> timestamp
     {
@@ -511,7 +511,7 @@ handle (request& rq, response& rs)
               b->machine = mh.name;
               b->machine_summary = move (mh.summary);
               b->target = cm.config->target;
-              b->timestamp = timestamp::clock::now ();
+              b->timestamp = system_clock::now ();
 
               build_db_->update (b);
             }
@@ -627,7 +627,7 @@ handle (request& rq, response& rs)
               b->results_section.load ();
               b->results.clear ();
 
-              b->timestamp = timestamp::clock::now ();
+              b->timestamp = system_clock::now ();
 
               build_db_->update (b);
 

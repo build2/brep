@@ -87,6 +87,7 @@ namespace brep
 
   // <libbutl/timestamp.hxx>
   //
+  using butl::system_clock;
   using butl::timestamp;
   using butl::timestamp_nonexistent;
 }

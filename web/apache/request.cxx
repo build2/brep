@@ -521,8 +521,8 @@ namespace web
 
       if (max_age)
       {
-        timestamp tp (timestamp::clock::now () + *max_age);
-        time_t t (timestamp::clock::to_time_t (tp));
+        timestamp tp (system_clock::now () + *max_age);
+        time_t t (system_clock::to_time_t (tp));
 
         // Assume global locale is not changed and still "C".
         //

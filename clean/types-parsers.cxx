@@ -26,7 +26,7 @@ namespace cli
     string ov (s.next ());
     size_t p (ov.find ('='));
 
-    timestamp now (timestamp::clock::now ());
+    timestamp now (system_clock::now ());
 
     // Convert timeout duration into the time point.
     //

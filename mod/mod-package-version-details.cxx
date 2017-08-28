@@ -348,7 +348,7 @@ handle (request& rq, response& rs)
     s << H3 << "Builds" << ~H3
       << DIV(ID="builds");
 
-    timestamp now (timestamp::clock::now ());
+    timestamp now (system_clock::now ());
     transaction t (build_db_->begin ());
 
     // Print built package configurations.

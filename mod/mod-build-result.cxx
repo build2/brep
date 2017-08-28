@@ -360,7 +360,7 @@ handle (request& rq, response&)
         b->results_section.load ();
         b->results = move (rqm.result.results);
 
-        b->timestamp = timestamp::clock::now ();
+        b->timestamp = system_clock::now ();
 
         build_db_->update (b);
       }
