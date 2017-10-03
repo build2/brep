@@ -108,7 +108,7 @@ namespace brep
                              std::chrono::nanoseconds::period>::value,
     "The following timestamp ODB mapping is invalid");
 
-  // As it pointed out in libbutl/timestamp.hxx we will overflow in year 2262,
+  // As it pointed out in libbutl/timestamp.mxx we will overflow in year 2262,
   // but by that time some larger basic type will be available for mapping.
   //
   #pragma db map type(timestamp) as(uint64_t)                 \

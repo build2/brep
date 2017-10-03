@@ -15,8 +15,8 @@
 #include <utility>   // move()
 #include <stdexcept> // runtime_error
 
-#include <libbutl/path.hxx>
-#include <libbutl/optional.hxx>
+#include <libbutl/path.mxx>
+#include <libbutl/optional.mxx>
 
 namespace web
 {

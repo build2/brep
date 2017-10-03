@@ -7,10 +7,10 @@
 #include <map>
 #include <sstream>
 
-#include <libbutl/sha256.hxx>
-#include <libbutl/utility.hxx>    // throw_generic_error()
-#include <libbutl/openssl.hxx>
-#include <libbutl/filesystem.hxx>
+#include <libbutl/sha256.mxx>
+#include <libbutl/utility.mxx>    // throw_generic_error()
+#include <libbutl/openssl.mxx>
+#include <libbutl/filesystem.mxx>
 
 #include <web/mime-url-encoding.hxx>
 

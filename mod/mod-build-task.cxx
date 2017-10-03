@@ -11,14 +11,14 @@
 #include <odb/transaction.hxx>
 #include <odb/schema-catalog.hxx>
 
-#include <libbutl/sha256.hxx>
-#include <libbutl/utility.hxx>             // compare_c_string
-#include <libbutl/openssl.hxx>
-#include <libbutl/fdstream.hxx>            // nullfd
-#include <libbutl/filesystem.hxx>          // path_match()
-#include <libbutl/process-io.hxx>
-#include <libbutl/manifest-parser.hxx>
-#include <libbutl/manifest-serializer.hxx>
+#include <libbutl/sha256.mxx>
+#include <libbutl/utility.mxx>             // compare_c_string
+#include <libbutl/openssl.mxx>
+#include <libbutl/fdstream.mxx>            // nullfd
+#include <libbutl/filesystem.mxx>          // path_match()
+#include <libbutl/process-io.mxx>
+#include <libbutl/manifest-parser.mxx>
+#include <libbutl/manifest-serializer.mxx>
 
 #include <libbbot/manifest.hxx>
 #include <libbbot/build-config.hxx>

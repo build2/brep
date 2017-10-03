@@ -11,7 +11,7 @@
 #include <odb/database.hxx>
 #include <odb/transaction.hxx>
 
-#include <libbutl/timestamp.hxx> // to_string()
+#include <libbutl/timestamp.mxx> // to_string()
 
 #include <web/xhtml.hxx>
 #include <web/module.hxx>

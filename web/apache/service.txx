@@ -9,6 +9,8 @@
 #include <utility>   // move()
 #include <exception>
 
+#include <libbutl/utility.mxx> // operator<<(ostream, exception)
+
 namespace web
 {
   namespace apache

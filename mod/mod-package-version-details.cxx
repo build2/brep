@@ -10,7 +10,7 @@
 #include <odb/database.hxx>
 #include <odb/transaction.hxx>
 
-#include <libbutl/utility.hxx> // alpha(), ucase(), lcase()
+#include <libbutl/utility.mxx> // alpha(), ucase(), lcase()
 
 #include <web/xhtml.hxx>
 #include <web/module.hxx>

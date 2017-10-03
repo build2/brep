@@ -11,7 +11,7 @@
 
 #include <odb/pgsql/database.hxx>
 
-#include <libbutl/pager.hxx>
+#include <libbutl/pager.mxx>
 
 #include <libbbot/build-config.hxx>
 

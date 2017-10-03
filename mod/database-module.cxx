@@ -10,7 +10,7 @@
 
 #include <odb/exceptions.hxx>
 
-#include <libbutl/utility.hxx> // throw_generic_error()
+#include <libbutl/utility.mxx> // throw_generic_error()
 
 #include <mod/options.hxx>
 #include <mod/database.hxx>

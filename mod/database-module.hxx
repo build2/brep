@@ -9,7 +9,7 @@
 
 #include <odb/forward.hxx> // database
 
-#include <libbutl/utility.hxx> // compare_c_string
+#include <libbutl/utility.mxx> // compare_c_string
 
 #include <libbrep/types.hxx>
 #include <libbrep/utility.hxx>

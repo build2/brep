@@ -10,7 +10,7 @@
 #include <odb/core.hxx>
 #include <odb/section.hxx>
 
-#include <libbutl/target-triplet.hxx>
+#include <libbutl/target-triplet.mxx>
 
 #include <libbbot/manifest.hxx>
 

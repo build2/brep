@@ -28,8 +28,8 @@
 #include <streambuf>
 #include <algorithm> // min()
 
-#include <libbutl/optional.hxx>
-#include <libbutl/timestamp.hxx>
+#include <libbutl/optional.mxx>
+#include <libbutl/timestamp.mxx>
 
 #include <web/mime-url-encoding.hxx>
 
