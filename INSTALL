@@ -300,9 +300,20 @@ you can use 'systemctl edit' instead of mkdir and cat):
 Requires=postgresql.service
 After=postgresql.service
 ^D
+
+# mkdir -p /etc/systemd/system/postgresql.service.d/
+# cat >/etc/systemd/system/postgresql.service.d/apache2.conf
+[Unit]
+Wants=apache2.service
+^D
+
 # systemctl daemon-reload
-# systemctl cat apache2      # Verify override is listed.
-# systemctl restart apache2  # Verify the service still works.
+# systemctl cat apache2       # Verify override is listed.
+# systemctl cat postgresql    # Verify override is listed.
+# systemctl stop postgresql
+# systemctl status apache2    # Verify stopped.
+# systemctl start postgresql
+# systemctl status apache2    # Verify started.
 
 
 7. Optimize CSS
