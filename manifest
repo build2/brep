@@ -17,8 +17,8 @@ build-exclude: * ; Only supports Linux and FreeBSD.
 requires: c++14
 requires: postgresql >= 9.0
 requires: apache2; Including development files (httpd.h header, etc).
-depends: * build2 >= 0.6.0-
-depends: * bpkg >= 0.6.0-
+depends: * build2 >= 0.7.0-
+depends: * bpkg >= 0.7.0-
 # @@ Should probably become conditional dependency.
 requires: ? cli ; Only required if changing .cli files.
 depends: libapr1
