@@ -65,6 +65,8 @@ namespace brep
   using std::system_error;
   using io_error = std::ios_base::failure;
 
+  using std::generic_category;
+
   // <libbutl/optional.mxx>
   //
   using butl::optional;

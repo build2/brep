@@ -33,7 +33,10 @@
 
 #include <load/load-options.hxx>
 
-using namespace std;
+using std::cout;
+using std::cerr;
+using std::endl;
+
 using namespace odb::core;
 using namespace butl;
 using namespace bpkg;

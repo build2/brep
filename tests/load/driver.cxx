@@ -20,7 +20,9 @@
 #include <libbrep/package.hxx>
 #include <libbrep/package-odb.hxx>
 
-using namespace std;
+using std::cerr;
+using std::endl;
+
 using namespace odb::core;
 using namespace butl;
 using namespace brep;
@@ -90,7 +92,7 @@ main (int argc, char* argv[])
     else if (n == "--db-host" || n == "-h")
       host = argv[++i];
     else if (n == "--db-port" || n == "-p")
-      port = stoul (argv[++i]);
+      port = std::stoul (argv[++i]);
   }
 
   if (i != argc - 1)
