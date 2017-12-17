@@ -433,23 +433,7 @@ handle (request& rq, response&)
     sm.out.close ();
 
     if (!sm.wait ())
-    {
-      diag_record dr (error);
-      dr << "sendmail ";
-
-      assert (sm.exit);
-      const process_exit& e (*sm.exit);
-
-      if (e.normal ())
-        dr << "exited with code " << static_cast<uint16_t> (e.code ());
-      else
-      {
-        dr << "terminated abnormally: " << e.description ();
-
-        if (e.core ())
-          dr << " (core dumped)";
-      }
-    }
+      error << "sendmail " << *sm.exit;
   }
   // Handle process_error and io_error (both derive from system_error).
   //
