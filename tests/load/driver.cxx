@@ -27,6 +27,9 @@ using namespace odb::core;
 using namespace butl;
 using namespace brep;
 
+static const path packages     ("packages");
+static const path repositories ("repositories");
+
 static bool
 check_location (shared_ptr<package>& p)
 {
@@ -178,9 +181,7 @@ main (int argc, char* argv[])
 
       assert (sr->packages_timestamp == srt);
       assert (sr->repositories_timestamp ==
-              file_mtime (
-                dir_path (
-                  sr->cache_location.path ()) / path ("repositories")));
+              file_mtime (sr->cache_location.path () / repositories));
 
       assert (sr->internal);
       assert (sr->complements.empty ());
@@ -436,13 +437,10 @@ main (int argc, char* argv[])
       assert (mr->cache_location.path () == mrp.normalize ());
 
       assert (mr->packages_timestamp ==
-              file_mtime (
-                dir_path (mr->cache_location.path ()) / path ("packages")));
+              file_mtime (mr->cache_location.path () / packages));
 
       assert (mr->repositories_timestamp ==
-              file_mtime (
-                dir_path (
-                  mr->cache_location.path ()) / path ("repositories")));
+              file_mtime (mr->cache_location.path () / repositories));
 
       assert (mr->internal);
 
@@ -692,13 +690,10 @@ main (int argc, char* argv[])
       assert (cr->cache_location.path () == crp.normalize ());
 
       assert (cr->packages_timestamp ==
-              file_mtime (
-                dir_path (cr->cache_location.path ()) / path ("packages")));
+              file_mtime (cr->cache_location.path () / packages));
 
       assert (cr->repositories_timestamp ==
-              file_mtime (
-                dir_path (
-                  cr->cache_location.path ()) / path ("repositories")));
+              file_mtime (cr->cache_location.path () / repositories));
 
       assert (!cr->internal);
       assert (cr->prerequisites.empty ());
@@ -755,13 +750,10 @@ main (int argc, char* argv[])
       assert (tr->cache_location.path () == trp.normalize ());
 
       assert (tr->packages_timestamp ==
-              file_mtime (
-                dir_path (tr->cache_location.path ()) / path ("packages")));
+              file_mtime (tr->cache_location.path () / packages));
 
       assert (tr->repositories_timestamp ==
-              file_mtime (
-                dir_path (
-                  tr->cache_location.path ()) / path ("repositories")));
+              file_mtime (tr->cache_location.path () / repositories));
 
       assert (!tr->internal);
       assert (tr->prerequisites.empty ());
@@ -806,13 +798,10 @@ main (int argc, char* argv[])
       assert (gr->cache_location.path () == grp.normalize ());
 
       assert (gr->packages_timestamp ==
-              file_mtime (
-                dir_path (gr->cache_location.path ()) / path ("packages")));
+              file_mtime (gr->cache_location.path () / packages));
 
       assert (gr->repositories_timestamp ==
-              file_mtime (
-                dir_path (
-                  gr->cache_location.path ()) / path ("repositories")));
+              file_mtime (gr->cache_location.path () / repositories));
 
       assert (!gr->internal);
       assert (gr->prerequisites.empty ());

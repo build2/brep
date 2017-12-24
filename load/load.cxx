@@ -49,6 +49,9 @@ struct failed {};
 static const char* help_info (
   "  info: run 'brep-load --help' for more information");
 
+static const path packages     ("packages");
+static const path repositories ("repositories");
+
 struct internal_repository
 {
   repository_location location;
@@ -57,11 +60,10 @@ struct internal_repository
   optional<string> fingerprint;
 
   path
-  packages_path () const {return cache_location.path () / path ("packages");}
+  packages_path () const {return cache_location.path () / packages;}
 
   path
-  repositories_path () const {
-    return cache_location.path () / path ("repositories");}
+  repositories_path () const {return cache_location.path () / repositories;}
 };
 
 using internal_repositories = vector<internal_repository>;
@@ -114,7 +116,7 @@ load_repositories (path p)
 
       try
       {
-        r.location = repository_location (tl[i].value);
+        r.location = repository_location (tl[i].value, repository_type::bpkg);
       }
       catch (const invalid_argument& e)
       {
@@ -161,7 +163,8 @@ load_repositories (path p)
             if (cache_path.relative ())
               cache_path = p.directory () / cache_path;
 
-            r.cache_location = repository_location (cache_path.string ());
+            r.cache_location = repository_location (cache_path.string (),
+                                                    repository_type::bpkg);
 
             // Created from the absolute path repository location can not be
             // other than absolute.
@@ -314,7 +317,7 @@ load_packages (const shared_ptr<repository>& rp, database& db)
   assert (!rp->cache_location.empty ());
 
   package_manifests pkm;
-  path p (rp->cache_location.path () / path ("packages"));
+  path p (rp->cache_location.path () / packages);
 
   try
   {
@@ -474,7 +477,7 @@ load_repositories (const shared_ptr<repository>& rp, database& db)
 
   repository_manifests rpm;
 
-  path p (rp->cache_location.path () / path ("repositories"));
+  path p (rp->cache_location.path () / repositories);
 
   try
   {

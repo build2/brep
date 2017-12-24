@@ -201,12 +201,17 @@ namespace brep
     }
   };
 
+  // repository_type
+  //
+  using bpkg::repository_type;
+
   // repository_location
   //
   using bpkg::repository_location;
 
-  #pragma db map type(repository_location) as(string)     \
-    to((?).string ()) from(brep::repository_location (?))
+  #pragma db map type(repository_location) as(string)                  \
+    to((?).string ())                                                  \
+    from(brep::repository_location ((?), brep::repository_type::bpkg))
 
   // Version comparison operators.
   //
