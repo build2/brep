@@ -4,132 +4,64 @@
 
 #include <web/mime-url-encoding.hxx>
 
-#include <ios>       // hex, uppercase, right
 #include <string>
-#include <iomanip>   // setw(), setfill()
-#include <ostream>
-#include <sstream>
-#include <cstring>   // size_t, strspn()
-#include <stdexcept> // invalid_argument
+#include <iterator> // back_inserter
+
+#include <libbutl/url.mxx>
 
 using namespace std;
+using namespace butl;
 
 namespace web
 {
-  // Encode characters different from unreserved ones specified in
-  // "2.3. Unreserved Characters" of http://tools.ietf.org/html/rfc3986.
-  //
-  void
-  mime_url_encode (const char* v, ostream& o)
+  inline static bool
+  encode_query (char& c)
   {
-    char f (o.fill ());
-    ostream::fmtflags g (o.flags ());
-    o << hex << uppercase << right << setfill ('0');
-
-    char c;
-    while ((c = *v++) != '\0')
+    if (c == ' ')
     {
-      if ((c >= 'A' && c <= 'Z') || (c >= 'a' && c <= 'z') ||
-          (c >= '0' && c <= '9'))
-      {
-        o << c;
-      }
-      else
-      {
-        switch (c)
-        {
-        case ' ': o << '+'; break;
-        case '.':
-        case '_':
-        case '-':
-        case '~': o << c; break;
-        default:
-          {
-            o << "%" << setw (2) << static_cast<unsigned short> (c);
-            break;
-          }
-        }
-      }
+      c = '+';
+      return false;
     }
 
-    o.flags (g);
-    o.fill (f);
+    return !url::unreserved (c);
   }
 
   string
-  mime_url_encode (const char* v)
+  mime_url_encode (const char* v, bool query)
   {
-    stringstream o;
-    mime_url_encode (v, o);
-    return o.str ();
+    return query ? url::encode (v, encode_query) : url::encode (v);
   }
 
   string
-  mime_url_encode (const string& v)
+  mime_url_encode (const string& v, bool query)
   {
-    return mime_url_encode (v.c_str ());
+    return query ? url::encode (v, encode_query) : url::encode (v);
   }
 
   string
-  mime_url_decode (const char* b, const char* e, bool trim)
+  mime_url_decode (const char* b, const char* e, bool trim, bool query)
   {
     if (trim)
     {
-      b += strspn (b, " ");
+      for (; b != e && *b == ' '; ++b) ;
 
-      if (b >= e)
+      if (b == e)
         return string ();
 
       while (*--e == ' ');
       ++e;
     }
 
-    string value;
-    value.reserve (e - b);
-
-    char bf[3];
-    bf[2] = '\0';
-
-    while (b != e)
-    {
-      char c (*b++);
-      switch (c)
-      {
-      case '+':
-        {
-          value.append (" ");
-          break;
-        }
-      case '%':
-        {
-          if (*b == '\0' || b[1] == '\0')
-          {
-            throw invalid_argument ("::web::mime_url_decode short");
-          }
-
-          *bf = *b;
-          bf[1] = b[1];
-
-          char* ebf (nullptr);
-          size_t vl (strtoul (bf, &ebf, 16));
-
-          if (*ebf != '\0')
-          {
-            throw invalid_argument ("::web::mime_url_decode wrong");
-          }
-
-          value.append (1, static_cast<char> (vl));
-          b += 2;
-          break;
-        }
-      default:
-        {
-          value.append (1, c);
-          break;
-        }
-      }
-    }
-
-    return value;
+    string r;
+    if (!query)
+      url::decode (b, e, back_inserter (r));
+    else
+      url::decode (b, e, back_inserter (r),
+                   [] (char& c)
+                   {
+                     if (c == '+')
+                       c = ' ';
+                   });
+    return r;
   }
 }

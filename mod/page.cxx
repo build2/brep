@@ -188,7 +188,7 @@ namespace brep
 
       // Propagate search criteria to the package details page.
       //
-      <<         root_ / path (mime_url_encode (name_)) << query_param_
+      <<         root_ / path (mime_url_encode (name_, false)) << query_param_
 
       <<       ~HREF
       <<          name_
@@ -218,7 +218,7 @@ namespace brep
     else
     {
       assert (root_ != nullptr);
-      s << A(HREF=*root_ / dir_path (mime_url_encode (*package_)) /
+      s << A(HREF=*root_ / dir_path (mime_url_encode (*package_, false)) /
                   path (version_))
         <<   version_;
 
@@ -393,7 +393,7 @@ namespace brep
             ? p->internal_repository.load ()
             : p->other_repositories[0].load ());
 
-          auto en (mime_url_encode (n));
+          auto en (mime_url_encode (n, false));
 
           if (r->url)
             s << A(HREF=*r->url + en) << n << ~A;
@@ -542,7 +542,7 @@ namespace brep
       <<     SPAN(CLASS="value")
       <<       A
       <<       HREF
-      <<         root_ << "?about#" << mime_url_encode (html_id (name_))
+      <<         root_ << "?about#" << mime_url_encode (html_id (name_), false)
       <<       ~HREF
       <<         name_
       <<       ~A

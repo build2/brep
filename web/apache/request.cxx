@@ -18,7 +18,6 @@
 #include <memory>    // unique_ptr
 #include <string>
 #include <cassert>
-#include <sstream>
 #include <ostream>
 #include <istream>
 #include <cstring>   // str*(), memcpy(), size_t
@@ -353,7 +352,7 @@ namespace web
     {
       if (path_.empty ())
       {
-        path_ = path_type (rec_->uri);
+        path_ = path_type (rec_->uri); // Is already URL-decoded.
 
         // Module request handler can not be called if URI is empty.
         //
@@ -514,10 +513,9 @@ namespace web
     {
       assert (!buffer); // Cookie buffering is not implemented yet.
 
-      ostringstream s;
-      mime_url_encode (name, s);
-      s << "=";
-      mime_url_encode (value, s);
+      string s (mime_url_encode (name));
+      s += "=";
+      s += mime_url_encode (value);
 
       if (max_age)
       {
@@ -528,20 +526,27 @@ namespace web
         //
         char b[100];
         strftime (b, sizeof (b), "%a, %d-%b-%Y %H:%M:%S GMT", gmtime (&t));
-        s << "; Expires=" << b;
+        s += "; Expires=";
+        s += b;
       }
 
       if (path)
-        s << ";Path=" << path;
+      {
+        s += ";Path=";
+        s += path;
+      }
 
       if (domain)
-        s << ";Domain=" << domain;
+      {
+        s += ";Domain=";
+        s += domain;
+      }
 
       if (secure)
-        s << ";Secure";
+        s += ";Secure";
 
       state (request_state::headers);
-      apr_table_add (rec_->err_headers_out, "Set-Cookie", s.str ().c_str ());
+      apr_table_add (rec_->err_headers_out, "Set-Cookie", s.c_str ());
     }
 
     void request::

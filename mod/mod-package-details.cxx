@@ -75,7 +75,7 @@ handle (request& rq, response& rs)
   const dir_path& root (options_->root ());
 
   const string& name (*rq.path ().rbegin ());
-  const string ename (mime_url_encode (name));
+  const string ename (mime_url_encode (name, false));
 
   params::package_details params;
   bool full;

@@ -99,7 +99,9 @@ handle (request& rq, response& rs)
     //
     string id (html_id (r.name));
     s << H1(ID=id)
-      <<   A(HREF="#" + web::mime_url_encode (id)) << r.display_name << ~A
+      <<   A(HREF="#" + web::mime_url_encode (id, false))
+      <<     r.display_name
+      <<   ~A
       << ~H1;
 
     if (r.summary)

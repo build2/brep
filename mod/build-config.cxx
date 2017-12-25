@@ -118,9 +118,9 @@ namespace brep
     // the package version into the URL path part and so don't encode it.
     //
     string url (host + root.representation () +
-                mime_url_encode (b.package_name) + '/' +
+                mime_url_encode (b.package_name, false) + '/' +
                 b.package_version.string () + "/log/" +
-                mime_url_encode (b.configuration) + '/' +
+                mime_url_encode (b.configuration, false) + '/' +
                 b.toolchain_version.string ());
 
     if (op != nullptr)

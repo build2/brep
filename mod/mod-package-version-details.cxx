@@ -130,7 +130,9 @@ handle (request& rq, response& rs)
 
   s <<       DIV(ID="heading")
     <<         H1
-    <<           A(HREF=root / path (mime_url_encode (name))) << name << ~A
+    <<           A(HREF=root / path (mime_url_encode (name, false)))
+    <<             name
+    <<           ~A
     <<           "/"
     <<           A(HREF=url ()) << sver << ~A
     <<         ~H1
@@ -255,7 +257,7 @@ handle (request& rq, response& rs)
 
         const auto& dcon (d.constraint);
         const string& dname (p->id.name);
-        string ename (mime_url_encode (dname));
+        string ename (mime_url_encode (dname, false));
 
         if (r->url)
         {
