@@ -146,23 +146,23 @@ main (int argc, char* argv[])
       assert (db.query<package> ().size () == 17);
 
       shared_ptr<repository> sr (
-        db.load<repository> ("dev.cppget.org/stable"));
+        db.load<repository> ("bpkg:dev.cppget.org/stable"));
 
       shared_ptr<repository> mr (
-        db.load<repository> ("dev.cppget.org/math"));
+        db.load<repository> ("bpkg:dev.cppget.org/math"));
 
       shared_ptr<repository> cr (
-        db.load<repository> ("dev.cppget.org/misc"));
+        db.load<repository> ("bpkg:dev.cppget.org/misc"));
 
       shared_ptr<repository> tr (
-        db.load<repository> ("dev.cppget.org/testing"));
+        db.load<repository> ("bpkg:dev.cppget.org/testing"));
 
       shared_ptr<repository> gr (
-        db.load<repository> ("dev.cppget.org/staging"));
+        db.load<repository> ("bpkg:dev.cppget.org/staging"));
 
       // Verify 'stable' repository.
       //
-      assert (sr->location.canonical_name () == "dev.cppget.org/stable");
+      assert (sr->location.canonical_name () == "bpkg:dev.cppget.org/stable");
       assert (sr->location.string () ==
               "http://dev.cppget.org/1/stable");
       assert (sr->display_name == "stable");
@@ -421,7 +421,7 @@ main (int argc, char* argv[])
 
       // Verify 'math' repository.
       //
-      assert (mr->location.canonical_name () == "dev.cppget.org/math");
+      assert (mr->location.canonical_name () == "bpkg:dev.cppget.org/math");
       assert (mr->location.string () ==
               "http://dev.cppget.org/1/math");
       assert (mr->display_name == "math");
@@ -676,7 +676,7 @@ main (int argc, char* argv[])
 
       // Verify 'misc' repository.
       //
-      assert (cr->location.canonical_name () == "dev.cppget.org/misc");
+      assert (cr->location.canonical_name () == "bpkg:dev.cppget.org/misc");
       assert (cr->location.string () ==
               "http://dev.cppget.org/1/misc");
       assert (cr->display_name.empty ());
@@ -736,7 +736,7 @@ main (int argc, char* argv[])
 
       // Verify 'testing' repository.
       //
-      assert (tr->location.canonical_name () == "dev.cppget.org/testing");
+      assert (tr->location.canonical_name () == "bpkg:dev.cppget.org/testing");
       assert (tr->location.string () ==
               "http://dev.cppget.org/1/testing");
       assert (tr->display_name.empty ());
@@ -784,7 +784,7 @@ main (int argc, char* argv[])
 
       // Verify 'staging' repository.
       //
-      assert (gr->location.canonical_name () == "dev.cppget.org/staging");
+      assert (gr->location.canonical_name () == "bpkg:dev.cppget.org/staging");
       assert (gr->location.string () ==
               "http://dev.cppget.org/1/staging");
       assert (gr->display_name.empty ());
