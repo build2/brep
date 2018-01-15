@@ -20,8 +20,15 @@ And also for all the directories leading up to brep/, for example, if you have
 
 setfacl -m g:www-data:rx ~/ ~/projects
 
-[Note that strictly speaking www-data in the above two commands is the Apache2
-group, not user. However, most installations use the same name for both.]
+Note: strictly speaking www-data in the above two commands is the Apache2
+group, not user. However, most installations use the same name for both.
+
+Note: if the development machine employs SELinux, then this approach may
+require additional configuration steps (not shown) in order to allow Apache2
+access to the module, configuration, and content. Alternatively, you may
+want to disable the security restrictions for Apache2, for example:
+
+semanage permissive -a httpd_t
 
 
 1. Create PostgreSQL User and Databases

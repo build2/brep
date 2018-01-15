@@ -11,8 +11,14 @@ corresponding steps can be omitted.
 
 This user will be used to run the brep package database loader, build database
 cleaner, and the database schemes migration utility. We will also use its home
-directory to build and install the brep module, store its configuration,
-etc. We create this user with a disabled password so only root will be able to
+directory to build and install the brep module, store its configuration, etc.
+
+Note: if the deployment machine employs SELinux, then this approach may
+require additional configuration steps (not shown) in order to allow Apache2
+access to the module, configuration, and content (or, alternatively, a
+different deployment approach).
+
+We create this user with a disabled password so only root will be able to
 operate as brep. Because of this restriction we will allow brep to run sudo
 without a password:
 
@@ -31,8 +37,6 @@ from root, do:
 2. Install Prerequisites
 
 a) Install a C++ compiler using your distribution's package.
-
-   Also make sure the pkg-config (or one of its replacements) is installed.
 
 b) Install PostgreSQL 9.3 or above (including the contrib package containing
    the postgres_fdw extension) as well as Apache2 using your distribution's
