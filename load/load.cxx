@@ -116,7 +116,8 @@ load_repositories (path p)
 
       try
       {
-        r.location = repository_location (tl[i].value, repository_type::bpkg);
+        r.location = repository_location (repository_url (tl[i].value),
+                                          repository_type::bpkg);
       }
       catch (const invalid_argument& e)
       {
@@ -163,8 +164,9 @@ load_repositories (path p)
             if (cache_path.relative ())
               cache_path = p.directory () / cache_path;
 
-            r.cache_location = repository_location (cache_path.string (),
-                                                    repository_type::bpkg);
+            r.cache_location = repository_location (
+              repository_url (cache_path.string ()),
+              repository_type::bpkg);
 
             // Created from the absolute path repository location can not be
             // other than absolute.
@@ -580,7 +582,8 @@ load_repositories (const shared_ptr<repository>& rp, database& db)
       // Convert the relative repository location to remote one, leave remote
       // location unchanged.
       //
-      rl = repository_location (rm.location.string (), rp->location);
+      rl = repository_location (repository_url (rm.location.string ()),
+                                rp->location);
     }
     catch (const invalid_argument&)
     {
