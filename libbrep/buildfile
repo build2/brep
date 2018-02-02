@@ -19,7 +19,7 @@ import int_libs += libbutl%lib{butl}
 import int_libs += libbpkg%lib{bpkg}
 import int_libs += libbbot%lib{bbot}
 
-libs{brep}:                                                             \
+lib{brep}:                                                              \
   {hxx ixx txx cxx}{* -version -*-odb}                                  \
   {hxx            }{version}                                            \
   {hxx ixx     cxx}{common-odb package-odb build-odb build-package-odb} \

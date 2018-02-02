@@ -17,7 +17,7 @@ include ../web/
 
 mod{brep}: {hxx ixx txx cxx}{* -options} \
            {hxx ixx     cxx}{   options} \
-           ../libbrep/libs{brep} ../web/libus{web} $libs
+           ../libbrep/lib{brep} ../web/libus{web} $libs
 
 # Don't install any of the module's headers.
 #
