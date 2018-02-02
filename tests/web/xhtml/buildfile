@@ -4,4 +4,4 @@
 
 include ../../../web/
 exe{driver}: {hxx cxx}{*} ../../../web/libus{web}
-exe{driver}: test.output = test.out
+exe{driver}: file{test.out}: test.stdout = true
