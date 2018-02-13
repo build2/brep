@@ -318,7 +318,7 @@ load_packages (const shared_ptr<repository>& rp, database& db)
   //
   assert (!rp->cache_location.empty ());
 
-  package_manifests pkm;
+  bpkg_package_manifests pkm;
   path p (rp->cache_location.path () / packages);
 
   try
@@ -327,7 +327,7 @@ load_packages (const shared_ptr<repository>& rp, database& db)
     rp->packages_timestamp = file_mtime (p);
 
     manifest_parser mp (ifs, p.string ());
-    pkm = package_manifests (mp);
+    pkm = bpkg_package_manifests (mp);
   }
   catch (const io_error& e)
   {
@@ -477,7 +477,7 @@ load_repositories (const shared_ptr<repository>& rp, database& db)
   //
   assert (db.find<repository> (rp->name) != nullptr);
 
-  repository_manifests rpm;
+  bpkg_repository_manifests rpm;
 
   path p (rp->cache_location.path () / repositories);
 
@@ -487,7 +487,7 @@ load_repositories (const shared_ptr<repository>& rp, database& db)
     rp->repositories_timestamp = file_mtime (p);
 
     manifest_parser mp (ifs, p.string ());
-    rpm = repository_manifests (mp);
+    rpm = bpkg_repository_manifests (mp);
   }
   catch (const io_error& e)
   {
@@ -576,14 +576,14 @@ load_repositories (const shared_ptr<repository>& rp, database& db)
     {
       // Absolute path location make no sense for the web interface.
       //
-      if (rm.location.absolute ())
+      if (rm.location.type () != repository_type::bpkg ||
+          rm.location.absolute ())
         bad_location ();
 
       // Convert the relative repository location to remote one, leave remote
       // location unchanged.
       //
-      rl = repository_location (repository_url (rm.location.string ()),
-                                rp->location);
+      rl = repository_location (rm.location, rp->location);
     }
     catch (const invalid_argument&)
     {
