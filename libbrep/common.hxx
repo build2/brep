@@ -213,10 +213,10 @@ namespace brep
   //
   using bpkg::repository_location;
 
-  #pragma db map type(repository_location) as(string)             \
-    to((?).url ().string ())                                      \
-    from(brep::repository_location (brep::repository_url (?),     \
-                                    brep::repository_type::bpkg))
+  #pragma db map type(repository_location) as(string)            \
+    to((?).url ().string ())                                     \
+    from(brep::repository_location (brep::repository_url (?),    \
+                                    brep::repository_type::pkg))
 
   // Version comparison operators.
   //

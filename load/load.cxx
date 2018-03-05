@@ -117,7 +117,7 @@ load_repositories (path p)
       try
       {
         r.location = repository_location (repository_url (tl[i].value),
-                                          repository_type::bpkg);
+                                          repository_type::pkg);
       }
       catch (const invalid_argument& e)
       {
@@ -166,7 +166,7 @@ load_repositories (path p)
 
             r.cache_location = repository_location (
               repository_url (cache_path.string ()),
-              repository_type::bpkg);
+              repository_type::pkg);
 
             // Created from the absolute path repository location can not be
             // other than absolute.
@@ -318,7 +318,7 @@ load_packages (const shared_ptr<repository>& rp, database& db)
   //
   assert (!rp->cache_location.empty ());
 
-  bpkg_package_manifests pkm;
+  pkg_package_manifests pkm;
   path p (rp->cache_location.path () / packages);
 
   try
@@ -327,7 +327,7 @@ load_packages (const shared_ptr<repository>& rp, database& db)
     rp->packages_timestamp = file_mtime (p);
 
     manifest_parser mp (ifs, p.string ());
-    pkm = bpkg_package_manifests (mp);
+    pkm = pkg_package_manifests (mp);
   }
   catch (const io_error& e)
   {
@@ -477,7 +477,7 @@ load_repositories (const shared_ptr<repository>& rp, database& db)
   //
   assert (db.find<repository> (rp->name) != nullptr);
 
-  bpkg_repository_manifests rpm;
+  pkg_repository_manifests rpm;
 
   path p (rp->cache_location.path () / repositories);
 
@@ -487,7 +487,7 @@ load_repositories (const shared_ptr<repository>& rp, database& db)
     rp->repositories_timestamp = file_mtime (p);
 
     manifest_parser mp (ifs, p.string ());
-    rpm = bpkg_repository_manifests (mp);
+    rpm = pkg_repository_manifests (mp);
   }
   catch (const io_error& e)
   {
@@ -576,7 +576,7 @@ load_repositories (const shared_ptr<repository>& rp, database& db)
     {
       // Absolute path location make no sense for the web interface.
       //
-      if (rm.location.type () != repository_type::bpkg ||
+      if (rm.location.type () != repository_type::pkg ||
           rm.location.absolute ())
         bad_location ();
 
