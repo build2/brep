@@ -17,9 +17,9 @@ include <clean/options-types.hxx>;
 
   "\h|SYNOPSIS|
 
-   \cb{brep-clean --help}\n
-   \cb{brep-clean --version}\n
-   \c{\b{brep-clean} [<options>] <buildtab>}
+   \c{\b{brep-clean --help}\n
+      \b{brep-clean --version}\n
+      \b{brep-clean} [<options>] <buildtab>}
 
    \h|DESCRIPTION|
 

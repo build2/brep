@@ -17,9 +17,9 @@ include <libbrep/types.hxx>;
 
   "\h|SYNOPSIS|
 
-   \cb{brep-load --help}\n
-   \cb{brep-load --version}\n
-   \c{\b{brep-load} [<options>] <loadtab>}
+   \c{\b{brep-load --help}\n
+      \b{brep-load --version}\n
+      \b{brep-load} [<options>] <loadtab>}
 
    \h|DESCRIPTION|
 

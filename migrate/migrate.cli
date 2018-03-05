@@ -11,13 +11,13 @@ include <cstdint>; // uint16_t
 "\summary=create/drop/migrate brep databases"
 
 {
-  "<options>",
+  "<options> <schema>",
 
   "\h|SYNOPSIS|
 
-   \cb{brep-migrate --help}\n
-   \cb{brep-migrate --version}\n
-   \c{\b{brep-migrate} [<options>] <schema>}
+   \c{\b{brep-migrate --help}\n
+      \b{brep-migrate --version}\n
+      \b{brep-migrate} [<options>] <schema>}
 
    \h|DESCRIPTION|
 
