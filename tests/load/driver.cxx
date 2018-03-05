@@ -27,8 +27,8 @@ using namespace odb::core;
 using namespace butl;
 using namespace brep;
 
-static const path packages     ("packages");
-static const path repositories ("repositories");
+static const path packages     ("packages.manifest");
+static const path repositories ("repositories.manifest");
 
 static bool
 check_location (shared_ptr<package>& p)
@@ -114,10 +114,10 @@ main (int argc, char* argv[])
     if (cp.relative ())
       cp.complete ();
 
-    // Update packages file timestamp to enforce loader to update
-    // persistent state.
+    // Update the packages.manifest file timestamp to enforce the loader to
+    // update the persistent state.
     //
-    path p (cp.directory () / path ("1/stable/packages"));
+    path p (cp.directory () / dir_path ("1/stable") / packages);
     char const* args[] = {"touch", p.string ().c_str (), nullptr};
     assert (process (args).wait ());
 

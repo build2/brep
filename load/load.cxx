@@ -49,8 +49,8 @@ struct failed {};
 static const char* help_info (
   "  info: run 'brep-load --help' for more information");
 
-static const path packages     ("packages");
-static const path repositories ("repositories");
+static const path packages     ("packages.manifest");
+static const path repositories ("repositories.manifest");
 
 struct internal_repository
 {
@@ -183,10 +183,10 @@ load_repositories (path p)
           }
 
           if (!file_exists (r.packages_path ()))
-            bad_line ("'packages' file does not exist");
+            bad_line ("packages.manifest file does not exist");
 
           if (!file_exists (r.repositories_path ()))
-            bad_line ("'repositories' file does not exist");
+            bad_line ("repositories.manifest file does not exist");
         }
         else if (strncmp (nv.c_str (), "fingerprint:", vp = 12) == 0)
         {
@@ -302,8 +302,8 @@ repository_info (const options& lo, const string& rl, const cstrings& options)
   }
 }
 
-// Load the repository packages from the 'packages' file and persist the
-// repository. Should be called once per repository.
+// Load the repository packages from the packages.manifest file and persist
+// the repository. Should be called once per repository.
 //
 static void
 load_packages (const shared_ptr<repository>& rp, database& db)
@@ -341,7 +341,7 @@ load_packages (const shared_ptr<repository>& rp, database& db)
       db.find<package> (package_id (pm.name, pm.version)));
 
     // sha256sum should always be present if the package manifest comes from
-    // the 'packages' file.
+    // the packages.manifest file.
     //
     assert (pm.sha256sum);
 
@@ -456,7 +456,7 @@ load_packages (const shared_ptr<repository>& rp, database& db)
 }
 
 // Load the repository manifest values, prerequsite repositories, and their
-// complements state from the 'repositories' file. Update the repository
+// complements state from the repositories.manifest file. Update the repository
 // persistent state to save changed members. Should be called once per
 // persisted internal repository.
 //
