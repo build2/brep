@@ -6,5 +6,5 @@
 
 namespace brep
 {
-  const version wildcard_version (0, "0", nullopt, 0);
+  const version wildcard_version (0, "0", nullopt, 0, 0);
 }

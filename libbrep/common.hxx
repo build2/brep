@@ -66,7 +66,8 @@ void assert (int);
   from(bpkg::version ((?).epoch,                      \
                       std::move ((?).upstream),       \
                       std::move ((?).release),        \
-                      (?).revision))
+                      (?).revision,                   \
+                      0))
 
 #pragma db map type(brep::optional_version) as(brep::_optional_version) \
   to((?)                                                                \
@@ -81,7 +82,8 @@ void assert (int);
        ? bpkg::version ((?)->epoch,                                     \
                         std::move ((?)->upstream),                      \
                         std::move ((?)->release),                       \
-                        (?)->revision)                                  \
+                        (?)->revision,                                  \
+                        0)                                              \
        : brep::optional_version ())
 
 namespace brep
@@ -157,14 +159,14 @@ namespace brep
   #pragma db value transient
   struct upstream_version: version
   {
-    #pragma db member(upstream_) virtual(string)                      \
-      get(this.upstream)                                              \
-      set(this = brep::version (0, std::move (?), std::string (), 0))
+    #pragma db member(upstream_) virtual(string)                         \
+      get(this.upstream)                                                 \
+      set(this = brep::version (0, std::move (?), std::string (), 0, 0))
 
-    #pragma db member(release_) virtual(optional_string)               \
-      get(this.release)                                                \
-      set(this = brep::version (                                       \
-            0, std::move (this.upstream), std::move (?), 0))
+    #pragma db member(release_) virtual(optional_string)                 \
+      get(this.release)                                                  \
+      set(this = brep::version (                                         \
+            0, std::move (this.upstream), std::move (?), 0, 0))
 
     upstream_version () = default;
     upstream_version (version v): version (move (v)) {}
@@ -174,7 +176,7 @@ namespace brep
     void
     init (const canonical_version& cv, const upstream_version& uv)
     {
-      *this = version (cv.epoch, uv.upstream, uv.release, cv.revision);
+      *this = version (cv.epoch, uv.upstream, uv.release, cv.revision, 0);
       assert (cv.canonical_upstream == canonical_upstream &&
               cv.canonical_release == canonical_release);
     }
