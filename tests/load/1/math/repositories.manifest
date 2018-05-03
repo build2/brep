@@ -2,6 +2,7 @@
 # Foreign repository manifest.
 #
 location: ../misc
+role: prerequisite
 :
 # Local repository manifest (this repository).
 #

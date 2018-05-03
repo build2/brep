@@ -2,6 +2,7 @@
 # Foreign repository manifest.
 #
 location: ../basics
+role: prerequisite
 :
 # Adjacent repository manifest.
 #

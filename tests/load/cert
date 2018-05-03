@@ -19,5 +19,4 @@ openssl req -x509 -new -key key.pem -days 1825 -config openssl.cnf > cert.pem
 # Update certificate fingerprint in loadtab for dev.cppget.org/signed
 # repository. To print the fingerprint run:
 #
-# ../../../bpkg/bpkg/bpkg rep-info --cert-fingerprint \
-#                         tests/load/pkg/1/dev.cppget.org/signed/
+# ../../../bpkg/bpkg/bpkg rep-info --cert-fingerprint pkg/1/dev.cppget.org/signed/

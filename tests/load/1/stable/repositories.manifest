@@ -2,10 +2,12 @@
 # Foreign repository manifest.
 #
 location: ../misc
+role: prerequisite
 :
 # Adjacent repository manifest.
 #
 location: ../math
+role: prerequisite
 :
 # Local repository manifest (this repository).
 #
