@@ -268,12 +268,12 @@ main (int argc, char* argv[])
                 "libexp",
                 optional<dependency_constraint> (
                   dependency_constraint (
-                    version ("1~1.2"), false, version ("1~1.2"), false))));
+                    version ("+1-1.2"), false, version ("+1-1.2"), false))));
 
       assert (check_location (fpv2));
 
       assert (fpv2->sha256sum && *fpv2->sha256sum ==
-        "b47de1b207ef097c9ecdd560007aeadd3775f4fafb4f96fb983e9685c21f3980");
+        "58139f97dd8a9820a8c0f068f963865fdc0d1e5f7636d464c0d07441095a35fc");
 
       // libfoo-1.2.2-alpha.1
       //
@@ -619,7 +619,7 @@ main (int argc, char* argv[])
       // libexp-1+1.2
       //
       shared_ptr<package> epv (
-        db.load<package> (package_id ("libexp", version ("1~1.2+1"))));
+        db.load<package> (package_id ("libexp", version ("+1-1.2+1"))));
 
       assert (epv->summary == "The exponent");
       assert (epv->tags == strings ({"c++", "exponent"}));
@@ -663,7 +663,7 @@ main (int argc, char* argv[])
 
       assert (check_location (epv));
       assert (epv->sha256sum && *epv->sha256sum ==
-        "0a7414d06ad26d49dad203deaf3841f3df97f1fe27c5bf190c1c20dfeb7f84e0");
+        "58c1385e959a5e650229768f907442cf9569cb23acc3b3f1b5478060f7bfe5f4");
 
       // Verify libpq package version.
       //

@@ -2,7 +2,7 @@
 sha256sum: b85ba3a0ba45b98e1fbb2507f199bc4b218a4a413ec6ba4094e214a7507490a2
 :
 name: libexp
-version: 1~1.2+1
+version: +1-1.2+1
 summary: The exponent
 license: MIT
 tags: c++, exponent
@@ -14,8 +14,8 @@ depends: libmisc
 depends: libpq >= 9.0.0
 build-exclude: *; Only supported on Linux.
 build-include: linux*
-location: libexp-1~1.2+1.tar.gz
-sha256sum: 0a7414d06ad26d49dad203deaf3841f3df97f1fe27c5bf190c1c20dfeb7f84e0
+location: libexp-+1-1.2+1.tar.gz
+sha256sum: 58c1385e959a5e650229768f907442cf9569cb23acc3b3f1b5478060f7bfe5f4
 :
 name: libfoo
 version: 1.0

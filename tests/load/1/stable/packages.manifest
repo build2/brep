@@ -31,9 +31,9 @@ tags: c++, foo
 url: http://www.example.com/foo/
 email: foo-users@example.com
 depends: libbar <= 2.4.0
-depends: libexp == 1~1.2
+depends: libexp == +1-1.2
 location: libfoo-1.2.2.tar.gz
-sha256sum: b47de1b207ef097c9ecdd560007aeadd3775f4fafb4f96fb983e9685c21f3980
+sha256sum: 58139f97dd8a9820a8c0f068f963865fdc0d1e5f7636d464c0d07441095a35fc
 :
 name: libfoo
 version: 1.2.3+4
