@@ -63,7 +63,7 @@ namespace brep
 
     try
     {
-      for (const dir_entry& de: dir_iterator (d))
+      for (const dir_entry& de: dir_iterator (d, false /* ignore_dangling */))
       {
         if (de.path ().extension () == "pem" &&
             de.type () == entry_type::regular)
