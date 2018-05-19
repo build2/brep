@@ -13,6 +13,6 @@ import libs += libbutl%lib{butl}
 
 libus{web}: {hxx ixx txx cxx}{** -version} {hxx}{version} $libs
 
-hxx{version}: in{version} $src_root/file{manifest}
+hxx{version}: in{version} $src_root/manifest
 
 {hxx ixx txx}{*}: install = false
