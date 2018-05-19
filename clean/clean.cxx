@@ -1,5 +1,5 @@
 // file      : clean/clean.cxx -*- C++ -*-
-// copyright : Copyright (c) 2014-2017 Code Synthesis Ltd
+// copyright : Copyright (c) 2014-2018 Code Synthesis Ltd
 // license   : MIT; see accompanying LICENSE file
 
 #include <set>
@@ -51,7 +51,7 @@ try
          << "libbbot " << LIBBBOT_VERSION_ID << endl
          << "libbpkg " << LIBBPKG_VERSION_ID << endl
          << "libbutl " << LIBBUTL_VERSION_ID << endl
-         << "Copyright (c) 2014-2017 Code Synthesis Ltd" << endl
+         << "Copyright (c) 2014-2018 Code Synthesis Ltd" << endl
          << "This is free software released under the MIT license." << endl;
 
     return 0;

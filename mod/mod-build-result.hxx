@@ -1,5 +1,5 @@
 // file      : mod/mod-build-result.hxx -*- C++ -*-
-// copyright : Copyright (c) 2014-2017 Code Synthesis Ltd
+// copyright : Copyright (c) 2014-2018 Code Synthesis Ltd
 // license   : MIT; see accompanying LICENSE file
 
 #ifndef MOD_MOD_BUILD_RESULT_HXX
