@@ -19,9 +19,9 @@
 
 // Used by the data migration entries.
 //
-#define LIBBREP_PACKAGE_SCHEMA_VERSION_BASE 5
+#define LIBBREP_PACKAGE_SCHEMA_VERSION_BASE 6
 
-#pragma db model version(LIBBREP_PACKAGE_SCHEMA_VERSION_BASE, 5, closed)
+#pragma db model version(LIBBREP_PACKAGE_SCHEMA_VERSION_BASE, 6, open)
 
 namespace brep
 {
@@ -125,7 +125,7 @@ namespace brep
 
     // Prerequisite package name.
     //
-    string
+    package_name
     name () const;
 
     // Database mapping.
@@ -298,7 +298,7 @@ namespace brep
     // Create internal package object. Note that for stubs the build
     // constraints are meaningless, and so not saved.
     //
-    package (string name,
+    package (package_name name,
              version_type,
              priority_type,
              string summary,
@@ -327,7 +327,7 @@ namespace brep
     // The only package information required to compose such a link is the
     // package name, version, and repository location.
     //
-    package (string name, version_type, shared_ptr<repository_type>);
+    package (package_name name, version_type, shared_ptr<repository_type>);
 
     bool
     internal () const noexcept {return internal_repository != nullptr;}
@@ -492,7 +492,7 @@ namespace brep
     double rank;
   };
 
-  #pragma db view  query("/*CALL*/ SELECT count(*) FROM search_packages(?)")
+  #pragma db view query("/*CALL*/ SELECT count(*) FROM search_packages(?)")
   struct package_count
   {
     size_t result;

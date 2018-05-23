@@ -55,7 +55,7 @@ namespace brep
   // build
   //
   build::
-  build (string pnm, version pvr,
+  build (package_name_type pnm, version pvr,
          string cfg,
          string tnm, version tvr,
          optional<string> afp, optional<string> ach,

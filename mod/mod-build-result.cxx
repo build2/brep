@@ -117,9 +117,12 @@ handle (request& rq, response&)
     if (p == string::npos)
       throw invalid_argument ("no package version");
 
-    string& name (rqm.result.name);
-    if (name.compare (0, name.size (), s, 0, p) != 0)
-      throw invalid_argument ("package name mismatch");
+    package_name& name (rqm.result.name);
+    {
+      const string& n (name.string ());
+      if (n.compare (0, n.size (), s, 0, p) != 0)
+        throw invalid_argument ("package name mismatch");
+    }
 
     size_t b (p + 1);    // Start of version.
     p = s.find ('/', b); // End of version.
@@ -383,7 +386,8 @@ handle (request& rq, response&)
   try
   {
     string subj ((unforced ? "build " : "rebuild ") +
-                 to_string (*b->status) + ": " + b->package_name + '/' +
+                 to_string (*b->status) + ": " +
+                 b->package_name.string () + '/' +
                  b->package_version.string () + '/' + b->configuration + '/' +
                  b->toolchain_name + '-' + b->toolchain_version.string ());
 

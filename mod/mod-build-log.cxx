@@ -83,10 +83,16 @@ handle (request& rq, response& rs)
     auto i (lpath.begin ());
 
     assert (i != lpath.end ());
-    string name (*i++);
+    package_name name;
 
-    if (name.empty ())
-      throw invalid_argument ("empty package name");
+    try
+    {
+      name = package_name (*i++);
+    }
+    catch (const invalid_argument& e)
+    {
+      throw invalid_argument (string ("invalid package name: ") + e.what ());
+    }
 
     assert (i != lpath.end ());
 

@@ -1,7 +1,7 @@
 <changelog xmlns="http://www.codesynthesis.com/xmlns/odb/changelog" database="pgsql" schema-name="build" version="1">
-  <model version="2">
+  <model version="3">
     <table name="build" kind="object">
-      <column name="package_name" type="TEXT" null="false"/>
+      <column name="package_name" type="CITEXT" null="false"/>
       <column name="package_version_epoch" type="INTEGER" null="false"/>
       <column name="package_version_canonical_upstream" type="TEXT" null="false"/>
       <column name="package_version_canonical_release" type="TEXT" null="false" options="COLLATE &quot;C&quot;"/>
@@ -39,7 +39,7 @@
       </primary-key>
     </table>
     <table name="build_results" kind="container">
-      <column name="package_name" type="TEXT" null="false"/>
+      <column name="package_name" type="CITEXT" null="false"/>
       <column name="package_version_epoch" type="INTEGER" null="false"/>
       <column name="package_version_canonical_upstream" type="TEXT" null="false"/>
       <column name="package_version_canonical_release" type="TEXT" null="false" options="COLLATE &quot;C&quot;"/>

@@ -50,7 +50,7 @@ init (scanner& s)
 
 template <typename T>
 static inline query<T>
-search_params (const brep::string& n, const brep::string& q)
+search_params (const brep::package_name& n, const brep::string& q)
 {
   using query = query<T>;
 
@@ -74,9 +74,6 @@ handle (request& rq, response& rs)
   const size_t res_page (options_->search_results ());
   const dir_path& root (options_->root ());
 
-  const string& name (*rq.path ().rbegin ());
-  const string ename (mime_url_encode (name, false));
-
   params::package_details params;
   bool full;
 
@@ -96,6 +93,31 @@ handle (request& rq, response& rs)
   size_t page (params.page ());
   const string& squery (params.query ());
 
+  session sn;
+  transaction t (package_db_->begin ());
+
+  shared_ptr<package> pkg;
+
+  try
+  {
+    package_name n (*rq.path ().rbegin ());
+
+    latest_package lp;
+    if (!package_db_->query_one<latest_package> (
+          query<latest_package> ("(" + query<latest_package>::_val (n) + ")"),
+          lp))
+      throw invalid_request (404, "Package '" + n.string () + "' not found");
+
+    pkg = package_db_->load<package> (lp.id);
+  }
+  catch (const invalid_argument& )
+  {
+    throw invalid_request (400, "invalid package name format");
+  }
+
+  const package_name&  name (pkg->id.name);
+  const string        ename (mime_url_encode (name.string (), false));
+
   auto url = [&ename] (bool f = false,
                        const string& q = "",
                        size_t p = 0,
@@ -111,7 +133,7 @@ handle (request& rq, response& rs)
     return u;
   };
 
-  xml::serializer s (rs.content (), name);
+  xml::serializer s (rs.content (), name.string ());
 
   s << HTML
     <<   HEAD
@@ -140,26 +162,12 @@ handle (request& rq, response& rs)
   if (full)
     s << CLASS("full");
 
-  s <<       DIV(ID="heading")
-    <<         H1 << A(HREF=url ()) << name << ~A << ~H1
-    <<         A(HREF=url (!full, squery, page))
-    <<           (full ? "[brief]" : "[full]")
-    <<         ~A
-    <<       ~DIV;
-
-  session sn;
-  transaction t (package_db_->begin ());
-
-  shared_ptr<package> pkg;
-  {
-    latest_package lp;
-    if (!package_db_->query_one<latest_package> (
-          query<latest_package>(
-            "(" + query<latest_package>::_val (name) + ")"), lp))
-      throw invalid_request (404, "Package '" + name + "' not found");
-
-    pkg = package_db_->load<package> (lp.id);
-  }
+  s << DIV(ID="heading")
+    <<   H1 << A(HREF=url ()) << name << ~A << ~H1
+    <<   A(HREF=url (!full, squery, page))
+    <<     (full ? "[brief]" : "[full]")
+    <<   ~A
+    << ~DIV;
 
   const auto& licenses (pkg->license_alternatives);
 
@@ -182,10 +190,10 @@ handle (request& rq, response& rs)
       <<     TR_URL (pkg->url);
 
     if (pkg->doc_url)
-      s << TR_URL (*pkg->doc_url, "doc-url");
+      s <<   TR_URL (*pkg->doc_url, "doc-url");
 
     if (pkg->src_url)
-      s << TR_URL (*pkg->src_url, "src-url");
+      s <<   TR_URL (*pkg->src_url, "src-url");
 
     s <<     TR_EMAIL (pkg->email)
       <<     TR_TAGS (pkg->tags, root)
@@ -226,7 +234,7 @@ handle (request& rq, response& rs)
     // vector<vector<string>> class, so comments are not considered.
     //
     if (p->license_alternatives != licenses)
-      s << TR_LICENSE (p->license_alternatives);
+      s <<   TR_LICENSE (p->license_alternatives);
 
     assert (p->internal ());
 

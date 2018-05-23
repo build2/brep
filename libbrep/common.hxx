@@ -9,6 +9,8 @@
 #include <chrono>
 #include <type_traits> // static_assert
 
+#include <libbpkg/package-name.hxx>
+
 #include <libbrep/types.hxx>
 #include <libbrep/utility.hxx>
 
@@ -188,14 +190,24 @@ namespace brep
   //
   extern const version wildcard_version;
 
+  // package_name
+  //
+  using bpkg::package_name;
+
+  #pragma db value(package_name) type("CITEXT")
+
+  #pragma db map type("CITEXT") as("TEXT") to("(?)::CITEXT") from("(?)::TEXT")
+
+  // package_id
+  //
   #pragma db value
   struct package_id
   {
-    string name;
+    package_name name;
     canonical_version version;
 
     package_id () = default;
-    package_id (string n, const brep::version& v)
+    package_id (package_name n, const brep::version& v)
         : name (move (n)),
           version {
             v.epoch, v.canonical_upstream, v.canonical_release, v.revision}

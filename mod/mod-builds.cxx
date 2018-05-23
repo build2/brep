@@ -111,7 +111,8 @@ build_query (const brep::cstrings& configs, const brep::params::builds& params)
     // Package name.
     //
     if (!params.name ().empty ())
-      q = q && qb::id.package.name.like (transform (params.name ()));
+      q = q && qb::id.package.name.like (
+        package_name (transform (params.name ()), package_name::raw_string));
 
     // Package version.
     //
@@ -214,7 +215,8 @@ package_query (const brep::params::builds& params)
     // Package name.
     //
     if (!params.name ().empty ())
-      q = q && P::id.name.like (transform (params.name ()));
+      q = q && P::id.name.like (
+        package_name (transform (params.name ()), package_name::raw_string));
 
     // Package version.
     //

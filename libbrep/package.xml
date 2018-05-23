@@ -1,5 +1,5 @@
 <changelog xmlns="http://www.codesynthesis.com/xmlns/odb/changelog" database="pgsql" schema-name="package" version="1">
-  <model version="5">
+  <model version="6">
     <table name="repository" kind="object">
       <column name="name" type="TEXT" null="false"/>
       <column name="location" type="TEXT" null="false"/>
@@ -70,7 +70,7 @@
       </foreign-key>
     </table>
     <table name="package" kind="object">
-      <column name="name" type="TEXT" null="false"/>
+      <column name="name" type="CITEXT" null="false"/>
       <column name="version_epoch" type="INTEGER" null="false"/>
       <column name="version_canonical_upstream" type="TEXT" null="false"/>
       <column name="version_canonical_release" type="TEXT" null="false" options="COLLATE &quot;C&quot;"/>
@@ -118,7 +118,7 @@
       </index>
     </table>
     <table name="package_license_alternatives" kind="container">
-      <column name="name" type="TEXT" null="false"/>
+      <column name="name" type="CITEXT" null="false"/>
       <column name="version_epoch" type="INTEGER" null="false"/>
       <column name="version_canonical_upstream" type="TEXT" null="false"/>
       <column name="version_canonical_release" type="TEXT" null="false" options="COLLATE &quot;C&quot;"/>
@@ -151,7 +151,7 @@
       </index>
     </table>
     <table name="package_licenses" kind="container">
-      <column name="name" type="TEXT" null="false"/>
+      <column name="name" type="CITEXT" null="false"/>
       <column name="version_epoch" type="INTEGER" null="false"/>
       <column name="version_canonical_upstream" type="TEXT" null="false"/>
       <column name="version_canonical_release" type="TEXT" null="false" options="COLLATE &quot;C&quot;"/>
@@ -182,7 +182,7 @@
       </index>
     </table>
     <table name="package_tags" kind="container">
-      <column name="name" type="TEXT" null="false"/>
+      <column name="name" type="CITEXT" null="false"/>
       <column name="version_epoch" type="INTEGER" null="false"/>
       <column name="version_canonical_upstream" type="TEXT" null="false"/>
       <column name="version_canonical_release" type="TEXT" null="false" options="COLLATE &quot;C&quot;"/>
@@ -215,7 +215,7 @@
       </index>
     </table>
     <table name="package_dependencies" kind="container">
-      <column name="name" type="TEXT" null="false"/>
+      <column name="name" type="CITEXT" null="false"/>
       <column name="version_epoch" type="INTEGER" null="false"/>
       <column name="version_canonical_upstream" type="TEXT" null="false"/>
       <column name="version_canonical_release" type="TEXT" null="false" options="COLLATE &quot;C&quot;"/>
@@ -250,14 +250,14 @@
       </index>
     </table>
     <table name="package_dependency_alternatives" kind="container">
-      <column name="name" type="TEXT" null="false"/>
+      <column name="name" type="CITEXT" null="false"/>
       <column name="version_epoch" type="INTEGER" null="false"/>
       <column name="version_canonical_upstream" type="TEXT" null="false"/>
       <column name="version_canonical_release" type="TEXT" null="false" options="COLLATE &quot;C&quot;"/>
       <column name="version_revision" type="INTEGER" null="false"/>
       <column name="dependency_index" type="BIGINT" null="false"/>
       <column name="index" type="BIGINT" null="false"/>
-      <column name="dep_name" type="TEXT" null="false"/>
+      <column name="dep_name" type="CITEXT" null="false"/>
       <column name="dep_version_epoch" type="INTEGER" null="false"/>
       <column name="dep_version_canonical_upstream" type="TEXT" null="false"/>
       <column name="dep_version_canonical_release" type="TEXT" null="false" options="COLLATE &quot;C&quot;"/>
@@ -313,7 +313,7 @@
       </foreign-key>
     </table>
     <table name="package_requirements" kind="container">
-      <column name="name" type="TEXT" null="false"/>
+      <column name="name" type="CITEXT" null="false"/>
       <column name="version_epoch" type="INTEGER" null="false"/>
       <column name="version_canonical_upstream" type="TEXT" null="false"/>
       <column name="version_canonical_release" type="TEXT" null="false" options="COLLATE &quot;C&quot;"/>
@@ -348,7 +348,7 @@
       </index>
     </table>
     <table name="package_requirement_alternatives" kind="container">
-      <column name="name" type="TEXT" null="false"/>
+      <column name="name" type="CITEXT" null="false"/>
       <column name="version_epoch" type="INTEGER" null="false"/>
       <column name="version_canonical_upstream" type="TEXT" null="false"/>
       <column name="version_canonical_release" type="TEXT" null="false" options="COLLATE &quot;C&quot;"/>
@@ -379,7 +379,7 @@
       </index>
     </table>
     <table name="package_build_constraints" kind="container">
-      <column name="name" type="TEXT" null="false"/>
+      <column name="name" type="CITEXT" null="false"/>
       <column name="version_epoch" type="INTEGER" null="false"/>
       <column name="version_canonical_upstream" type="TEXT" null="false"/>
       <column name="version_canonical_release" type="TEXT" null="false" options="COLLATE &quot;C&quot;"/>
@@ -415,7 +415,7 @@
       </index>
     </table>
     <table name="package_other_repositories" kind="container">
-      <column name="name" type="TEXT" null="false"/>
+      <column name="name" type="CITEXT" null="false"/>
       <column name="version_epoch" type="INTEGER" null="false"/>
       <column name="version_canonical_upstream" type="TEXT" null="false"/>
       <column name="version_canonical_release" type="TEXT" null="false" options="COLLATE &quot;C&quot;"/>

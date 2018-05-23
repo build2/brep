@@ -17,9 +17,9 @@
 --
 -- DROP FUNCTION IF EXISTS to_tsvector(IN document weighted_text);
 --
-DROP FUNCTION IF EXISTS search_packages(IN query tsquery, INOUT name TEXT);
+DROP FUNCTION IF EXISTS search_packages(IN query tsquery, INOUT name CITEXT);
 DROP FUNCTION IF EXISTS search_latest_packages(IN query tsquery);
-DROP FUNCTION IF EXISTS latest_package(INOUT name TEXT);
+DROP FUNCTION IF EXISTS latest_package(INOUT name CITEXT);
 DROP FUNCTION IF EXISTS latest_packages();
 
 DROP TYPE IF EXISTS weighted_text CASCADE;
@@ -50,7 +50,7 @@ $$ LANGUAGE SQL STABLE;
 -- not found.
 --
 CREATE FUNCTION
-latest_package(INOUT name TEXT,
+latest_package(INOUT name CITEXT,
                OUT version_epoch INTEGER,
                OUT version_canonical_upstream TEXT,
                OUT version_canonical_release TEXT,
@@ -69,7 +69,7 @@ $$ LANGUAGE SQL STABLE;
 --
 CREATE FUNCTION
 search_latest_packages(IN query tsquery,
-                       OUT name TEXT,
+                       OUT name CITEXT,
                        OUT version_epoch INTEGER,
                        OUT version_canonical_upstream TEXT,
                        OUT version_canonical_release TEXT,
@@ -93,7 +93,7 @@ $$ LANGUAGE SQL STABLE;
 --
 CREATE FUNCTION
 search_packages(IN query tsquery,
-                INOUT name TEXT,
+                INOUT name CITEXT,
                 OUT version_epoch INTEGER,
                 OUT version_canonical_upstream TEXT,
                 OUT version_canonical_release TEXT,

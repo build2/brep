@@ -152,11 +152,11 @@ try
   using pkg_query = query<buildable_package>;
   using prep_pkg_query = prepared_query<buildable_package>;
 
-  string package_name;
+  package_name pkg_name;
   set<version> package_versions;
 
   pkg_query pq (
-    pkg_query::build_package::id.name == pkg_query::_ref (package_name));
+    pkg_query::build_package::id.name == pkg_query::_ref (pkg_name));
 
   prep_pkg_query pkg_prep_query (
     conn->prepare_query<buildable_package> ("package-query", pq));
@@ -195,9 +195,9 @@ try
         //
         if (!cleanup)
         {
-          if (package_name != b.package_name)
+          if (pkg_name != b.package_name)
           {
-            package_name = b.package_name;
+            pkg_name = b.package_name;
             package_versions.clear ();
 
             for (auto& p: pkg_prep_query.execute ())

@@ -15,7 +15,7 @@ namespace brep
 {
   // dependency
   //
-  string dependency::
+  package_name dependency::
   name () const
   {
     return package.object_id ().name;
@@ -47,7 +47,7 @@ namespace brep
   // package
   //
   package::
-  package (string nm,
+  package (package_name nm,
            version_type vr,
            priority_type pr,
            string sm,
@@ -97,7 +97,7 @@ namespace brep
   }
 
   package::
-  package (string nm,
+  package (package_name nm,
            version_type vr,
            shared_ptr<repository_type> rp)
       : id (move (nm), vr),
@@ -123,7 +123,8 @@ namespace brep
     //   Probably drop-box would be better as also tells what are
     //   the available internal repositories.
     //
-    string k (id.name + " " + version.string () + " " + version.string (true));
+    string k (id.name.string () + " " + version.string () + " " +
+              version.string (true));
 
     // Add tags to keywords.
     //

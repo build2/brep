@@ -163,14 +163,14 @@ namespace brep
   class TR_NAME
   {
   public:
-    TR_NAME (const string& n, const string& q, const dir_path& r)
+    TR_NAME (const package_name& n, const string& q, const dir_path& r)
         : name_ (n), query_param_ (q), root_ (r) {}
 
     void
     operator() (xml::serializer&) const;
 
   private:
-    const string& name_;
+    const package_name& name_;
     const string& query_param_;
     const dir_path& root_;
   };
@@ -182,7 +182,7 @@ namespace brep
   public:
     // Display the version as a link to the package version details page.
     //
-    TR_VERSION (const string& p, const version& v, const dir_path& r)
+    TR_VERSION (const package_name& p, const version& v, const dir_path& r)
         : package_ (&p),
           version_ (v.string ()),
           stub_ (v.compare (wildcard_version, true) == 0),
@@ -204,7 +204,7 @@ namespace brep
     operator() (xml::serializer&) const;
 
   private:
-    const string* package_;
+    const package_name* package_;
     string version_;
     bool stub_;
     const dir_path* root_;

@@ -179,6 +179,21 @@ Restart PostgreSQL:
 
 $ sudo systemctl restart postgresql
 
+Enable creating database tables with columns of the case-insensitive character
+string type:
+
+$ sudo sudo -u postgres psql -d brep_package
+
+CREATE EXTENSION citext;
+
+Exit psql (^D)
+
+$ sudo sudo -u postgres psql -d brep_build
+
+CREATE EXTENSION citext;
+
+Exit psql (^D)
+
 
 5. Create Database Schemes and Load Repositories
 

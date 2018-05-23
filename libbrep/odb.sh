@@ -12,6 +12,7 @@ lib="\
 $odb $lib -d pgsql --std c++14 --generate-query              \
     --odb-epilogue '#include <libbrep/wrapper-traits.hxx>'   \
     --hxx-prologue '#include <libbrep/wrapper-traits.hxx>'   \
+    --hxx-prologue '#include <libbrep/common-traits.hxx>'    \
     -DLIBODB_BUILD2 -DLIBODB_PGSQL_BUILD2                    \
     -I .. -I ../../libbbot -I ../../libbpkg -I ../../libbutl \
     --include-with-brackets --include-prefix libbrep         \

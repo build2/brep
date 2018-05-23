@@ -35,7 +35,7 @@ check_location (shared_ptr<package>& p)
 {
   if (p->internal ())
     return p->location && *p->location ==
-      path (p->id.name + "-" + p->version.string () + ".tar.gz");
+      path (p->id.name.string () + "-" + p->version.string () + ".tar.gz");
   else
     return !p->location;
 }
@@ -194,7 +194,8 @@ main (int argc, char* argv[])
       // libfoo-1.0
       //
       shared_ptr<package> fpv1 (
-        db.load<package> (package_id ("libfoo", version ("1.0"))));
+        db.load<package> (
+          package_id (package_name ("libfoo"), version ("1.0"))));
 
       assert (fpv1->summary == "The Foo Library");
       assert (fpv1->tags.empty ());
@@ -227,7 +228,8 @@ main (int argc, char* argv[])
       // libfoo-1.2.2
       //
       shared_ptr<package> fpv2 (
-        db.load<package> (package_id ("libfoo", version ("1.2.2"))));
+        db.load<package> (
+          package_id (package_name ("libfoo"), version ("1.2.2"))));
 
       assert (fpv2->summary == "The Foo library");
       assert (fpv2->tags == strings ({"c++", "foo"}));
@@ -253,7 +255,8 @@ main (int argc, char* argv[])
       auto dep = [&db] (
         const char* n, const optional<dependency_constraint>& c) -> dependency
       {
-        return {lazy_shared_ptr<package> (db, package_id (n, version ())), c};
+        return {lazy_shared_ptr<package> (
+            db, package_id (package_name (n), version ())), c};
       };
 
       assert (fpv2->dependencies[0][0] ==
@@ -278,7 +281,8 @@ main (int argc, char* argv[])
       // libfoo-1.2.2-alpha.1
       //
       shared_ptr<package> fpv2a (
-        db.load<package> (package_id ("libfoo", version ("1.2.2-alpha.1"))));
+        db.load<package> (
+          package_id (package_name ("libfoo"), version ("1.2.2-alpha.1"))));
 
       assert (fpv2a->summary == "The Foo library");
       assert (fpv2a->tags == strings ({"c++", "foo"}));
@@ -347,7 +351,8 @@ main (int argc, char* argv[])
       // libfoo-1.2.3-4
       //
       shared_ptr<package> fpv3 (
-        db.load<package> (package_id ("libfoo", version ("1.2.3+4"))));
+        db.load<package> (
+          package_id (package_name ("libfoo"), version ("1.2.3+4"))));
 
       assert (fpv3->summary == "The Foo library");
       assert (fpv3->tags == strings ({"c++", "foo"}));
@@ -384,7 +389,8 @@ main (int argc, char* argv[])
       // libfoo-1.2.4
       //
       shared_ptr<package> fpv4 (
-        db.load<package> (package_id ("libfoo", version ("1.2.4"))));
+        db.load<package> (
+          package_id (package_name ("libfoo"), version ("1.2.4"))));
 
       assert (fpv4->summary == "The Foo Library");
       assert (fpv4->tags == strings ({"c++", "foo"}));
@@ -451,7 +457,8 @@ main (int argc, char* argv[])
       // Verify libstudxml package version.
       //
       shared_ptr<package> xpv (
-        db.load<package> (package_id ("libstudxml", version ("1.0.0+1"))));
+        db.load<package> (
+          package_id (package_name ("libstudxml"), version ("1.0.0+1"))));
 
       assert (xpv->summary == "Modern C++ XML API");
       assert (xpv->tags == strings ({"c++", "xml", "parser", "serializer",
@@ -500,7 +507,8 @@ main (int argc, char* argv[])
       // libfoo-1.2.4-1
       //
       shared_ptr<package> fpv5 (
-        db.load<package> (package_id ("libfoo", version ("1.2.4+1"))));
+        db.load<package> (
+          package_id (package_name ("libfoo"), version ("1.2.4+1"))));
 
       assert (fpv5->summary == "The Foo Math Library");
       assert (fpv5->tags == strings ({"c++", "foo", "math"}));
@@ -619,7 +627,8 @@ main (int argc, char* argv[])
       // libexp-1+1.2
       //
       shared_ptr<package> epv (
-        db.load<package> (package_id ("libexp", version ("+1-1.2+1"))));
+        db.load<package> (
+          package_id (package_name ("libexp"), version ("+1-1.2+1"))));
 
       assert (epv->summary == "The exponent");
       assert (epv->tags == strings ({"c++", "exponent"}));
@@ -670,7 +679,7 @@ main (int argc, char* argv[])
       // libpq-0
       //
       shared_ptr<package> qpv (
-        db.load<package> (package_id ("libpq", version ("0"))));
+        db.load<package> (package_id (package_name ("libpq"), version ("0"))));
 
       assert (qpv->summary == "PostgreSQL C API client library");
 
@@ -705,7 +714,8 @@ main (int argc, char* argv[])
       // libbar-2.4.0+3
       //
       shared_ptr<package> bpv (
-        db.load<package> (package_id ("libbar", version ("2.4.0+3"))));
+        db.load<package> (
+          package_id (package_name ("libbar"), version ("2.4.0+3"))));
 
       assert (check_external (*bpv));
       assert (bpv->other_repositories.size () == 1);
@@ -717,7 +727,8 @@ main (int argc, char* argv[])
       // libfoo-0.1
       //
       shared_ptr<package> fpv0 (
-        db.load<package> (package_id ("libfoo", version ("0.1"))));
+        db.load<package> (
+          package_id (package_name ("libfoo"), version ("0.1"))));
 
       assert (check_external (*fpv0));
       assert (fpv0->other_repositories.size () == 1);
@@ -727,7 +738,8 @@ main (int argc, char* argv[])
       // libfoo-1.2.4-2
       //
       shared_ptr<package> fpv6 (
-        db.load<package> (package_id ("libfoo", version ("1.2.4+2"))));
+        db.load<package> (
+          package_id (package_name ("libfoo"), version ("1.2.4+2"))));
 
       assert (check_external (*fpv6));
       assert (fpv6->other_repositories.size () == 1);
@@ -765,7 +777,8 @@ main (int argc, char* argv[])
       // libmisc-2.4.0
       //
       shared_ptr<package> mpv0 (
-        db.load<package> (package_id ("libmisc", version ("2.4.0"))));
+        db.load<package> (
+          package_id (package_name ("libmisc"), version ("2.4.0"))));
 
       assert (check_external (*mpv0));
       assert (mpv0->other_repositories.size () == 1);
@@ -775,7 +788,8 @@ main (int argc, char* argv[])
       // libmisc-2.3.0+1
       //
       shared_ptr<package> mpv1 (
-        db.load<package> (package_id ("libmisc", version ("2.3.0+1"))));
+        db.load<package> (
+          package_id (package_name ("libmisc"), version ("2.3.0+1"))));
 
       assert (check_external (*mpv1));
       assert (mpv1->other_repositories.size () == 1);
@@ -812,7 +826,8 @@ main (int argc, char* argv[])
       // libexpat-5.1
       //
       shared_ptr<package> tpv (
-        db.load<package> (package_id ("libexpat", version ("5.1"))));
+        db.load<package> (
+          package_id (package_name ("libexpat"), version ("5.1"))));
 
       assert (check_external (*tpv));
       assert (tpv->other_repositories.size () == 1);
@@ -824,7 +839,8 @@ main (int argc, char* argv[])
       // libgenx-1.0
       //
       shared_ptr<package> gpv (
-        db.load<package> (package_id ("libgenx", version ("1.0"))));
+        db.load<package> (
+          package_id (package_name ("libgenx"), version ("1.0"))));
 
       assert (check_external (*gpv));
       assert (gpv->other_repositories.size () == 1);
@@ -836,7 +852,8 @@ main (int argc, char* argv[])
       // libmisc-1.0
       //
       shared_ptr<package> mpv2 (
-        db.load<package> (package_id ("libmisc", version ("1.0"))));
+        db.load<package> (
+          package_id (package_name ("libmisc"), version ("1.0"))));
 
       assert (check_external (*mpv2));
       assert (mpv2->other_repositories.size () == 1);
@@ -856,7 +873,8 @@ main (int argc, char* argv[])
     transaction t (db.begin ());
 
     shared_ptr<package> bpv (
-      db.load<package> (package_id ("libbar", version ("2.4.0+3"))));
+      db.load<package> (
+        package_id (package_name ("libbar"), version ("2.4.0+3"))));
 
     assert (bpv->summary == "test");
 

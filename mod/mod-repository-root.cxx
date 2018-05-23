@@ -343,11 +343,6 @@ namespace brep
       //
       // If any of the checks fails, then the handling is declined.
       //
-      // @@ Shouldn't we validate that the package name is not "@", is not
-      //    digit-only, does not start with '.' while parsing and serializing
-      //    the package manifest ? Probably also need to mention these
-      //    constraints in the manifest.txt file.
-      //
       if (n != "@" && n.find_first_not_of ("0123456789") != string::npos &&
           n[0] != '.')
       {

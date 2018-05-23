@@ -77,10 +77,16 @@ handle (request& rq, response& rs)
 
   try
   {
-    string& p (params.package ());
+    package_name p;
 
-    if (p.empty ())
-      throw invalid_argument ("empty package name");
+    try
+    {
+      p = package_name (move (params.package ()));
+    }
+    catch (const invalid_argument& e)
+    {
+      throw invalid_argument (string ("invalid package name: ") + e.what ());
+    }
 
     // We accept the non-url-encoded version representation. Note that the
     // parameter is already url-decoded by the web server, so we just restore

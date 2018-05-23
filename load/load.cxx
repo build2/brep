@@ -384,7 +384,7 @@ load_packages (const shared_ptr<repository>& rp, database& db)
           //
           if (pda.buildtime && !pda.empty ())
           {
-            const string& n (pda.front ().name);
+            const package_name& n (pda.front ().name);
             if (n == "build2" || n == "bpkg")
               continue;
           }

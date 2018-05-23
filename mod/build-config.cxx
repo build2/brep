@@ -118,7 +118,7 @@ namespace brep
     // the package version into the URL path part and so don't encode it.
     //
     string url (host + root.representation () +
-                mime_url_encode (b.package_name, false) + '/' +
+                mime_url_encode (b.package_name.string (), false) + '/' +
                 b.package_version.string () + "/log/" +
                 mime_url_encode (b.configuration, false) + '/' +
                 b.toolchain_version.string ());
@@ -141,7 +141,7 @@ namespace brep
     // encoded by design.
     //
     return host + root.string () +
-      "?build-force&pn=" + mime_url_encode (b.package_name) +
+      "?build-force&pn=" + mime_url_encode (b.package_name.string ()) +
       "&pv=" + b.package_version.string () +
       "&cf=" + mime_url_encode (b.configuration) +
       "&tc=" + b.toolchain_version.string () + "&reason=";

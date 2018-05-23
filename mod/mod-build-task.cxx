@@ -181,7 +181,8 @@ handle (request& rq, response& rs)
         chrono::duration_cast<std::chrono::nanoseconds> (
           b->timestamp.time_since_epoch ()).count ());
 
-      string session (b->package_name + '/' + b->package_version.string () +
+      string session (b->package_name.string () + '/' +
+                      b->package_version.string () +
                       '/' + b->configuration +
                       '/' + b->toolchain_version.string () +
                       '/' + to_string (ts));

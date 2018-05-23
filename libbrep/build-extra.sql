@@ -22,7 +22,7 @@ SERVER package_server OPTIONS (table_name 'repository');
 --
 --
 CREATE FOREIGN TABLE build_package (
-  name TEXT NOT NULL,
+  name CITEXT NOT NULL,
   version_epoch INTEGER NOT NULL,
   version_canonical_upstream TEXT NOT NULL,
   version_canonical_release TEXT NOT NULL COLLATE "C",
@@ -37,7 +37,7 @@ SERVER package_server OPTIONS (table_name 'package');
 --
 --
 CREATE FOREIGN TABLE build_package_constraints (
-  name TEXT NOT NULL,
+  name CITEXT NOT NULL,
   version_epoch INTEGER NOT NULL,
   version_canonical_upstream TEXT NOT NULL,
   version_canonical_release TEXT NOT NULL COLLATE "C",

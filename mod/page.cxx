@@ -188,7 +188,8 @@ namespace brep
 
       // Propagate search criteria to the package details page.
       //
-      <<         root_ / path (mime_url_encode (name_, false)) << query_param_
+      <<         root_ / path (mime_url_encode (name_.string (), false))
+      <<         query_param_
 
       <<       ~HREF
       <<          name_
@@ -218,8 +219,9 @@ namespace brep
     else
     {
       assert (root_ != nullptr);
-      s << A(HREF=*root_ / dir_path (mime_url_encode (*package_, false)) /
-                  path (version_))
+      s << A(HREF=*root_ /
+             dir_path (mime_url_encode (package_->string (), false)) /
+             path (version_))
         <<   version_;
 
       if (stub_)
@@ -363,7 +365,7 @@ namespace brep
 
       // Suppress package name duplicates.
       //
-      set<string> names;
+      set<package_name> names;
       for (const auto& da: d)
         names.emplace (da.name ());
 
@@ -375,7 +377,7 @@ namespace brep
       bool first (true);
       for (const auto& da: d)
       {
-        string n (da.name ());
+        package_name n (da.name ());
         if (names.find (n) != names.end ())
         {
           names.erase (n);
@@ -393,7 +395,7 @@ namespace brep
             ? p->internal_repository.load ()
             : p->other_repositories[0].load ());
 
-          auto en (mime_url_encode (n, false));
+          auto en (mime_url_encode (n.string (), false));
 
           if (r->url)
             s << A(HREF=*r->url + en) << n << ~A;

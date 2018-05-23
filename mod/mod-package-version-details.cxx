@@ -83,10 +83,18 @@ handle (request& rq, response& rs)
     throw invalid_request (400, "invalid package version format");
   }
 
-  const string& sver (ver.string ());
-
   assert (i != rq.path ().rend ());
-  const string& name (*i);
+
+  package_name pn;
+
+  try
+  {
+    pn = package_name (*i);
+  }
+  catch (const invalid_argument& )
+  {
+    throw invalid_request (400, "invalid package name format");
+  }
 
   params::package_version_details params;
   bool full;
@@ -104,6 +112,8 @@ handle (request& rq, response& rs)
     throw invalid_request (400, e.what ());
   }
 
+  const string& sver (ver.string ());
+
   auto url = [&sver] (bool f = false, const string& a = "") -> string
   {
     string u (sver);
@@ -112,6 +122,32 @@ handle (request& rq, response& rs)
     if (!a.empty ()) { u += '#' + a; }
     return u;
   };
+
+  bool not_found (false);
+  shared_ptr<package> pkg;
+
+  session sn;
+  transaction t (package_db_->begin ());
+
+  try
+  {
+    pkg = package_db_->load<package> (package_id (pn, ver));
+
+    // If the requested package turned up to be an "external" one just
+    // respond that no "internal" package is present.
+    //
+    not_found = !pkg->internal ();
+  }
+  catch (const object_not_persistent& )
+  {
+    not_found = true;
+  }
+
+  if (not_found)
+    throw invalid_request (
+      404, "Package '" + pn.string () + ' ' + sver + "' not found");
+
+  const string& name (pkg->id.name.string ());
 
   const string title (name + " " + sver);
   xml::serializer s (rs.content (), title);
@@ -138,29 +174,6 @@ handle (request& rq, response& rs)
     <<         ~H1
     <<         A(HREF=url (!full)) << (full ? "[brief]" : "[full]") << ~A
     <<       ~DIV;
-
-  bool not_found (false);
-  shared_ptr<package> pkg;
-
-  session sn;
-  transaction t (package_db_->begin ());
-
-  try
-  {
-    pkg = package_db_->load<package> (package_id (name, ver));
-
-    // If the requested package turned up to be an "external" one just
-    // respond that no "internal" package is present.
-    //
-    not_found = !pkg->internal ();
-  }
-  catch (const object_not_persistent& )
-  {
-    not_found = true;
-  }
-
-  if (not_found)
-    throw invalid_request (404, "Package '" + title + "' not found");
 
   s << H2 << pkg->summary << ~H2;
 
@@ -256,8 +269,8 @@ handle (request& rq, response& rs)
           : p->other_repositories[0].load ());
 
         const auto& dcon (d.constraint);
-        const string& dname (p->id.name);
-        string ename (mime_url_encode (dname, false));
+        const package_name& dname (p->id.name);
+        string ename (mime_url_encode (dname.string (), false));
 
         if (r->url)
         {

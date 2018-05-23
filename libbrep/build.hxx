@@ -24,9 +24,9 @@
 
 // Used by the data migration entries.
 //
-#define LIBBREP_BUILD_SCHEMA_VERSION_BASE 2
+#define LIBBREP_BUILD_SCHEMA_VERSION_BASE 3
 
-#pragma db model version(LIBBREP_BUILD_SCHEMA_VERSION_BASE, 2, closed)
+#pragma db model version(LIBBREP_BUILD_SCHEMA_VERSION_BASE, 3, open)
 
 // We have to keep these mappings at the global scope instead of inside
 // the brep namespace because they need to be also effective in the
@@ -161,12 +161,13 @@ namespace brep
   class build
   {
   public:
-    using timestamp_type = brep::timestamp;
+    using timestamp_type    = brep::timestamp;
+    using package_name_type = brep::package_name;
 
     // Create the build object with the building state, non-existent status,
     // the timestamp set to now and the force state set to unforced.
     //
-    build (string package_name, version package_version,
+    build (package_name_type, version,
            string configuration,
            string toolchain_name, version toolchain_version,
            optional<string> agent_fingerprint,
@@ -176,7 +177,7 @@ namespace brep
 
     build_id id;
 
-    string& package_name;               // Tracks id.package.name.
+    package_name_type& package_name;    // Tracks id.package.name.
     upstream_version package_version;   // Original of id.package.version.
     string& configuration;              // Tracks id.configuration.
     string toolchain_name;

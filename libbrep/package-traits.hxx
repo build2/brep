@@ -1,9 +1,9 @@
-// file      : brep/package-traits -*- C++ -*-
+// file      : libbrep/package-traits.hxx -*- C++ -*-
 // copyright : Copyright (c) 2014-2018 Code Synthesis Ltd
 // license   : MIT; see accompanying LICENSE file
 
-#ifndef BREP_PACKAGE_TRAITS
-#define BREP_PACKAGE_TRAITS
+#ifndef LIBBREP_PACKAGE_TRAITS
+#define LIBBREP_PACKAGE_TRAITS
 
 #include <cstddef> // size_t
 
@@ -35,4 +35,4 @@ namespace odb
   }
 }
 
-#endif // BREP_PACKAGE_TRAITS
+#endif // LIBBREP_PACKAGE_TRAITS
