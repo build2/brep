@@ -14,7 +14,9 @@
 "
 \h0#preface|Preface|
 
-This is the preface.
+This document describes \c{brep}, the \c{build2} package repository web
+interface. For the command line interface of \c{brep} utilities refer to the
+\l{brep-load(1)}, \l{brep-clean(1)}, and \l{brep-migrate(1)} man pages.
 "
 
 /*
