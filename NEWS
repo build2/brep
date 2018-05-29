@@ -1,3 +1,10 @@
+Version 0.7.0
+
+  * Make package name case-insensitive.
+
+  * Adjust to packaging specification changes (manifest file renames, version
+    format changes, etc).
+
 Version 0.6.0
 
   * Support for displaying package builds both on individual package pages
