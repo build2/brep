@@ -379,6 +379,18 @@ handle (request& rq, response&)
   if (!notify || (build_email && build_email->empty ()))
     return true;
 
+  // If the package build address is not specified, then it is assumed to be
+  // the same as the package email address, if specified, otherwise as the
+  // project email address, if specified, otherwise the notification email is
+  // not sent.
+  //
+  const optional<email>& to (build_email ? build_email
+                             : p->package_email
+                               ? p->package_email
+                               : p->email);
+  if (!to)
+    return true;
+
   assert (b != nullptr);
 
   // Send email to the package owner.
@@ -391,15 +403,6 @@ handle (request& rq, response&)
                  b->package_version.string () + '/' + b->configuration + '/' +
                  b->toolchain_name + '-' + b->toolchain_version.string ());
 
-    // If the package build address is not specified, then it is assumed to be
-    // the same as the package email address, if specified, otherwise as the
-    // project email address.
-    //
-    const string& to (build_email ? *build_email
-                      : p->package_email
-                        ? *p->package_email
-                        : p->email);
-
     // Redirect the diagnostics to webserver error log.
     //
     // Note: if using this somewhere else, then need to factor out all this
@@ -409,7 +412,7 @@ handle (request& rq, response&)
                  2,
                  options_->email (),
                  subj,
-                 {to});
+                 {*to});
 
     if (b->results.empty ())
       sm.out << "No operation results available." << endl;

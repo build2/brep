@@ -186,8 +186,10 @@ handle (request& rq, response& rs)
 
     s << TABLE(CLASS="proplist", ID="package")
       <<   TBODY
-      <<     TR_LICENSE (licenses)
-      <<     TR_URL (pkg->url);
+      <<     TR_LICENSE (licenses);
+
+    if (pkg->url)
+      s <<   TR_URL (*pkg->url);
 
     if (pkg->doc_url)
       s <<   TR_URL (*pkg->doc_url, "doc-url");
@@ -195,8 +197,10 @@ handle (request& rq, response& rs)
     if (pkg->src_url)
       s <<   TR_URL (*pkg->src_url, "src-url");
 
-    s <<     TR_EMAIL (pkg->email)
-      <<     TR_TAGS (pkg->tags, root)
+    if (pkg->email)
+      s <<   TR_EMAIL (*pkg->email);
+
+    s <<     TR_TAGS (pkg->tags, root)
       <<   ~TBODY
       << ~TABLE;
   }

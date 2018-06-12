@@ -205,8 +205,12 @@ handle (request& rq, response& rs)
     << ~TABLE
 
     << TABLE(CLASS="proplist", ID="package")
-    <<   TBODY
-    <<     TR_URL (pkg->url);
+    <<   TBODY;
+
+  const auto& u (pkg->url);
+
+  if (u)
+    s << TR_URL (*u);
 
   if (pkg->doc_url)
     s << TR_URL (*pkg->doc_url, "doc-url");
@@ -215,18 +219,20 @@ handle (request& rq, response& rs)
     s << TR_URL (*pkg->src_url, "src-url");
 
   const auto& pu (pkg->package_url);
-  if (pu && *pu != pkg->url)
+  if (pu && pu != u)
     s << TR_URL (*pu, "package-url");
 
-  const email& em (pkg->email);
-  s << TR_EMAIL (em);
+  const auto& em (pkg->email);
+
+  if (em)
+    s << TR_EMAIL (*em);
 
   const auto& pe (pkg->package_email);
-  if (pe && *pe != em)
+  if (pe && pe != em)
     s << TR_EMAIL (*pe, "package-email");
 
   const auto& be (pkg->build_email);
-  if (be && ((pe && *be != *pe) || (!pe && *be != em)))
+  if (be && ((pe && be != pe) || (!pe && be != em)))
     s << TR_EMAIL (*be, "build-email");
 
   s <<     TR_TAGS (pkg->tags, root)

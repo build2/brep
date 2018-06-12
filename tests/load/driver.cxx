@@ -43,12 +43,11 @@ check_location (shared_ptr<package>& p)
 static bool
 check_external (const package& p)
 {
-  return p.summary.empty () && p.tags.empty () && !p.description &&
-    p.url.empty () && !p.package_url && p.email.empty () &&
-    !p.package_email && !p.internal () && p.other_repositories.size () > 0 &&
-    p.priority == priority () && p.changes.empty () &&
-    p.license_alternatives.empty () && p.dependencies.empty () &&
-    p.requirements.empty () && !p.sha256sum;
+  return p.summary.empty () && p.tags.empty () && !p.description && !p.url &&
+    !p.package_url && !p.email && !p.package_email && !p.internal () &&
+    p.other_repositories.size () > 0 && p.priority == priority () &&
+    p.changes.empty () && p.license_alternatives.empty () &&
+    p.dependencies.empty () && p.requirements.empty () && !p.sha256sum;
 }
 
 namespace bpkg
@@ -200,9 +199,9 @@ main (int argc, char* argv[])
       assert (fpv1->summary == "The Foo Library");
       assert (fpv1->tags.empty ());
       assert (!fpv1->description);
-      assert (fpv1->url == "http://www.example.com/foo/");
+      assert (!fpv1->url);
       assert (!fpv1->package_url);
-      assert (fpv1->email == "foo-users@example.com");
+      assert (!fpv1->email);
       assert (!fpv1->package_email);
 
       assert (fpv1->internal_repository.load () == sr);
@@ -223,7 +222,7 @@ main (int argc, char* argv[])
       assert (check_location (fpv1));
 
       assert (fpv1->sha256sum && *fpv1->sha256sum ==
-        "d8ad319b55fdd19ff24cb0fcf9d61101289569f80b8688884389587cfafa1f1e");
+        "0df6d45a3514c6101609bdcfefe7659b5754e505c6cf6b4107141d8217bb981d");
 
       // libfoo-1.2.2
       //
@@ -234,9 +233,9 @@ main (int argc, char* argv[])
       assert (fpv2->summary == "The Foo library");
       assert (fpv2->tags == strings ({"c++", "foo"}));
       assert (!fpv2->description);
-      assert (fpv2->url == "http://www.example.com/foo/");
+      assert (fpv2->url && *fpv2->url == "http://www.example.com/foo/");
       assert (!fpv2->package_url);
-      assert (fpv2->email == "foo-users@example.com");
+      assert (fpv2->email && *fpv2->email == "foo-users@example.com");
       assert (!fpv2->package_email);
 
       assert (fpv2->internal_repository.load () == sr);
@@ -287,9 +286,9 @@ main (int argc, char* argv[])
       assert (fpv2a->summary == "The Foo library");
       assert (fpv2a->tags == strings ({"c++", "foo"}));
       assert (!fpv2a->description);
-      assert (fpv2a->url == "http://www.example.com/foo/");
+      assert (fpv2a->url && *fpv2a->url == "http://www.example.com/foo/");
       assert (!fpv2a->package_url);
-      assert (fpv2a->email == "foo-users@example.com");
+      assert (fpv2a->email && *fpv2a->email == "foo-users@example.com");
       assert (!fpv2a->package_email);
 
       assert (fpv2a->internal_repository.load () == sr);
@@ -357,9 +356,9 @@ main (int argc, char* argv[])
       assert (fpv3->summary == "The Foo library");
       assert (fpv3->tags == strings ({"c++", "foo"}));
       assert (!fpv3->description);
-      assert (fpv3->url == "http://www.example.com/foo/");
+      assert (fpv3->url && *fpv3->url == "http://www.example.com/foo/");
       assert (!fpv3->package_url);
-      assert (fpv3->email == "foo-users@example.com");
+      assert (fpv3->email && *fpv3->email == "foo-users@example.com");
       assert (!fpv3->package_email);
 
       assert (fpv3->internal_repository.load () == sr);
@@ -395,9 +394,9 @@ main (int argc, char* argv[])
       assert (fpv4->summary == "The Foo Library");
       assert (fpv4->tags == strings ({"c++", "foo"}));
       assert (*fpv4->description == "Very good foo library.");
-      assert (fpv4->url == "http://www.example.com/foo/");
+      assert (fpv4->url && *fpv4->url == "http://www.example.com/foo/");
       assert (!fpv4->package_url);
-      assert (fpv4->email == "foo-users@example.com");
+      assert (fpv4->email && *fpv4->email == "foo-users@example.com");
       assert (!fpv4->package_email);
 
       assert (fpv4->internal_repository.load () == sr);
@@ -464,9 +463,10 @@ main (int argc, char* argv[])
       assert (xpv->tags == strings ({"c++", "xml", "parser", "serializer",
               "pull", "streaming", "modern"}));
       assert (!xpv->description);
-      assert (xpv->url == "http://www.codesynthesis.com/projects/libstudxml/");
+      assert (xpv->url &&
+              *xpv->url == "http://www.codesynthesis.com/projects/libstudxml/");
       assert (!xpv->package_url);
-      assert (xpv->email ==
+      assert (xpv->email && *xpv->email ==
               email ("studxml-users@codesynthesis.com",
                      "Public mailing list, posts by  non-members "
                      "are allowed but moderated."));
@@ -519,7 +519,7 @@ main (int argc, char* argv[])
               "MATLAB.\n\nUseful for conversion of research code into "
               "production environments.");
 
-      assert (fpv5->url == "http://www.example.com/foo/");
+      assert (fpv5->url && *fpv5->url == "http://www.example.com/foo/");
 
       assert (fpv5->doc_url && *fpv5->doc_url ==
               "http://www.example.org/projects/libfoo/man.xhtml" &&
@@ -531,7 +531,7 @@ main (int argc, char* argv[])
 
       assert (fpv5->package_url &&
               *fpv5->package_url == "http://www.example.com/foo/pack");
-      assert (fpv5->email == "foo-users@example.com");
+      assert (fpv5->email && *fpv5->email == "foo-users@example.com");
       assert (fpv5->package_email &&
               *fpv5->package_email == "pack@example.com");
 
@@ -634,9 +634,9 @@ main (int argc, char* argv[])
       assert (epv->tags == strings ({"c++", "exponent"}));
       assert (epv->description && *epv->description ==
               "The exponent math function.");
-      assert (epv->url == "http://www.exp.com");
+      assert (epv->url && *epv->url == "http://www.exp.com");
       assert (!epv->package_url);
-      assert (epv->email == email ("users@exp.com"));
+      assert (epv->email && *epv->email == email ("users@exp.com"));
       assert (!epv->package_email);
       assert (epv->build_email && *epv->build_email == "builds@exp.com");
 

@@ -19,9 +19,9 @@
 
 // Used by the data migration entries.
 //
-#define LIBBREP_PACKAGE_SCHEMA_VERSION_BASE 6
+#define LIBBREP_PACKAGE_SCHEMA_VERSION_BASE 7
 
-#pragma db model version(LIBBREP_PACKAGE_SCHEMA_VERSION_BASE, 6, closed)
+#pragma db model version(LIBBREP_PACKAGE_SCHEMA_VERSION_BASE, 7, open)
 
 namespace brep
 {
@@ -306,11 +306,11 @@ namespace brep
              strings tags,
              optional<string> description,
              string changes,
-             url_type,
+             optional<url_type>,
              optional<url_type> doc_url,
              optional<url_type> src_url,
              optional<url_type> package_url,
-             email_type,
+             optional<email_type>,
              optional<email_type> package_email,
              optional<email_type> build_email,
              dependencies_type,
@@ -342,11 +342,11 @@ namespace brep
     strings tags;
     optional<string> description;
     string changes;
-    url_type url;
+    optional<url_type> url;
     optional<url_type> doc_url;
     optional<url_type> src_url;
     optional<url_type> package_url;
-    email_type email;
+    optional<email_type> email;
     optional<email_type> package_email;
     optional<email_type> build_email;
     dependencies_type dependencies;
