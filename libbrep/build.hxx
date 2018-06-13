@@ -24,9 +24,9 @@
 
 // Used by the data migration entries.
 //
-#define LIBBREP_BUILD_SCHEMA_VERSION_BASE 3
+#define LIBBREP_BUILD_SCHEMA_VERSION_BASE 4
 
-#pragma db model version(LIBBREP_BUILD_SCHEMA_VERSION_BASE, 3, closed)
+#pragma db model version(LIBBREP_BUILD_SCHEMA_VERSION_BASE, 4, open)
 
 // We have to keep these mappings at the global scope instead of inside
 // the brep namespace because they need to be also effective in the

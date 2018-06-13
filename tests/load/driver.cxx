@@ -142,7 +142,7 @@ main (int argc, char* argv[])
       transaction t (db.begin ());
 
       assert (db.query<repository> ().size () == 7);
-      assert (db.query<package> ().size () == 17);
+      assert (db.query<package> ().size () == 18);
 
       shared_ptr<repository> sr (
         db.load<repository> ("pkg:dev.cppget.org/stable"));
@@ -190,6 +190,38 @@ main (int argc, char* argv[])
 
       // Verify libfoo package versions.
       //
+      // libfoo-+0-X.Y
+      //
+      shared_ptr<package> fpvxy (
+        db.load<package> (
+          package_id (package_name ("libfoo"), version ("+0-X.Y"))));
+
+      assert (fpvxy->summary == "The Foo Library");
+      assert (fpvxy->tags.empty ());
+      assert (!fpvxy->description);
+      assert (!fpvxy->url);
+      assert (!fpvxy->package_url);
+      assert (!fpvxy->email);
+      assert (!fpvxy->package_email);
+
+      assert (fpvxy->internal_repository.load () == mr);
+      assert (fpvxy->other_repositories.empty ());
+
+      assert (fpvxy->priority == priority::low);
+      assert (fpvxy->changes.empty ());
+
+      assert (fpvxy->license_alternatives.size () == 1);
+      assert (fpvxy->license_alternatives[0].size () == 1);
+      assert (fpvxy->license_alternatives[0][0] == "MIT");
+
+      assert (fpvxy->dependencies.empty ());
+      assert (fpvxy->requirements.empty ());
+
+      assert (check_location (fpvxy));
+
+      assert (fpvxy->sha256sum && *fpvxy->sha256sum ==
+        "c994fd49f051ab7fb25f3a4e68ca878e484c5d3c2cb132b37d41224b0621b618");
+
       // libfoo-1.0
       //
       shared_ptr<package> fpv1 (
@@ -270,12 +302,12 @@ main (int argc, char* argv[])
                 "libexp",
                 optional<dependency_constraint> (
                   dependency_constraint (
-                    version ("+1-1.2"), false, version ("+1-1.2"), false))));
+                    version ("+2-1.2"), false, version ("+2-1.2"), false))));
 
       assert (check_location (fpv2));
 
       assert (fpv2->sha256sum && *fpv2->sha256sum ==
-        "58139f97dd8a9820a8c0f068f963865fdc0d1e5f7636d464c0d07441095a35fc");
+        "088068ea3d69542a153f829cf836013374763148fba0a43d8047974f58b5efd7");
 
       // libfoo-1.2.2-alpha.1
       //
@@ -624,11 +656,11 @@ main (int argc, char* argv[])
 
       // Verify libexp package version.
       //
-      // libexp-1+1.2
+      // libexp-+2-1.2
       //
       shared_ptr<package> epv (
         db.load<package> (
-          package_id (package_name ("libexp"), version ("+1-1.2+1"))));
+          package_id (package_name ("libexp"), version ("+2-1.2+1"))));
 
       assert (epv->summary == "The exponent");
       assert (epv->tags == strings ({"c++", "exponent"}));
@@ -672,7 +704,7 @@ main (int argc, char* argv[])
 
       assert (check_location (epv));
       assert (epv->sha256sum && *epv->sha256sum ==
-        "58c1385e959a5e650229768f907442cf9569cb23acc3b3f1b5478060f7bfe5f4");
+        "040b3817418121e8e922ac3a6d3752378f78239faad7d257de87019557fdd245");
 
       // Verify libpq package version.
       //
