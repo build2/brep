@@ -6,6 +6,9 @@
 #define MOD_DIAGNOSTICS_HXX
 
 #include <sstream>
+#include <exception> // uncaught_exception[s]()
+
+#include <libbutl/ft/exception.hxx> // uncaught_exceptions
 
 #include <libbrep/types.hxx>
 #include <libbrep/utility.hxx>
@@ -52,15 +55,20 @@ namespace brep
       return r;
     }
 
-    diag_record () = default;
+    diag_record ()
+        :
+#ifdef __cpp_lib_uncaught_exceptions
+        uncaught_ (std::uncaught_exceptions ()),
+#endif
+        epilogue_ (nullptr) {}
 
     template <typename B>
     explicit
-    diag_record (const diag_prologue<B>& p) {*this << p;} // See below.
+    diag_record (const diag_prologue<B>& p): diag_record () {*this << p;}
 
     template <typename B>
     explicit
-    diag_record (const diag_mark<B>& m) {*this << m;} // See below.
+    diag_record (const diag_mark<B>& m): diag_record () {*this << m;}
 
     ~diag_record () noexcept(false);
 
@@ -88,25 +96,26 @@ namespace brep
 
     // Move constructible-only type.
     //
-    /*
-    @@ libstdc++ doesn't yet have the ostringstream move support.
-
+    // Older versions of libstdc++ don't have the ostringstream move support
+    // and accuratly detecting its version is non-trivial. So we always use
+    // the pessimized implementation with libstdc++. Luckily, GCC doesn't seem
+    // to be needing move due to copy/move elision.
+    //
+#ifdef __GLIBCXX__
+    diag_record (diag_record&&);
+#else
     diag_record (diag_record&& r)
-        : data_ (move (r.data_)), os_ (move (r.os_))
+        :
+#ifdef __cpp_lib_uncaught_exceptions
+        uncaught_ (r.uncaught_),
+#endif
+        data_ (move (r.data_)),
+        os_ (move (r.os_)),
+        epilogue_ (r.epilogue_)
     {
-      epilogue_ = r.epilogue_;
       r.data_.clear (); // Empty.
     }
-    */
-
-    diag_record (diag_record&& r): data_ (move (r.data_))
-    {
-      if (!data_.empty ())
-        os_ << r.os_.str ();
-
-      epilogue_ = r.epilogue_;
-      r.data_.clear (); // Empty.
-    }
+#endif
 
     diag_record& operator= (diag_record&&) = delete;
 
@@ -114,9 +123,12 @@ namespace brep
     diag_record& operator= (const diag_record&) = delete;
 
   private:
+#ifdef __cpp_lib_uncaught_exceptions
+    const int uncaught_;
+#endif
     mutable diag_data data_;
     mutable std::ostringstream os_;
-    mutable const diag_epilogue* epilogue_ {nullptr};
+    mutable const diag_epilogue* epilogue_;
   };
 
   // Base (B) should provide operator() that configures diag_record.
