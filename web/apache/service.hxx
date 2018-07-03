@@ -55,8 +55,11 @@ namespace web
               nullptr,
               nullptr,
               nullptr,
-              &register_hooks<M>,
-              AP_MODULE_FLAG_NONE
+              &register_hooks<M>
+
+#ifdef AP_MODULE_HAS_FLAGS
+              , AP_MODULE_FLAG_NONE
+#endif
             },
             name_ (name),
             exemplar_ (exemplar)
