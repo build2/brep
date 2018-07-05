@@ -4,6 +4,7 @@
 
 define mod: libs
 mod{*}: bin.lib.prefix = mod_
+mod{*}: backlink = true        # Backlink in forwarded configurations.
 mod{*}: install = libexec/
 
 import libs  = libodb%lib{odb}
