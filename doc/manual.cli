@@ -17,11 +17,146 @@
 This document describes \c{brep}, the \c{build2} package repository web
 interface. For the command line interface of \c{brep} utilities refer to the
 \l{brep-load(1)}, \l{brep-clean(1)}, and \l{brep-migrate(1)} man pages.
-"
 
-/*
+\h1#submit|Package Submission|
+
+The package submission functionality allows uploading of package archives as
+well as additional, repository-specific information via the HTTP \c{POST}
+method using the \c{multipart/form-data} content type. The implementation in
+\c{brep} only handles uploading as well as basic verification (checksum,
+duplicates) expecting the rest of the submission and publishing logic to be
+handled by a separate entity according to the repository policy. Such an
+entity can be notified by \c{brep} about a new submission as an invocation of
+the \i{handler program} (as part of the submission request) or via email. It
+could also be a separate process that monitors the upload data directory.
+
+The submission request without any parameters is treated as the submission
+form request. If \c{submit-form} is configured, then such a form is generated
+and returned. Otherwise, such a request is treated as an invalid submission
+(missing parameters).
+
+For each submission request \c{brep} performs the following steps.
+
+\ol|
+
+\li|Verify submission size limit.
+
+The submission form-data payload size must not exceed \c{submit-max-size}.|
+
+\li|Verify the required \c{archive} and \c{sha256sum} parameters are present.
+
+The \c{archive} parameter must be the package archive upload while
+\c{sha256sum} must be its 64 characters SHA256 checksum calculated in the
+binary mode.|
+
+\li|Verify other parameters are valid manifest name/value pairs.
+
+The value can only contain printable ASCII characters as well as tab
+(\c{\\t}), carriage return (\c{\\r}), and line feed (\c{\\n}).|
+
+\li|Check for a duplicate submission.
+
+Each submission is saved as a subdirectory in the \c{submit-data} directory
+with a 12-character abbreviated checksum as its name.|
+
+\li|Save the package archive into a temporary directory and verify its
+checksum.
+
+A temporary subdirectory is created in the \c{submit-temp} directory, the
+package archive is saved into it using the submitted name, and its checksum
+is calculated and compared to the submitted checksum.|
+
+\li|Save the submission request manifest into the temporary directory.
+
+The submission request manifest is saved as \c{request.manifest} into the
+temporary subdirectory next to the archive.|
+
+\li|Make the temporary submission directory permanent.
+
+Move/rename the temporary submission subdirectory to \c{submit-data} as an
+atomic operation using the 12-character abbreviated checksum as its new
+name. If such a directory already exist, then this is a duplicate submission.
+
+Note also that once the directory is successfully moved, it is never removed
+by \c{brep}, even in case of a subsequent error.|
+
+\li|Invoke the submission handler program.
+
+If \c{submit-handler} is configured, invoke the handler program passing to it
+additional arguments specified with \c{submit-handler-argument} (if any)
+followed by the absolute path to the submission directory.
+
+The handler program is expected to write the submission result manifest to
+\c{stdout} and terminate with the zero exit status. A non-zero exit status is
+treated as an internal error. The handler program's \c{stderr} is logged.
+
+The handler program assumes ownership of the submission directory and can
+move/remove it (for example, in case of an invalid submission). If after the
+handler program terminates the submission directory still exists, the
+submission result manifest is saved as \c{result.manifest} into this
+directory, next to the request manifest and archive.
+
+If the handler program is not specified, then the following submission result
+manifest is implied (note that it is not saved):
+
+\
+status: 200
+message: submission is queued
+reference: <abbrev-checksum>
+\
+
+|
+
+
+\li|Send the submission email.
+
+If \c{submit-email} is configured, send an email to this address containing
+the submission request manifest and, unless implied, the submission result
+manifest.|
+
+\li|Respond to the client.
+
+Respond to the client with the submission result manifest and its \c{status}
+value as the HTTP status code.|
+
+|
+
+Check violations (max size, duplicate submissions, etc) that are explicitly
+mentioned above are always reported with the submission result manifest. Other
+errors (for example, internal server errors) might be reported with
+unformatted text, including HTML.
+
+
+\h#submit-request-manifest|Submission Request Manifest|
+
+The submission request manifest starts with the below values and in that order
+optionally followed by additional values in the unspecified order
+corresponding to the custom request parameters.
+
+\
+archive: <name>
+sha256sum: <sum>
+timestamp: <datetime>
+[client-ip]: <string>
+[user-agent]: <string>
+\
+
+The \c{timestamp} value is in the ISO-8601 \c{<YYYY>-<MM>-<DD>T<hh>:<mm>:<ss>Z}
+form (always UTC). Note also that \c{client-ip} can be IPv4 or IPv6.
+
+
+\h#submit-result-manifest|Submission Result Manifest|
+
+The submission result manifest starts with the below values and in that order
+optionally followed by additional values if returned by the handler program.
+If the submission is successful, then the \c{reference} value must be present
+and contain a string that can be used to identify this submission (for
+example, the abbreviated checksum).
+
+\
+status: <http-code>
+message: <string>
+[reference]: <string>
+\
+
 "
-\h Installation
-"
-source "../INSTALL.cli";
-*/

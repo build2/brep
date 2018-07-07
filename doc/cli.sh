@@ -38,12 +38,14 @@ function compile ()
 
   cli -I .. -v project="brep" -v version="$version" -v date="$date" \
 --include-base-last "${o[@]}" --generate-html --html-prologue-file \
-man-prologue.xhtml --html-epilogue-file man-epilogue.xhtml --html-suffix \
-.xhtml ../$n.cli
+man-prologue.xhtml --html-epilogue-file man-epilogue.xhtml --html-suffix .xhtml \
+--link-regex '%brep(#.+)?%build2-repository-interface-manual.xhtml$1%' \
+../$n.cli
 
   cli -I .. -v project="brep" -v version="$version" -v date="$date" \
 --include-base-last "${o[@]}" --generate-man --man-prologue-file \
 man-prologue.1 --man-epilogue-file man-epilogue.1 --man-suffix .1 \
+--link-regex '%brep(#.+)?%$1%' \
 ../$n.cli
 }
 

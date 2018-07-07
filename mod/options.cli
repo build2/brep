@@ -388,6 +388,78 @@ namespace brep
       }
     };
 
+    class submit: page, module
+    {
+      dir_path submit-data
+      {
+        "<dir>",
+        "The directory to save final submission data to. If unspecified, the
+         package submission functionality will be disabled. If specified,
+         then \cb{submit-temp} must be specified as well. See \l{brep The
+         \cb{build2} Repository Interface Manual} for more information on
+         package submission.
+
+         Note that the directory path must be absolute and the directory
+         itself must exist and have read, write, and execute permissions
+         granted to the user that runs the web server."
+      }
+
+      dir_path submit-temp
+      {
+        "<dir>",
+        "The directory to save temporary submission data to. Must be specified
+         if the package submission functionality is enabled.
+
+         Note that this directory must be on the same filesystem and satisfy
+         the same requirements as \cb{submit-data}. Its contents are
+         automatically cleaned up on each web server startup."
+      }
+
+      size_t submit-max-size = 10485760
+      {
+        "<bytes>",
+        "The maximum size of the submission data accepted. Note that currently
+         the entire submission request is read into memory. The default is
+         10M."
+      }
+
+      path submit-form
+      {
+        "<file>",
+        "The package submission form fragment. If specified, then its contents
+         are treated as an XHTML5 fragment that is inserted into the <body>
+         element of the submission page. If unspecified, then no submission
+         page will be displayed. Note that the file path must be absolute."
+      }
+
+      string submit-email
+      {
+        "<email>",
+        "The package submission email. If specified, the submission request
+         and result manifests will be sent to this address. See \l{brep The
+         \cb{build2} Repository Interface Manual} for more information."
+      }
+
+      path submit-handler
+      {
+        "<path>",
+        "The handler program to be executed on package submission. The handler
+         is executed as part of the submission request and is passed additional
+         arguments that can be specified with \cb{submit-handler-argument}
+         followed by the absolute path to the submission directory. See
+         \l{brep The \cb{build2} Repository Interface Manual} for more
+         information. Note that the program path must be absolute."
+      }
+
+      strings submit-handler-argument
+      {
+        "<arg>",
+        "Additional arguments to be passed to the submission handler program
+         (see \cb{submit-handler} for details). Repeat this option to specify
+         multiple arguments."
+      }
+    };
+
     class repository_root: module
     {
     };
@@ -535,6 +607,27 @@ namespace brep
       // the rest - for being greater or equal.
       //
       string result | rs = "*";
+    };
+
+    // Parameters must either be all present (actual submission) or absent
+    // (submission form request).
+    //
+    // Note also that besides these parameters there can be others. We don't
+    // recognize their semantics and just save them to the submission request
+    // manifest.
+    //
+    class submit
+    {
+      // Package archive file name. Must be <input type="file"/>.
+      //
+      // Note that it can potentially be not just a name but a file path and
+      // in the client's form (e.g., Windows).
+      //
+      string archive;
+
+      // Package archive file SHA256 checksum.
+      //
+      string sha256sum;
     };
   }
 }
