@@ -1,0 +1,22 @@
+/*
+ * Package archive submission form (based on proplist and form-table)
+ */
+#submit
+{
+  margin-top: .8em;
+  margin-bottom: .8em;
+
+  padding-top: .4em;
+  padding-bottom: .4em;
+}
+
+#submit th
+{
+  width: 5.7em;
+}
+
+#submit input
+{
+  width: 100%;
+  margin:0;
+}

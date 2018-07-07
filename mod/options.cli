@@ -10,13 +10,13 @@ include <mod/options-types.hxx>;
 
 namespace brep
 {
-  // Web module configuration options.
+  // Web handler configuration options.
   //
   namespace options
   {
     // Option groups.
     //
-    class module
+    class handler
     {
       string email
       {
@@ -307,9 +307,9 @@ namespace brep
       }
     };
 
-    // Module options.
+    // Handler options.
     //
-    class package_search: search, package_db, page, module
+    class package_search: search, package_db, page, handler
     {
       string search-title = "Packages"
       {
@@ -319,22 +319,22 @@ namespace brep
       }
     };
 
-    class package_details: package, search, package_db, page, module
+    class package_details: package, search, package_db, page, handler
     {
     };
 
     class package_version_details: package, package_db,
                                    build, build_db,
                                    page,
-                                   module
+                                   handler
     {
     };
 
-    class repository_details: package_db, page, module
+    class repository_details: package_db, page, handler
     {
     };
 
-    class build_task: build, package_db, build_db, module
+    class build_task: build, package_db, build_db, handler
     {
       size_t build-task-request-max-size = 102400
       {
@@ -353,7 +353,7 @@ namespace brep
       }
     };
 
-    class build_result: build, package_db, build_db, module
+    class build_result: build, package_db, build_db, handler
     {
       size_t build-result-request-max-size = 10240000
       {
@@ -365,15 +365,15 @@ namespace brep
       }
     };
 
-    class build_log: build, package_db, build_db, module
+    class build_log: build, package_db, build_db, handler
     {
     };
 
-    class build_force: build, package_db, build_db, module
+    class build_force: build, package_db, build_db, handler
     {
     };
 
-    class builds: build, package_db, build_db, page, module
+    class builds: build, package_db, build_db, page, handler
     {
       uint16_t build-configurations = 10
       {
@@ -388,7 +388,7 @@ namespace brep
       }
     };
 
-    class submit: page, module
+    class submit: page, handler
     {
       dir_path submit-data
       {
@@ -411,8 +411,8 @@ namespace brep
          if the package submission functionality is enabled.
 
          Note that this directory must be on the same filesystem and satisfy
-         the same requirements as \cb{submit-data}. Its contents are
-         automatically cleaned up on each web server startup."
+         the same requirements as \cb{submit-data}. It is also the user's
+         responsibility to clean it up after an unclean web server shutdown."
       }
 
       size_t submit-max-size = 10485760
@@ -460,12 +460,12 @@ namespace brep
       }
     };
 
-    class repository_root: module
+    class repository_root: handler
     {
     };
   }
 
-  // Web module HTTP request parameters.
+  // Web handler HTTP request parameters.
   //
   namespace params
   {

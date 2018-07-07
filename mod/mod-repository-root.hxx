@@ -22,8 +22,9 @@ namespace brep
   class build_force;
   class build_log;
   class builds;
+  class submit;
 
-  class repository_root: public module
+  class repository_root: public handler
   {
   public:
     repository_root ();
@@ -65,14 +66,15 @@ namespace brep
     shared_ptr<build_force> build_force_;
     shared_ptr<build_log> build_log_;
     shared_ptr<builds> builds_;
+    shared_ptr<submit> submit_;
     shared_ptr<options::repository_root> options_;
 
-    // Sub-module the request is dispatched to. Initially is NULL. It is set
+    // Sub-handler the request is dispatched to. Initially is NULL. It is set
     // by the first call to handle() to a deep copy of the selected exemplar.
     // The subsequent calls of handle() (that may take place after the retry
     // exception is thrown) will use the existing handler instance.
     //
-    unique_ptr<module> handler_;
+    unique_ptr<handler> handler_;
   };
 }
 

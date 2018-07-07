@@ -37,7 +37,7 @@ build_log (const build_log& r)
 void brep::build_log::
 init (scanner& s)
 {
-  MODULE_DIAG;
+  HANDLER_DIAG;
 
   options_ = make_shared<options::build_log> (
     s, unknown_mode::fail, unknown_mode::fail);
@@ -56,7 +56,7 @@ handle (request& rq, response& rs)
 {
   using brep::version; // Not to confuse with module::version.
 
-  MODULE_DIAG;
+  HANDLER_DIAG;
 
   if (build_db_ == nullptr)
     throw invalid_request (501, "not implemented");
@@ -146,7 +146,7 @@ handle (request& rq, response& rs)
   //
   try
   {
-    name_value_scanner s (rq.parameters ());
+    name_value_scanner s (rq.parameters (1024));
     params::build_log (s, unknown_mode::fail, unknown_mode::fail);
   }
   catch (const cli::exception& e)

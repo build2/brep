@@ -19,7 +19,7 @@ namespace brep
   //
   // @@ Maybe doing using namespace is the right way to handle this.
   //    There will, however, most likely be a conflict between
-  //    web::module and our module. Or maybe not, need to try.
+  //    web::handler and our handler. Or maybe not, need to try.
   //
   using web::status_code;
   using web::invalid_request;
@@ -33,7 +33,7 @@ namespace brep
 
   // This exception indicated a server error (5XX). In particular,
   // it is thrown by the fail diagnostics stream and is caught by the
-  // module implementation where it is both logged as an error and
+  // handler implementation where it is both logged as an error and
   // returned to the user with the 5XX status code.
   //
   struct server_error
@@ -43,15 +43,15 @@ namespace brep
     server_error (diag_data&& d): data (move (d)) {}
   };
 
-  // Every module member function that needs to produce any diagnostics
+  // Every handler member function that needs to produce any diagnostics
   // shall begin with:
   //
-  // MODULE_DIAG;
+  // HANDLER_DIAG;
   //
   // This will instantiate the fail, error, warn, info, and trace
   // diagnostics streams with the function's name.
   //
-#define MODULE_DIAG                                                     \
+#define HANDLER_DIAG                                                    \
   const fail_mark<server_error> fail (__PRETTY_FUNCTION__);             \
   const basic_mark error (severity::error,                              \
                           this->log_writer_,                            \
@@ -66,9 +66,9 @@ namespace brep
                           this->log_writer_,                            \
                           __PRETTY_FUNCTION__)
 
-  // Adaptation of the web::module to our needs.
+  // Adaptation of the web::handler to our needs.
   //
-  class module: public web::module
+  class handler: public web::handler
   {
     // Diagnostics.
     //
@@ -87,15 +87,15 @@ namespace brep
     template <class F> void l1 (const F& f) const {if (verb_ >= 1) f ();}
     template <class F> void l2 (const F& f) const {if (verb_ >= 2) f ();}
 
-    // Set to true when the module is successfully initialized.
+    // Set to true when the handler is successfully initialized.
     //
     bool initialized_ {false};
 
     // Implementation details.
     //
   protected:
-    module ();
-    module (const module& );
+    handler ();
+    handler (const handler& );
 
     static name_values
     filter (const name_values&, const option_descriptions&);
@@ -109,7 +109,7 @@ namespace brep
     static void
     append (option_descriptions& dst, const option_descriptions& src);
 
-    // Can be used by module implementation to parse HTTP request parameters.
+    // Can be used by handler implementation to parse HTTP request parameters.
     //
     class name_value_scanner: public cli::scanner
     {
@@ -142,7 +142,7 @@ namespace brep
     init (cli::scanner&) = 0;
 
     // Can be overriden by custom request dispatcher to initialize
-    // sub-modules.
+    // sub-handlers.
     //
     virtual void
     init (const name_values&);
@@ -156,12 +156,12 @@ namespace brep
     virtual bool
     handle (request&, response&, log&);
 
-    // web::module interface.
+    // web::handler interface.
     //
   public:
     // Custom request dispatcher can aggregate its own option descriptions
-    // with sub-modules option descriptions. In this case it should still call
-    // the base implementation in order to include the brep::module's options.
+    // with sub-handlers option descriptions. In this case it should still call
+    // the base implementation in order to include the brep::handler's options.
     //
     virtual option_descriptions
     options ();
@@ -170,7 +170,7 @@ namespace brep
     virtual void
     version (log&);
 
-    // Can be overriden by the module implementation to log version, etc.
+    // Can be overriden by the handler implementation to log version, etc.
     //
     virtual void
     version () {}

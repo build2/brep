@@ -31,22 +31,22 @@ namespace web
     // configuration context to the request handler.
     //
     // This Apache service implementation first makes a copy of the provided
-    // (in the constructor below) module exemplar for each directory context.
+    // (in the constructor below) handler exemplar for each directory context.
     // It then initializes each of these "context exemplars" with the (merged)
     // set of configuration options. Finally, when handling a request, it
     // copies the corresponding "context exemplar" to create the "handling
     // instance". Note that the "context exemplars" are created as a copy of
     // the provided exemplar, which is never initialized. As a result, it is
-    // possible to detect if the module's copy constructor is used to create a
-    // "context exemplar" or a "handling instance".
+    // possible to detect if the handler's copy constructor is used to create
+    // a "context exemplar" or a "handling instance".
     //
     class service: ::module
     {
     public:
       // Note that the module exemplar is stored by-reference.
       //
-      template <typename M>
-      service (const std::string& name, M& exemplar)
+      template <typename H>
+      service (const std::string& name, H& exemplar)
           : ::module
             {
               STANDARD20_MODULE_STUFF,
@@ -55,7 +55,7 @@ namespace web
               nullptr,
               nullptr,
               nullptr,
-              &register_hooks<M>
+              &register_hooks<H>
 
 #ifdef AP_MODULE_HAS_FLAGS
               , AP_MODULE_FLAG_NONE
@@ -69,15 +69,15 @@ namespace web
         // Set configuration context management hooks.
         //
         // The overall process of building the configuration hierarchy for a
-        // module is as follows:
+        // handler is as follows:
         //
         // 1. Apache creates directory and server configuration contexts for
-        //    scopes containing module-defined directives by calling the
+        //    scopes containing handler-defined directives by calling the
         //    create_{server,dir}_context() callback functions. For directives
         //    at the server scope the special directory context is created as
         //    well.
         //
-        // 2. Apache calls parse_option() function for each module-defined
+        // 2. Apache calls parse_option() function for each handler-defined
         //    directive. The function parses the directives and places the
         //    resulting options into the corresponding configuration context.
         //    It also establishes the directory-server contexts relations.
@@ -89,7 +89,7 @@ namespace web
         // 4. Apache calls config_finalizer() which complements the directory
         //    contexts options with the ones from the enclosing servers.
         //
-        // 5. Apache calls worker_initializer() which creates module exemplar
+        // 5. Apache calls worker_initializer() which creates handler exemplar
         //    for each directory configuration context that have
         //    'SetHandler <mod_name>' directive in effect for it.
         //
@@ -100,14 +100,14 @@ namespace web
         //
         create_server_config = &create_server_context;
         create_dir_config = &create_dir_context;
-        merge_server_config = &merge_server_context<M>;
+        merge_server_config = &merge_server_context<H>;
 
-        // instance<M> () is invented to delegate processing from apache
+        // instance<H> () is invented to delegate processing from apache
         // request handler C function to the service non static member
         // function. This appoach resticts number of service objects per
-        // specific module implementation class with just one instance.
+        // specific handler implementation class with just one instance.
         //
-        service*& srv (instance<M> ());
+        service*& srv (instance<H> ());
         assert (srv == nullptr);
         srv = this;
       }
@@ -118,7 +118,7 @@ namespace web
       }
 
     private:
-      template <typename M>
+      template <typename H>
       static service*&
       instance () noexcept
       {
@@ -126,45 +126,45 @@ namespace web
         return instance;
       }
 
-      template <typename M>
+      template <typename H>
       static void
       register_hooks (apr_pool_t*) noexcept
       {
         // The config_finalizer() function is called at the end of Apache
         // server configuration parsing.
         //
-        ap_hook_post_config (&config_finalizer<M>, NULL, NULL, APR_HOOK_LAST);
+        ap_hook_post_config (&config_finalizer<H>, NULL, NULL, APR_HOOK_LAST);
 
         // The worker_initializer() function is called right after Apache
         // worker process is started. Called for every new process spawned.
         //
         ap_hook_child_init (
-          &worker_initializer<M>, NULL, NULL, APR_HOOK_LAST);
+          &worker_initializer<H>, NULL, NULL, APR_HOOK_LAST);
 
         // The request_handler () function is called for each client request.
         //
-        ap_hook_handler (&request_handler<M>, NULL, NULL, APR_HOOK_LAST);
+        ap_hook_handler (&request_handler<H>, NULL, NULL, APR_HOOK_LAST);
       }
 
-      template <typename M>
+      template <typename H>
       static int
       config_finalizer (apr_pool_t*, apr_pool_t*, apr_pool_t*, server_rec* s)
         noexcept
       {
-        instance<M> ()->finalize_config (s);
+        instance<H> ()->finalize_config (s);
         return OK;
       }
 
-      template <typename M>
+      template <typename H>
       static void
       worker_initializer (apr_pool_t*, server_rec* s) noexcept
       {
-        auto srv (instance<M> ());
+        auto srv (instance<H> ());
         log l (s, srv);
-        srv->template init_worker<M> (l);
+        srv->template init_worker<H> (l);
       }
 
-      template <typename M>
+      template <typename H>
       static int
       request_handler (request_rec* r) noexcept;
 
@@ -176,12 +176,12 @@ namespace web
       enum class request_handling
       {
         // Configuration scope has 'SetHandler <mod_name>' directive
-        // specified. The module is allowed to handle a request in the scope.
+        // specified. The handler is allowed to handle a request in the scope.
         //
         allowed,
 
         // Configuration scope has 'SetHandler <other_mod_name>|None'
-        // directive specified. The module is disallowed to handle a request
+        // directive specified. The handler is disallowed to handle a request
         // in the scope.
         //
         disallowed,
@@ -207,7 +207,7 @@ namespace web
       //
       // We will then use the pointers to these context objects as keys in
       // maps to (1) the corresponding application-level option lists during
-      // the configuration cycle and to (2) the corresponding module exemplar
+      // the configuration cycle and to (2) the corresponding handler exemplar
       // during the HTTP request handling phase. We will also use the same
       // type for both directory and server configuration contexts.
       //
@@ -267,12 +267,12 @@ namespace web
       static void*
       create_dir_context (apr_pool_t*, char* dir) noexcept;
 
-      template <typename M>
+      template <typename H>
       static void*
       merge_server_context (apr_pool_t*, void* enclosing, void* enclosed)
         noexcept
       {
-        instance<M> ()->complement (
+        instance<H> ()->complement (
           context_cast (enclosed), context_cast (enclosing));
 
         return enclosed;
@@ -298,17 +298,17 @@ namespace web
       void
       complement (context* enclosed, context* enclosing);
 
-      template <typename M>
+      template <typename H>
       void
       init_worker (log&);
 
-      template <typename M>
+      template <typename H>
       int
       handle (request&, const context*, log&) const;
 
     private:
       std::string name_;
-      module& exemplar_;
+      handler& exemplar_;
       option_descriptions option_descriptions_;
 
       // The context objects pointed to by the key can change during the
@@ -320,7 +320,7 @@ namespace web
       // The context objects pointed to by the key can not change during the
       // request handling phase.
       //
-      using exemplars = std::map<const context*, std::unique_ptr<module>>;
+      using exemplars = std::map<const context*, std::unique_ptr<handler>>;
       exemplars exemplars_;
 
       bool options_parsed_ = false;

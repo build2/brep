@@ -10,4 +10,8 @@ define scss: file
 scss{*}: extension = scss
 scss{*}: install = data/www/
 
-./: css{*} scss{*}
+define xhtml: file
+xhtml{*}: extension = xhtml
+xhtml{*}: install = data/www/
+
+./: css{*} scss{*} xhtml{*}

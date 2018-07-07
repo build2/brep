@@ -43,7 +43,7 @@ package_version_details (const package_version_details& r)
 void brep::package_version_details::
 init (scanner& s)
 {
-  MODULE_DIAG;
+  HANDLER_DIAG;
 
   options_ = make_shared<options::package_version_details> (
     s, unknown_mode::fail, unknown_mode::fail);
@@ -66,7 +66,7 @@ handle (request& rq, response& rs)
   using namespace web::xhtml;
   using brep::version; // Not to confuse with module::version.
 
-  MODULE_DIAG;
+  HANDLER_DIAG;
 
   const string& host (options_->host ());
   const dir_path& root (options_->root ());
@@ -101,7 +101,7 @@ handle (request& rq, response& rs)
 
   try
   {
-    name_value_scanner s (rq.parameters ());
+    name_value_scanner s (rq.parameters (1024));
     params = params::package_version_details (
       s, unknown_mode::fail, unknown_mode::fail);
 

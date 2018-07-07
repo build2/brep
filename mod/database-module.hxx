@@ -22,11 +22,11 @@
 
 namespace brep
 {
-  // A module that utilises the database. Specifically, it will retry the
+  // A handler that utilises the database. Specifically, it will retry the
   // request in the face of recoverable database failures (deadlock, loss of
   // connection, etc) up to a certain number of times.
   //
-  class database_module: public module
+  class database_module: public handler
   {
   protected:
     database_module () = default;
@@ -38,10 +38,10 @@ namespace brep
     database_module (const database_module&);
 
     // Required to avoid getting warning from clang that
-    // database_module::init() hides module::init() virtual functions. This
+    // database_module::init() hides handler::init() virtual functions. This
     // way all functions get to the same scope and become overloaded set.
     //
-    using module::init;
+    using handler::init;
 
     // Initialize the package database instance. Throw odb::exception on
     // failure.

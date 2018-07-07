@@ -52,7 +52,7 @@ build_task (const build_task& r)
 void brep::build_task::
 init (scanner& s)
 {
-  MODULE_DIAG;
+  HANDLER_DIAG;
 
   options_ = make_shared<options::build_task> (
     s, unknown_mode::fail, unknown_mode::fail);
@@ -81,7 +81,7 @@ init (scanner& s)
 bool brep::build_task::
 handle (request& rq, response& rs)
 {
-  MODULE_DIAG;
+  HANDLER_DIAG;
 
   if (build_db_ == nullptr)
     throw invalid_request (501, "not implemented");
@@ -90,7 +90,10 @@ handle (request& rq, response& rs)
 
   try
   {
-    name_value_scanner s (rq.parameters ());
+    // Note that we expect the task request manifest to be posted and so
+    // consider parameters from the URL only.
+    //
+    name_value_scanner s (rq.parameters (0 /* limit */, true /* url_only */));
     params = params::build_task (s, unknown_mode::fail, unknown_mode::fail);
   }
   catch (const cli::exception& e)
@@ -102,6 +105,10 @@ handle (request& rq, response& rs)
 
   try
   {
+    // We fully cache the request content to be able to retry the request
+    // handling if odb::recoverable is thrown (see database-module.cxx for
+    // details).
+    //
     size_t limit (options_->build_task_request_max_size ());
     manifest_parser p (rq.content (limit, limit), "task_request_manifest");
     tqm = task_request_manifest (p);

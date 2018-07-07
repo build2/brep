@@ -21,9 +21,9 @@ using namespace placeholders; // For std::bind's _1, etc.
 
 namespace brep
 {
-  // module
+  // handler
   //
-  bool module::
+  bool handler::
   handle (request& rq, response& rs, log& l)
   {
     log_ = &l;
@@ -74,7 +74,7 @@ namespace brep
     return true;
   }
 
-  option_descriptions module::
+  option_descriptions handler::
   convert (const cli::options& o)
   {
     option_descriptions r;
@@ -82,7 +82,7 @@ namespace brep
     return r;
   }
 
-  void module::
+  void handler::
   append (option_descriptions& dst, const cli::options& src)
   {
     for (const auto& o: src)
@@ -99,7 +99,7 @@ namespace brep
     }
   }
 
-  void module::
+  void handler::
   append (option_descriptions& dst, const option_descriptions& src)
   {
     for (const auto& o: src)
@@ -109,7 +109,7 @@ namespace brep
     }
   }
 
-  name_values module::
+  name_values handler::
   filter (const name_values& v, const option_descriptions& d)
   {
     name_values r;
@@ -123,20 +123,20 @@ namespace brep
   }
 
   // Convert CLI option descriptions to the general interface of option
-  // descriptions, extend with brep::module own option descriptions.
+  // descriptions, extend with brep::handler own option descriptions.
   //
-  option_descriptions module::
+  option_descriptions handler::
   options ()
   {
     option_descriptions r ({{"conf", true}});
-    append (r, options::module::description ());
+    append (r, options::handler::description ());
     append (r, cli_options ());
     return r;
   }
 
   // Expand option list parsing configuration files.
   //
-  name_values module::
+  name_values handler::
   expand_options (const name_values& v)
   {
     using namespace cli;
@@ -175,14 +175,14 @@ namespace brep
   }
 
   // Parse options with a cli-generated scanner. Options verb and conf are
-  // recognized by brep::module::init while others to be interpreted by the
+  // recognized by brep::handler::init while others to be interpreted by the
   // derived init(). If there is an option which can not be interpreted
-  // neither by brep::module nor by the derived class, then the web server
+  // neither by brep::handler nor by the derived class, then the web server
   // is terminated with a corresponding error message being logged. Though
   // this should not happen if the options() function returned the correct
   // set of options.
   //
-  void module::
+  void handler::
   init (const name_values& options, log& log)
   {
     assert (!initialized_);
@@ -193,18 +193,18 @@ namespace brep
     {
       name_values opts (expand_options (options));
 
-      // Read module implementation configuration.
+      // Read handler implementation configuration.
       //
       init (opts);
 
-      // Read brep::module configuration.
+      // Read brep::handler configuration.
       //
       static option_descriptions od (
-        convert (options::module::description ()));
+        convert (options::handler::description ()));
 
       name_values mo (filter (opts, od));
       name_value_scanner s (mo);
-      options::module o (s, cli::unknown_mode::fail, cli::unknown_mode::fail);
+      options::handler o (s, cli::unknown_mode::fail, cli::unknown_mode::fail);
 
       verb_ = o.verbosity ();
       initialized_ = true;
@@ -222,21 +222,21 @@ namespace brep
     }
   }
 
-  void module::
+  void handler::
   init (const name_values& options)
   {
     name_value_scanner s (options);
     init (s);
-    assert (!s.more ()); // Module didn't handle its options.
+    assert (!s.more ()); // Handler didn't handle its options.
   }
 
-  module::
-  module (): log_writer_ (bind (&module::log_write, this, _1)) {}
+  handler::
+  handler (): log_writer_ (bind (&handler::log_write, this, _1)) {}
 
   // Custom copy constructor is required to initialize log_writer_ properly.
   //
-  module::
-  module (const module& m): module ()
+  handler::
+  handler (const handler& m): handler ()
   {
     verb_ = m.verb_;
     initialized_ = m.initialized_;
@@ -250,7 +250,7 @@ namespace brep
 // virtual std::string (* (* brep::search::func(std::string (* (*)(char))(int)
 // ,std::string (* (*)(wchar_t))(int)) const)(int, int))(int)
 //
-  string module::
+  string handler::
   func_name (const char* pretty_name)
   {
     const char* e (strchr (pretty_name, ')'));
@@ -293,10 +293,10 @@ namespace brep
       }
     }
 
-    throw invalid_argument ("::brep::module::func_name");
+    throw invalid_argument ("::brep::handler::func_name");
   }
 
-  void module::
+  void handler::
   log_write (const diag_data& d) const
   {
     if (log_ == nullptr)
@@ -313,7 +313,7 @@ namespace brep
       //
       // Use APLOG_INFO (as opposed to APLOG_TRACE1) as a mapping for
       // severity::trace. "LogLevel trace1" configuration directive switches
-      // on the avalanche of log messages from various modules. Would be good
+      // on the avalanche of log messages from various handlers. Would be good
       // to avoid wading through them.
       //
       static int s[] = {APLOG_ERR, APLOG_WARNING, APLOG_INFO, APLOG_INFO};
@@ -341,16 +341,16 @@ namespace brep
     }
   }
 
-  void module::
+  void handler::
   version (log& l)
   {
     log_ = &l;
     version ();
   }
 
-  // module::name_value_scanner
+  // handler::name_value_scanner
   //
-  module::name_value_scanner::
+  handler::name_value_scanner::
   name_value_scanner (const name_values& nv) noexcept
       : name_values_ (nv),
         i_ (nv.begin ()),
@@ -358,13 +358,13 @@ namespace brep
   {
   }
 
-  bool module::name_value_scanner::
+  bool handler::name_value_scanner::
   more ()
   {
     return i_ != name_values_.end ();
   }
 
-  const char* module::name_value_scanner::
+  const char* handler::name_value_scanner::
   peek ()
   {
     if (i_ != name_values_.end ())
@@ -373,7 +373,7 @@ namespace brep
       throw cli::eos_reached ();
   }
 
-  const char* module::name_value_scanner::
+  const char* handler::name_value_scanner::
   next ()
   {
     if (i_ != name_values_.end ())
@@ -386,7 +386,7 @@ namespace brep
       throw cli::eos_reached ();
   }
 
-  void module::name_value_scanner::
+  void handler::name_value_scanner::
   skip ()
   {
     if (i_ != name_values_.end ())

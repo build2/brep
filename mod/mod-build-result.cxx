@@ -46,7 +46,7 @@ build_result (const build_result& r)
 void brep::build_result::
 init (scanner& s)
 {
-  MODULE_DIAG;
+  HANDLER_DIAG;
 
   options_ = make_shared<options::build_result> (
     s, unknown_mode::fail, unknown_mode::fail);
@@ -68,7 +68,7 @@ handle (request& rq, response&)
 {
   using brep::version; // Not to confuse with module::version.
 
-  MODULE_DIAG;
+  HANDLER_DIAG;
 
   if (build_db_ == nullptr)
     throw invalid_request (501, "not implemented");
@@ -77,7 +77,10 @@ handle (request& rq, response&)
   //
   try
   {
-    name_value_scanner s (rq.parameters ());
+    // Note that we expect the result request manifest to be posted and so
+    // consider parameters from the URL only.
+    //
+    name_value_scanner s (rq.parameters (0 /* limit */, true /* url_only */));
     params::build_result (s, unknown_mode::fail, unknown_mode::fail);
   }
   catch (const cli::exception& e)
@@ -89,6 +92,10 @@ handle (request& rq, response&)
 
   try
   {
+    // We fully cache the request content to be able to retry the request
+    // handling if odb::recoverable is thrown (see database-module.cxx for
+    // details).
+    //
     size_t limit (options_->build_result_request_max_size ());
     manifest_parser p (rq.content (limit, limit), "result_request_manifest");
     rqm = result_request_manifest (p);

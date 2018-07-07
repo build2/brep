@@ -10,6 +10,7 @@
 #include <chrono>
 #include <memory>    // unique_ptr
 #include <string>
+#include <vector>
 #include <istream>
 #include <ostream>
 #include <streambuf>
@@ -55,6 +56,10 @@ namespace web
     //
     class istreambuf_cache;
 
+    // Stream type for reading from Apache's bucket brigades.
+    //
+    class istream_buckets;
+
     class request: public web::request,
                    public web::response,
                    public stream_state
@@ -93,12 +98,25 @@ namespace web
       // Get request body data stream.
       //
       virtual std::istream&
-      content (size_t limit = 0, size_t buffer = 0);
+      content (std::size_t limit = 0, std::size_t buffer = 0);
 
       // Get request parameters.
       //
       virtual const name_values&
-      parameters ();
+      parameters (std::size_t limit, bool url_only = false);
+
+      // Get upload stream.
+      //
+      virtual std::istream&
+      open_upload (std::size_t index);
+
+      virtual std::istream&
+      open_upload (const std::string& name);
+
+      // Get request headers.
+      //
+      virtual const name_values&
+      headers ();
 
       // Get request cookies.
       //
@@ -134,16 +152,35 @@ namespace web
               bool buffer = true);
 
     private:
-      // Get application/x-www-form-urlencoded form data. If request::content()
-      // was not called yet (and so limits are not specified) then set both of
-      // them to 64KB. Rewind the stream afterwards, so it's available for the
-      // application as well, unless no buffering were requested beforehand.
+      // On the first call cache the application/x-www-form-urlencoded or
+      // multipart/form-data form data for the subsequent parameters parsing
+      // and set the multipart flag accordingly. Don't cache if the request is
+      // in the reading or later state. Return true if the cache contains the
+      // form data.
       //
-      const std::string&
-      form_data ();
+      // Note that the function doesn't change the content buffering (see
+      // content() function for details) nor rewind the content stream after
+      // reading.
+      //
+      bool
+      form_data (std::size_t limit);
+
+      // Used to also parse application/x-www-form-urlencoded POST body.
+      //
+      void
+      parse_url_parameters (const char* args);
 
       void
-      parse_parameters (const char* args);
+      parse_multipart_parameters (const std::vector<char>& body);
+
+      // Return a list of the upload input streams. Throw sequence_error if
+      // the parameters() function was not called yet. Throw invalid_argument
+      // if the request doesn't contain multipart form data.
+      //
+      using uploads_type = std::vector<std::unique_ptr<istream_buckets>>;
+
+      uploads_type&
+      uploads () const;
 
       // Advance the request processing state. Noop if new state is equal to
       // the current one. Throw sequence_error if the new state is less then
@@ -161,20 +198,27 @@ namespace web
       virtual void
       set_write_state () {state (request_state::writing);}
 
-      // Rewind the input stream (that must exist). Throw sequence_error if
-      // some unbuffered content have already been read.
-      //
-      void
-      rewind_istream ();
-
     private:
       request_rec* rec_;
       request_state state_ = request_state::initial;
 
       path_type path_;
+
       std::unique_ptr<name_values> parameters_;
+      bool url_only_parameters_; // Meaningless if parameters_ is NULL;
+
+      // Uploaded file streams. If not NULL, is parallel to the parameters
+      // list.
+      //
+      std::unique_ptr<uploads_type> uploads_;
+
+      std::unique_ptr<name_values> headers_;
       std::unique_ptr<name_values> cookies_;
-      std::unique_ptr<std::string> form_data_;
+
+      // Form data cache. Is empty if the body doesn't contain the form data.
+      //
+      std::unique_ptr<std::vector<char>> form_data_;
+      bool form_multipart_; // Meaningless if form_data_ is NULL or empty;
 
       std::unique_ptr<istreambuf_cache> in_buf_;
       std::unique_ptr<std::istream> in_;

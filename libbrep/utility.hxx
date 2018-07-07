@@ -11,7 +11,7 @@
 #include <cassert>  // assert()
 #include <iterator> // make_move_iterator()
 
-#include <libbutl/utility.mxx> // reverse_iterate(),
+#include <libbutl/utility.mxx> // casecmp(), reverse_iterate(),
                                // operator<<(ostream, exception)
 
 namespace brep
@@ -27,6 +27,7 @@ namespace brep
 
   // <libbutl/utility.mxx>
   //
+  using butl::casecmp;
   using butl::reverse_iterate;
 }
 

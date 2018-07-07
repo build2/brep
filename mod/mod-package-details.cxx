@@ -37,7 +37,7 @@ package_details (const package_details& r)
 void brep::package_details::
 init (scanner& s)
 {
-  MODULE_DIAG;
+  HANDLER_DIAG;
 
   options_ = make_shared<options::package_details> (
     s, unknown_mode::fail, unknown_mode::fail);
@@ -69,7 +69,7 @@ handle (request& rq, response& rs)
   using namespace web;
   using namespace web::xhtml;
 
-  MODULE_DIAG;
+  HANDLER_DIAG;
 
   const size_t res_page (options_->search_results ());
   const dir_path& root (options_->root ());
@@ -79,7 +79,7 @@ handle (request& rq, response& rs)
 
   try
   {
-    name_value_scanner s (rq.parameters ());
+    name_value_scanner s (rq.parameters (8 * 1024));
     params = params::package_details (
       s, unknown_mode::fail, unknown_mode::fail);
 

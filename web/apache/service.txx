@@ -15,20 +15,22 @@ namespace web
 {
   namespace apache
   {
-    template <typename M>
+    template <typename H>
     void service::
     init_worker (log& l)
     {
-      const std::string func_name (
+      using namespace std;
+
+      const string func_name (
         "web::apache::service<" + name_ + ">::init_worker");
 
       try
       {
-        const M* exemplar (dynamic_cast<const M*> (&exemplar_));
+        const H* exemplar (dynamic_cast<const H*> (&exemplar_));
         assert (exemplar != nullptr);
 
-        // For each directory configuration context, for which the module is
-        // allowed to handle a request, create the module exemplar as a deep
+        // For each directory configuration context, for which the handler is
+        // allowed to handle a request, create the handler exemplar as a deep
         // copy of the exemplar_ member, and initialize it with the
         // context-specific option list.
         //
@@ -42,7 +44,7 @@ namespace web
             auto r (
               exemplars_.emplace (
                 c,
-                std::unique_ptr<module> (new M (*exemplar))));
+                unique_ptr<handler> (new H (*exemplar))));
 
             r.first->second->init (o.second, l);
           }
@@ -52,7 +54,7 @@ namespace web
         //
         options_.clear ();
       }
-      catch (const std::exception& e)
+      catch (const exception& e)
       {
         l.write (nullptr, 0, func_name.c_str (), APLOG_EMERG, e.what ());
 
@@ -72,7 +74,7 @@ namespace web
         // create any new ones, it keeps trying to create the worker process
         // at one-second intervals.
         //
-        std::exit (APEXIT_CHILDSICK);
+        exit (APEXIT_CHILDSICK);
       }
       catch (...)
       {
@@ -84,15 +86,15 @@ namespace web
 
         // Terminate the worker apache process.
         //
-        std::exit (APEXIT_CHILDSICK);
+        exit (APEXIT_CHILDSICK);
       }
     }
 
-    template <typename M>
+    template <typename H>
     int service::
     request_handler (request_rec* r) noexcept
     {
-      auto srv (instance<M> ());
+      auto srv (instance<H> ());
       if (!r->handler || srv->name_ != r->handler) return DECLINED;
 
       assert (r->per_dir_config != nullptr);
@@ -106,14 +108,16 @@ namespace web
 
       request rq (r);
       log lg (r->server, srv);
-      return srv->template handle<M> (rq, cx, lg);
+      return srv->template handle<H> (rq, cx, lg);
     }
 
-    template <typename M>
+    template <typename H>
     int service::
     handle (request& rq, const context* cx, log& lg) const
     {
-      static const std::string func_name (
+      using namespace std;
+
+      static const string func_name (
         "web::apache::service<" + name_ + ">::handle");
 
       try
@@ -121,14 +125,14 @@ namespace web
         auto i (exemplars_.find (cx));
         assert (i != exemplars_.end ());
 
-        const M* e (dynamic_cast<const M*> (i->second.get ()));
+        const H* e (dynamic_cast<const H*> (i->second.get ()));
         assert (e != nullptr);
 
-        for (M m (*e);;)
+        for (H h (*e);;)
         {
           try
           {
-            if (static_cast<module&> (m).handle (rq, rq, lg))
+            if (static_cast<handler&> (h).handle (rq, rq, lg))
               return rq.flush ();
 
             if (rq.state () == request_state::initial)
@@ -138,7 +142,7 @@ namespace web
                       "handling declined being partially executed");
             break;
           }
-          catch (const module::retry&)
+          catch (const handler::retry&)
           {
             // Retry to handle the request.
             //
@@ -152,10 +156,10 @@ namespace web
         {
           try
           {
-            rq.content (e.status, e.type) << e.content;
+            rq.content (e.status, e.type) << e.content << endl;
             return rq.flush ();
           }
-          catch (const std::exception& e)
+          catch (const exception& e)
           {
             lg.write (nullptr, 0, func_name.c_str (), APLOG_ERR, e.what ());
           }
@@ -163,7 +167,7 @@ namespace web
 
         return e.status;
       }
-      catch (const std::exception& e)
+      catch (const exception& e)
       {
         lg.write (nullptr, 0, func_name.c_str (), APLOG_ERR, e.what ());
 
@@ -173,11 +177,11 @@ namespace web
           {
             rq.content (
               HTTP_INTERNAL_SERVER_ERROR, "text/plain;charset=utf-8")
-              << e;
+              << e << endl;
 
             return rq.flush ();
           }
-          catch (const std::exception& e)
+          catch (const exception& e)
           {
             lg.write (nullptr, 0, func_name.c_str (), APLOG_ERR, e.what ());
           }
@@ -193,11 +197,11 @@ namespace web
           {
             rq.content (
               HTTP_INTERNAL_SERVER_ERROR, "text/plain;charset=utf-8")
-              << "unknown error";
+              << "unknown error" << endl;
 
             return rq.flush ();
           }
-          catch (const std::exception& e)
+          catch (const exception& e)
           {
             lg.write (nullptr, 0, func_name.c_str (), APLOG_ERR, e.what ());
           }

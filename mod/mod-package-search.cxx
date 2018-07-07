@@ -38,7 +38,7 @@ package_search (const package_search& r)
 void brep::package_search::
 init (scanner& s)
 {
-  MODULE_DIAG;
+  HANDLER_DIAG;
 
   options_ = make_shared<options::package_search> (
     s, unknown_mode::fail, unknown_mode::fail);
@@ -82,7 +82,7 @@ handle (request& rq, response& rs)
 {
   using namespace web::xhtml;
 
-  MODULE_DIAG;
+  HANDLER_DIAG;
 
   const size_t res_page (options_->search_results ());
   const dir_path& root (options_->root ());
@@ -92,7 +92,7 @@ handle (request& rq, response& rs)
 
   try
   {
-    name_value_scanner s (rq.parameters ());
+    name_value_scanner s (rq.parameters (8 * 1024));
     params = params::package_search (
       s, unknown_mode::fail, unknown_mode::fail);
   }
@@ -125,7 +125,10 @@ handle (request& rq, response& rs)
     // element of the search form. The problem appears in Firefox and has a
     // (4-year old, at the time of this writing) bug report:
     //
-    // https://bugzilla.mozilla.org/show_bug.cgi?id=712130.
+    // https://bugzilla.mozilla.org/show_bug.cgi?id=712130
+    //
+    // @@ An update: claimed to be fixed in Firefox 60 that is released in
+    //    May 2018. Is it time to cleanup? Remember to cleanup in all places.
     //
     <<     SCRIPT << " " << ~SCRIPT
     <<   ~HEAD

@@ -25,6 +25,10 @@ using namespace xml;
 using namespace web;
 using namespace web::xhtml;
 
+// Note that in HTML5 the boolean attribute absence represents false value,
+// true otherwise. If it is present then the value must be empty or
+// case-insensitively match the attribute's name.
+//
 namespace brep
 {
   // CSS_LINKS
@@ -90,8 +94,7 @@ namespace brep
       <<     TBODY
       <<       TR
       <<         TD(ID="search-txt")
-      <<           *INPUT(TYPE="search", NAME="q", VALUE=query_,
-                          AUTOFOCUS="autofocus")
+      <<           *INPUT(TYPE="search", NAME="q", VALUE=query_, AUTOFOCUS="")
       <<         ~TD
       <<         TD(ID="search-btn")
       <<           *INPUT(TYPE="submit", VALUE="Search")
@@ -141,7 +144,7 @@ namespace brep
       s << PLACEHOLDER(placeholder_);
 
     if (autofocus_)
-      s << AUTOFOCUS("autofocus");
+      s << AUTOFOCUS("");
 
     s <<     ~INPUT
       <<   ~TD

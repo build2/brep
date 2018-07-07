@@ -69,8 +69,8 @@ namespace web
           };
       }
 
-      // Track if the module is allowed to handle a request in the specific
-      // configuration scope. The module exemplar will be created (and
+      // Track if the handler is allowed to handle a request in the specific
+      // configuration scope. The handler exemplar will be created (and
       // initialized) only for configuration contexts that have
       // 'SetHandler <mod_name>' in effect for the corresponding scope.
       //

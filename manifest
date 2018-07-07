@@ -22,6 +22,7 @@ depends: * bpkg >= 0.8.0-
 # @@ Should probably become conditional dependency.
 requires: ? cli ; Only required if changing .cli files.
 depends: libapr1
+depends: libapreq2
 depends: libstudxml [1.1.0-b.3.1 1.1.0-b.4)
 depends: libodb [2.5.0-b.8.1 2.5.0-b.9)
 depends: libodb-pgsql [2.5.0-b.8.1 2.5.0-b.9)

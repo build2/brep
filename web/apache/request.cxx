@@ -4,13 +4,20 @@
 
 #include <web/apache/request.hxx>
 
-#include <apr_tables.h>  // apr_table_*, apr_array_header_t
+#include <apr.h>         // APR_SIZE_MAX
+#include <apr_errno.h>   // apr_status_t, APR_SUCCESS, APR_E*, apr_strerror()
+#include <apr_tables.h>  // apr_table_*, apr_table_*(), apr_array_header_t
 #include <apr_strings.h> // apr_pstrdup()
+#include <apr_buckets.h> // apr_bucket*, apr_bucket_*(), apr_brigade_*(),
+                         // APR_BRIGADE_*()
 
 #include <httpd.h>         // request_rec, HTTP_*, OK
 #include <http_protocol.h> // ap_*()
 
-#include <strings.h> // strcasecmp(), strncasecmp()
+#include <apreq2/apreq.h>        // APREQ_*
+#include <apreq2/apreq_util.h>   // apreq_brigade_copy()
+#include <apreq2/apreq_param.h>  // apreq_param_t, apreq_value_to_param()
+#include <apreq2/apreq_parser.h> // apreq_parser_t, apreq_parser_make()
 
 #include <ctime>     // strftime(), time_t
 #include <vector>
@@ -22,11 +29,13 @@
 #include <istream>
 #include <cstring>   // str*(), memcpy(), size_t
 #include <utility>   // move()
-#include <stdexcept> // invalid_argument
+#include <iterator>  // istreambuf_iterator
+#include <stdexcept> // invalid_argument, runtime_error
 #include <exception> // current_exception()
 #include <streambuf>
 #include <algorithm> // min()
 
+#include <libbutl/utility.mxx>   // casecmp()
 #include <libbutl/optional.mxx>
 #include <libbutl/timestamp.mxx>
 
@@ -39,6 +48,13 @@ namespace web
 {
   namespace apache
   {
+    [[noreturn]] static void
+    throw_internal_error (apr_status_t s, const string& what)
+    {
+      char buf[1024];
+      throw runtime_error (what + ": " + apr_strerror (s, buf, sizeof (buf)));
+    }
+
     // Extend the Apache stream with checking for the read limit and caching
     // the content if requested. Replay the cached content after rewind.
     //
@@ -160,7 +176,7 @@ namespace web
         //
         mode_ = mode::cache;
 
-        // Bailout if the end of stream is reached.
+        // Bail out if the end of stream is reached.
         //
         if (eof_)
           return traits_type::eof ();
@@ -229,6 +245,152 @@ namespace web
 
       return r;
     }
+
+    // Stream interface for reading from the Apache's bucket brigade. Put back
+    // is not supported.
+    //
+    // Note that reading from a brigade bucket modifies the brigade in the
+    // general case. For example, reading from a file bucket adds a new heap
+    // bucket before the file bucket on every read. Traversing/reading through
+    // such a bucket brigade effectively loads the whole file into the memory,
+    // so the subsequent brigade traversal results in iterating over the
+    // loaded heap buckets.
+    //
+    // To avoid such a behavior we will make a shallow copy of the original
+    // bucket brigade, initially and for each rewind. Then, instead of
+    // iterating, we will always read from the first bucket removing it after
+    // the use.
+    //
+    class istreambuf_buckets: public streambuf
+    {
+    public:
+      // The bucket brigade must exist during the object's lifetime.
+      //
+      explicit
+      istreambuf_buckets (const apr_bucket_brigade* bs)
+          : orig_buckets_ (bs),
+            buckets_ (apr_brigade_create (bs->p, bs->bucket_alloc))
+
+      {
+        if (buckets_ == nullptr)
+          throw_internal_error (APR_ENOMEM, "apr_brigade_create");
+
+        rewind (); // Copy the original buckets.
+      }
+
+      void
+      rewind ()
+      {
+        // Note that apreq_brigade_copy() appends buckets to the destination,
+        // so we clean it up first.
+        //
+        apr_status_t r (apr_brigade_cleanup (buckets_.get ()));
+        if (r != APR_SUCCESS)
+          throw_internal_error (r, "apr_brigade_cleanup");
+
+        r = apreq_brigade_copy (
+          buckets_.get (),
+          const_cast<apr_bucket_brigade*> (orig_buckets_));
+
+        if (r != APR_SUCCESS)
+          throw_internal_error (r, "apreq_brigade_copy");
+
+        setg (nullptr, nullptr, nullptr);
+      }
+
+    private:
+      virtual int_type
+      underflow ()
+      {
+        if (gptr () < egptr ())
+          return traits_type::to_int_type (*gptr ());
+
+        // If the get-pointer is not NULL then it points to the data referred
+        // by the first brigade bucket. As we will bail out or rewrite such a
+        // pointer now there is no need for the bucket either, so we can
+        // safely delete it.
+        //
+        if (gptr () != nullptr)
+        {
+          assert (!APR_BRIGADE_EMPTY (buckets_));
+
+          // Note that apr_bucket_delete() is a macro and the following
+          // call ends up badly (with SIGSEGV).
+          //
+          // apr_bucket_delete (APR_BRIGADE_FIRST (buckets_));
+          //
+          apr_bucket* b (APR_BRIGADE_FIRST (buckets_));
+          apr_bucket_delete (b);
+        }
+
+        if (APR_BRIGADE_EMPTY (buckets_))
+          return traits_type::eof ();
+
+        apr_size_t n;
+        const char* d;
+        apr_bucket* b (APR_BRIGADE_FIRST (buckets_));
+        apr_status_t r (apr_bucket_read (b, &d, &n, APR_BLOCK_READ));
+
+        if (r != APR_SUCCESS)
+          throw_internal_error (r, "apr_bucket_read");
+
+        char* p (const_cast<char*> (d));
+        setg (p, p, p + n);
+        return traits_type::to_int_type (*gptr ());
+      }
+
+    private:
+      const apr_bucket_brigade* orig_buckets_;
+
+      struct brigade_deleter
+      {
+        void operator() (apr_bucket_brigade* p) const
+        {
+          if (p != nullptr)
+          {
+            apr_status_t r (apr_brigade_destroy (p));
+
+            // Shouldn't fail unless something is severely damaged.
+            //
+            assert (r == APR_SUCCESS);
+          }
+        }
+      };
+
+      unique_ptr<apr_bucket_brigade, brigade_deleter> buckets_;
+    };
+
+    class istream_buckets_base
+    {
+    public:
+      explicit
+      istream_buckets_base (const apr_bucket_brigade* bs): buf_ (bs) {}
+
+    protected:
+      istreambuf_buckets buf_;
+    };
+
+    class istream_buckets: public istream_buckets_base, public istream
+    {
+    public:
+      explicit
+      istream_buckets (const apr_bucket_brigade* bs)
+          // Note that calling dtor for istream object before init() is called
+          // is undefined behavior. That's the reason for inventing the
+          // istream_buckets_base class.
+          //
+          : istream_buckets_base (bs), istream (&buf_)
+      {
+        exceptions (failbit | badbit);
+      }
+
+      void
+      rewind ()
+      {
+        buf_.rewind ();
+        clear ();       // Clears *bit flags (in particular eofbit).
+      }
+    };
 
     // request
     //
@@ -305,17 +467,27 @@ namespace web
 
       ap_set_content_type (rec_, nullptr); // Unset the output content type.
 
-      if (in_ != nullptr)
-        rewind_istream ();
-    }
+      // We don't need to rewind the input stream (which well may fail if
+      // unbuffered) if the form data is already read.
+      //
+      if (in_ != nullptr && form_data_ == nullptr)
+      {
+        assert (in_buf_ != nullptr);
 
-    void request::
-    rewind_istream ()
-    {
-      assert (in_buf_ != nullptr && in_ != nullptr);
+        in_buf_->rewind (); // Throws if impossible to rewind.
+        in_->clear ();      // Clears *bit flags (in particular eofbit).
+      }
 
-      in_buf_->rewind (); // Throws if impossible to rewind.
-      in_->clear ();      // Clears *bit flags (in particular eofbit).
+      // Rewind uploaded file streams.
+      //
+      if (uploads_ != nullptr)
+      {
+        for (const unique_ptr<istream_buckets>& is: *uploads_)
+        {
+          if (is != nullptr)
+            is->rewind ();
+        }
+      }
     }
 
     istream& request::
@@ -332,11 +504,6 @@ namespace web
         in_.reset (new istream (in_buf.get ()));
         in_buf_ = move (in_buf);
         in_->exceptions (istream::failbit | istream::badbit);
-
-        // Save form data now otherwise will not be available to do later when
-        // data is already read from stream.
-        //
-        form_data ();
       }
       else
       {
@@ -363,24 +530,307 @@ namespace web
     }
 
     const name_values& request::
-    parameters ()
+    parameters (size_t limit, bool url_only)
     {
-      if (parameters_ == nullptr)
+      if (parameters_ == nullptr || url_only < url_only_parameters_)
       {
-        parameters_.reset (new name_values ());
-
         try
         {
-          parse_parameters (rec_->args);
-          parse_parameters (form_data ().c_str ());
+          if (parameters_ == nullptr)
+          {
+            parameters_.reset (new name_values ());
+            parse_url_parameters (rec_->args);
+          }
+
+          if (!url_only && form_data (limit))
+          {
+            // After the form data is parsed we can clean it up for the
+            // application/x-www-form-urlencoded encoding but not for the
+            // multipart/form-data (see parse_multipart_parameters() for
+            // details).
+            //
+            if (form_multipart_)
+              parse_multipart_parameters (*form_data_);
+            else
+            {
+              // Make the character vector a NULL-terminated string.
+              //
+              form_data_->push_back ('\0');
+
+              parse_url_parameters (form_data_->data ());
+              *form_data_ = vector<char> (); // Reset the cache.
+            }
+          }
         }
-        catch (const invalid_argument& )
+        catch (const invalid_argument&)
         {
           throw invalid_request ();
         }
+
+        url_only_parameters_ = url_only;
       }
 
       return *parameters_;
+    }
+
+    bool request::
+    form_data (size_t limit)
+    {
+      if (form_data_ == nullptr)
+      {
+        form_data_.reset (new vector<char> ());
+
+        // We will not consider POST body as a form data if the request is in
+        // the reading or later state.
+        //
+        if (rec_->method_number == M_POST && state_ < request_state::reading)
+        {
+          const char* ct (apr_table_get (rec_->headers_in, "Content-Type"));
+
+          if (ct != nullptr)
+          {
+            form_multipart_ = casecmp ("multipart/form-data", ct, 19) == 0;
+
+            if (form_multipart_ ||
+                casecmp ("application/x-www-form-urlencoded", ct, 33) == 0)
+              *form_data_ = vector<char> (
+                istreambuf_iterator<char> (content (limit)),
+                istreambuf_iterator<char> ());
+          }
+        }
+      }
+
+      return !form_data_->empty ();
+    }
+
+    void request::
+    parse_url_parameters (const char* args)
+    {
+      assert (parameters_ != nullptr);
+
+      for (auto n (args); n != nullptr; )
+      {
+        const char* v (strchr (n, '='));
+        const char* e (strchr (n, '&'));
+
+        if (e != nullptr && e < v)
+          v = nullptr;
+
+        string name (v != nullptr
+                     ? mime_url_decode (n, v) :
+                     (e
+                      ? mime_url_decode (n, e)
+                      : mime_url_decode (n, n + strlen (n))));
+
+        optional<string> value;
+
+        if (v++)
+          value = e
+            ? mime_url_decode (v, e)
+            : mime_url_decode (v, v + strlen (v));
+
+        if (!name.empty () || value)
+          parameters_->emplace_back (move (name), move (value));
+
+        n = e ? e + 1 : nullptr;
+      }
+    }
+
+    void request::
+    parse_multipart_parameters (const vector<char>& body)
+    {
+      assert (parameters_ != nullptr && uploads_ == nullptr);
+
+      auto throw_bad_request = [] (apr_status_t s,
+                                   status_code sc = HTTP_BAD_REQUEST)
+      {
+        char buf[1024];
+        throw invalid_request (sc, apr_strerror (s, buf, sizeof (buf)));
+      };
+
+      // Create the file upload stream list, filling it with NULLs for the
+      // parameters parsed from the URL query part.
+      //
+      uploads_.reset (
+        new vector<unique_ptr<istream_buckets>> (parameters_->size ()));
+
+      // All the required objects (parser, input/output buckets, etc.) will be
+      // allocated in the request memory pool and so will have the HTTP
+      // request duration lifetime.
+      //
+      apr_pool_t* pool (rec_->pool);
+
+      // Create the input bucket brigade containing a single bucket that
+      // references the form data.
+      //
+      apr_bucket_alloc_t* ba (apr_bucket_alloc_create (pool));
+      if (ba == nullptr)
+        throw_internal_error (APR_ENOMEM, "apr_bucket_alloc_create");
+
+      apr_bucket_brigade* bb (apr_brigade_create (pool, ba));
+      if (bb == nullptr)
+        throw_internal_error (APR_ENOMEM, "apr_brigade_create");
+
+      apr_bucket* b (
+        apr_bucket_immortal_create (body.data (), body.size (), ba));
+
+      if (b == nullptr)
+        throw_internal_error (APR_ENOMEM, "apr_bucket_immortal_create");
+
+      APR_BRIGADE_INSERT_TAIL (bb, b);
+
+      if ((b = apr_bucket_eos_create (ba)) == nullptr)
+        throw_internal_error (APR_ENOMEM, "apr_bucket_eos_create");
+
+      APR_BRIGADE_INSERT_TAIL (bb, b);
+
+      // Make sure that the parser will not swap the parsed data to disk
+      // passing the maximum possible value for the brigade limit. This way
+      // the resulting buckets will reference the form data directly, making
+      // no copies. This why we should not reset the form data cache after
+      // the parsing.
+      //
+      // Note that in future we may possibly setup the parser to read from the
+      // Apache internals directly and enable swapping the data to disk to
+      // minimize memory consumption.
+      //
+      apreq_parser_t* parser (
+        apreq_parser_make (pool,
+                           ba,
+                           apr_table_get (rec_->headers_in, "Content-Type"),
+                           apreq_parse_multipart,
+                           APR_SIZE_MAX /* brigade_limit */,
+                           nullptr /* temp_dir */,
+                           nullptr /* hook */,
+                           nullptr /* ctx */));
+
+      if (parser == nullptr)
+        throw_internal_error (APR_ENOMEM, "apreq_parser_make");
+
+      // Create the output table that will be filled with the parsed
+      // parameters.
+      //
+      apr_table_t* params (apr_table_make (pool, APREQ_DEFAULT_NELTS));
+      if (params == nullptr)
+        throw_internal_error (APR_ENOMEM, "apr_table_make");
+
+      // Parse the form data.
+      //
+      apr_status_t r (apreq_parser_run (parser, params, bb));
+      if (r != APR_SUCCESS)
+        throw_bad_request (r);
+
+      // Fill the parameter and file upload stream lists.
+      //
+      const apr_array_header_t* ps (apr_table_elts (params));
+      size_t n (ps->nelts);
+
+      for (auto p (reinterpret_cast<const apr_table_entry_t*> (ps->elts));
+           n--; ++p)
+      {
+        assert (p->key != nullptr && p->val != nullptr);
+
+        if (*p->key != '\0')
+        {
+          parameters_->emplace_back (p->key, optional<string> (p->val));
+
+          const apreq_param_t* ap (apreq_value_to_param (p->val));
+          assert (ap != nullptr); // Must always be resolvable.
+
+          uploads_->emplace_back (ap->upload != nullptr
+                                  ? new istream_buckets (ap->upload)
+                                  : nullptr);
+        }
+      }
+    }
+
+    request::uploads_type& request::
+    uploads () const
+    {
+      if (parameters_ == nullptr || url_only_parameters_)
+        sequence_error ("web::apache::request::uploads");
+
+      if (uploads_ == nullptr)
+        throw invalid_argument ("no uploads");
+
+      assert (uploads_->size () == parameters_->size ());
+      return *uploads_;
+    }
+
+    istream& request::
+    open_upload (size_t index)
+    {
+      uploads_type& us (uploads ());
+      size_t n (us.size ());
+
+      if (index >= n)
+        throw invalid_argument ("invalid index");
+
+      const unique_ptr<istream_buckets>& is (us[index]);
+
+      if (is == nullptr)
+        throw invalid_argument ("no upload");
+
+      return *is;
+    }
+
+    istream& request::
+    open_upload (const string& name)
+    {
+      uploads_type& us (uploads ());
+      size_t n (us.size ());
+
+      istream* r (nullptr);
+      for (size_t i (0); i < n; ++i)
+      {
+        if ((*parameters_)[i].name == name)
+        {
+          istream* is (us[i].get ());
+
+          if (is != nullptr)
+          {
+            if (r != nullptr)
+              throw invalid_argument ("multiple uploads for '" + name + "'");
+
+            r = is;
+          }
+        }
+      }
+
+      if (r == nullptr)
+        throw invalid_argument ("no upload");
+
+      return *r;
+    }
+
+    const name_values& request::
+    headers ()
+    {
+      if (headers_ == nullptr)
+      {
+        headers_.reset (new name_values ());
+
+        const apr_array_header_t* ha (apr_table_elts (rec_->headers_in));
+        size_t n (ha->nelts);
+
+        headers_->reserve (n + 1); // One for the custom :Client-IP header.
+
+        auto add = [this] (const char* n, const char* v)
+        {
+          assert (n != nullptr && v != nullptr);
+          headers_->emplace_back (n, optional<string> (v));
+        };
+
+        for (auto h (reinterpret_cast<const apr_table_entry_t*> (ha->elts));
+             n--; ++h)
+          add (h->key, h->val);
+
+        assert (rec_->connection != nullptr);
+
+        add (":Client-IP", rec_->connection->client_ip);
+      }
+
+      return *headers_;
     }
 
     const name_values& request::
@@ -393,10 +843,12 @@ namespace web
         const apr_array_header_t* ha (apr_table_elts (rec_->headers_in));
         size_t n (ha->nelts);
 
-        for (auto h (reinterpret_cast<const apr_table_entry_t *> (ha->elts));
+        for (auto h (reinterpret_cast<const apr_table_entry_t*> (ha->elts));
              n--; ++h)
         {
-          if (strcasecmp (h->key, "Cookie") == 0)
+          assert (h->key != nullptr);
+
+          if (casecmp (h->key, "Cookie") == 0)
           {
             for (const char* n (h->val); n != nullptr; )
             {
@@ -447,8 +899,7 @@ namespace web
 
           // Same content type.
           //
-          strcasecmp (rec_->content_type ? rec_->content_type : "",
-                      type.c_str ()) == 0)
+          casecmp (type, rec_->content_type ? rec_->content_type : "") == 0)
       {
         // No change, return the existing stream.
         //
@@ -463,7 +914,10 @@ namespace web
         // written. Save form data now to make it available for future
         // parameters() call.
         //
-        form_data ();
+        // In the rare cases when the form data is expectedly bigger than 64K
+        // the client can always call parameters(limit) explicitly.
+        //
+        form_data (64 * 1024);
 
       unique_ptr<streambuf> out_buf (
         buffer
@@ -547,84 +1001,6 @@ namespace web
 
       state (request_state::headers);
       apr_table_add (rec_->err_headers_out, "Set-Cookie", s.c_str ());
-    }
-
-    void request::
-    parse_parameters (const char* args)
-    {
-      for (auto n (args); n != nullptr; )
-      {
-        const char* v (strchr (n, '='));
-        const char* e (strchr (n, '&'));
-
-        if (e != nullptr && e < v)
-          v = nullptr;
-
-        string name (v != nullptr
-                     ? mime_url_decode (n, v) :
-                     (e
-                      ? mime_url_decode (n, e)
-                      : mime_url_decode (n, n + strlen (n))));
-
-        optional<string> value;
-
-        if (v++)
-          value = e
-            ? mime_url_decode (v, e)
-            : mime_url_decode (v, v + strlen (v));
-
-        if (!name.empty () || value)
-          parameters_->emplace_back (move (name), move (value));
-
-        n = e ? e + 1 : nullptr;
-      }
-    }
-
-    const string& request::
-    form_data ()
-    {
-      if (!form_data_)
-      {
-        form_data_.reset (new string ());
-
-        if (rec_->method_number == M_POST)
-        {
-          const char* ct (apr_table_get (rec_->headers_in, "Content-Type"));
-
-          if (ct != nullptr &&
-              strncasecmp ("application/x-www-form-urlencoded", ct, 33) == 0)
-          {
-            size_t limit  (0);
-            bool   rewind (true);
-
-            // Assign some reasonable (64K) input content read/cache limits if
-            // not done explicitly yet (with the request::content() call).
-            // Rewind afterwards unless the cache limit is set to zero.
-            //
-            if (in_buf_ == nullptr)
-              limit = 64 * 1024;
-            else
-              rewind = in_buf_->cache_limit () > 0;
-
-            istream& istr (content (limit, limit));
-
-            // Do not throw when eofbit is set (end of stream reached), and
-            // when failbit is set (getline() failed to extract any character).
-            //
-            istream::iostate e (istr.exceptions ()); // Save exception mask.
-            istr.exceptions (istream::badbit);
-            getline (istr, *form_data_);
-            istr.exceptions (e);                     // Restore exception mask.
-
-            // Rewind the stream unless no buffering were requested beforehand.
-            //
-            if (rewind)
-              rewind_istream ();
-          }
-        }
-      }
-
-      return *form_data_;
     }
   }
 }

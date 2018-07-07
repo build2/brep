@@ -28,7 +28,7 @@ namespace brep
   //
   database_module::
   database_module (const database_module& r)
-      : module (r),
+      : handler (r),
         retry_ (r.retry_),
         package_db_ (r.initialized_ ? r.package_db_ : nullptr),
         build_db_ (r.initialized_ ? r.build_db_ : nullptr),
@@ -104,13 +104,13 @@ namespace brep
   handle (request& rq, response& rs, log& l)
   try
   {
-    return module::handle (rq, rs, l);
+    return handler::handle (rq, rs, l);
   }
   catch (const odb::recoverable& e)
   {
     if (retry_-- > 0)
     {
-      MODULE_DIAG;
+      HANDLER_DIAG;
       l1 ([&]{trace << e << "; " << retry_ + 1 << " retries left";});
       throw retry ();
     }

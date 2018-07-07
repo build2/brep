@@ -41,7 +41,7 @@ repository_details (const repository_details& r)
 void brep::repository_details::
 init (scanner& s)
 {
-  MODULE_DIAG;
+  HANDLER_DIAG;
 
   options_ = make_shared<options::repository_details> (
     s, unknown_mode::fail, unknown_mode::fail);
@@ -57,7 +57,7 @@ handle (request& rq, response& rs)
 {
   using namespace web::xhtml;
 
-  MODULE_DIAG;
+  HANDLER_DIAG;
 
   const dir_path& root (options_->root ());
 
@@ -65,7 +65,7 @@ handle (request& rq, response& rs)
   //
   try
   {
-    name_value_scanner s (rq.parameters ());
+    name_value_scanner s (rq.parameters (1024));
     params::repository_details (s, unknown_mode::fail, unknown_mode::fail);
   }
   catch (const cli::exception& e)

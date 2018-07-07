@@ -12,6 +12,7 @@
 
 #include <mod/module.hxx>
 #include <mod/options.hxx>
+#include <mod/mod-submit.hxx>
 #include <mod/mod-builds.hxx>
 #include <mod/mod-build-log.hxx>
 #include <mod/mod-build-task.hxx>
@@ -27,30 +28,66 @@ using namespace brep::cli;
 
 namespace brep
 {
-  // request_proxy
+  // Request proxy. Removes the first parameter that is assumed to be a
+  // function name.
   //
   class request_proxy: public request
   {
   public:
-    request_proxy (request& r, const name_values& p)
-        : request_ (r), parameters_ (p) {}
+    request_proxy (request& r): request_ (r) {}
 
     virtual const path_type&
     path () {return request_.path ();}
 
     virtual const name_values&
-    parameters () {return parameters_;}
+    parameters (size_t limit, bool url_only)
+    {
+      if (!parameters_ || url_only < url_only_parameters_)
+      {
+        parameters_ = request_.parameters (limit, url_only);
+
+        assert (!parameters_->empty ()); // Always starts with a function name.
+        parameters_->erase (parameters_->begin ());
+
+        url_only_parameters_ = url_only;
+      }
+
+      return *parameters_;
+    }
+
+    istream&
+    open_upload (size_t index)
+    {
+      // The original request object still contains the function name entry,
+      // so we shift the index.
+      //
+      return request_.open_upload (index + 1);
+    }
+
+    istream&
+    open_upload (const string& name)
+    {
+      // We don't expect the function name here as a parameter name.
+      //
+      return request_.open_upload (name);
+    }
+
+    virtual const name_values&
+    headers () {return request_.headers ();}
 
     virtual const name_values&
     cookies () {return request_.cookies ();}
 
     virtual istream&
-    content (size_t limit, size_t buffer) {
-      return request_.content (limit, buffer);}
+    content (size_t limit, size_t buffer)
+    {
+      return request_.content (limit, buffer);
+    }
 
   private:
     request& request_;
-    const name_values& parameters_;
+    optional<name_values> parameters_;
+    bool url_only_parameters_; // Meaningless if parameters_ is not present.
   };
 
   // repository_root
@@ -65,15 +102,16 @@ namespace brep
         build_result_ (make_shared<build_result> ()),
         build_force_ (make_shared<build_force> ()),
         build_log_ (make_shared<build_log> ()),
-        builds_ (make_shared<builds> ())
+        builds_ (make_shared<builds> ()),
+        submit_ (make_shared<submit> ())
   {
   }
 
   repository_root::
   repository_root (const repository_root& r)
-      : module (r),
+      : handler (r),
         //
-        // Deep/shallow-copy sub-modules depending on whether this is an
+        // Deep/shallow-copy sub-handlers depending on whether this is an
         // exemplar/handler.
         //
         package_search_ (
@@ -113,6 +151,10 @@ namespace brep
           r.initialized_
           ? r.builds_
           : make_shared<builds> (*r.builds_)),
+        submit_ (
+          r.initialized_
+          ? r.submit_
+          : make_shared<submit> (*r.submit_)),
         options_ (
           r.initialized_
           ? r.options_
@@ -120,13 +162,13 @@ namespace brep
   {
   }
 
-  // Return amalgamation of repository_root and all its sub-modules option
+  // Return amalgamation of repository_root and all its sub-handlers option
   // descriptions.
   //
   option_descriptions repository_root::
   options ()
   {
-    option_descriptions r (module::options ());
+    option_descriptions r (handler::options ());
     append (r, package_search_->options ());
     append (r, package_details_->options ());
     append (r, package_version_details_->options ());
@@ -136,18 +178,19 @@ namespace brep
     append (r, build_force_->options ());
     append (r, build_log_->options ());
     append (r, builds_->options ());
+    append (r, submit_->options ());
     return r;
   }
 
-  // Initialize sub-modules and parse own configuration options.
+  // Initialize sub-handlers and parse own configuration options.
   //
   void repository_root::
   init (const name_values& v)
   {
-    auto sub_init = [this, &v] (module& m, const char* name)
+    auto sub_init = [this, &v] (handler& m, const char* name)
     {
-      // Initialize sub-module. Intercept exception handling to add sub-module
-      // attribution.
+      // Initialize sub-handler. Intercept exception handling to add
+      // sub-handler attribution.
       //
       try
       {
@@ -167,7 +210,7 @@ namespace brep
       }
     };
 
-    // Initialize sub-modules.
+    // Initialize sub-handlers.
     //
     sub_init (*package_search_, "package_search");
     sub_init (*package_details_, "package_details");
@@ -178,17 +221,18 @@ namespace brep
     sub_init (*build_force_, "build_force");
     sub_init (*build_log_, "build_log");
     sub_init (*builds_, "builds");
+    sub_init (*submit_, "submit");
 
     // Parse own configuration options.
     //
-    module::init (
+    handler::init (
       filter (v, convert (options::repository_root::description ())));
   }
 
   void repository_root::
   init (scanner& s)
   {
-    MODULE_DIAG;
+    HANDLER_DIAG;
 
     options_ = make_shared<options::repository_root> (
       s, unknown_mode::fail, unknown_mode::fail);
@@ -197,7 +241,7 @@ namespace brep
       options_->root (dir_path ("/"));
 
     // To use libbutl timestamp printing functions later on (specifically in
-    // sub-modules, while handling requests).
+    // sub-handlers, while handling requests).
     //
     tzset ();
   }
@@ -205,7 +249,7 @@ namespace brep
   bool repository_root::
   handle (request& rq, response& rs)
   {
-    MODULE_DIAG;
+    HANDLER_DIAG;
 
     const dir_path& root (options_->root ());
 
@@ -215,24 +259,21 @@ namespace brep
 
     const path& lpath (rpath.leaf (root));
 
-    // Delegate the request handling to the selected sub-module. Intercept
-    // exception handling to add sub-module attribution.
+    // Delegate the request handling to the selected sub-handler. Intercept
+    // exception handling to add sub-handler attribution.
     //
     auto handle = [&rq, &rs, this] (const char* nm, bool fn = false) -> bool
     {
       try
       {
-        // Delegate the handling straight away if the sub-module is not a
+        // Delegate the handling straight away if the sub-handler is not a
         // function. Otherwise, cleanup the request not to confuse the
-        // sub-module with the unknown parameter.
+        // sub-handler with the unknown parameter.
         //
         if (!fn)
           return handler_->handle (rq, rs, *log_);
 
-        name_values p (rq.parameters ());
-        p.erase (p.begin ());
-
-        request_proxy rp (rq, p);
+        request_proxy rp (rq);
         return handler_->handle (rp, rs, *log_);
       }
       catch (const invalid_request&)
@@ -250,7 +291,7 @@ namespace brep
         // to the client with the internal server error (500) code. By that
         // reason it is valid to reduce all these types to a single one. Note
         // that the server_error exception is handled internally by the
-        // module::handle() function call.
+        // handler::handle() function call.
         //
         ostringstream os;
         os << nm << ": " << e;
@@ -258,22 +299,23 @@ namespace brep
       }
     };
 
-    // Note that while selecting the sub-module type for handling the request,
+    // Note that while selecting the sub-handler type for handling the request,
     // we rely on the fact that the initial and all the subsequent function
     // calls (that may take place after the retry exception is thrown) will
     // end-up with the same type, and so using the single handler instance for
     // all of these calls is safe. Note that the selection also sets up the
-    // handling context (sub-module name and optionally the request proxy).
+    // handling context (sub-handler name and optionally the request proxy).
     //
     if (lpath.empty ())
     {
       // Dispatch request handling to the repository_details or the one of
-      // build_* modules depending on the function name passed as a first HTTP
+      // build_* handlers depending on the function name passed as a first HTTP
       // request parameter (example: cppget.org/?about). Dispatch to the
-      // package_search module if the function name is unavailable (no
+      // package_search handler if the function name is unavailable (no
       // parameters) or is not recognized.
       //
-      const name_values& params (rq.parameters ());
+      const name_values& params (rq.parameters (0 /* limit */,
+                                                true /* url_only */));
       if (!params.empty ())
       {
         const string& fn (params.front ().name);
@@ -313,6 +355,13 @@ namespace brep
 
           return handle ("builds", true);
         }
+        else if (fn == "submit")
+        {
+          if (handler_ == nullptr)
+            handler_.reset (new submit (*submit_));
+
+          return handle ("submit", true);
+        }
       }
 
       if (handler_ == nullptr)
@@ -323,7 +372,7 @@ namespace brep
     else
     {
       // Dispatch request handling to the package_details, the
-      // package_version_details or the build_log module depending on the HTTP
+      // package_version_details or the build_log handler depending on the HTTP
       // request URL path.
       //
       auto i (lpath.begin ());
@@ -380,7 +429,7 @@ namespace brep
   void repository_root::
   version ()
   {
-    MODULE_DIAG;
+    HANDLER_DIAG;
 
     info << "module " << BREP_VERSION_ID
          << ", libbrep " << LIBBREP_VERSION_ID

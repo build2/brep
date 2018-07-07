@@ -1,0 +1,25 @@
+<!-- Note that in HTML5 the boolean attribute absence represents false value,
+     true otherwise. If it is present then the value must be empty or
+     case-insensitively match the attribute's name. -->
+
+<form method="post" enctype="multipart/form-data">
+  <table id="submit" class="proplist">
+    <tbody>
+      <tr>
+        <th>archive</th>
+        <td>
+	  <input type="file"
+		 name="archive"
+		 accept=".tar.gz"
+		 required=""
+		 autofocus=""/>
+	</td>
+      </tr>
+      <tr>
+        <th>sha256</th>
+        <td><input type="text" name="sha256sum" required=""/></td>
+      </tr>
+    </tbody>
+  </table>
+  <div><input type="submit" value="Submit"/></div>
+</form>

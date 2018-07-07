@@ -4,8 +4,8 @@ you are using a systemd-based distribution. If not, then you will need to
 replace systemctl commands with the equivalent init.d ones.
 
 The below instructions include steps for setting up brep as the build2 build
-bot controller. This functionality is optional and if not needed, then the
-corresponding steps can be omitted.
+bot controller and package submission service. Both of these functionalities
+are optional and, if not needed, then the corresponding steps can be omitted.
 
 1. Create 'brep' User
 
@@ -60,12 +60,12 @@ b) Install PostgreSQL 9.3 or above (including the contrib package containing
    group, not user. However, most installations use the same name for both.]
 
 c) Install PostgreSQL and Apache2 development files. Specifically, we need
-   PostgreSQL's libpq and Apache's libapr and web server development files.
-   Below are the names of their packages for some distributions:
+   PostgreSQL's libpq and Apache's libapr, libapreq, and web server development
+   files. Below are the names of their packages for some distributions:
 
-   Debian/Ubuntu: libpq-dev            libapr1-dev  apache2-dev
-   Fedora/RHEL:   posqtgresql-devel    apr-devel    httpd-devel
-   FreeBSD:       postgresqlXY-client  apr          apache24
+   Debian/Ubuntu: libpq-dev           libapr1-dev libapreq2-dev   apache2-dev
+   Fedora/RHEL:   posqtgresql-devel   apr-devel   libapreq2-devel httpd-devel
+   FreeBSD:       postgresqlXY-client apr         libapreq2       apache24
 
 d) Unless you already have the build2 toolchain installed, download (normally
    from https://download.build2.org) and install build2-toolchain by following
@@ -99,7 +99,7 @@ bpkg create                                    \
 
 bpkg add https://pkg.cppget.org/1/alpha
 bpkg fetch
-bpkg build brep ?sys:libapr1 ?sys:libpq
+bpkg build brep ?sys:libapr1 ?sys:libapreq2 ?sys:libpq
 bpkg install brep
 
 $ cd .. # Back to brep home.
@@ -217,8 +217,28 @@ $ psql -d brep_build -c 'SELECT DISTINCT name FROM build_package'
 $ cp install/share/brep/etc/brep-module.conf config/
 $ edit config/brep-module.conf # Adjust default values if required.
 
-Note that to enable the build2 build bot controller functionality you need to
-set the build-config option in brep-module.conf.
+To enable the build2 build bot controller functionality you will need to set
+the build-config option in brep-module.conf.
+
+To enable the package submission functionality you will need to specify the
+submit-data and submit-temp directories in brep-module.conf. Note that these
+directories must exist and have read, write, and execute permissions granted
+to the www-data user. This, for example, can be achieved with the following
+commands:
+
+$ mkdir /home/brep/submit-data
+$ mkdir /home/brep/submit-temp
+$ setfacl -m g:www-data:rwx /home/brep/submit-data
+$ setfacl -m g:www-data:rwx /home/brep/submit-temp
+
+To also enable the package submission web form set the submit-form option. You
+can use the installed sample submission form fragment or create a custom one
+if your submission handler requires additional information (besides the
+package archive and its SHA256 checksum) to be supplied by the client. For
+example:
+
+$ cp install/share/brep/www/submit.xhtml config/
+$ edit config/submit.xhtml # Add custom form fields, adjust CSS style, etc.
 
 Here we assume you have setup an appropriate Apache2 virtual server. Open the
 corresponding Apache2 .conf file and add the following inside VirtualHost (you
