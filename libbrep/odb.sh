@@ -3,47 +3,73 @@
 trap 'exit 1' ERR
 
 odb=odb
-lib="\
--I$HOME/work/odb/builds/default/libodb-pgsql-default \
--I$HOME/work/odb/libodb-pgsql \
--I$HOME/work/odb/builds/default/libodb-default \
--I$HOME/work/odb/libodb"
+inc=()
 
-$odb $lib -d pgsql --std c++14 --generate-query              \
+if test -d ../.bdep; then
+
+  # Use default configuration for headers.
+  #
+  cfg="$(bdep config list -d .. | \
+sed -r -ne 's#^(@[^ ]+ )?([^ ]+)/ .*default.*$#\2#p')"
+
+  inc+=("-I$(echo "$cfg"/libodb-[1-9]*/)")
+  inc+=("-I$(echo "$cfg"/libodb-pgsql-[1-9]*/)")
+
+  inc+=("-I$cfg/libbutl")
+  inc+=("-I../../libbutl")
+
+  inc+=("-I$cfg/libbpkg")
+  inc+=("-I../../libbpkg")
+
+  inc+=("-I$cfg/libbbot")
+  inc+=("-I../../libbbot")
+
+  inc+=("-I$cfg/brep")
+  inc+=("-I..")
+
+else
+
+  inc+=("-I$HOME/work/odb/builds/default/libodb-pgsql-default")
+  inc+=("-I$HOME/work/odb/libodb-pgsql")
+
+  inc+=("-I$HOME/work/odb/builds/default/libodb-default")
+  inc+=("-I$HOME/work/odb/libodb")
+
+  inc+=(-I.. -I../../libbbot -I../../libbpkg -I../../libbutl)
+
+fi
+
+$odb "${inc[@]}" -d pgsql --std c++14 --generate-query       \
     --odb-epilogue '#include <libbrep/wrapper-traits.hxx>'   \
     --hxx-prologue '#include <libbrep/wrapper-traits.hxx>'   \
     --hxx-prologue '#include <libbrep/common-traits.hxx>'    \
     -DLIBODB_BUILD2 -DLIBODB_PGSQL_BUILD2                    \
-    -I .. -I ../../libbbot -I ../../libbpkg -I ../../libbutl \
     --include-with-brackets --include-prefix libbrep         \
     --guard-prefix LIBBREP \
     common.hxx
 
-$odb $lib -d pgsql --std c++14 --generate-query --generate-schema      \
-    --schema-format sql --schema-format embedded --schema-name package \
-    --odb-epilogue '#include <libbrep/wrapper-traits.hxx>'             \
-    --hxx-prologue '#include <libbrep/package-traits.hxx>'             \
-    --generate-prepared -DLIBODB_BUILD2 -DLIBODB_PGSQL_BUILD2          \
-    -I .. -I ../../libbbot -I ../../libbpkg -I ../../libbutl           \
-    --include-with-brackets --include-prefix libbrep                   \
-    --guard-prefix LIBBREP                                             \
+$odb "${inc[@]}" -d pgsql --std c++14 --generate-query --generate-schema \
+    --schema-format sql --schema-format embedded --schema-name package   \
+    --odb-epilogue '#include <libbrep/wrapper-traits.hxx>'               \
+    --hxx-prologue '#include <libbrep/package-traits.hxx>'               \
+    --generate-prepared -DLIBODB_BUILD2 -DLIBODB_PGSQL_BUILD2            \
+    --include-with-brackets --include-prefix libbrep                     \
+    --guard-prefix LIBBREP                                               \
     package.hxx
 
 xxd -i <package-extra.sql >package-extra.hxx
 
-$odb $lib -d pgsql --std c++14 --generate-query --generate-schema    \
-    --schema-format sql --schema-format embedded --schema-name build \
-    --odb-epilogue '#include <libbrep/wrapper-traits.hxx>'           \
-    --generate-prepared -DLIBODB_BUILD2 -DLIBODB_PGSQL_BUILD2        \
-    -I .. -I ../../libbbot -I ../../libbpkg -I ../../libbutl         \
-    --include-with-brackets --include-prefix libbrep                 \
+$odb "${inc[@]}" -d pgsql --std c++14 --generate-query --generate-schema \
+    --schema-format sql --schema-format embedded --schema-name build     \
+    --odb-epilogue '#include <libbrep/wrapper-traits.hxx>'               \
+    --generate-prepared -DLIBODB_BUILD2 -DLIBODB_PGSQL_BUILD2            \
+    --include-with-brackets --include-prefix libbrep                     \
     --guard-prefix LIBBREP \
     build.hxx
 
-$odb $lib -d pgsql --std c++14 --generate-query               \
+$odb "${inc[@]}" -d pgsql --std c++14 --generate-query        \
     --odb-epilogue '#include <libbrep/wrapper-traits.hxx>'    \
     --generate-prepared -DLIBODB_BUILD2 -DLIBODB_PGSQL_BUILD2 \
-    -I .. -I ../../libbbot -I ../../libbpkg -I ../../libbutl  \
     --include-with-brackets --include-prefix libbrep          \
     --guard-prefix LIBBREP                                    \
     build-package.hxx
