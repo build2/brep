@@ -507,4 +507,13 @@ namespace brep
   };
 }
 
+// Workaround for GCC __is_invocable/non-constant condition bug (#86441).
+//
+#ifdef ODB_COMPILER
+namespace std
+{
+  template class map<brep::package::_license_key, string>;
+}
+#endif
+
 #endif // LIBBREP_PACKAGE_HXX
