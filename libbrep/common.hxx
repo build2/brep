@@ -229,7 +229,9 @@ namespace brep
 
   #pragma db map type(repository_location) as(string)            \
     to((?).url ().string ())                                     \
-    from(brep::repository_location (brep::repository_url (?),    \
+    from(brep::repository_location ((?).empty ()                 \
+                                    ? bpkg::repository_url ()    \
+                                    : brep::repository_url (?),  \
                                     brep::repository_type::pkg))
 
   // Version comparison operators.

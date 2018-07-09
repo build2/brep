@@ -160,7 +160,7 @@ load_repositories (path p)
             // process. Note that the resulting absolute path should be a valid
             // repository location.
             //
-            dir_path cache_path = dir_path (string (nv, vp));
+            dir_path cache_path (string (nv, vp));
             if (cache_path.relative ())
               cache_path = p.directory () / cache_path;
 
@@ -177,7 +177,7 @@ load_repositories (path p)
           {
             bad_line (string ("invalid cache path: ") + e.what ());
           }
-          catch (const invalid_argument& e) // Thrown by repository_location().
+          catch (const invalid_argument& e) // Thrown by repository_*().
           {
             bad_line (string ("invalid cache path: ") + e.what ());
           }
