@@ -75,13 +75,13 @@ namespace brep
                       "pkey",
                       o.openssl_option (), "-pubin", "-outform", "DER");
 
-          vector<char> k (os.in.read_binary ());
+          string fp (sha256 (os.in).string ());
           os.in.close ();
 
           if (!os.wait ())
             throw io_error ("");
 
-          ak->emplace (sha256 (k.data (), k.size ()).string (), move (p));
+          ak->emplace (move (fp), move (p));
         }
       }
     }
