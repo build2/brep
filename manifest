@@ -1,9 +1,10 @@
 : 1
 name: brep
 version: 0.8.0-a.0.z
+project: build2
 summary: build2 package repository web interface
 license: MIT
-tags: build2, c++, package, repository, web, interface, apache, module
+tags: c++, package, repository, web, interface, apache, module
 description-file: README
 changes-file: NEWS
 url: https://build2.org
