@@ -298,8 +298,9 @@ namespace brep
     // Create internal package object. Note that for stubs the build
     // constraints are meaningless, and so not saved.
     //
-    package (package_name name,
+    package (package_name,
              version_type,
+             package_name project,
              priority_type,
              string summary,
              license_alternatives_type,
@@ -336,6 +337,12 @@ namespace brep
     //
     package_id id;
     upstream_version version;
+
+    // Matches the package name if the project name is not specified in
+    // the manifest.
+    //
+    package_name project;
+
     priority_type priority;
     string summary;
     license_alternatives_type license_alternatives;

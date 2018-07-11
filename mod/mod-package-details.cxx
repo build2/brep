@@ -186,7 +186,8 @@ handle (request& rq, response& rs)
 
     s << TABLE(CLASS="proplist", ID="package")
       <<   TBODY
-      <<     TR_LICENSE (licenses);
+      <<     TR_LICENSE (licenses)
+      <<     TR_PROJECT (pkg->project, root);
 
     if (pkg->url)
       s <<   TR_URL (*pkg->url);

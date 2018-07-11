@@ -163,7 +163,7 @@ handle (request& rq, response& rs)
       <<     TR_NAME (p->id.name, squery_param, root)
       <<     TR_SUMMARY (p->summary)
       <<     TR_LICENSE (p->license_alternatives)
-      <<     TR_TAGS (p->tags, root)
+      <<     TR_TAGS (p->project, p->tags, root)
       <<     TR_DEPENDS (p->dependencies, root)
       <<     TR_REQUIRES (p->requirements)
       <<   ~TBODY

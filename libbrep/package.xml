@@ -77,6 +77,7 @@
       <column name="version_revision" type="INTEGER" null="false"/>
       <column name="version_upstream" type="TEXT" null="false"/>
       <column name="version_release" type="TEXT" null="true"/>
+      <column name="project" type="CITEXT" null="false"/>
       <column name="priority" type="INTEGER" null="false"/>
       <column name="priority_comment" type="TEXT" null="false"/>
       <column name="summary" type="TEXT" null="false"/>

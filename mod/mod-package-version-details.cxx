@@ -205,7 +205,8 @@ handle (request& rq, response& rs)
     << ~TABLE
 
     << TABLE(CLASS="proplist", ID="package")
-    <<   TBODY;
+    <<   TBODY
+    <<     TR_PROJECT (pkg->project, root);
 
   const auto& u (pkg->url);
 

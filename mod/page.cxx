@@ -8,7 +8,7 @@
 #include <ios>       // hex, uppercase, right
 #include <sstream>
 #include <iomanip>   // setw(), setfill()
-#include <algorithm> // min()
+#include <algorithm> // min(), find()
 
 #include <libstudxml/serializer.hxx>
 
@@ -238,6 +238,26 @@ namespace brep
       << ~TR;
   }
 
+  // TR_PROJECT
+  //
+  void TR_PROJECT::
+  operator() (serializer& s) const
+  {
+    s << TR(CLASS="project")
+      <<   TH << "project" << ~TH
+      <<   TD
+      <<     SPAN(CLASS="value")
+      <<       A
+      <<         HREF
+      <<           root_ << "?q=" << mime_url_encode (project_.string ())
+      <<         ~HREF
+      <<         project_
+      <<       ~A
+      <<     ~SPAN
+      <<   ~TD
+      << ~TR;
+  }
+
   // TR_SUMMARY
   //
   void TR_SUMMARY::
@@ -318,21 +338,32 @@ namespace brep
   void TR_TAGS::
   operator() (serializer& s) const
   {
-    if (!tags_.empty ())
+    if (!tags_.empty () || project_)
     {
       s << TR(CLASS="tags")
         <<   TH << "tags" << ~TH
         <<   TD
         <<     SPAN(CLASS="value");
 
-      for (const auto& t: tags_)
+      auto print = [&s, this] (const string& t)
       {
-        if (&t != &tags_[0])
-          s << " ";
-
         s << A << HREF << root_ << "?q=" << mime_url_encode (t) << ~HREF
           <<   t
           << ~A;
+      };
+
+      bool pt (project_ != nullptr &&
+               find (tags_.begin (), tags_.end (), *project_) == tags_.end ());
+
+      if (pt)
+        print (project_->string ());
+
+      for (const string& t: tags_)
+      {
+        if (&t != &tags_[0] || pt)
+          s << " ";
+
+        print (t);
       }
 
       s <<     ~SPAN

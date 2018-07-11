@@ -210,6 +210,25 @@ namespace brep
     const dir_path* root_;
   };
 
+  // Generates package project name element.
+  //
+  // Displays a link to the package search page with the project name
+  // specified as a keyword.
+  //
+  class TR_PROJECT
+  {
+  public:
+    TR_PROJECT (const package_name& p, const dir_path& r)
+        : project_ (p), root_ (r) {}
+
+    void
+    operator() (xml::serializer&) const;
+
+  private:
+    const package_name& project_;
+    const dir_path& root_;
+  };
+
   // Generates package summary element.
   //
   class TR_SUMMARY
@@ -258,12 +277,22 @@ namespace brep
   class TR_TAGS
   {
   public:
-    TR_TAGS (const strings& ts, const dir_path& r): tags_ (ts), root_ (r) {}
+    // Display the tag link list.
+    //
+    TR_TAGS (const strings& ts, const dir_path& r)
+        : project_ (nullptr), tags_ (ts), root_ (r) {}
+
+    // As above but prepend the list with a tag link produced from the project
+    // name, if it differs from other tags.
+    //
+    TR_TAGS (const package_name& pr, const strings& ts, const dir_path& r)
+        : project_ (&pr), tags_ (ts), root_ (r) {}
 
     void
     operator() (xml::serializer&) const;
 
   private:
+    const package_name* project_;
     const strings& tags_;
     const dir_path& root_;
   };

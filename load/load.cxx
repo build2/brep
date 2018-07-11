@@ -402,9 +402,14 @@ load_packages (const shared_ptr<repository>& rp, database& db)
                 move (pd.constraint)});
         }
 
+        // Cache before the package name is moved.
+        //
+        package_name project (pm.effective_project ());
+
         p = make_shared<package> (
           move (pm.name),
           move (pm.version),
+          move (project),
           pm.priority ? move (*pm.priority) : priority (),
           move (pm.summary),
           move (pm.license_alternatives),

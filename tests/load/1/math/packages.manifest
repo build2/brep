@@ -3,9 +3,10 @@ sha256sum: b85ba3a0ba45b98e1fbb2507f199bc4b218a4a413ec6ba4094e214a7507490a2
 :
 name: libexp
 version: +2-1.2+1
+project: mathLab
 summary: The exponent
 license: MIT
-tags: c++, exponent
+tags: mathlab, c++, exponent
 description: The exponent math function.
 url: http://www.exp.com
 email: users@exp.com
@@ -15,7 +16,7 @@ depends: libpq >= 9.0.0
 build-exclude: *; Only supported on Linux.
 build-include: linux*
 location: libexp-+2-1.2+1.tar.gz
-sha256sum: 040b3817418121e8e922ac3a6d3752378f78239faad7d257de87019557fdd245
+sha256sum: bc68940a1b3b7e345cbceac35d308b4e04b304f49ff2087340949f2879709967
 :
 name: libfoo
 version: +0-X.Y

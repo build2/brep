@@ -49,6 +49,7 @@ namespace brep
   package::
   package (package_name nm,
            version_type vr,
+           package_name pn,
            priority_type pr,
            string sm,
            license_alternatives_type la,
@@ -70,6 +71,7 @@ namespace brep
            shared_ptr<repository_type> rp)
       : id (move (nm), vr),
         version (move (vr)),
+        project (move (pn)),
         priority (move (pr)),
         summary (move (sm)),
         license_alternatives (move (la)),
@@ -124,7 +126,7 @@ namespace brep
     //   the available internal repositories.
     //
     string k (id.name.string () + " " + version.string () + " " +
-              version.string (true));
+              version.string (true) + " " + project.string ());
 
     // Add tags to keywords.
     //

@@ -196,6 +196,7 @@ main (int argc, char* argv[])
         db.load<package> (
           package_id (package_name ("libfoo"), version ("+0-X.Y"))));
 
+      assert (fpvxy->project == package_name ("libfoo"));
       assert (fpvxy->summary == "The Foo Library");
       assert (fpvxy->tags.empty ());
       assert (!fpvxy->description);
@@ -662,8 +663,9 @@ main (int argc, char* argv[])
         db.load<package> (
           package_id (package_name ("libexp"), version ("+2-1.2+1"))));
 
+      assert (epv->project == "mathLab");
       assert (epv->summary == "The exponent");
-      assert (epv->tags == strings ({"c++", "exponent"}));
+      assert (epv->tags == strings ({"mathlab", "c++", "exponent"}));
       assert (epv->description && *epv->description ==
               "The exponent math function.");
       assert (epv->url && *epv->url == "http://www.exp.com");
@@ -704,7 +706,7 @@ main (int argc, char* argv[])
 
       assert (check_location (epv));
       assert (epv->sha256sum && *epv->sha256sum ==
-        "040b3817418121e8e922ac3a6d3752378f78239faad7d257de87019557fdd245");
+        "bc68940a1b3b7e345cbceac35d308b4e04b304f49ff2087340949f2879709967");
 
       // Verify libpq package version.
       //
