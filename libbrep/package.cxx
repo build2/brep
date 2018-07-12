@@ -125,8 +125,8 @@ namespace brep
     //   Probably drop-box would be better as also tells what are
     //   the available internal repositories.
     //
-    string k (id.name.string () + " " + version.string () + " " +
-              version.string (true) + " " + project.string ());
+    string k (project.string () + " " + id.name.string () + " " +
+              version.string () + " " + version.string (true));
 
     // Add tags to keywords.
     //

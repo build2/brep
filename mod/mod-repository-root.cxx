@@ -28,8 +28,11 @@ using namespace brep::cli;
 
 namespace brep
 {
-  // Request proxy. Removes the first parameter that is assumed to be a
-  // function name.
+  // Request proxy.
+  //
+  // Removes the first parameter, that is assumed to be a function name, if its
+  // value is not present. Otherwise, considers it as the handler's "default"
+  // parameter value and renames the parameter to "_".
   //
   class request_proxy: public request
   {
@@ -45,9 +48,15 @@ namespace brep
       if (!parameters_ || url_only < url_only_parameters_)
       {
         parameters_ = request_.parameters (limit, url_only);
-
         assert (!parameters_->empty ()); // Always starts with a function name.
-        parameters_->erase (parameters_->begin ());
+
+        auto i (parameters_->begin ());
+        removed_ = !i->value;
+
+        if (removed_)
+          parameters_->erase (i);
+        else
+          i->name = "_";
 
         url_only_parameters_ = url_only;
       }
@@ -58,10 +67,9 @@ namespace brep
     istream&
     open_upload (size_t index)
     {
-      // The original request object still contains the function name entry,
-      // so we shift the index.
+      // Shift the index if the function name parameter was removed.
       //
-      return request_.open_upload (index + 1);
+      return request_.open_upload (index + (removed_ ? 1 : 0));
     }
 
     istream&
@@ -88,6 +96,7 @@ namespace brep
     request& request_;
     optional<name_values> parameters_;
     bool url_only_parameters_; // Meaningless if parameters_ is not present.
+    bool removed_ = false;     // If the function name parameter was removed.
   };
 
   // repository_root

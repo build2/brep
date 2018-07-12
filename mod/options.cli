@@ -572,7 +572,21 @@ namespace brep
 
       // Package name wildcard. An empty value is treated the same way as *.
       //
-      string name | pn;
+      // We used to generate URLs like:
+      //
+      // https://cppget.org/?builds&pn=bbot
+      //
+      // This looked a bit verbose, so now we produce URLs like:
+      //
+      // https://cppget.org/?builds=bbot
+      //
+      // To support the already distributed URLs the name_legacy (pn) parameter
+      // overrides the name (builds) parameter, if present. Note that the
+      // builds parameter is renamed to '_' by the root handler (see the
+      // request_proxy class for details).
+      //
+      string name | _;
+      string name_legacy | pn;
 
       // Package version. If empty or *, then no version constraint is applied.
       // Otherwise the build package version must match the value exactly.

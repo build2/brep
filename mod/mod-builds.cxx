@@ -285,6 +285,11 @@ handle (request& rq, response& rs)
     throw invalid_request (400, e.what ());
   }
 
+  // Override the name parameter for the old URL (see options.cli for details).
+  //
+  if (params.name_legacy_specified ())
+    params.name (params.name_legacy ());
+
   const char* title ("Builds");
 
   xml::serializer s (rs.content (), title);
@@ -358,10 +363,9 @@ handle (request& rq, response& rs)
       // query part.
       //
       s << FORM
-        <<   *INPUT(TYPE="hidden", NAME="builds")
         <<   TABLE(ID="filter", CLASS="proplist")
         <<     TBODY
-        <<       TR_INPUT  ("name", "pn", params.name (), "*", true)
+        <<       TR_INPUT  ("name", "builds", params.name (), "*", true)
         <<       TR_INPUT  ("version", "pv", params.version (), "*")
         <<       TR_SELECT ("toolchain", "tc", ctc, toolchain_opts)
 
@@ -827,6 +831,12 @@ handle (request& rq, response& rs)
 
   string u (root.string () + "?builds");
 
+  if (!params.name ().empty ())
+  {
+    u += '=';
+    u += mime_url_encode (params.name ());
+  }
+
   auto add_filter = [&u] (const char* pn,
                           const string& pv,
                           const char* def = "")
@@ -840,7 +850,6 @@ handle (request& rq, response& rs)
     }
   };
 
-  add_filter ("pn", params.name ());
   add_filter ("pv", params.version ());
   add_filter ("tc", params.toolchain (), "*");
   add_filter ("cf", params.configuration ());
