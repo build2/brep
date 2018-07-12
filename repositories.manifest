@@ -15,11 +15,11 @@ location: ../libbbot.git##HEAD
 
 :
 role: prerequisite
-location: https://git.build2.org/packaging/apr/libapr1.git##HEAD
+location: https://git.build2.org/packaging/libapr/libapr1.git##HEAD
 
 :
 role: prerequisite
-location: https://git.build2.org/packaging/apreq/libapreq2.git##HEAD
+location: https://git.build2.org/packaging/libapreq/libapreq2.git##HEAD
 
 :
 role: prerequisite
