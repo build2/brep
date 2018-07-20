@@ -197,23 +197,36 @@ handle (request& rq, response& rs)
 
   // We have all the data so don't buffer the response content.
   //
+  // Note that after we started to write the response content we need to be
+  // accurate not throwing any exceptions, that would mess up the response.
+  //
   ostream& os (rs.content (200, "text/plain;charset=utf-8", false));
 
-  os << "package:   " << b->package_name << endl
-     << "version:   " << b->package_version << endl
-     << "toolchain: " << b->toolchain_name << '-' << b->toolchain_version
-                      << endl
-     << "config:    " << b->configuration << endl
-     << "machine:   " << b->machine << " (" << b->machine_summary << ")"
-                      << endl
-     << "target:    " << b->target.string () << endl
-     << "timestamp: ";
+  auto print_header = [&os, &b] ()
+  {
+    os << "package:   " << b->package_name << endl
+       << "version:   " << b->package_version << endl
+       << "toolchain: " << b->toolchain_name << '-' << b->toolchain_version
+       << endl
+       << "config:    " << b->configuration << endl
+       << "machine:   " << b->machine << " (" << b->machine_summary << ")"
+       << endl
+       << "target:    " << b->target.string () << endl
+       << "timestamp: ";
 
-  butl::to_stream (os, b->timestamp, "%Y-%m-%d %H:%M:%S%[.N] %Z", true, true);
-  os << endl << endl;
+    butl::to_stream (os,
+                     b->timestamp,
+                     "%Y-%m-%d %H:%M:%S%[.N] %Z",
+                     true /* special */,
+                     true /* local */);
+
+    os << endl << endl;
+  };
 
   if (op.empty ())
   {
+    print_header ();
+
     for (const auto& r: b->results)
       os << r.operation << ": " << r.status << endl;
 
@@ -232,6 +245,8 @@ handle (request& rq, response& rs)
 
     if (i == r.end ())
       config_expired ("no operation");
+
+    print_header ();
 
     os << op << ": " << i->status << endl << endl
        << i->log;
