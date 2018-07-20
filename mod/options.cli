@@ -623,8 +623,8 @@ namespace brep
       string result | rs = "*";
     };
 
-    // Parameters must either be all present (actual submission) or absent
-    // (submission form request).
+    // Parameters, except simulate, must either be all present (actual
+    // submission) or absent (submission form request).
     //
     // Note also that besides these parameters there can be others. We don't
     // recognize their semantics and just save them to the submission request
@@ -642,6 +642,15 @@ namespace brep
       // Package archive file SHA256 checksum.
       //
       string sha256sum;
+
+      // Simulate submission. Tells the submission handler not to publish the
+      // package but to respond as if it does.
+      //
+      // Note that the package submission email (see submit-email
+      // configuration option for details) is not sent for the simulated
+      // submission.
+      //
+      bool simulate;
     };
   }
 }

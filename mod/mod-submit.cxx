@@ -527,24 +527,20 @@ handle (request& rq, response& rs)
         parser p (is, "handler");
         manifest_name_value nv (p.next ());
 
-        auto bad_name ([&p, &nv] (const string& d) {
-            throw parsing (p.name (), nv.name_line, nv.name_column, d);});
-
         auto bad_value ([&p, &nv] (const string& d) {
             throw parsing (p.name (), nv.value_line, nv.value_column, d);});
+
+        if (nv.empty ())
+          bad_value ("empty manifest");
 
         const string& n (nv.name);
         const string& v (nv.value);
 
-        // Make sure this is the start and we support the version.
+        // The format version pair is verified by the parser.
         //
-        if (!n.empty ())
-          bad_name ("start of manifest expected");
+        assert (n.empty () && v == "1");
 
-        if (v != "1")
-          bad_value ("unsupported format version");
-
-        // Cache start of manifest.
+        // Cache the format version pair.
         //
         rvs.push_back (move (nv));
 
@@ -656,7 +652,7 @@ handle (request& rq, response& rs)
     return respond_error ();
   }
 
-  // Send email, if configured.
+  // Send email, if configured, and the submission is not simulated.
   //
   // Note that we don't consider the email sending failure to be a submission
   // failure as the submission data is successfully persisted and the handler
@@ -666,7 +662,7 @@ handle (request& rq, response& rs)
   // web server error log is monitored and the email sending failure will be
   // noticed.
   //
-  if (options_->submit_email_specified ())
+  if (options_->submit_email_specified () && !params.simulate ())
   try
   {
     // Redirect the diagnostics to the web server error log.
