@@ -139,7 +139,7 @@ handle (request& rq, response& rs)
     serializer s (rs.content (status, "text/manifest;charset=utf-8"),
                   "response");
 
-    s.next ("", "1"); // Start of manifest.
+    s.next ("", "1");                      // Start of manifest.
     s.next ("status", to_string (status));
     s.next ("message", message);
 
@@ -152,8 +152,9 @@ handle (request& rq, response& rs)
 
   auto respond_error = [&rs] (status_code status = 500) -> bool
   {
-    rs.content (status, "text/plain;charset=utf-8") << "unable to handle "
-      << "submission" << endl;
+    rs.content (status, "text/plain;charset=utf-8")
+      << "submission handling failed" << endl;
+
     return true;
   };
 
@@ -226,6 +227,23 @@ handle (request& rq, response& rs)
     return respond_manifest (400, "invalid parameter");
   }
 
+  const string& simulate (params.simulate ());
+
+  if (simulate == "internal-error-text")
+    return respond_error ();
+  else if (simulate == "internal-error-html")
+  {
+    const string title ("Internal Error");
+    xml::serializer s (rs.content (500), title);
+
+    s << HTML
+      <<   HEAD << TITLE << title << ~TITLE << ~HEAD
+      <<   BODY << "submission handling failed" << ~BODY
+      << ~HTML;
+
+    return true;
+  }
+
   const string& archive (params.archive ());
   const string& sha256sum (params.sha256sum ());
 
@@ -266,7 +284,7 @@ handle (request& rq, response& rs)
   string ac (sha256sum, 0, 12);
   dir_path dd (options_->submit_data () / dir_path (ac));
 
-  if (dir_exists (dd))
+  if (dir_exists (dd) || simulate == "duplicate-archive")
     return respond_manifest (409, "duplicate submission");
 
   // Create the temporary submission directory.
@@ -662,7 +680,7 @@ handle (request& rq, response& rs)
   // web server error log is monitored and the email sending failure will be
   // noticed.
   //
-  if (options_->submit_email_specified () && !params.simulate ())
+  if (options_->submit_email_specified () && simulate.empty ())
   try
   {
     // Redirect the diagnostics to the web server error log.

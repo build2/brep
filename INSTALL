@@ -240,6 +240,9 @@ example:
 $ cp install/share/brep/www/submit.xhtml config/
 $ edit config/submit.xhtml # Add custom form fields, adjust CSS style, etc.
 
+For an example of the submission handler see the brep/submit/submit.in bash
+script.
+
 Here we assume you have setup an appropriate Apache2 virtual server. Open the
 corresponding Apache2 .conf file and add the following inside VirtualHost (you
 can also find this fragment in install/share/brep/etc/brep-apache2.conf):

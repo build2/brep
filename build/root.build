@@ -25,6 +25,8 @@ cxx.coptions += -Wno-unknown-pragmas
 #
 using? cli
 
+using bash
+
 # All exe{} in tests/ are, well, tests. Also don't link whole archives
 # by default there.
 #

@@ -1,0 +1,8 @@
+# file      : brep/submit/buildfile
+# copyright : Copyright (c) 2014-2018 Code Synthesis Ltd
+# license   : MIT; see accompanying LICENSE file
+
+import mods  = libbutl.bash%bash{manifest-parser}
+import mods += libbutl.bash%bash{manifest-serializer}
+
+exe{brep-submit}: in{submit} $mods
