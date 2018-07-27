@@ -394,7 +394,7 @@ handle (request& rq, response& rs)
   //
   timestamp ts (system_clock::now ());
 
-  auto rqm = [&a, &sha256sum, &ts, &rq, &rps, &respond_manifest]
+  auto rqm = [&a, &sha256sum, &ts, &simulate, &rq, &rps, &respond_manifest]
              (ostream& os) -> bool
   {
     try
@@ -412,6 +412,9 @@ handle (request& rq, response& rs)
                                "%Y-%m-%dT%H:%M:%SZ",
                                false /* special */,
                                false /* local */));
+
+      if (!simulate.empty ())
+        s.next ("simulate", simulate);
 
       // Serialize the User-Agent HTTP header and the client IP address.
       //
@@ -439,7 +442,7 @@ handle (request& rq, response& rs)
       for (const name_value& nv: rps)
       {
         const string& n (nv.name);
-        if (n != "archive" && n != "sha256sum")
+        if (n != "archive" && n != "sha256sum" && n != "simulate")
           s.next (n, nv.value ? *nv.value : "");
       }
 
