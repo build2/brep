@@ -116,8 +116,8 @@ function result_manifest () # <status> <message> [<reference>]
 }
 
 if [ -n "$simulate" -a "$simulate" != "success" ]; then
-  trace "invalid simulate manifest value '$simulate'"
-  result_manifest 400 "invalid simulate manifest value"
+  trace "unrecognized simulation outcome '$simulate'"
+  result_manifest 400 "unrecognized simulation outcome"
   exit 0
 fi
 

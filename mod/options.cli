@@ -643,17 +643,7 @@ namespace brep
       //
       string sha256sum;
 
-      // Submission simulation. The presence of this parameter instructs the
-      // submission service to simulate various outcomes of the submission
-      // process without actually performing any externally visible actions
-      // (e.g., publishing the package, notifying the submitter, etc).
-      //
-      // Pre-defined simulation outcome values are 'internal-error-text',
-      // 'internal-error-html', 'duplicate-archive', and 'success'. The
-      // handler program may recognize additional outcomes.
-      //
-      // Note that the package submission email (see submit-email for details)
-      // is not sent for the simulated submissions.
+      // Submission simulation outcome.
       //
       string simulate;
     };

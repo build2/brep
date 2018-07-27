@@ -126,6 +126,18 @@ mentioned above are always reported with the submission result manifest. Other
 errors (for example, internal server errors) might be reported with
 unformatted text, including HTML.
 
+If the submission request contains the \c{simulate} parameter, then the
+submission service simulates the specified outcome of the submission process
+without actually performing any externally visible actions (e.g., publishing
+the package, notifying the submitter, etc). Note that the package submission
+email (\c{submit-email}) is not sent for simulated submissions.
+
+Pre-defined simulation outcome values are \c{internal-error-text},
+\c{internal-error-html}, \c{duplicate-archive}, and \c{success}. The
+simulation outcome is included into the submission request manifest and the
+handler program must at least handle \c{success} but may recognize additional
+outcomes.
+
 
 \h#submit-request-manifest|Submission Request Manifest|
 
@@ -137,6 +149,7 @@ corresponding to the custom request parameters.
 archive: <name>
 sha256sum: <sum>
 timestamp: <datetime>
+[simulate]: <outcome>
 [client-ip]: <string>
 [user-agent]: <string>
 \
