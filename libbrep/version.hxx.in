@@ -55,7 +55,7 @@ $libodb.check(LIBODB_VERSION, LIBODB_SNAPSHOT)$
 
 #include <odb/pgsql/version.hxx>
 
-$libodb-pgsql.check(LIBODB_PGSQL_VERSION, LIBODB_PGSQL_SNAPSHOT)$
+$libodb_pgsql.check(LIBODB_PGSQL_VERSION, LIBODB_PGSQL_SNAPSHOT)$
 
 // For now these are the same.
 //
