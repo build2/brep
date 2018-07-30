@@ -279,13 +279,13 @@ handle (request& rq, response& rs)
 
   // Check for a duplicate submission.
   //
-  // Respond with the conflict (409) code if a duplicate is found.
+  // Respond with the unprocessable entity (422) code if a duplicate is found.
   //
   string ac (sha256sum, 0, 12);
   dir_path dd (options_->submit_data () / dir_path (ac));
 
   if (dir_exists (dd) || simulate == "duplicate-archive")
-    return respond_manifest (409, "duplicate submission");
+    return respond_manifest (422, "duplicate submission");
 
   // Create the temporary submission directory.
   //
@@ -371,8 +371,11 @@ handle (request& rq, response& rs)
 
     os.close ();
 
+    // Respond with the unprocessable entity (422) code for the archive
+    // checksum mismatch.
+    //
     if (sha.string () != sha256sum)
-      return respond_manifest (400, "package archive checksum mismatch");
+      return respond_manifest (422, "package archive checksum mismatch");
   }
   // Note that invalid_argument (thrown by open_upload() function call) can
   // mean both no archive upload or multiple archive uploads.
@@ -478,7 +481,8 @@ handle (request& rq, response& rs)
 
   // Make the temporary submission directory permanent.
   //
-  // Respond with the conflict (409) code if a submission race is detected.
+  // Respond with the unprocessable entity (422) code if a submission race is
+  // detected.
   //
   try
   {
@@ -488,7 +492,7 @@ handle (request& rq, response& rs)
   {
     int ec (e.code ().value ());
     if (ec == ENOTEMPTY || ec == EEXIST)
-      return respond_manifest (409, "duplicate submission");
+      return respond_manifest (422, "duplicate submission");
 
     error << "unable to rename directory '" << td << "' to '" << dd << "': "
           << e;
