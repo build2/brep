@@ -12,10 +12,10 @@
 
 #submit th
 {
-  width: 5.7em;
+  width: 6.8em;
 }
 
-#submit input
+#submit input, #submit-padding
 {
   width: 100%;
   margin:0;
