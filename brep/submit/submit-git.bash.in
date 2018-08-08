@@ -1,0 +1,331 @@
+# file      : brep/submit/submit-git.bash.in
+# copyright : Copyright (c) 2014-2018 Code Synthesis Ltd
+# license   : MIT; see accompanying LICENSE file
+
+# Utility functions for the submit-git handler.
+
+if [ "$brep_submit_git" ]; then
+  return 0
+else
+  brep_submit_git=true
+fi
+
+@import brep/submit/submit@
+
+# If the section is mapped to a directory in the repository configuration then
+# return this directory path and empty string otherwise.
+#
+function section_dir () # <section> <repo-dir>
+{
+  trace_func "$@"
+
+  local sec="$1"
+  local rep="$2"
+
+  local owners # Unused but is declared to avoid polluting the global space.
+  local -A sections
+
+  run source "$rep/submit.config.bash"
+
+  local r="${sections[$sec]}"
+  if [ -z "$r" ]; then
+    r="${sections['*']}"
+  fi
+
+  echo "$r"
+}
+
+# If the owners directory is set in the repository configuration then return
+# this directory path prefixed with the repository directory path and the
+# empty string otherwise.
+#
+function owners_dir () # <repo-dir>
+{
+  local rep="$1"
+
+  local owners
+  local -A sections # Is declared to avoid polluting the global space.
+
+  run source "$rep/submit.config.bash"
+
+  local r=
+  if [ -n "$owners" ]; then
+    r="$rep/$owners"
+  fi
+
+  echo "$r"
+}
+
+# Check if a repository already contains the package. Respond with the
+# 'duplicate submission' result manifest and exit if that's the case.
+#
+function check_package_duplicate () # <name> <version> <repo-dir>
+{
+  trace_func "$@"
+
+  local nam="$1"
+  local ver="$2"
+  local rep="$3"
+
+  local owners # Unused but is declared to avoid polluting the global space.
+  local -A sections
+
+  run source "$rep/submit.config.bash"
+
+  # Check for duplicate package in all sections. Use <name>-<version>.*
+  # without .tar.gz in case we want to support more archive types later.
+  #
+  local s
+  for s in "${!sections[@]}"; do
+    local d="$rep/${sections[$s]}"
+
+    if [ -d "$d" ]; then
+      local f
+      f="$(run find "$d" -name "$nam-$ver.*")"
+
+      if [ -n "$f" ]; then
+	trace "found: $f"
+        exit_with_manifest 422 "duplicate submission"
+      fi
+    fi
+  done
+}
+
+# Serialize the project or package owner manifest (they have the same set of
+# values) to the specified manifest file.
+#
+function create_owner_manifest () # <name> <email> <control> <file>
+{
+  trace_func "$@"
+
+  local nam="$1"
+  local eml="$2"
+  local ctl="$3"
+  local man="$4"
+
+  if [ -f "$man" ]; then
+    error "'$man' already exists"
+  fi
+
+  manifest_serializer_start "$man"
+
+  manifest_serialize ""        "1"    # Start of manifest.
+  manifest_serialize "name"    "$nam"
+  manifest_serialize "email"   "$eml"
+  manifest_serialize "control" "$ctl"
+
+  manifest_serializer_finish
+}
+
+# Strip the query part and the leaf path component from the repository URL.
+#
+function repository_base () # <repo-url>
+{
+  # First, strip the URL query part, then component.
+  #
+  sed -n \
+-e 's%^\([^?]*\).*$%\1%' \
+-e 's%^\(.*\)/[^/]\{1,\}/\{0,1\}$%\1%p' \
+<<<"$1"
+}
+
+# Authenticate the project name owner. Make sure that the control manifest
+# value is specified unless authentication is disabled.
+#
+# Possible return values:
+#
+# - 'project'  if the project belongs to the submitter
+# - 'unknown'  if the project name is not yet known
+# - 'disabled' if the owners directory is not configured
+# - <manifest> result manifest describing the authentication error
+#
+# Note that the authentication error result always starts with ':'.
+#
+function auth_project () # <project> <control> <repo-dir>
+{
+  trace_func "$@"
+
+  local prj="$1"
+  local ctl="${2%/}"
+  local rep="$3"
+
+  local d
+  d="$(owners_dir "$rep")"
+
+  if [ -z "$d" ]; then
+    echo "disabled"
+    return
+  fi
+
+  if [ -z "$ctl" ]; then
+    exit_with_manifest 400 "control manifest value expected"
+  fi
+
+  local r="unknown"
+  local m="$d/$prj/project-owner.manifest"
+
+  # If the project owner manifest exists then parse it and try to authenticate
+  # the submitter as the project owner.
+  #
+  if [ -f "$m" ]; then
+    ctl="$(repository_base "$ctl")"
+
+    # Parse the project owner manifest.
+    #
+    manifest_parser_start "$m"
+
+    local n v
+    while IFS=: read -ru "$manifest_parser_ofd" -d '' n v; do
+      if [ "$n" == "control" -a "${v%/}" == "$ctl" ]; then
+        r="project"
+        break
+      fi
+    done
+
+    manifest_parser_finish
+
+    if [ "$r" != "project" ]; then
+      exit_with_manifest 401 "project owner authentication failed"
+    fi
+  fi
+
+  echo "$r"
+}
+
+# Authenticate the package name owner. Make sure that the control manifest
+# value is specified unless authentication is disabled. It is assumed that the
+# project ownership is already authenticated (possibly by another repository).
+#
+# Possible return values:
+#
+# - 'package'  if the package belongs to the submitter
+# - 'unknown'  if the package name is not taken in the project
+# - 'disabled' if the owners directory is not configured
+# - <manifest> result manifest describing the authentication error
+#
+# Note that the authentication error result always starts with ':'.
+#
+function auth_package () # <project> <package> <control> <repo-dir>
+{
+  trace_func "$@"
+
+  local prj="$1"
+  local pkg="$2"
+  local ctl="${3%/}"
+  local rep="$4"
+
+  local d
+  d="$(owners_dir "$rep")"
+
+  if [ -z "$d" ]; then
+    echo "disabled"
+    return
+  fi
+
+  if [ -z "$ctl" ]; then
+    exit_with_manifest 400 "control manifest value expected"
+  fi
+
+  local r="unknown"
+  local m="$d/$prj/$pkg/package-owner.manifest"
+
+  # If the package owner manifest exists then parse it and try to authenticate
+  # the submitter as the package owner.
+  #
+  if [ -f "$m" ]; then
+
+    # Parse the package owner manifest.
+    #
+    manifest_parser_start "$m"
+
+    local n v
+    while IFS=: read -ru "$manifest_parser_ofd" -d '' n v; do
+      if [ "$n" == "control" -a "${v%/}" == "$ctl" ]; then
+        r="package"
+        break
+      fi
+    done
+
+    manifest_parser_finish
+
+    if [ "$r" != "package" ]; then
+      exit_with_manifest 401 "package owner authentication failed"
+    fi
+  fi
+
+  echo "$r"
+}
+
+# Check that the package name is unknown to the repository. Owners directory
+# is expected to be configured.
+#
+function auth_package_unknown () # <package> <repo-dir>
+{
+  trace_func "$@"
+
+  local pkg="$1"
+  local rep="$2"
+
+  local d
+  d="$(owners_dir "$rep")"
+
+  # Sanity check that the owners directory configured for the repository.
+  #
+  if [ -z "$d" ]; then
+    error "no owners directory configured for '$rep'"
+  fi
+
+  # While configured, the owners directory may not yet exist.
+  #
+  if [ -d "$d" ]; then
+    local f
+    f="$(run find "$d" -path "$d/*/$pkg/package-owner.manifest")"
+
+    if [ -n "$f" ]; then
+      trace "found: $f"
+      exit_with_manifest 401 "package owner authentication failed"
+    fi
+  fi
+}
+
+# Return lower-case URL scheme or empty string if the argument doesn't look
+# like a URL.
+#
+function url_scheme () # <url>
+{
+  sed -n -e 's%^\(.*\)://.*$%\L\1%p' <<<"$1"
+}
+
+# Checks that the repository properly responds to the probing request before
+# the timeout (in seconds). Noop for protocols other than HTTP(S).
+#
+function check_connectivity () # <repo-url> <timeout>
+{
+  trace_func "$@"
+
+  local url="$1"
+  local tmo="$2"
+
+  local s
+  s="$(url_scheme "$url")"
+
+  if [ "$s" == "http" -o "$s" == "https" ]; then
+    local u q
+
+    u="$(sed -n -e 's%^\([^?]*\).*$%\1%p' <<<"$url")" # Strips query part.
+    q="$(sed -n -e 's%^[^?]*\(.*\)$%\1%p' <<<"$url")" # Query part.
+
+    if [ -z "$q" ]; then
+      u="$u/info/refs?service=git-upload-pack"
+    else
+      u="$u/info/refs$q&service=git-upload-pack"
+    fi
+
+    # This function is called on repositories other than ours (e.g., control)
+    # so we don't want a failure to be logged.
+    #
+    if ! run_silent curl -S -s --max-time "$tmo" "$u" >/dev/null; then
+      exit_with_manifest 503 "submission service temporarily unavailable"
+    fi
+  fi
+}

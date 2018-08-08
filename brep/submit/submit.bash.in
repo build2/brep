@@ -2,22 +2,24 @@
 # copyright : Copyright (c) 2014-2018 Code Synthesis Ltd
 # license   : MIT; see accompanying LICENSE file
 
+# Utility functions useful for implementing submission handlers.
+
 if [ "$brep_submit" ]; then
   return 0
 else
   brep_submit=true
 fi
 
+@import libbutl/manifest-parser@
 @import libbutl/manifest-serializer@
 
 # Diagnostics.
 #
-
 # We expect the user to set the verbose variable either to true or empty
 # (false).
 #
 if [ ! -v verbose ]; then
-  echo "variable 'verbose' is not set" 2>&1
+  echo "error: variable 'verbose' is not set" >&2
   exit 1
 fi
 
@@ -26,10 +28,13 @@ fi
 # [Mon Jul 23 17:48:46.945079 2018] [brep:error] [pid 123:tid 456] [brep::submit::init]: error description
 #
 # We will use the (almost) same format for our diagnostics (redirected to the
-# Apache's error_log) so it can easily be attributed to the brep module.
+# Apache's error_log), so it can easily be attributed to the brep module.
 #
 info_self="$(basename $0)"
-info_ref="$(basename "${!#/}")" # Last argument is the submission directory.
+
+if [ "$#" -gt 0 ]; then
+  info_ref="$(basename "${!#/}")" # Last argument is the submission directory.
+fi
 
 function info () # <severity> <text>
 {
@@ -47,52 +52,146 @@ function info () # <severity> <text>
 }
 
 function error () { info "error" "$*"; exit 1; }
+
 function trace () { if [ "$verbose" ]; then info "info" "$*"; fi }
+
+# Trace a command line, quoting empty arguments as well as those that contain
+# spaces.
+#
+function trace_cmd () # <cmd> <arg>...
+{
+  if [ "$verbose" ]; then
+    local s="+"
+    while [ $# -gt 0 ]; do
+      if [ -z "$1" -o -z "${1##* *}" ]; then
+	s="$s '$1'"
+      else
+	s="$s $1"
+      fi
+
+      shift
+    done
+
+    info "info" "$s"
+  fi
+}
+
+# Trace the current function name and arguments.
+#
+function trace_func () # <args>...
+{
+  trace_cmd "${FUNCNAME[1]}" "$@"
+}
+
+# Trace and run a command.
+#
+function run () # <cmd> <arg>...
+{
+  trace_cmd "$@"
+  "$@"
+}
+
+# Same as above but also redirect the command stderr to /dev/null, unless
+# running in the verbose mode.
+#
+# Note that we don't redirect stdout, so it can still be captured.
+#
+function run_silent () # <cmd> <arg>...
+{
+  trace_cmd "$@"
+
+  if [ "$verbose" ]; then
+    "$@"
+  else
+    "$@" 2>/dev/null
+  fi
+}
+
+# Wrap libbutl manifest parsing/serializing functions to shorten names and to
+# add tracing.
+#
+function manifest_parser_start () # [<file>]
+{
+  trace_func "$@"
+  butl_manifest_parser_start "$@"
+
+  manifest_parser_ofd="$butl_manifest_parser_ofd"
+}
+
+function manifest_parser_finish ()
+{
+  trace_func
+  butl_manifest_parser_finish
+}
+
+function manifest_serializer_start () # [<file>]
+{
+  trace_func "$@"
+  butl_manifest_serializer_start "$@"
+
+  manifest_serializer_ifd="$butl_manifest_serializer_ifd"
+}
+
+function manifest_serializer_finish ()
+{
+  trace_func
+  butl_manifest_serializer_finish
+}
 
 # Serialize one manifest name/value pair.
 #
-function serialize () # <name> <value>
+function manifest_serialize () # <name> <value>
 {
-  printf "%s:%s\0" "$1" "$2" >&"$butl_manifest_serializer_ifd"
+#  trace "$1: $2"
+  printf "%s:%s\0" "$1" "$2" >&"$manifest_serializer_ifd"
 }
 
-# Serialize the submission result manifest to stdout.
+# Serialize the submission result manifest to stdout and exit the (sub-)shell
+# with the zero status.
 #
-function result_manifest () # <status> <message> [<reference>]
+function exit_with_manifest () # <status> <message> [<reference>]
 {
+  trace_func "$@"
+
   local sts="$1"
   local msg="$2"
   local ref="$3"
 
-  trace "serializing result manifest"
-  butl_manifest_serializer_start
+  manifest_serializer_start
 
-  serialize ""        "1"    # Start of manifest.
-  serialize "status"  "$sts"
-  serialize "message" "$msg"
+  manifest_serialize ""        "1"    # Start of manifest.
+  manifest_serialize "status"  "$sts"
+  manifest_serialize "message" "$msg"
 
   if [ -n "$ref" ]; then
-    serialize "reference" "$ref"
+    if [ "$sts" != "200" ]; then
+      error "reference for code $sts"
+    fi
+
+    manifest_serialize "reference" "$ref"
+  elif [ "$sts" == "200" ]; then
+    error "no reference for code $sts"
   fi
 
-  butl_manifest_serializer_finish
+  manifest_serializer_finish
+  run exit 0
 }
 
-# Verify the archive is a valid bpkg package and extract its manifest file.
+# Verify archive is a valid package and extract its manifest into
+# <manifest> file.
 #
 function extract_package_manifest () # <archive> <manifest>
 {
   local arc="$1"
   local man="$2"
 
-  # Should we remove the submission directory with an invalid package?
-  # Probably it's better to leave it for potential investigation. Note that we
-  # can always grep for such directories based on the result.manifest file
-  # they contain.
-  #
-  if ! bpkg pkg-verify --manifest "$arc" >"$man" 2>/dev/null; then
-    trace "$arc is not a valid package"
-    result_manifest 400 "archive is not a valid package (run bpkg pkg-verify for details)"
-    exit 0
+  if ! run_silent bpkg pkg-verify --manifest "$arc" >"$man"; then
+    # Perform the sanity check to make sure that bpkg is runnable.
+    #
+    if ! run bpkg --version >/dev/null; then
+      error "unable to run bpkg"
+    fi
+
+    exit_with_manifest 400 "archive is not a valid package (run bpkg pkg-verify for details)"
   fi
 }

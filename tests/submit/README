@@ -1,0 +1,30 @@
+Prepare the test data with the following instructions.
+
+In an empty directory run:
+
+$ bdep new -t empty -C @cfg hello
+$ BDEP_EMAIL=user@example.org bdep new --package -t lib libhello -d hello
+$ bdep init -d hello/libhello
+
+Edit hello/libhello/manifest setting version to 0.1.0.
+
+$ mkdir hello.git
+$ git -C hello.git/ init --bare
+
+$ git -C hello remote add origin "$(pwd)/hello.git"
+$ git -C hello add '*'
+$ git -C hello commit -m "Create"
+$ git -C hello push --set-upstream origin master
+
+tar cf hello.tar.gz hello.git/
+
+Move the archive into brep/tests/submit/ directory.
+
+Locally run brep server configured to use submit-dir handler.
+
+$ bdep publish --control http://example.org/hello.git \
+       --email user@example.org --repository http://localhost/pkg --yes \
+       -d hello
+
+Replace the submission data directory in brep/tests/submit/ with the one
+produced with the above command.

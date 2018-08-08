@@ -13,70 +13,69 @@
 #
 usage="usage: $0 <dir>"
 
-verbose=true
+verbose= #true
 
 trap "{ exit 1; }" ERR
 set -o errtrace # Trap ERR in functions.
 
-@import libbutl/manifest-parser@
-@import libbutl/manifest-serializer@
-
 @import brep/submit/submit@
 
-# Submission data directory (last argument).
-#
-dir="${!#/}"
-
-if [ -z "$dir" ]; then
+if [ "$#" != 1 ]; then
   error "$usage"
 fi
 
-if [ ! -d "$dir" ]; then
-  error "'$dir' does not exist or is not a directory"
+# Submission data directory (last and the only argument).
+#
+data_dir="${!#/}"
+
+if [ -z "$data_dir" ]; then
+  error "$usage"
 fi
+
+if [ ! -d "$data_dir" ]; then
+  error "'$data_dir' does not exist or is not a directory"
+fi
+
+reference="$(basename "$data_dir")"
 
 # Parse the submission request manifest and obtain the archive path as well
 # as the simulate value.
 #
-trace "parsing $dir/request.manifest"
-butl_manifest_parser_start "$dir/request.manifest"
+manifest_parser_start "$data_dir/request.manifest"
 
 archive=
 simulate=
 
-while IFS=: read -ru "$butl_manifest_parser_ofd" -d '' n v; do
+while IFS=: read -ru "$manifest_parser_ofd" -d '' n v; do
   case "$n" in
-    archive)  archive="$v" ;;
+    archive)  archive="$v"  ;;
     simulate) simulate="$v" ;;
   esac
 done
 
-butl_manifest_parser_finish
+manifest_parser_finish
 
 if [ -z "$archive" ]; then
   error "archive manifest value expected"
 fi
 
 if [ -n "$simulate" -a "$simulate" != "success" ]; then
-  trace "unrecognized simulation outcome '$simulate'"
-  result_manifest 400 "unrecognized simulation outcome"
-  exit 0
+  exit_with_manifest 400 "unrecognized simulation outcome '$simulate'"
 fi
 
-manifest="$dir/package.manifest"
+m="$data_dir/package.manifest"
+extract_package_manifest "$data_dir/$archive" "$m"
 
-extract_package_manifest "$dir/$archive" "$manifest"
-
-# Parse the package manifest and obtain the package name and version.
+# Parse the package manifest and obtain the package name, version, and
+# project.
 #
-trace "parsing $manifest"
-butl_manifest_parser_start "$manifest"
+manifest_parser_start "$m"
 
 name=
 version=
 project=
 
-while IFS=: read -ru "$butl_manifest_parser_ofd" -d '' n v; do
+while IFS=: read -ru "$manifest_parser_ofd" -d '' n v; do
   case "$n" in
     name)    name="$v"    ;;
     version) version="$v" ;;
@@ -84,14 +83,14 @@ while IFS=: read -ru "$butl_manifest_parser_ofd" -d '' n v; do
   esac
 done
 
-butl_manifest_parser_finish
+manifest_parser_finish
 
 if [ -z "$name" ]; then
-  error "name manifest values expected"
+  error "name manifest value expected"
 fi
 
 if [ -z "$version" ]; then
-  error "version manifest values expected"
+  error "version manifest value expected"
 fi
 
 if [ -z "$project" ]; then
@@ -99,10 +98,10 @@ if [ -z "$project" ]; then
 fi
 
 if [ -n "$simulate" ]; then
-  rm -r "$dir"
+  rm -r "$data_dir"
   trace "$name/$version submission is simulated"
 else
   trace "$name/$version submission is queued"
 fi
 
-result_manifest 200 "$name/$version submission is queued" "$reference"
+exit_with_manifest 200 "$name/$version submission is queued" "$reference"

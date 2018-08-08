@@ -14,8 +14,8 @@
 #
 # The handler also implements the project/package name ownership verification
 # by performing the submitter authentication/authorization based on the
-# control repository mechanism describe in bdep-publish(1). This functionality
-# is optional.
+# control repository mechanism described in bdep-publish(1). This
+# functionality is optional.
 #
 # The handler can operate with a single git repository, called "target", or
 # with two git repositories, in which case the first is the target and the
@@ -64,20 +64,20 @@
 # following structure:
 #
 # <owners>/
-# ├── <project1>/
-# │    ├── <package1>/
-# │    │    └── package-owner.manifest
-# │    ├── <package2>/
-# │    │    └── package-owner.manifest
-# │    ├── ...
-# │    └── project-owner.manifest
-# ├── <project2>/
-# │    └── ...
-# └──...
+# |-- <project1>/
+# |   |-- <package1>/
+# |   |   `-- package-owner.manifest
+# |   |-- <package2>/
+# |   |   `-- package-owner.manifest
+# |   |-- ...
+# |   `-- project-owner.manifest
+# |-- <project2>/
+# |   `-- ...
+# `-- ...
 #
 # If the submitted project name is not yet known, then the handler script
 # creates a new project subdirectory and saves project-owner.manifest. The
-# project owner manifest contain the following values in the specified order:
+# project owner manifest contains the following values in the specified order:
 #
 #   name:  <project-name>
 #   email: <submitter-email>
@@ -95,7 +95,7 @@
 #
 # Similarly, if the submitted package name is not yet known, then the handler
 # script creates a new package subdirectory and saves package-owner.manifest.
-# The package owner manifest contain the following values in the specified
+# The package owner manifest contains the following values in the specified
 # order:
 #
 #   name:  <package-name>
@@ -131,42 +131,464 @@
 #   add, commit, and push to reference and then remove, commit, and push to
 #   target.
 #
-#   On the handler side, before adding a package or new ownership for a
-#   project/package name, the script re-checks the reference repository for
-#   updated information.
+#   On the handler side, the script acts in the opposite order cloning the
+#   target prior pulling the reference in order not to get into the situation
+#   where it misses the ownership info that is not in the reference yet but no
+#   longer in the target. Note that if some move happens after the cloning,
+#   then the script will be unable to push the target modification and will
+#   re-try the whole authentication procedure from scratch.
+#
+# - Filesystem entries that exist or are created in the data directory:
+#
+#   <pkg>-<ver>.tar.gz   saved by brep (could be other archives in the future)
+#   request.manifest     created by brep
+#   package.manifest     extracted by the handler
+#   target/              cloned by the handler
+#   control/             cloned by the handler
+#   result.manifest      saved by brep
 #
 usage="usage: $0 <tgt-repo> [<ref-repo>] <dir>"
+
+# Diagnostics.
+#
+verbose= #true
+
+# Git network operations timeout (seconds).
+#
+# Note that we don't cover protocols other than HTTP(S) since for them git
+# doesn't support any timeouts (though we may be able to cobble something
+# up for SSH).
+#
+git_timeout=10
+
+# The reference repository lock timeout (seconds).
+#
+ref_lock_timeout=30
 
 trap "{ exit 1; }" ERR
 set -o errtrace # Trap ERR in functions.
 
-# Implementation notes:
-#
-# - Check for duplicate package archive in all the sections. Before auth. Use
-#   <name>-<version>.* instead of .tar.gz in case we support other formats
-#   later.
-#
-# - Push permission for target repo (add www-data to scm group)?
-#
-# - Network errors/timeouts on git pull for ref repo? What is the error (try
-#   again)? I think also let's not assume target repo is local.
+@import brep/submit/submit@
+@import brep/submit/submit-git@
 
-# Workflow:
+if [ "$#" -lt 2 -o "$#" -gt 3 ]; then
+  error "$usage"
+fi
+
+# Target repository URL.
 #
-# 0. The same steps as submit-dir.
+tgt_repo="$1"
+shift
+
+if [ -z "$tgt_repo" ]; then
+  error "$usage"
+fi
+
+# Reference repository directory.
 #
-# 1. If ref-repo specified, lock, pull, and check:
-#    - duplicate
-#    - auth (read-only)
+# Note that the last argument is always the submission data directory.
 #
-# 2. Clone tgt-repo, check:
-#    - duplicate
-#    - auth (read-write)
-#      ? if fully auth'd by ref-repo, should we skip it here?
+ref_repo=
+
+if [ "$#" -gt 1 ]; then
+  ref_repo="$1"
+  shift
+
+  if [ -z "$ref_repo" ]; then
+    error "$usage"
+  fi
+
+  if [ ! -d "$ref_repo" ]; then
+    error "'$ref_repo' does not exist or is not a directory"
+  fi
+fi
+
+# Submission data directory.
 #
-# 3. Clone control branch and authorize.
+data_dir="$1"
+shift
+
+if [ -z "$data_dir" ]; then
+  error "$usage"
+fi
+
+if [ ! -d "$data_dir" ]; then
+  error "'$data_dir' does not exist or is not a directory"
+fi
+
+reference="$(basename "$data_dir")"
+
+# Git verbosity options.
 #
-# 4. Copy archive, commit and push. If push fails, remove clone and
-#    restart from 1 (yes, from ref-repo).
-#    - put submission manifest into commit message for record?
+# Note that not all git commands support the -q/-v options. Also note that
+# these variable expansions should not be quoted.
 #
+if [ "$verbose" ]; then
+  gqo=
+  gvo="-v"
+else
+  gqo="-q"
+  gvo=
+fi
+
+# Git doesn't support the connection timeout option. The options we use are
+# just an approximation of the former, that, in particular, don't cover the
+# connection establishing. To work around this problem, before running a git
+# command that assumes the remote repository communication we manually check
+# connectivity with the remote repository.
+#
+git_http_timeout=("-c" "http.lowSpeedLimit=1" \
+		  "-c" "http.lowSpeedTime=$git_timeout")
+
+# Parse the submission request manifest and obtain the required values.
+#
+manifest_parser_start "$data_dir/request.manifest"
+
+archive=
+sha256sum=
+section=
+email=
+control=
+simulate=
+
+while IFS=: read -ru "$manifest_parser_ofd" -d '' n v; do
+  case "$n" in
+    archive)   archive="$v"     ;;
+    sha256sum) sha256sum="$v"   ;;
+    section)   section="$v"     ;;
+    email)     email="$v"       ;;
+    control)   control="${v%/}" ;;
+    simulate)  simulate="$v"    ;;
+  esac
+done
+
+manifest_parser_finish
+
+if [ -z "$archive" ]; then
+  error "archive manifest value expected"
+fi
+
+if [ -z "$sha256sum" ]; then
+  error "sha256sum manifest value expected"
+fi
+
+if [ -n "$simulate" -a "$simulate" != "success" ]; then
+  exit_with_manifest 400 "unrecognized simulation outcome '$simulate'"
+fi
+
+# Note: checking for section, email, and control later.
+
+m="$data_dir/package.manifest"
+extract_package_manifest "$data_dir/$archive" "$m"
+
+# Parse the package manifest and obtain the package name and version.
+#
+manifest_parser_start "$m"
+
+name=
+version=
+project=
+
+while IFS=: read -ru "$manifest_parser_ofd" -d '' n v; do
+  case "$n" in
+    name)    name="$v"    ;;
+    version) version="$v" ;;
+    project) project="$v" ;;
+  esac
+done
+
+manifest_parser_finish
+
+if [ -z "$name" ]; then
+  error "name manifest value expected"
+fi
+
+if [ -z "$version" ]; then
+  error "version manifest value expected"
+fi
+
+if [ -z "$project" ]; then
+  project="$name"
+fi
+
+function git_add () # <repo-dir> <path>...
+{
+  local d="$1"
+  shift
+
+  run git -C "$d" add $gvo "$@" >&2
+}
+
+function git_clone () # <repo-url> <repo-dir> <extra-options>...
+{
+  local url="$1"
+  shift
+
+  local dir="$1"
+  shift
+
+  check_connectivity "$url" "$git_timeout"
+  run git "${git_http_timeout[@]}" clone $gqo $gvo "$@" "$url" "$dir" >&2
+}
+
+# Dor now we make 10 re-tries to add the package and push to target. Push can
+# fail due to the target-to-reference information move race (see the above
+# notes for details) or because concurrent submissions. We may want to make it
+# configurable in the future.
+#
+pkg_added=
+
+for i in {1..11}; do
+
+  # Clone the target repository.
+  #
+  tgt_dir="$data_dir/target"
+  git_clone "$tgt_repo" "$tgt_dir" --single-branch --depth 1
+
+  check_package_duplicate "$name" "$version" "$tgt_dir"
+
+  # Check for duplicates and try to authenticate the package ownership using
+  # information in the reference repository, if specified.
+  #
+  if [ -n "$ref_repo" ]; then
+
+    remote_url=$(git -C "$ref_repo" config --get remote.origin.url)
+
+    # Open the reading file descriptor and lock the repository. Fail if unable
+    # to lock before timeout.
+    #
+    l="$ref_repo/submit.config.bash"
+    trace "+ exec {fd}<$l"
+    exec {fd}<"$l"
+
+    if ! run flock -w "$ref_lock_timeout" "$fd"; then
+      exit_with_manifest 503 "submission service temporarily unavailable"
+    fi
+
+    # Pull the reference repository.
+    #
+    check_connectivity "$remote_url" "$git_timeout"
+    run git "${git_http_timeout[@]}" -C "$ref_repo" pull $gqo $gvo >&2
+
+    # Check the package duplicate.
+    #
+    check_package_duplicate "$name" "$version" "$ref_repo"
+
+    # Authenticate the project ownership.
+    #
+    auth="$(auth_project "$project" "$control" "$ref_repo")"
+
+    # Try to authenticate the package ownership if the project ownership was
+    # authenticated successfully.
+    #
+    if [ "$auth" == "project" ]; then
+      a="$(auth_package "$project" "$name" "$control" "$ref_repo")"
+
+      # If the package is unknown to this project, we will try to authenticate
+      # the package name with the target repository later and so we keep the
+      # 'project' auth state.
+      #
+      if [ "$a" != "unknown" ]; then
+	auth="$a"
+      fi
+    fi
+
+    trace "reference auth: $auth"
+
+    if [ "${auth:0:1}" == ":" ]; then # Authentication error?
+      echo "$auth"
+      exit 0
+    fi
+
+    # If the package is not present in the specified project then we need to
+    # make sure it is also not present in any other project.
+    #
+    if [ "$auth" == "project" -o "$auth" == "unknown" ]; then
+      auth_package_unknown "$name" "$ref_repo"
+    fi
+
+    trace "+ exec {fd}<&-"
+    exec {fd}<&- # Close the file descriptor and unlock the repository.
+  else
+    auth="disabled"
+  fi
+
+  ref_auth="$auth"
+
+  # Now try to authenticate the package ownership using information in the
+  # target repository unless already authenticated with reference.
+  #
+  if [ "$auth" != "package" ]; then
+
+    # Don't authenticate the project ownership if this is already done with
+    # the reference repository.
+    #
+    if [ "$auth" != "project" ]; then
+      auth="$(auth_project "$project" "$control" "$tgt_dir")"
+    fi
+
+    # Try to authenticate the package ownership if the project ownership was
+    # authenticated successfully.
+    #
+    if [ "$auth" == "project" ]; then
+      auth="$(auth_package "$project" "$name" "$control" "$tgt_dir")"
+    fi
+
+    trace "target auth: $auth"
+
+    if [ "${auth:0:1}" == ":" ]; then # Authentication error?
+      echo "$auth"
+      exit 0
+    fi
+  fi
+
+  trace "resulting auth: $auth"
+
+  # Sanity check the auth variable value.
+  #
+  case "$auth" in
+    package)  ;;
+    unknown)  ;;
+    disabled) ;;
+
+    *) error "unexpected resulting auth '$auth'";;
+  esac
+
+  # Establish ownership of the package name unless already done.
+  #
+  if [ "$auth" == "unknown" ]; then
+
+    # Check that the necessary request manifest values are specified.
+    #
+    if [ -z "$email" ]; then
+      exit_with_manifest 400 "email manifest value expected"
+    fi
+
+    # Check that the package doesn't belong yet to some other project.
+    #
+    auth_package_unknown "$name" "$tgt_dir"
+
+    # First the project name.
+    #
+    # Note that owners_dir() shouldn't return an empty string at this stage.
+    #
+    d="$(owners_dir "$tgt_dir")/$project"
+
+    # Establish ownership of the project name unless already done. Note that
+    # it can only be owned by the submitter at this stage.
+    #
+    prj_man="$d/project-owner.manifest"
+
+    if [ ! -f "$prj_man" ]; then
+      run mkdir -p "$d" # Also creates the owners directory if not exist.
+
+      ctl="$(repository_base "$control")"
+      create_owner_manifest "$project" "$email" "$ctl" "$prj_man"
+
+      # Add the project owners manifest file to git repository using the path
+      # relative to the repository directory.
+      #
+      git_add "$tgt_dir" "${prj_man#$tgt_dir/}"
+    fi
+
+    # Now the package name.
+    #
+    d="$d/$name"
+    run mkdir "$d"
+
+    pkg_man="$d/package-owner.manifest"
+    create_owner_manifest "$name" "$email" "$control" "$pkg_man"
+
+    # Add the package owners manifest file using path relative to the
+    # repository directory.
+    #
+    git_add "$tgt_dir" "${pkg_man#$tgt_dir/}"
+
+    auth="package"
+  fi
+
+  # Respond with the 'unauthorized' manifest if we failed to authenticate the
+  # submitter as the package owner, unless both the reference and target
+  # repositories have the ownership authentication disabled. In the latter
+  # case no authorization is required.
+  #
+  if [ "$auth" != "disabled" -o "$ref_auth" != "disabled" ]; then
+
+    # Respond with the 'unauthorized' manifest if not the package owner.
+    #
+    if [ "$auth" != "package" ]; then
+      if [ "$auth" == "project" -o "$ref_auth" == "project" ]; then
+        exit_with_manifest 401 "package owner authentication failed"
+      else
+        exit_with_manifest 401 "project owner authentication failed"
+      fi
+    fi
+
+    # Authorize the submission.
+    #
+    ctl_dir="$data_dir/control"
+
+    git_clone "$control" "$ctl_dir" --single-branch --depth 1 \
+ --branch "build2-control"
+
+    if [ ! -f "$ctl_dir/submit/${sha256sum:0:16}" ]; then
+      exit_with_manifest 401 "package publishing authorization failed"
+    fi
+  fi
+
+  # Add the package archive to the target repository.
+  #
+  s="$(section_dir "$section" "$tgt_dir")"
+
+  if [ -z "$s" ]; then
+    exit_with_manifest 400 "unrecognized section '$section'"
+  fi
+
+  d="$tgt_dir/$s/$project"
+  run mkdir -p "$d" # Create all the parent directories as well.
+
+  # We copy the archive rather than move it since we may need it for a re-try.
+  #
+  a="$d/$archive"
+  run cp "$data_dir/$archive" "$a"
+
+  git_add "$tgt_dir" "${a#$tgt_dir/}"
+
+  run git -C "$tgt_dir" commit $gqo $gvo -F - <<EOF >&2
+Add $name/$version to $s/$project
+
+$(cat "$data_dir/request.manifest")
+EOF
+
+  check_connectivity "$tgt_repo" "$git_timeout"
+
+  # Try to push the target modifications, unless simulating. If this succeeds
+  # then we are done. Otherwise, drop the target directory and re-try the
+  # whole authentication/authorization procedure, unless we are out of
+  # attempts.
+  #
+  if [ -z "$simulate" ]; then
+    if run_silent git "${git_http_timeout[@]}" -C "$tgt_dir" push >&2; then
+      pkg_added=true
+      break
+    else
+      run rm -r -f "$tgt_dir" "$ctl_dir"
+    fi
+  fi
+done
+
+if [ ! "$pkg_added" ]; then
+  exit_with_manifest 503 "submission service temporarily unavailable"
+fi
+
+# Remove the no longer needed submission data directory.
+#
+run rm -r -f "$data_dir"
+
+if [ -n "$simulate" ]; then
+  trace "$name/$version submission is simulated"
+else
+  trace "$name/$version submission is queued"
+fi
+
+exit_with_manifest 200 "$name/$version submission is queued" "$reference"

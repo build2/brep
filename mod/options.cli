@@ -458,6 +458,14 @@ namespace brep
          (see \cb{submit-handler} for details). Repeat this option to specify
          multiple arguments."
       }
+
+      size_t submit-handler-timeout
+      {
+        "<seconds>",
+        "The handler program timeout in seconds. If specified and the handler
+         does not exit in the alloted time, then it is killed and its
+         termination is treated as abnormal."
+      }
     };
 
     class repository_root: handler

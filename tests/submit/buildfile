@@ -1,0 +1,16 @@
+# file      : tests/submit/buildfile
+# copyright : Copyright (c) 2014-2018 Code Synthesis Ltd
+# license   : MIT; see accompanying LICENSE file
+
+define common: file
+common{*}: extension = test
+
+dir = ../../brep/submit/
+
+commons = data
+
+./: test{* -{$commons}} common{$commons} {*/ -test/}{**} \
+    $dir/exe{brep-submit-dir} $dir/exe{brep-submit-git}
+
+test{submit-dir}@./: test = $out_base/$dir/brep-submit-dir
+test{submit-git}@./: test = $out_base/$dir/brep-submit-git

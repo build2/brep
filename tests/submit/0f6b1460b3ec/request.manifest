@@ -1,0 +1,10 @@
+: 1
+archive: libhello-0.1.0.tar.gz
+sha256sum: 0f6b1460b3ec479499ae26841322af7a8a4312fcc5a6e890f3dbba91a83b38cc
+timestamp: 2018-08-20T04:57:05Z
+client-ip: fe80::56e1:adff:fe83:82f5
+user-agent: bdep/0.8.0-a.0.20180815130917 (GNU/Linux; +https://build2.org)\
+ libbpkg/0.8.0-a.0.0f50af28d1cf libbutl/0.8.0-a.0.3e0db12932d5 curl
+section: alpha
+email: user@example.org
+control: http://example.org/hello.git

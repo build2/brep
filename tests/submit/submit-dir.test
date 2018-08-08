@@ -1,0 +1,90 @@
+# file      : tests/submit/submit-dir.test
+# copyright : Copyright (c) 2014-2018 Code Synthesis Ltd
+# license   : MIT; see accompanying LICENSE file
+
+.include data.test
+
+: args
+{
+  : none
+  :
+  $* 2>>~%EOE% != 0
+  %\[.+\] \[brep:error\] \[ref \] \[brep-submit-dir\]: usage: .+brep-submit-dir <dir>%
+  EOE
+
+  : not-exist
+  :
+  $* $~/dir 2>>~%EOE% != 0
+    %\[.+\] \[brep:error\] \[ref dir\] \[brep-submit-dir\]: '.+dir' does not exist or is not a directory%
+    EOE
+}
+
+: success
+:
+{
+  test.arguments += $checksum
+
+  : simulate
+  :
+  {
+    $clone_root_data;
+
+    echo "simulate: success" >+$checksum/request.manifest;
+
+    $* >>"EOO";
+      : 1
+      status: 200
+      message: libhello/0.1.0 submission is queued
+      reference: $checksum
+      EOO
+
+    test -d $checksum != 0
+  }
+
+  : for-real
+  :
+  {
+    $clone_root_data_clean;
+
+    $* >>"EOO"
+      : 1
+      status: 200
+      message: libhello/0.1.0 submission is queued
+      reference: $checksum
+      EOO
+  }
+}
+
+: failure
+:
+{
+  test.arguments += $checksum
+
+  : bad-archive
+  :
+  {
+    $clone_root_data_clean;
+
+    echo "junk" >=$checksum/libhello-0.1.0.tar.gz;
+
+    $* >>EOO
+      : 1
+      status: 400
+      message: archive is not a valid package (run bpkg pkg-verify for details)
+      EOO
+  }
+
+  : bad-simulate
+  :
+  {
+    $clone_root_data_clean;
+
+    echo "simulate: fly" >+$checksum/request.manifest;
+
+    $* >>"EOO"
+      : 1
+      status: 400
+      message: unrecognized simulation outcome 'fly'
+      EOO
+  }
+}

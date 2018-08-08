@@ -75,10 +75,7 @@ temporary subdirectory next to the archive.|
 
 Move/rename the temporary submission subdirectory to \c{submit-data} as an
 atomic operation using the 12-character abbreviated checksum as its new
-name. If such a directory already exist, then this is a duplicate submission.
-
-Note also that once the directory is successfully moved, it is never removed
-by \c{brep}, even in case of a subsequent error.|
+name. If such a directory already exist, then this is a duplicate submission.|
 
 \li|Invoke the submission handler program.
 
@@ -90,11 +87,27 @@ The handler program is expected to write the submission result manifest to
 \c{stdout} and terminate with the zero exit status. A non-zero exit status is
 treated as an internal error. The handler program's \c{stderr} is logged.
 
+Note that the handler program should report temporary server errors (service
+overload, network connectivity loss, etc.) via the submission result manifest
+status values in the [500-599] range (HTTP server error) rather than via a
+non-zero exit status.
+
 The handler program assumes ownership of the submission directory and can
-move/remove it (for example, in case of an invalid submission). If after the
-handler program terminates the submission directory still exists, the
-submission result manifest is saved as \c{result.manifest} into this
-directory, next to the request manifest and archive.
+move/remove it. If after the handler program terminates the submission
+directory still exists, then it is handled by \c{brep} depending on the
+handler process exit status and the submission result manifest status value.
+If the process has terminated abnormally or with a non-zero exit status or the
+result manifest status is in the [500-599] range (HTTP server error), then the
+directory is saved for troubleshooting by appending a numeric extension to its
+name. Otherwise, if the status is in the [400-499] range (HTTP client error),
+then the directory is removed. If the directory is left in place by the
+handler or is saved for troubleshooting, then the submission result manifest
+is saved as \c{result.manifest} into this directory, next to the request
+manifest and archive.
+
+If \c{submit-handler-timeout} is configured and the handler program does not
+exit in the alloted time, then it is killed and its termination is treated as
+abnormal.
 
 If the handler program is not specified, then the following submission result
 manifest is implied (note that it is not saved):

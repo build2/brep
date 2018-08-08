@@ -1,0 +1,765 @@
+# file      : tests/submit/submit-git.test
+# copyright : Copyright (c) 2014-2018 Code Synthesis Ltd
+# license   : MIT; see accompanying LICENSE file
+
+.include data.test
+
+# Prior to running testscript with -v for debugging purposes assign true to
+# the verbosity variable in the brep/submit/submit-git.in handler script and
+# uncomment the following line.
+#
+# test.redirects += 2>!
+
+g = git 2>! >&2
+
+# Create and clone the reference repository.
+#
+root_ref = $~/ref.git
+root_ref_dir = $~/ref
+
+clone_root_ref = cp --no-cleanup -r $root_ref ./ &ref.git/***
+
++mkdir --no-cleanup $root_ref
++$g -C $root_ref init --bare &ref.git/***
+
++$g clone $root_ref $root_ref_dir &ref/***
+
++cat <<EOI >=$root_ref_dir/submit.config.bash
+  sections[alpha]=1/alpha
+  sections[beta]=1/beta
+  sections[stable]=1/testing
+
+  owners=owners
+  EOI
+
++$g -C $root_ref_dir add '*'
++$g -C $root_ref_dir commit -m 'Add submit.config.bash'
++$g -C $root_ref_dir push
+
+# Create the target repository.
+#
+root_tgt = $~/tgt.git
+root_tgt_url = "file:///$~/tgt.git"
+
++cp -r $root_ref $root_tgt
+
+clone_root_tgt = cp --no-cleanup -r $root_tgt ./ &tgt.git/***
+
+# Extract the package repository.
+#
++tar -C $~ -xf $src_base/hello.tar.gz &hello.git/***
+
+# Adjust the request manifest control value to point to the package repository.
+#
+prj_ctl="file://$~"
+pkg_ctl="$prj_ctl/hello.git"
+
++sed -i -e "s%^\(control:\) .+\$%\\1 $pkg_ctl%" $data_dir/request.manifest
+
+: args
+{
+  : none
+  :
+  $* 2>>~%EOE% != 0
+  %\[.+\] \[brep:error\] \[ref \] \[brep-submit-git\]: usage: .+brep-submit-git <tgt-repo> \[<ref-repo>\] <dir>%
+  EOE
+
+  : dir-only
+  :
+  $* $~/dir 2>>~%EOE% != 0
+    %\[.+\] \[brep:error\] \[ref dir\] \[brep-submit-git\]: usage: .+brep-submit-git <tgt-repo> \[<ref-repo>\] <dir>%
+    EOE
+
+  : ref-not-exist
+  :
+  $* "$root_tgt_url" ref $~/dir 2>>~%EOE% != 0
+    %\[.+\] \[brep:error\] \[ref dir\] \[brep-submit-git\]: 'ref' does not exist or is not a directory%
+    EOE
+}
+
+: success
+:
+{
+  : ref-unknown-tgt-aquire-prj-pkg
+  :
+  : Test that on the first package submission the project and package names
+  : ownership is successfully aquired. Authentication is enabled on both the
+  : reference and target repos.
+  :
+  {
+    $clone_root_data;
+
+    $clone_root_tgt;
+    tgt_url = "file:///$~/tgt.git";
+
+    $* "$tgt_url" $root_ref_dir $data_dir >>"EOO";
+      : 1
+      status: 200
+      message: libhello/0.1.0 submission is queued
+      reference: $checksum
+      EOO
+
+    # Check that the ownership information and the package are commited into
+    # the target repository.
+    #
+    $g clone "$tgt_url" &tgt/***;
+
+    # Note that some manifest values may well wrap over several lines.
+    #
+    cat tgt/owners/hello/project-owner.manifest >>~%EOO%;
+      : 1
+      name: hello
+      email: user@example.org
+      %control: file:///.+%
+      %.*
+      EOO
+
+    cat tgt/owners/hello/libhello/package-owner.manifest >>~%EOO%;
+      : 1
+      name: libhello
+      email: user@example.org
+      %control: file:///.+%
+      %.*
+      EOO
+
+    test -f tgt/1/alpha/hello/libhello-0.1.0.tar.gz;
+
+    git -C tgt log -1 >>~%EOO%
+      %commit .+%
+      %Author: .+%
+      %Date: .+%
+
+          Add libhello/0.1.0 to 1/alpha/hello
+      %    %
+          : 1
+          archive: libhello-0.1.0.tar.gz
+      %    sha256sum: .{64}%
+      %    timestamp: ....-..-..T..:..:..Z%
+      %    client-ip: .+%
+      %    user-agent: bdep/.+%
+      %.
+          section: alpha
+          email: user@example.org
+      %    control: file:///.+%
+      %.*
+      EOO
+  }
+  : ref-disabled-tgt-aquire-prj-pkg
+  :
+  : Test that on the first package submit the project and package names
+  : ownership is successfully aquired. Authentication is disabled for the
+  : reference repo.
+  :
+  {
+    $clone_root_data;
+
+    $clone_root_ref;
+    $g clone ref.git &ref/***;
+
+    cat <<EOI >=ref/submit.config.bash;
+      sections[alpha]=1/alpha
+      sections[beta]=1/beta
+      sections[stable]=1/testing
+
+      # owners=owners
+      EOI
+
+    $g -C ref commit -am 'Disable ownership';
+    $g -C ref push;
+
+    $clone_root_tgt;
+
+    $* "file:///$~/tgt.git" ref $data_dir >>"EOO"
+      : 1
+      status: 200
+      message: libhello/0.1.0 submission is queued
+      reference: $checksum
+      EOO
+  }
+
+  : ref-absent-tgt-aquire-prj-pkg
+  :
+  : Test that on the first package submit the project and package names
+  : ownership is successfully aquired. Reference repo is absent.
+  :
+  {
+    $clone_root_data;
+    $clone_root_tgt;
+
+    $* "file:///$~/tgt.git" $data_dir >>"EOO"
+      : 1
+      status: 200
+      message: libhello/0.1.0 submission is queued
+      reference: $checksum
+      EOO
+  }
+
+  : ref-unknown-tgt-auth-prj-pkg
+  :
+  : Test that the project and package ownership is authenticated by the target
+  : repository.
+  :
+  {
+    $clone_root_data;
+
+    $clone_root_tgt;
+    $g clone tgt.git &tgt/***;
+
+    mkdir -p tgt/owners/hello/libhello;
+
+    cat <<"EOI" >=tgt/owners/hello/project-owner.manifest;
+      : 1
+      name: hello
+      email: user@example.org
+      control: $prj_ctl/
+      EOI
+
+    cat <<"EOI" >=tgt/owners/hello/libhello/package-owner.manifest;
+      : 1
+      name: libhello
+      email: user@example.org
+      control: $pkg_ctl
+      EOI
+
+    $g -C tgt add owners;
+    $g -C tgt commit -m 'Add ownership info';
+    $g -C tgt push;
+
+    $* "file:///$~/tgt.git" $root_ref_dir $data_dir >>"EOO"
+      : 1
+      status: 200
+      message: libhello/0.1.0 submission is queued
+      reference: $checksum
+      EOO
+  }
+
+  : ref-auth-prj-tgt-auth-pkg
+  :
+  : Test that the project ownersip is authenticated by the reference
+  : repository and the package ownersip is authenticated by the target
+  : repository.
+  :
+  {
+    $clone_root_data;
+
+    $clone_root_ref;
+    $g clone ref.git &ref/***;
+
+    mkdir -p ref/owners/hello;
+
+    cat <<"EOI" >=ref/owners/hello/project-owner.manifest;
+      : 1
+      name: hello
+      email: user@example.org
+      control: $prj_ctl
+      EOI
+
+    $g -C ref add owners;
+    $g -C ref commit -m 'Add ownership info';
+    $g -C ref push;
+
+    $clone_root_tgt;
+    $g clone tgt.git &tgt/***;
+
+    mkdir -p tgt/owners/hello/libhello;
+
+    cat <<"EOI" >=tgt/owners/hello/libhello/package-owner.manifest;
+      : 1
+      name: libhello
+      email: user@example.org
+      control: $pkg_ctl
+      EOI
+
+    $g -C tgt add owners;
+    $g -C tgt commit -m 'Add ownership info';
+    $g -C tgt push;
+
+    $* "file:///$~/tgt.git" ref $data_dir >>"EOO"
+      : 1
+      status: 200
+      message: libhello/0.1.0 submission is queued
+      reference: $checksum
+      EOO
+  }
+
+  : ref-auth-prj-pkg
+  :
+  : Test that the project and package ownership is authenticated by the
+  : reference repository.
+  :
+  {
+    $clone_root_data;
+
+    $clone_root_ref;
+    $g clone ref.git &ref/***;
+
+    mkdir -p ref/owners/hello/libhello;
+
+    cat <<"EOI" >=ref/owners/hello/project-owner.manifest;
+      : 1
+      name: hello
+      email: user@example.org
+      control: $prj_ctl
+      EOI
+
+    cat <<"EOI" >=ref/owners/hello/libhello/package-owner.manifest;
+      : 1
+      name: libhello
+      email: user@example.org
+      control: $pkg_ctl
+      EOI
+
+    $g -C ref add owners;
+    $g -C ref commit -m 'Add ownership info';
+    $g -C ref push;
+
+    $clone_root_tgt;
+
+    $* "file:///$~/tgt.git" ref $data_dir >>"EOO"
+      : 1
+      status: 200
+      message: libhello/0.1.0 submission is queued
+      reference: $checksum
+      EOO
+  }
+
+  : ref-auth-prj-tgt-aquire-pkg
+  :
+  : Test that the project ownersip is authenticated by the reference
+  : repository and the package ownersip is aquired.
+  :
+  {
+    $clone_root_data;
+
+    $clone_root_ref;
+    $g clone ref.git &ref/***;
+
+    mkdir -p ref/owners/hello/libhello;
+
+    cat <<"EOI" >=ref/owners/hello/project-owner.manifest;
+      : 1
+      name: hello
+      email: user@example.org
+      control: $prj_ctl
+      EOI
+
+    $g -C ref add owners;
+    $g -C ref commit -m 'Add ownership info';
+    $g -C ref push;
+
+    $clone_root_tgt;
+
+    $* "file:///$~/tgt.git" ref $data_dir >>"EOO"
+      : 1
+      status: 200
+      message: libhello/0.1.0 submission is queued
+      reference: $checksum
+      EOO
+  }
+
+  : ref-absent-tgt-disabled
+  :
+  : Test the package ownership authentication when reference is unspecified and
+  : the target ownership handling is disabled.
+  :
+  {
+    $clone_root_data;
+
+    $clone_root_tgt;
+    $g clone tgt.git &tgt/***;
+
+    cat <<EOI >=tgt/submit.config.bash;
+      sections[alpha]=1/alpha
+      sections[beta]=1/beta
+      sections[stable]=1/testing
+
+      # owners=owners
+      EOI
+
+    $g -C tgt commit -am 'Disable ownership';
+    $g -C tgt push;
+
+    $* "file:///$~/tgt.git" $data_dir >>"EOO"
+      : 1
+      status: 200
+      message: libhello/0.1.0 submission is queued
+      reference: $checksum
+      EOO
+  }
+
+  : section-fallback
+  :
+  {
+    $clone_root_data;
+    sed -i -e "s%^\(section:\) .+\$%\\1 delta%" $data_dir/request.manifest;
+
+    $clone_root_tgt;
+    $g clone tgt.git &tgt/***;
+
+    cat <<EOI >=tgt/submit.config.bash;
+      sections[alpha]=1/alpha
+      sections[beta]=1/beta
+      sections[stable]=1/testing
+      sections['*']=1/junk
+
+      owners=owners
+      EOI
+
+    $g -C tgt commit -am "Add section name fallback";
+    $g -C tgt push;
+
+    $* "file:///$~/tgt.git" $root_ref_dir $data_dir >>"EOO"
+      : 1
+      status: 200
+      message: libhello/0.1.0 submission is queued
+      reference: $checksum
+      EOO
+  }
+}
+
+: failure
+:
+{
+  : ref-dup-pkg
+  :
+  : Test the duplicate submission due presence of the package archive in the
+  : reference repo.
+  :
+  {
+    $clone_root_data_clean;
+
+    $clone_root_ref;
+    $g clone ref.git &ref/***;
+
+    mkdir -p ref/1/alpha/hello;
+    cp $data_dir/libhello-0.1.0.tar.gz ref/1/alpha/hello/;
+
+    $g -C ref add 1/;
+    $g -C ref commit -m 'Add libhello-0.1.0.tar.gz';
+    $g -C ref push;
+
+    $* "$root_tgt_url" $~/ref $data_dir >>EOO
+      : 1
+      status: 422
+      message: duplicate submission
+      EOO
+  }
+
+  : ref-used-pkg
+  :
+  : Test the package ownership authentication failure using the reference
+  : repo. The package name is already used in other project.
+  :
+  {
+    $clone_root_data_clean;
+
+    $clone_root_ref;
+    $g clone ref.git &ref/***;
+
+    mkdir -p ref/owners/hi/libhello;
+
+    cat <<"EOI" >=ref/owners/hi/project-owner.manifest;
+      : 1
+      name: hi
+      email: user@example.org
+      control: $prj_ctl
+      EOI
+
+    cat <<"EOI" >=ref/owners/hi/libhello/package-owner.manifest;
+      : 1
+      name: libhello
+      email: user@example.org
+      control: $prj_ctl/foo
+      EOI
+
+    $g -C ref add owners;
+    $g -C ref commit -m 'Add ownership info';
+    $g -C ref push;
+
+    $* "$root_tgt_url" $~/ref $data_dir >>EOO
+      : 1
+      status: 401
+      message: package owner authentication failed
+      EOO
+  }
+
+  : ref-auth-prj
+  :
+  : Test the project ownership authentication failure using the reference
+  : repo.
+  :
+  {
+    $clone_root_data_clean;
+
+    $clone_root_ref;
+    $g clone ref.git &ref/***;
+
+    mkdir -p ref/owners/hello;
+    cat <<EOI >=ref/owners/hello/project-owner.manifest;
+      : 1
+      name: hello
+      email: user@example.org
+      control: https://example.com/foo
+      EOI
+
+    $g -C ref add owners/hello/project-owner.manifest;
+    $g -C ref commit -m 'Add project ownership info';
+    $g -C ref push;
+
+    $* "$root_tgt_url" $~/ref $data_dir >>EOO
+      : 1
+      status: 401
+      message: project owner authentication failed
+      EOO
+  }
+
+  : ref-auth-pkg
+  :
+  : Test the package ownership authentication failure using the reference
+  : repo.
+  :
+  {
+    $clone_root_data_clean;
+
+    $clone_root_ref;
+    $g clone ref.git &ref/***;
+
+    mkdir -p ref/owners/hello/libhello;
+
+    cat <<"EOI" >=ref/owners/hello/project-owner.manifest;
+      : 1
+      name: hello
+      email: user@example.org
+      control: $prj_ctl
+      EOI
+
+    cat <<"EOI" >=ref/owners/hello/libhello/package-owner.manifest;
+      : 1
+      name: libhello
+      email: user@example.org
+      control: $prj_ctl/foo
+      EOI
+
+    $g -C ref add owners;
+    $g -C ref commit -m 'Add ownership info';
+    $g -C ref push;
+
+    $* "$root_tgt_url" $~/ref $data_dir >>EOO
+      : 1
+      status: 401
+      message: package owner authentication failed
+      EOO
+  }
+
+  : ref-absent-tgt-dup-pkg
+  :
+  : Test the duplicate submission due presence of the package archive in the
+  : target repo.
+  :
+  {
+    $clone_root_data_clean;
+
+    $clone_root_tgt;
+    $g clone tgt.git &tgt/***;
+
+    mkdir -p tgt/1/alpha/hello;
+    cp $data_dir/libhello-0.1.0.tar.gz tgt/1/alpha/hello/;
+
+    $g -C tgt add 1/;
+    $g -C tgt commit -m 'Add libhello-0.1.0.tar.gz';
+    $g -C tgt push;
+
+    $* "file:///$~/tgt.git" $data_dir >>EOO
+      : 1
+      status: 422
+      message: duplicate submission
+      EOO
+  }
+
+  : ref-absent-tgt-auth-pkg
+  :
+  : Test the package ownership authentication failure using the target repo.
+  :
+  {
+    $clone_root_data_clean;
+
+    $clone_root_tgt;
+    $g clone tgt.git &tgt/***;
+
+    mkdir -p tgt/owners/hello/libhello;
+
+    cat <<"EOI" >=tgt/owners/hello/project-owner.manifest;
+      : 1
+      name: hello
+      email: user@example.org
+      control: $prj_ctl
+      EOI
+
+    cat <<"EOI" >=tgt/owners/hello/libhello/package-owner.manifest;
+      : 1
+      name: libhello
+      email: user@example.org
+      control: $prj_ctl/foo
+      EOI
+
+    $g -C tgt add owners;
+    $g -C tgt commit -m 'Add ownership info';
+    $g -C tgt push;
+
+    $* "file:///$~/tgt.git" $data_dir >>EOO
+      : 1
+      status: 401
+      message: package owner authentication failed
+      EOO
+  }
+
+  : ref-unknown-tgt-disabled
+  :
+  : Test the project ownership authentication failure when no project
+  : ownership information is present in the reference and the target ownership
+  : handling is disabled.
+  :
+  {
+    $clone_root_data_clean;
+
+    $clone_root_tgt;
+    $g clone tgt.git &tgt/***;
+
+    cat <<EOI >=tgt/submit.config.bash;
+      sections[alpha]=1/alpha
+      sections[beta]=1/beta
+      sections[stable]=1/testing
+
+      # owners=owners
+      EOI
+
+    $g -C tgt commit -am 'Disable ownership';
+    $g -C tgt push;
+
+    $* "file:///$~/tgt.git" $root_ref_dir $data_dir >>EOO
+      : 1
+      status: 401
+      message: project owner authentication failed
+      EOO
+  }
+
+  : ref-prj-tgt-disabled
+  :
+  : Test the project ownership authentication failure when no package
+  : ownership information is present in the reference and the target ownership
+  : handling is disabled.
+  :
+  {
+    $clone_root_data_clean;
+
+    $clone_root_ref;
+    $g clone ref.git &ref/***;
+
+    mkdir -p ref/owners/hello/libhello;
+
+    cat <<"EOI" >=ref/owners/hello/project-owner.manifest;
+      : 1
+      name: hello
+      email: user@example.org
+      control: $prj_ctl
+      EOI
+
+    $g -C ref add owners;
+    $g -C ref commit -m 'Add project ownership info';
+    $g -C ref push;
+
+    $clone_root_tgt;
+    $g clone tgt.git &tgt/***;
+
+    cat <<EOI >=tgt/submit.config.bash;
+      sections[alpha]=1/alpha
+      sections[beta]=1/beta
+      sections[stable]=1/testing
+
+      # owners=owners
+      EOI
+
+    $g -C tgt commit -am 'Disable ownership';
+    $g -C tgt push;
+
+    $* "file:///$~/tgt.git" ref $data_dir >>EOO
+      : 1
+      status: 401
+      message: package owner authentication failed
+      EOO
+  }
+
+  : ref-absent-tgt-used-pkg
+  :
+  : Test the package ownership authentication failure using the target repo.
+  : The package name is already used in other project.
+  :
+  {
+    $clone_root_data_clean;
+
+    $clone_root_tgt;
+    $g clone tgt.git &tgt/***;
+
+    mkdir -p tgt/owners/hi/libhello;
+
+    cat <<"EOI" >=tgt/owners/hi/project-owner.manifest;
+      : 1
+      name: hi
+      email: user@example.org
+      control: $prj_ctl
+      EOI
+
+    cat <<"EOI" >=tgt/owners/hi/libhello/package-owner.manifest;
+      : 1
+      name: libhello
+      email: user@example.org
+      control: $prj_ctl/foo
+      EOI
+
+    $g -C tgt add owners;
+    $g -C tgt commit -m 'Add ownership info';
+    $g -C tgt push;
+
+    $* "file:///$~/tgt.git" $data_dir >>EOO
+      : 1
+      status: 401
+      message: package owner authentication failed
+      EOO
+  }
+
+  : authorization
+  :
+  : Test the package submission authorization failure due to the archive
+  : abbreviated checksum mismatch.
+  :
+  {
+    $clone_root_data_clean;
+
+    sed -i -e "s%^\(sha256sum:\) .+\$%\\1 59941e842667%" \
+	$data_dir/request.manifest;
+
+    $clone_root_tgt;
+    $g clone tgt.git &tgt/***;
+
+    $* "file:///$~/tgt.git" $data_dir >>EOO
+      : 1
+      status: 401
+      message: package publishing authorization failed
+      EOO
+  }
+
+  : section-unknown
+  :
+  {
+    $clone_root_data_clean;
+    sed -i -e "s%^\(section:\) .+\$%\\1 delta%" $data_dir/request.manifest;
+
+    $clone_root_tgt;
+
+    $* "file:///$~/tgt.git" $root_ref_dir $data_dir >>"EOO"
+      : 1
+      status: 400
+      message: unrecognized section 'delta'
+      EOO
+  }
+}

@@ -104,8 +104,8 @@ namespace brep
   #pragma db map type(dir_path) as(string)     \
     to((?).string ()) from(brep::dir_path (?))
 
-  // Ensure that timestamp can be represented in nonoseconds without loss of
-  // accuracy, so the following ODB mapping is adequate.
+  // Make sure that timestamp can be represented in nonoseconds without loss
+  // of accuracy, so the following ODB mapping is adequate.
   //
   static_assert(
     std::ratio_greater_equal<timestamp::period,
