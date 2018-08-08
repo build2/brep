@@ -4,11 +4,169 @@
 # copyright : Copyright (c) 2014-2018 Code Synthesis Ltd
 # license   : MIT; see accompanying LICENSE file
 
-# Package submission handler.
+# Package submission handler with git repository storage.
 #
-# @@ TODO doc/spec.
+# The overall idea behind this handler is to add the package archive into a
+# git repository. Another entity (for example, a human or a script) can then
+# pull this change and do something about it (for example, review it and/or
+# add it to an archive-based repository). In other words, git is used as a
+# kind of transport that is easy enough to access for both humans and scripts.
 #
-usage="usage: $0 <dir>"
+# The handler also implements the project/package name ownership verification
+# by performing the submitter authentication/authorization based on the
+# control repository mechanism describe in bdep-publish(1). This functionality
+# is optional.
+#
+# The handler can operate with a single git repository, called "target", or
+# with two git repositories, in which case the first is the target and the
+# second is called "reference". The reference repository access is read-only
+# and it is only consulted for duplicate package suppression and name
+# ownership verification. The dual repository mode is normally used to
+# implement a two-stage queue/publish setup where the package is first queued
+# for review and/or testing and then moved (for example, by a moderator) to a
+# public repository.
+#
+# The target repository argument (<tgt-repo>) should be a read-write git
+# repository URL. It is cloned (shallow) into the submission directory on
+# each submission.
+#
+# If specified, the reference repository argument (<ref-repo>) should be a
+# directory with a pre-cloned read-only reference repository. This directory
+# is shared between all instances of the handler. On each submission, the
+# handler will flock(1) this directory, git-pull, obtain the information it
+# needs, and release the lock.
+#
+# Both the target and, if specified, reference repositories should contain the
+# submit.config.bash repository configuration file in the root directory. The
+# configuration file is a bash fragment and is sourced by the handler script.
+# It provides the following information:
+#
+# - Mapping of section names to repository subdirectories in the 'sections'
+#   variable (declare -A sections; values are relative to the repository
+#   root).
+
+#   If there is no key for the submitted section name, then the entry with the
+#   special '*' key is used. If there is no such entry, then the submission is
+#   invalid. For example:
+#
+#     sections[alpha]=1/alpha
+#     sections[beta]=1/beta
+#     sections[stable]=1/testing
+#
+# - Optional owners subdirectory in the 'owners' variable (relative to the
+#   repository root). If not specified, then no ownership verification is
+#   performed. For example:
+#
+#     owners=owners
+#
+# If the ownership directory is specified, then the handler script maintains
+# the project/package name ownership information in this directory. It has the
+# following structure:
+#
+# <owners>/
+# ├── <project1>/
+# │    ├── <package1>/
+# │    │    └── package-owner.manifest
+# │    ├── <package2>/
+# │    │    └── package-owner.manifest
+# │    ├── ...
+# │    └── project-owner.manifest
+# ├── <project2>/
+# │    └── ...
+# └──...
+#
+# If the submitted project name is not yet known, then the handler script
+# creates a new project subdirectory and saves project-owner.manifest. The
+# project owner manifest contain the following values in the specified order:
+#
+#   name:  <project-name>
+#   email: <submitter-email>
+#   control: <url-prefix>
+#
+# The 'control' value is the control repository URL prefix and there can be
+# multiple such values in a single manifest. The handler script derives it
+# from the submitted control repository URL by removing the last path
+# component. So, for example, https://github.com/build2/libbutl.git becomes
+# https://github.com/build2/.
+#
+# If the submitted project name is already known, then the handler script
+# loads its project-owner.manifest and verifies that at least one of the
+# 'control' values is a prefix of the submitted control repository URL.
+#
+# Similarly, if the submitted package name is not yet known, then the handler
+# script creates a new package subdirectory and saves package-owner.manifest.
+# The package owner manifest contain the following values in the specified
+# order:
+#
+#   name:  <package-name>
+#   email: <submitter-email>
+#   control: <url>
+#
+# The 'control' value is the control repository URL and there can be multiple
+# such values in a single manifest.
+#
+# If the submission package is already known, then the handler script loads
+# its package-owner.manifest and verifies that at least one of the 'control'
+# values matches the submitted control repository URL.
+#
+# If all these ownership authentication tests pass, the handler script clones
+# (shallow) the build2-control branch of the control repository and verifies
+# that the submission authorization file is present (see bdep-publish(1) for
+# details).
+#
+# If the submission authorization test passes, then the handler script adds
+# the package archives to the target repository, commits this change, and
+# then pushes the commit to the remote.
+#
+# Notes:
+#
+# - It is possible that a submitted package name already exists in another
+#   project. In this case, such a submission is accepted only if the package
+#   already exists in the requested project. This allows the moderator to
+#   manually permit such multi-project packages (for example, to allow moving
+#   packages between projects).
+#
+# - There could be a race when moving package and ownership information from
+#   target to reference. To avoid it, the protocol for such a move is to first
+#   add, commit, and push to reference and then remove, commit, and push to
+#   target.
+#
+#   On the handler side, before adding a package or new ownership for a
+#   project/package name, the script re-checks the reference repository for
+#   updated information.
+#
+usage="usage: $0 <tgt-repo> [<ref-repo>] <dir>"
 
 trap "{ exit 1; }" ERR
 set -o errtrace # Trap ERR in functions.
+
+# Implementation notes:
+#
+# - Check for duplicate package archive in all the sections. Before auth. Use
+#   <name>-<version>.* instead of .tar.gz in case we support other formats
+#   later.
+#
+# - Push permission for target repo (add www-data to scm group)?
+#
+# - Network errors/timeouts on git pull for ref repo? What is the error (try
+#   again)? I think also let's not assume target repo is local.
+
+# Workflow:
+#
+# 0. The same steps as submit-dir.
+#
+# 1. If ref-repo specified, lock, pull, and check:
+#    - duplicate
+#    - auth (read-only)
+#
+# 2. Clone tgt-repo, check:
+#    - duplicate
+#    - auth (read-write)
+#      ? if fully auth'd by ref-repo, should we skip it here?
+#
+# 3. Clone control branch and authorize.
+#
+# 4. Copy archive, commit and push. If push fails, remove clone and
+#    restart from 1 (yes, from ref-repo).
+#    - put submission manifest into commit message for record?
+#

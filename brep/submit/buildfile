@@ -7,6 +7,3 @@ import mods += libbutl.bash%bash{manifest-serializer}
 
 exe{brep-submit-dir}: in{submit-dir} bash{submit} $mods
 bash{submit}: in{submit} $mods # @@ Currently doesn't depend on manifest-parser.
-
-#install.bin.subdirs = true
-#install.subdirs = true

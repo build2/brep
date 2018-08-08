@@ -25,7 +25,11 @@ cxx.coptions += -Wno-unknown-pragmas
 #
 using? cli
 
+# Bash.
+#
 using bash
+
+brep/bash{*}: install.subdirs = true
 
 # All exe{} in tests/ are, well, tests. Also don't link whole archives
 # by default there.

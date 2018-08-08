@@ -2,10 +2,6 @@
 # copyright : Copyright (c) 2014-2018 Code Synthesis Ltd
 # license   : MIT; see accompanying LICENSE file
 
-# @@ Should we make this module besides defining utility functions to also
-#    parse and remove from args the common arguments (directory)?
-#
-
 if [ "$brep_submit" ]; then
   return 0
 else
@@ -16,11 +12,14 @@ fi
 
 # Diagnostics.
 #
-self="$(basename $0)"
 
-# Result reference (assigned later).
+# We expect the user to set the verbose variable either to true or empty
+# (false).
 #
-reference=
+if [ ! -v verbose ]; then
+  echo "variable 'verbose' is not set" 2>&1
+  exit 1
+fi
 
 # Normally the brep module's log record looks like this:
 #
@@ -29,6 +28,9 @@ reference=
 # We will use the (almost) same format for our diagnostics (redirected to the
 # Apache's error_log) so it can easily be attributed to the brep module.
 #
+info_self="$(basename $0)"
+info_ref="$(basename "${!#/}")" # Last argument is the submission directory.
+
 function info () # <severity> <text>
 {
   local severity="$1"
@@ -41,29 +43,11 @@ function info () # <severity> <text>
     ts=
   fi
 
-  echo "[$ts] [brep:$severity] [ref $reference] [$self]: $*" 1>&2;
+  echo "[$ts] [brep:$severity] [ref $info_ref] [$info_self]: $*" 1>&2;
 }
 
 function error () { info "error" "$*"; exit 1; }
 function trace () { if [ "$verbose" ]; then info "info" "$*"; fi }
-
-# Submission data directory.
-#
-# @@ Doesn't comply with implementation assuming that directory comes before
-#    submit-handler-arguments. Can we change the doc?
-#
-dir="${1%/}" # @@ Call it directory?
-shift
-
-if [ -z "$dir" ]; then
-  error "$usage"
-fi
-
-if [ ! -d "$dir" ]; then
-  error "'$dir' does not exist or is not a directory"
-fi
-
-reference="$(basename $dir)"
 
 # Serialize one manifest name/value pair.
 #

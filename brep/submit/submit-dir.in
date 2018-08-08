@@ -4,16 +4,15 @@
 # copyright : Copyright (c) 2014-2018 Code Synthesis Ltd
 # license   : MIT; see accompanying LICENSE file
 
-# Package submission handler example.
+# Simple package submission handler with directory storage.
 #
 # Validate the package archive located in the specified submission directory
-# extracting and parsing the package manifest. Remove the submission directory
-# if simulating. Write the submission result manifest to stdout.
+# extracting and parsing the package manifest (saved as package.manifest in
+# the submission directory). Keep the submission directory unless simulating.
+# Write the submission result manifest to stdout.
 #
 usage="usage: $0 <dir>"
 
-# Diagnostics.
-#
 verbose=true
 
 trap "{ exit 1; }" ERR
@@ -23,6 +22,18 @@ set -o errtrace # Trap ERR in functions.
 @import libbutl/manifest-serializer@
 
 @import brep/submit/submit@
+
+# Submission data directory (last argument).
+#
+dir="${!#/}"
+
+if [ -z "$dir" ]; then
+  error "$usage"
+fi
+
+if [ ! -d "$dir" ]; then
+  error "'$dir' does not exist or is not a directory"
+fi
 
 # Parse the submission request manifest and obtain the archive path as well
 # as the simulate value.
