@@ -1,0 +1,114 @@
+# file      : brep/submit/submit.bash.in
+# copyright : Copyright (c) 2014-2018 Code Synthesis Ltd
+# license   : MIT; see accompanying LICENSE file
+
+# @@ Should we make this module besides defining utility functions to also
+#    parse and remove from args the common arguments (directory)?
+#
+
+if [ "$brep_submit" ]; then
+  return 0
+else
+  brep_submit=true
+fi
+
+@import libbutl/manifest-serializer@
+
+# Diagnostics.
+#
+self="$(basename $0)"
+
+# Result reference (assigned later).
+#
+reference=
+
+# Normally the brep module's log record looks like this:
+#
+# [Mon Jul 23 17:48:46.945079 2018] [brep:error] [pid 123:tid 456] [brep::submit::init]: error description
+#
+# We will use the (almost) same format for our diagnostics (redirected to the
+# Apache's error_log) so it can easily be attributed to the brep module.
+#
+function info () # <severity> <text>
+{
+  local severity="$1"
+  shift
+
+  # Note: %N is Linux-specific.
+  #
+  local ts
+  if ! ts="$(date +"%a %b %d %H:%M:%S.%6N %Y")"; then
+    ts=
+  fi
+
+  echo "[$ts] [brep:$severity] [ref $reference] [$self]: $*" 1>&2;
+}
+
+function error () { info "error" "$*"; exit 1; }
+function trace () { if [ "$verbose" ]; then info "info" "$*"; fi }
+
+# Submission data directory.
+#
+# @@ Doesn't comply with implementation assuming that directory comes before
+#    submit-handler-arguments. Can we change the doc?
+#
+dir="${1%/}" # @@ Call it directory?
+shift
+
+if [ -z "$dir" ]; then
+  error "$usage"
+fi
+
+if [ ! -d "$dir" ]; then
+  error "'$dir' does not exist or is not a directory"
+fi
+
+reference="$(basename $dir)"
+
+# Serialize one manifest name/value pair.
+#
+function serialize () # <name> <value>
+{
+  printf "%s:%s\0" "$1" "$2" >&"$butl_manifest_serializer_ifd"
+}
+
+# Serialize the submission result manifest to stdout.
+#
+function result_manifest () # <status> <message> [<reference>]
+{
+  local sts="$1"
+  local msg="$2"
+  local ref="$3"
+
+  trace "serializing result manifest"
+  butl_manifest_serializer_start
+
+  serialize ""        "1"    # Start of manifest.
+  serialize "status"  "$sts"
+  serialize "message" "$msg"
+
+  if [ -n "$ref" ]; then
+    serialize "reference" "$ref"
+  fi
+
+  butl_manifest_serializer_finish
+}
+
+# Verify the archive is a valid bpkg package and extract its manifest file.
+#
+function extract_package_manifest () # <archive> <manifest>
+{
+  local arc="$1"
+  local man="$2"
+
+  # Should we remove the submission directory with an invalid package?
+  # Probably it's better to leave it for potential investigation. Note that we
+  # can always grep for such directories based on the result.manifest file
+  # they contain.
+  #
+  if ! bpkg pkg-verify --manifest "$arc" >"$man" 2>/dev/null; then
+    trace "$arc is not a valid package"
+    result_manifest 400 "archive is not a valid package (run bpkg pkg-verify for details)"
+    exit 0
+  fi
+}

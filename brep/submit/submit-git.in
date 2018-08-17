@@ -1,0 +1,14 @@
+#!/usr/bin/env bash
+
+# file      : brep/submit/submit-git.in
+# copyright : Copyright (c) 2014-2018 Code Synthesis Ltd
+# license   : MIT; see accompanying LICENSE file
+
+# Package submission handler.
+#
+# @@ TODO doc/spec.
+#
+usage="usage: $0 <dir>"
+
+trap "{ exit 1; }" ERR
+set -o errtrace # Trap ERR in functions.

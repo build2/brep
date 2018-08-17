@@ -1,0 +1,97 @@
+#!/usr/bin/env bash
+
+# file      : brep/submit/submit-dir.in
+# copyright : Copyright (c) 2014-2018 Code Synthesis Ltd
+# license   : MIT; see accompanying LICENSE file
+
+# Package submission handler example.
+#
+# Validate the package archive located in the specified submission directory
+# extracting and parsing the package manifest. Remove the submission directory
+# if simulating. Write the submission result manifest to stdout.
+#
+usage="usage: $0 <dir>"
+
+# Diagnostics.
+#
+verbose=true
+
+trap "{ exit 1; }" ERR
+set -o errtrace # Trap ERR in functions.
+
+@import libbutl/manifest-parser@
+@import libbutl/manifest-serializer@
+
+@import brep/submit/submit@
+
+# Parse the submission request manifest and obtain the archive path as well
+# as the simulate value.
+#
+trace "parsing $dir/request.manifest"
+butl_manifest_parser_start "$dir/request.manifest"
+
+archive=
+simulate=
+
+while IFS=: read -ru "$butl_manifest_parser_ofd" -d '' n v; do
+  case "$n" in
+    archive)  archive="$v" ;;
+    simulate) simulate="$v" ;;
+  esac
+done
+
+butl_manifest_parser_finish
+
+if [ -z "$archive" ]; then
+  error "archive manifest value expected"
+fi
+
+if [ -n "$simulate" -a "$simulate" != "success" ]; then
+  trace "unrecognized simulation outcome '$simulate'"
+  result_manifest 400 "unrecognized simulation outcome"
+  exit 0
+fi
+
+manifest="$dir/package.manifest"
+
+extract_package_manifest "$dir/$archive" "$manifest"
+
+# Parse the package manifest and obtain the package name and version.
+#
+trace "parsing $manifest"
+butl_manifest_parser_start "$manifest"
+
+name=
+version=
+project=
+
+while IFS=: read -ru "$butl_manifest_parser_ofd" -d '' n v; do
+  case "$n" in
+    name)    name="$v"    ;;
+    version) version="$v" ;;
+    project) project="$v" ;;
+  esac
+done
+
+butl_manifest_parser_finish
+
+if [ -z "$name" ]; then
+  error "name manifest values expected"
+fi
+
+if [ -z "$version" ]; then
+  error "version manifest values expected"
+fi
+
+if [ -z "$project" ]; then
+  project="$name"
+fi
+
+if [ -n "$simulate" ]; then
+  rm -r "$dir"
+  trace "$name/$version submission is simulated"
+else
+  trace "$name/$version submission is queued"
+fi
+
+result_manifest 200 "$name/$version submission is queued" "$reference"
