@@ -671,8 +671,7 @@ handle (request& rq, response& rs)
             // Don't fail if the select() call was interrupted by the signal.
             //
             if (errno != EINTR)
-              throw io_error ("select failed",
-                              error_code (errno, generic_category ()));
+              throw io_error ("select failed");
           }
           else if (r != 0) // Is data available?
           {
