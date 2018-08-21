@@ -22,7 +22,7 @@
 # second is called "reference". The reference repository access is read-only
 # and it is only consulted for duplicate package suppression and name
 # ownership verification. The dual repository mode is normally used to
-# implement a two-stage queue/publish setup where the package is first queued
+# implement a two-stage queue/public setup where the package is first queued
 # for review and/or testing and then moved (for example, by a moderator) to a
 # public repository.
 #
