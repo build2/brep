@@ -251,7 +251,7 @@ pkg_ctl="$prj_ctl/hello.git"
       : 1
       name: hello
       email: user@example.org
-      control: $prj_ctl
+      control: $prj_ctl/
       EOI
 
     $g -C ref add owners;
@@ -287,6 +287,9 @@ pkg_ctl="$prj_ctl/hello.git"
   : Test that the project and package ownership is authenticated by the
   : reference repository.
   :
+  : Note that here we also test that the project control URL value may not be
+  : an immediate "parent" of the package control URL.
+  :
   {
     $clone_root_data;
 
@@ -299,7 +302,7 @@ pkg_ctl="$prj_ctl/hello.git"
       : 1
       name: hello
       email: user@example.org
-      control: $prj_ctl
+      control: $regex.replace("$prj_ctl", '(.*/)[^/]*', '\1')
       EOI
 
     cat <<"EOI" >=ref/owners/hello/libhello/package-owner.manifest;
@@ -340,7 +343,7 @@ pkg_ctl="$prj_ctl/hello.git"
       : 1
       name: hello
       email: user@example.org
-      control: $prj_ctl
+      control: $prj_ctl/
       EOI
 
     $g -C ref add owners;
@@ -462,7 +465,7 @@ pkg_ctl="$prj_ctl/hello.git"
       : 1
       name: hi
       email: user@example.org
-      control: $prj_ctl
+      control: $prj_ctl/
       EOI
 
     cat <<"EOI" >=ref/owners/hi/libhello/package-owner.manifest;
@@ -530,7 +533,7 @@ pkg_ctl="$prj_ctl/hello.git"
       : 1
       name: hello
       email: user@example.org
-      control: $prj_ctl
+      control: $prj_ctl/
       EOI
 
     cat <<"EOI" >=ref/owners/hello/libhello/package-owner.manifest;
@@ -592,7 +595,7 @@ pkg_ctl="$prj_ctl/hello.git"
       : 1
       name: hello
       email: user@example.org
-      control: $prj_ctl
+      control: $prj_ctl/
       EOI
 
     cat <<"EOI" >=tgt/owners/hello/libhello/package-owner.manifest;
@@ -661,7 +664,7 @@ pkg_ctl="$prj_ctl/hello.git"
       : 1
       name: hello
       email: user@example.org
-      control: $prj_ctl
+      control: $prj_ctl/
       EOI
 
     $g -C ref add owners;
@@ -706,7 +709,7 @@ pkg_ctl="$prj_ctl/hello.git"
       : 1
       name: hi
       email: user@example.org
-      control: $prj_ctl
+      control: $prj_ctl/
       EOI
 
     cat <<"EOI" >=tgt/owners/hi/libhello/package-owner.manifest;

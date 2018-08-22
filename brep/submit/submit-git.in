@@ -265,12 +265,12 @@ simulate=
 
 while IFS=: read -ru "$manifest_parser_ofd" -d '' n v; do
   case "$n" in
-    archive)   archive="$v"     ;;
-    sha256sum) sha256sum="$v"   ;;
-    section)   section="$v"     ;;
-    email)     email="$v"       ;;
-    control)   control="${v%/}" ;;
-    simulate)  simulate="$v"    ;;
+    archive)   archive="$v"   ;;
+    sha256sum) sha256sum="$v" ;;
+    section)   section="$v"   ;;
+    email)     email="$v"     ;;
+    control)   control="$v"   ;;
+    simulate)  simulate="$v"  ;;
   esac
 done
 

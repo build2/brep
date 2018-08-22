@@ -118,6 +118,7 @@ function create_owner_manifest () # <name> <email> <control> <file>
 }
 
 # Strip the query part and the leaf path component from the repository URL.
+# The resulting URL contains the trailing slash.
 #
 function repository_base () # <repo-url>
 {
@@ -125,7 +126,7 @@ function repository_base () # <repo-url>
   #
   sed -n \
 -e 's%^\([^?]*\).*$%\1%' \
--e 's%^\(.*\)/[^/]\{1,\}/\{0,1\}$%\1%p' \
+-e 's%^\(.*/\)[^/]\{1,\}/\{0,1\}$%\1%p' \
 <<<"$1"
 }
 
@@ -146,7 +147,7 @@ function auth_project () # <project> <control> <repo-dir>
   trace_func "$@"
 
   local prj="$1"
-  local ctl="${2%/}"
+  local ctl="$2"
   local rep="$3"
 
   local d
@@ -168,7 +169,6 @@ function auth_project () # <project> <control> <repo-dir>
   # the submitter as the project owner.
   #
   if [ -f "$m" ]; then
-    ctl="$(repository_base "$ctl")"
 
     # Parse the project owner manifest.
     #
@@ -176,7 +176,7 @@ function auth_project () # <project> <control> <repo-dir>
 
     local n v
     while IFS=: read -ru "$manifest_parser_ofd" -d '' n v; do
-      if [ "$n" == "control" -a "${v%/}" == "$ctl" ]; then
+      if [[ "$n" == "control" && "$ctl" == "$v"* ]]; then
         r="project"
         break
       fi
@@ -211,7 +211,7 @@ function auth_package () # <project> <package> <control> <repo-dir>
 
   local prj="$1"
   local pkg="$2"
-  local ctl="${3%/}"
+  local ctl="$3"
   local rep="$4"
 
   local d
@@ -240,7 +240,7 @@ function auth_package () # <project> <package> <control> <repo-dir>
 
     local n v
     while IFS=: read -ru "$manifest_parser_ofd" -d '' n v; do
-      if [ "$n" == "control" -a "${v%/}" == "$ctl" ]; then
+      if [ "$n" == "control" -a "$v" == "$ctl" ]; then
         r="package"
         break
       fi
