@@ -61,13 +61,13 @@ pkg_ctl="$prj_ctl/hello.git"
   : none
   :
   $* 2>>~%EOE% != 0
-  %\[.+\] \[brep:error\] \[ref \] \[brep-submit-git\]: usage: .+brep-submit-git <tgt-repo> \[<ref-repo>\] <dir>%
+  %\[.+\] \[brep:error\] \[ref \] \[brep-submit-git\]: usage: .+brep-submit-git \[<options>\] <tgt-repo> \[<ref-repo>\] <dir>%
   EOE
 
   : dir-only
   :
   $* $~/dir 2>>~%EOE% != 0
-    %\[.+\] \[brep:error\] \[ref dir\] \[brep-submit-git\]: usage: .+brep-submit-git <tgt-repo> \[<ref-repo>\] <dir>%
+    %\[.+\] \[brep:error\] \[ref dir\] \[brep-submit-git\]: usage: .+brep-submit-git \[<options>\] <tgt-repo> \[<ref-repo>\] <dir>%
     EOE
 
   : ref-not-exist
@@ -126,7 +126,7 @@ pkg_ctl="$prj_ctl/hello.git"
 
     git -C tgt log -1 >>~%EOO%
       %commit .+%
-      %Author: .+%
+      %Author: Submission Handler <user@example.org>%
       %Date: .+%
 
           Add libhello/0.1.0 to 1/alpha/hello

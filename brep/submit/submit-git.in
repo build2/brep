@@ -183,6 +183,35 @@ set -o errtrace # Trap ERR in functions.
 @import brep/submit/submit@
 @import brep/submit/submit-git@
 
+# Parse the command line options.
+#
+committer_name="Submission Handler"
+committer_email="noreply@example.com"
+
+while [ $# -gt 0 ]; do
+  case $1 in
+    --committer-name)
+      shift
+      committer_name="$1"
+      shift
+      ;;
+    --committer-email)
+      shift
+      committer_email="$1"
+      shift
+      ;;
+    *)
+      break; # The end of options is encountered.
+      ;;
+  esac
+done
+
+if [ -z "$committer_name" -o -z "$committer_email" ]; then
+  error "$usage"
+fi
+
+# Parse the command line arguments.
+#
 if [ "$#" -lt 2 -o "$#" -gt 3 ]; then
   error "$usage"
 fi
@@ -566,7 +595,15 @@ for i in {1..11}; do
 
   git_add "$tgt_dir" "${a#$tgt_dir/}"
 
-  run git -C "$tgt_dir" commit $gqo $gvo -F - <<EOF >&2
+  if [ -n "$email" ]; then
+    e="$email"
+  else
+    e="$committer_email"
+  fi
+
+  GIT_AUTHOR_EMAIL="$e" \
+  run git -c "user.name=$committer_name" -c "user.email=$committer_email" \
+-C "$tgt_dir" commit $gqo $gvo -F - <<EOF >&2
 Add $name/$version to $s/$project
 
 $(cat "$data_dir/request.manifest")
