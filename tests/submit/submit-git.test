@@ -86,13 +86,17 @@ pkg_ctl="$prj_ctl/hello.git"
   : ownership is successfully aquired. Authentication is enabled on both the
   : reference and target repos.
   :
+  : Note that here we also test that --commiter-* options are picked up
+  : properly.
+  :
   {
     $clone_root_data;
 
     $clone_root_tgt;
     tgt_url = "file:///$~/tgt.git";
 
-    $* "$tgt_url" $root_ref_dir $data_dir >>"EOO";
+    $* --committer-name 'Commiter' --committer-email 'commiter@example.com' \
+       "$tgt_url" $root_ref_dir $data_dir >>"EOO";
       : 1
       status: 200
       message: libhello/0.1.0 submission is queued
@@ -109,7 +113,8 @@ pkg_ctl="$prj_ctl/hello.git"
     cat tgt/owners/hello/project-owner.manifest >>~%EOO%;
       : 1
       name: hello
-      email: user@example.org
+      author-name: User Name
+      author-email: user@example.org
       %control: file:///.+%
       %.*
       EOO
@@ -117,16 +122,17 @@ pkg_ctl="$prj_ctl/hello.git"
     cat tgt/owners/hello/libhello/package-owner.manifest >>~%EOO%;
       : 1
       name: libhello
-      email: user@example.org
+      author-name: User Name
+      author-email: user@example.org
       %control: file:///.+%
       %.*
       EOO
 
     test -f tgt/1/alpha/hello/libhello-0.1.0.tar.gz;
 
-    git -C tgt log -1 >>~%EOO%
+    git -C tgt log -1 >>~%EOO%;
       %commit .+%
-      %Author: Submission Handler <user@example.org>%
+      %Author: User Name <user@example.org>%
       %Date: .+%
 
           Add libhello/0.1.0 to 1/alpha/hello
@@ -139,11 +145,17 @@ pkg_ctl="$prj_ctl/hello.git"
       %    user-agent: bdep/.+%
       %.
           section: alpha
-          email: user@example.org
+          author-name: User Name
+          author-email: user@example.org
       %    control: file:///.+%
       %.*
       EOO
+
+      git -C tgt log -1 "--pretty=format:%an %ae %cn %ce" >>:EOO
+        User Name user@example.org Commiter commiter@example.com
+        EOO
   }
+
   : ref-disabled-tgt-aquire-prj-pkg
   :
   : Test that on the first package submit the project and package names
@@ -210,14 +222,16 @@ pkg_ctl="$prj_ctl/hello.git"
     cat <<"EOI" >=tgt/owners/hello/project-owner.manifest;
       : 1
       name: hello
-      email: user@example.org
+      author-name: User Name
+      author-email: user@example.org
       control: $prj_ctl/
       EOI
 
     cat <<"EOI" >=tgt/owners/hello/libhello/package-owner.manifest;
       : 1
       name: libhello
-      email: user@example.org
+      author-name: User Name
+      author-email: user@example.org
       control: $pkg_ctl
       EOI
 
@@ -239,8 +253,11 @@ pkg_ctl="$prj_ctl/hello.git"
   : repository and the package ownersip is authenticated by the target
   : repository.
   :
+  : Note that here we also test an author-less submission.
+  :
   {
     $clone_root_data;
+    sed -i -e "s%^author-.+\$%%" $data_dir/request.manifest;
 
     $clone_root_ref;
     $g clone ref.git &ref/***;
@@ -250,7 +267,8 @@ pkg_ctl="$prj_ctl/hello.git"
     cat <<"EOI" >=ref/owners/hello/project-owner.manifest;
       : 1
       name: hello
-      email: user@example.org
+      author-name: User Name
+      author-email: user@example.org
       control: $prj_ctl/
       EOI
 
@@ -266,7 +284,8 @@ pkg_ctl="$prj_ctl/hello.git"
     cat <<"EOI" >=tgt/owners/hello/libhello/package-owner.manifest;
       : 1
       name: libhello
-      email: user@example.org
+      author-name: User Name
+      author-email: user@example.org
       control: $pkg_ctl
       EOI
 
@@ -274,11 +293,19 @@ pkg_ctl="$prj_ctl/hello.git"
     $g -C tgt commit -m 'Add ownership info';
     $g -C tgt push;
 
-    $* "file:///$~/tgt.git" ref $data_dir >>"EOO"
+    $* "file:///$~/tgt.git" ref $data_dir >>"EOO";
       : 1
       status: 200
       message: libhello/0.1.0 submission is queued
       reference: $checksum
+      EOO
+
+    # Check that the author/committer names/emails are properly assigned.
+    #
+    $g -C tgt pull;
+
+    git -C tgt log -1 "--pretty=format:%an %ae %cn %ce" >>:EOO
+      Submission Handler noreply@example.com Submission Handler noreply@example.com
       EOO
   }
 
@@ -301,14 +328,16 @@ pkg_ctl="$prj_ctl/hello.git"
     cat <<"EOI" >=ref/owners/hello/project-owner.manifest;
       : 1
       name: hello
-      email: user@example.org
+      author-name: User Name
+      author-email: user@example.org
       control: $regex.replace("$prj_ctl", '(.*/)[^/]*', '\1')
       EOI
 
     cat <<"EOI" >=ref/owners/hello/libhello/package-owner.manifest;
       : 1
       name: libhello
-      email: user@example.org
+      author-name: User Name
+      author-email: user@example.org
       control: $pkg_ctl
       EOI
 
@@ -342,7 +371,8 @@ pkg_ctl="$prj_ctl/hello.git"
     cat <<"EOI" >=ref/owners/hello/project-owner.manifest;
       : 1
       name: hello
-      email: user@example.org
+      author-name: User Name
+      author-email: user@example.org
       control: $prj_ctl/
       EOI
 
@@ -423,6 +453,54 @@ pkg_ctl="$prj_ctl/hello.git"
 : failure
 :
 {
+  : no-author
+  :
+  {
+    $clone_root_data_clean;
+    sed -i -e "s%^author-.+\$%%" $data_dir/request.manifest;
+
+    $clone_root_tgt;
+    tgt_url = "file:///$~/tgt.git";
+
+    $* "$tgt_url" $root_ref_dir $data_dir >>"EOO"
+      : 1
+      status: 400
+      message: author-name manifest value expected
+      EOO
+  }
+
+  : no-author-email
+  :
+  {
+    $clone_root_data_clean;
+    sed -i -e "s%^author-email.+\$%%" $data_dir/request.manifest;
+
+    $clone_root_tgt;
+    tgt_url = "file:///$~/tgt.git";
+
+    $* "$tgt_url" $root_ref_dir $data_dir >>"EOO"
+      : 1
+      status: 400
+      message: author-email manifest value expected
+      EOO
+  }
+
+  : no-author-name
+  :
+  {
+    $clone_root_data_clean;
+    sed -i -e "s%^author-name.+\$%%" $data_dir/request.manifest;
+
+    $clone_root_tgt;
+    tgt_url = "file:///$~/tgt.git";
+
+    $* "$tgt_url" $root_ref_dir $data_dir >>"EOO"
+      : 1
+      status: 400
+      message: author-name manifest value expected
+      EOO
+  }
+
   : ref-dup-pkg
   :
   : Test the duplicate submission due presence of the package archive in the
@@ -464,14 +542,16 @@ pkg_ctl="$prj_ctl/hello.git"
     cat <<"EOI" >=ref/owners/hi/project-owner.manifest;
       : 1
       name: hi
-      email: user@example.org
+      author-name: User Name
+      author-email: user@example.org
       control: $prj_ctl/
       EOI
 
     cat <<"EOI" >=ref/owners/hi/libhello/package-owner.manifest;
       : 1
       name: libhello
-      email: user@example.org
+      author-name: User Name
+      author-email: user@example.org
       control: $prj_ctl/foo
       EOI
 
@@ -501,7 +581,8 @@ pkg_ctl="$prj_ctl/hello.git"
     cat <<EOI >=ref/owners/hello/project-owner.manifest;
       : 1
       name: hello
-      email: user@example.org
+      author-name: User Name
+      author-email: user@example.org
       control: https://example.com/foo
       EOI
 
@@ -532,14 +613,16 @@ pkg_ctl="$prj_ctl/hello.git"
     cat <<"EOI" >=ref/owners/hello/project-owner.manifest;
       : 1
       name: hello
-      email: user@example.org
+      author-name: User Name
+      author-email: user@example.org
       control: $prj_ctl/
       EOI
 
     cat <<"EOI" >=ref/owners/hello/libhello/package-owner.manifest;
       : 1
       name: libhello
-      email: user@example.org
+      author-name: User Name
+      author-email: user@example.org
       control: $prj_ctl/foo
       EOI
 
@@ -594,14 +677,16 @@ pkg_ctl="$prj_ctl/hello.git"
     cat <<"EOI" >=tgt/owners/hello/project-owner.manifest;
       : 1
       name: hello
-      email: user@example.org
+      author-name: User Name
+      author-email: user@example.org
       control: $prj_ctl/
       EOI
 
     cat <<"EOI" >=tgt/owners/hello/libhello/package-owner.manifest;
       : 1
       name: libhello
-      email: user@example.org
+      author-name: User Name
+      author-email: user@example.org
       control: $prj_ctl/foo
       EOI
 
@@ -663,7 +748,8 @@ pkg_ctl="$prj_ctl/hello.git"
     cat <<"EOI" >=ref/owners/hello/project-owner.manifest;
       : 1
       name: hello
-      email: user@example.org
+      author-name: User Name
+      author-email: user@example.org
       control: $prj_ctl/
       EOI
 
@@ -708,14 +794,16 @@ pkg_ctl="$prj_ctl/hello.git"
     cat <<"EOI" >=tgt/owners/hi/project-owner.manifest;
       : 1
       name: hi
-      email: user@example.org
+      author-name: User Name
+      author-email: user@example.org
       control: $prj_ctl/
       EOI
 
     cat <<"EOI" >=tgt/owners/hi/libhello/package-owner.manifest;
       : 1
       name: libhello
-      email: user@example.org
+      author-name: User Name
+      author-email: user@example.org
       control: $prj_ctl/foo
       EOI
 

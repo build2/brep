@@ -6,5 +6,6 @@ client-ip: fe80::56e1:adff:fe83:82f5
 user-agent: bdep/0.8.0-a.0.20180815130917 (GNU/Linux; +https://build2.org)\
  libbpkg/0.8.0-a.0.0f50af28d1cf libbutl/0.8.0-a.0.3e0db12932d5 curl
 section: alpha
-email: user@example.org
+author-name: User Name
+author-email: user@example.org
 control: http://example.org/hello.git

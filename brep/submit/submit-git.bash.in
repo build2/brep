@@ -94,14 +94,15 @@ function check_package_duplicate () # <name> <version> <repo-dir>
 # Serialize the project or package owner manifest (they have the same set of
 # values) to the specified manifest file.
 #
-function create_owner_manifest () # <name> <email> <control> <file>
-{
+function create_owner_manifest () # <name> <author-name> <author-email>
+{                                 # <control> <file>
   trace_func "$@"
 
   local nam="$1"
-  local eml="$2"
-  local ctl="$3"
-  local man="$4"
+  local anm="$2"
+  local aem="$3"
+  local ctl="$4"
+  local man="$5"
 
   if [ -f "$man" ]; then
     error "'$man' already exists"
@@ -109,10 +110,11 @@ function create_owner_manifest () # <name> <email> <control> <file>
 
   manifest_serializer_start "$man"
 
-  manifest_serialize ""        "1"    # Start of manifest.
-  manifest_serialize "name"    "$nam"
-  manifest_serialize "email"   "$eml"
-  manifest_serialize "control" "$ctl"
+  manifest_serialize ""             "1"    # Start of manifest.
+  manifest_serialize "name"         "$nam"
+  manifest_serialize "author-name"  "$anm"
+  manifest_serialize "author-email" "$aem"
+  manifest_serialize "control"      "$ctl"
 
   manifest_serializer_finish
 }

@@ -79,8 +79,9 @@
 # creates a new project subdirectory and saves project-owner.manifest. The
 # project owner manifest contains the following values in the specified order:
 #
-#   name:  <project-name>
-#   email: <submitter-email>
+#   name: <project-name>
+#   author-name: <name>
+#   author-email: <email>
 #   control: <url-prefix>
 #
 # The 'control' value is the control repository URL prefix and there can be
@@ -98,8 +99,9 @@
 # The package owner manifest contains the following values in the specified
 # order:
 #
-#   name:  <package-name>
-#   email: <submitter-email>
+#   name: <package-name>
+#   author-name: <name>
+#   author-email: <email>
 #   control: <url>
 #
 # The 'control' value is the control repository URL and there can be multiple
@@ -288,18 +290,20 @@ manifest_parser_start "$data_dir/request.manifest"
 archive=
 sha256sum=
 section=
-email=
+author_name=
+author_email=
 control=
 simulate=
 
 while IFS=: read -ru "$manifest_parser_ofd" -d '' n v; do
   case "$n" in
-    archive)   archive="$v"   ;;
-    sha256sum) sha256sum="$v" ;;
-    section)   section="$v"   ;;
-    email)     email="$v"     ;;
-    control)   control="$v"   ;;
-    simulate)  simulate="$v"  ;;
+    archive)      archive="$v"      ;;
+    sha256sum)    sha256sum="$v"    ;;
+    section)      section="$v"      ;;
+    author-name)  author_name="$v"  ;;
+    author-email) author_email="$v" ;;
+    control)      control="$v"      ;;
+    simulate)     simulate="$v"     ;;
   esac
 done
 
@@ -317,7 +321,17 @@ if [ -n "$simulate" -a "$simulate" != "success" ]; then
   exit_with_manifest 400 "unrecognized simulation outcome '$simulate'"
 fi
 
-# Note: checking for section, email, and control later.
+# The author-* manifest values should both be present or absent.
+#
+if [ -z "$author_name" -a -n "$author_email" ]; then
+  exit_with_manifest 400 "author-name manifest value expected"
+fi
+
+if [ -z "$author_email" -a -n "$author_name" ]; then
+  exit_with_manifest 400 "author-email manifest value expected"
+fi
+
+# Note: checking for section, author-*, and control later.
 
 m="$data_dir/package.manifest"
 extract_package_manifest "$data_dir/$archive" "$m"
@@ -501,8 +515,8 @@ for i in {1..11}; do
 
     # Check that the necessary request manifest values are specified.
     #
-    if [ -z "$email" ]; then
-      exit_with_manifest 400 "email manifest value expected"
+    if [ -z "$author_name" ]; then
+      exit_with_manifest 400 "author-name manifest value expected"
     fi
 
     # Check that the package doesn't belong yet to some other project.
@@ -524,7 +538,9 @@ for i in {1..11}; do
       run mkdir -p "$d" # Also creates the owners directory if not exist.
 
       ctl="$(repository_base "$control")"
-      create_owner_manifest "$project" "$email" "$ctl" "$prj_man"
+
+      create_owner_manifest \
+	"$project" "$author_name" "$author_email" "$ctl" "$prj_man"
 
       # Add the project owners manifest file to git repository using the path
       # relative to the repository directory.
@@ -538,7 +554,9 @@ for i in {1..11}; do
     run mkdir "$d"
 
     pkg_man="$d/package-owner.manifest"
-    create_owner_manifest "$name" "$email" "$control" "$pkg_man"
+
+    create_owner_manifest \
+      "$name" "$author_name" "$author_email" "$control" "$pkg_man"
 
     # Add the package owners manifest file using path relative to the
     # repository directory.
@@ -595,15 +613,13 @@ for i in {1..11}; do
 
   git_add "$tgt_dir" "${a#$tgt_dir/}"
 
-  if [ -n "$email" ]; then
-    e="$email"
-  else
-    e="$committer_email"
+  author=()
+  if [ -n "$author_name" ]; then
+    author=(--author="$author_name <$author_email>")
   fi
 
-  GIT_AUTHOR_EMAIL="$e" \
   run git -c "user.name=$committer_name" -c "user.email=$committer_email" \
--C "$tgt_dir" commit $gqo $gvo -F - <<EOF >&2
+-C "$tgt_dir" commit "${author[@]}" $gqo $gvo -F - <<EOF >&2
 Add $name/$version to $s/$project
 
 $(cat "$data_dir/request.manifest")
