@@ -147,7 +147,19 @@
 #   control/             cloned by the handler
 #   result.manifest      saved by brep
 #
-usage="usage: $0 <tgt-repo> [<ref-repo>] <dir>"
+# Options:
+#
+# --committer-name <name>
+#
+#   Name to use for the target repository commits. "Submission Handler" if
+#   unspecified.
+#
+# --committer-email <email>
+#
+#   Email to use for the target repository commits. noreply@example.com if
+#   unspecified.
+#
+usage="usage: $0 [<options>] <tgt-repo> [<ref-repo>] <dir>"
 
 # Diagnostics.
 #
