@@ -444,7 +444,7 @@ namespace brep
       {
         "<path>",
         "The handler program to be executed on package submission. The handler
-         is executed as part of the submission request and is passed additional
+         is executed as part of the HTTP request and is passed additional
          arguments that can be specified with \cb{submit-handler-argument}
          followed by the absolute path to the submission directory. See
          \l{brep The \cb{build2} Repository Interface Manual} for more
@@ -462,9 +462,69 @@ namespace brep
       size_t submit-handler-timeout
       {
         "<seconds>",
-        "The handler program timeout in seconds. If specified and the handler
-         does not exit in the alloted time, then it is killed and its
-         termination is treated as abnormal."
+        "The submission handler program timeout in seconds. If specified and
+         the handler does not exit in the allotted time, then it is killed and
+         its termination is treated as abnormal."
+      }
+    };
+
+    class ci: page, handler
+    {
+      dir_path ci-data
+      {
+        "<dir>",
+        "The directory to save CI request data to. If unspecified, the
+         package CI functionality will be disabled. See \l{brep The
+         \cb{build2} Repository Interface Manual} for more information on
+         package CI.
+
+         Note that the directory path must be absolute and the directory
+         itself must exist and have read, write, and execute permissions
+         granted to the user that runs the web server."
+      }
+
+      path ci-form
+      {
+        "<file>",
+        "The package CI form fragment. If specified, then its contents are
+         treated as an XHTML5 fragment that is inserted into the <body>
+         element of the CI page. If unspecified, then no CI page will be
+         displayed. Note that the file path must be absolute."
+      }
+
+      string ci-email
+      {
+        "<email>",
+        "The package CI email. If specified, the CI request and result
+         manifests will be sent to this address. See \l{brep The \cb{build2}
+         Repository Interface Manual} for more information."
+      }
+
+      path ci-handler
+      {
+        "<path>",
+        "The handler program to be executed on CI request. The handler is
+         executed as part of the HTTP request and is passed additional
+         arguments that can be specified with \cb{ci-handler-argument}
+         followed by the absolute path to the CI request directory. See
+         \l{brep The \cb{build2} Repository Interface Manual} for more
+         information. Note that the program path must be absolute."
+      }
+
+      strings ci-handler-argument
+      {
+        "<arg>",
+        "Additional arguments to be passed to the CI handler program (see
+         \cb{ci-handler} for details). Repeat this option to specify multiple
+         arguments."
+      }
+
+      size_t ci-handler-timeout
+      {
+        "<seconds>",
+        "The CI handler program timeout in seconds. If specified and the
+         handler does not exit in the allotted time, then it is killed and
+         its termination is treated as abnormal."
       }
     };
 
@@ -650,6 +710,28 @@ namespace brep
       // Package archive file SHA256 checksum.
       //
       string sha256sum;
+
+      // Submission simulation outcome.
+      //
+      string simulate;
+    };
+
+    // Parameters, except simulate, must either be all present (actual CI
+    // request) or absent (CI form request).
+    //
+    // Note also that besides these parameters there can be others. We don't
+    // recognize their semantics and just save them to the CI request
+    // manifest.
+    //
+    class ci
+    {
+      // Package repository URL.
+      //
+      url repository;
+
+      // Package names/versions.
+      //
+      strings package;
 
       // Submission simulation outcome.
       //

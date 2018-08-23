@@ -27,7 +27,7 @@ method using the \c{multipart/form-data} content type. The implementation in
 duplicates) expecting the rest of the submission and publishing logic to be
 handled by a separate entity according to the repository policy. Such an
 entity can be notified by \c{brep} about a new submission as an invocation of
-the \i{handler program} (as part of the submission request) or via email. It
+the \i{handler program} (as part of the HTTP request) and/or via email. It
 could also be a separate process that monitors the upload data directory.
 
 The submission request without any parameters is treated as the submission
@@ -98,15 +98,16 @@ directory still exists, then it is handled by \c{brep} depending on the
 handler process exit status and the submission result manifest status value.
 If the process has terminated abnormally or with a non-zero exit status or the
 result manifest status is in the [500-599] range (HTTP server error), then the
-directory is saved for troubleshooting by appending a numeric extension to its
-name. Otherwise, if the status is in the [400-499] range (HTTP client error),
-then the directory is removed. If the directory is left in place by the
-handler or is saved for troubleshooting, then the submission result manifest
-is saved as \c{result.manifest} into this directory, next to the request
-manifest and archive.
+directory is saved for troubleshooting by appending the \c{.fail} extension
+followed by a numeric extension to its name (for example,
+\c{ff5a1a53d318.fail.1}). Otherwise, if the status is in the [400-499] range
+(HTTP client error), then the directory is removed. If the directory is left
+in place by the handler or is saved for troubleshooting, then the submission
+result manifest is saved as \c{result.manifest} into this directory, next to
+the request manifest and archive.
 
 If \c{submit-handler-timeout} is configured and the handler program does not
-exit in the alloted time, then it is killed and its termination is treated as
+exit in the allotted time, then it is killed and its termination is treated as
 abnormal.
 
 If the handler program is not specified, then the following submission result
@@ -124,8 +125,7 @@ reference: <abbrev-checksum>
 \li|Send the submission email.
 
 If \c{submit-email} is configured, send an email to this address containing
-the submission request manifest and, unless implied, the submission result
-manifest.|
+the submission request manifest and the submission result manifest.|
 
 \li|Respond to the client.
 
@@ -161,7 +161,7 @@ corresponding to the custom request parameters.
 \
 archive: <name>
 sha256sum: <sum>
-timestamp: <datetime>
+timestamp: <date-time>
 [simulate]: <outcome>
 [client-ip]: <string>
 [user-agent]: <string>
@@ -178,6 +178,162 @@ optionally followed by additional values if returned by the handler program.
 If the submission is successful, then the \c{reference} value must be present
 and contain a string that can be used to identify this submission (for
 example, the abbreviated checksum).
+
+\
+status: <http-code>
+message: <string>
+[reference]: <string>
+\
+
+
+\h1#ci|Package CI|
+
+The CI functionality allows submission of package CI requests as well as
+additional, repository-specific information via the HTTP \c{GET} and \c{POST}
+methods. The implementation in \c{brep} only handles reception as well as
+basic parameter verification expecting the rest of the CI logic to be handled
+by a separate entity according to the repository policy. Such an entity can be
+notified by \c{brep} about a new CI request as an invocation of the \i{handler
+program} (as part of the HTTP request) and/or via email. It could also be a
+separate process that monitors the CI data directory.
+
+The CI request without any parameters is treated as the CI form request. If
+\c{ci-form} is configured, then such a form is generated and returned.
+Otherwise, such a request is treated as an invalid CI request (missing
+parameters).
+
+For each CI request \c{brep} performs the following steps.
+
+\ol|
+
+\li|Verify the required \c{repository} and optional \c{package} parameters.
+
+The \c{repository} parameter is the repository URL that contains the packages
+to be tested. If one or more \c{package} parameters are present, then only the
+specified packages are tested. If no \c{package} parameters are specified,
+then all the packages present in the repository (but excluding complement
+repositories) are tested.
+
+Each \c{package} parameter can specify either just the package name, in which
+case all the versions of this package present in the repository will be
+tested, or both the name and version in the \c{<name>/<version>} form (for
+example, \c{libhello/1.2.3}.|
+
+\li|Verify other parameters are valid manifest name/value pairs.
+
+The value can only contain printable ASCII characters as well as tab
+(\c{\\t}), carriage return (\c{\\r}), and line feed (\c{\\n}).|
+
+\li|Generate CI request id and create request directory.
+
+For each CI request a unique id (UUID) is generated and a request subdirectory
+is created in the \c{ci-data} directory with this id as its name.|
+
+\li|Save the CI request manifest into the request directory.
+
+The CI request manifest is saved as \c{request.manifest} into the request
+subdirectory created on the previous step.|
+
+
+\li|Invoke the CI handler program.
+
+If \c{ci-handler} is configured, invoke the handler program passing to it
+additional arguments specified with \c{ci-handler-argument} (if any) followed
+by the absolute path to the CI request directory.
+
+The handler program is expected to write the CI result manifest to \c{stdout}
+and terminate with the zero exit status. A non-zero exit status is treated as
+an internal error. The handler program's \c{stderr} is logged.
+
+Note that the handler program should report temporary server errors (service
+overload, network connectivity loss, etc.) via the CI result manifest status
+values in the [500-599] range (HTTP server error) rather than via a non-zero
+exit status.
+
+The handler program assumes ownership of the CI request directory and can
+move/remove it. If after the handler program terminates the request directory
+still exists, then it is handled by \c{brep} depending on the handler process
+exit status and the CI result manifest status value. If the process has
+terminated abnormally or with a non-zero exit status or the result manifest
+status is in the [500-599] range (HTTP server error), then the directory is
+saved for troubleshooting by appending the \c{.fail} extension to its
+name. Otherwise, if the status is in the [400-499] range (HTTP client error),
+then the directory is removed. If the directory is left in place by the
+handler or is saved for troubleshooting, then the CI result manifest
+is saved as \c{result.manifest} into this directory, next to the request
+manifest.
+
+If \c{ci-handler-timeout} is configured and the handler program does not
+exit in the allotted time, then it is killed and its termination is treated as
+abnormal.
+
+If the handler program is not specified, then the following CI result
+manifest is implied (note that it is not saved):
+
+\
+status: 200
+message: CI request is queued
+reference: <request-id>
+\
+
+|
+
+\li|Send the CI request email.
+
+If \c{ci-email} is configured, send an email to this address containing the CI
+request manifest and the CI result manifest.|
+
+\li|Respond to the client.
+
+Respond to the client with the CI result manifest and its \c{status} value as
+the HTTP status code.|
+
+|
+
+Check violations that are explicitly mentioned above are always reported with
+the CI result manifest. Other errors (for example, internal server errors)
+might be reported with unformatted text, including HTML.
+
+If the CI request contains the \c{simulate} parameter, then the CI service
+simulates the specified outcome of the CI process without actually performing
+any externally visible actions (e.g., testing the package, publishing the
+result, etc). Note that the CI request email (\c{ci-email}) is not sent for
+simulated requests.
+
+Pre-defined simulation outcome values are \c{internal-error-text},
+\c{internal-error-html}, and \c{success}. The simulation outcome is included
+into the CI request manifest and the handler program must at least handle
+\c{success} but may recognize additional outcomes.
+
+
+\h#ci-request-manifest|CI Request Manifest|
+
+The CI request manifest starts with the below values and in that order
+optionally followed by additional values in the unspecified order
+corresponding to the custom request parameters.
+
+\
+id: <request-id>
+repository: <url>
+[package]: <name>[/<version>]
+timestamp: <date-time>
+[simulate]: <outcome>
+[client-ip]: <string>
+[user-agent]: <string>
+\
+
+The \c{package} value can be repeated multiple time. The \c{timestamp} value
+is in the ISO-8601 \c{<YYYY>-<MM>-<DD>T<hh>:<mm>:<ss>Z} form (always
+UTC). Note also that \c{client-ip} can be IPv4 or IPv6.
+
+
+\h#ci-result-manifest|CI Result Manifest|
+
+The CI result manifest starts with the below values and in that order
+optionally followed by additional values if returned by the handler program.
+If the CI request is successful, then the \c{reference} value must be present
+and contain a string that can be used to identify this request (for example,
+the CI request id).
 
 \
 status: <http-code>
