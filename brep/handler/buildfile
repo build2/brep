@@ -1,0 +1,10 @@
+# file      : brep/handler/buildfile
+# copyright : Copyright (c) 2014-2018 Code Synthesis Ltd
+# license   : MIT; see accompanying LICENSE file
+
+import mods  = libbutl.bash%bash{manifest-parser}
+import mods += libbutl.bash%bash{manifest-serializer}
+
+./: bash{handler} submit/
+
+bash{handler}: in{handler} $mods

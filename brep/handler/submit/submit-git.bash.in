@@ -1,16 +1,17 @@
-# file      : brep/submit/submit-git.bash.in
+# file      : brep/handler/submit/submit-git.bash.in
 # copyright : Copyright (c) 2014-2018 Code Synthesis Ltd
 # license   : MIT; see accompanying LICENSE file
 
 # Utility functions for the submit-git handler.
 
-if [ "$brep_submit_git" ]; then
+if [ "$brep_handler_submit_git" ]; then
   return 0
 else
-  brep_submit_git=true
+  brep_handler_submit_git=true
 fi
 
-@import brep/submit/submit@
+@import brep/handler/handler@
+@import brep/handler/submit/submit@
 
 # If the section is mapped to a directory in the repository configuration then
 # return this directory path and empty string otherwise.

@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 
-# file      : brep/submit/submit-dir.in
+# file      : brep/handler/submit/submit-dir.in
 # copyright : Copyright (c) 2014-2018 Code Synthesis Ltd
 # license   : MIT; see accompanying LICENSE file
 
@@ -18,7 +18,8 @@ verbose= #true
 trap "{ exit 1; }" ERR
 set -o errtrace # Trap ERR in functions.
 
-@import brep/submit/submit@
+@import brep/handler/handler@
+@import brep/handler/submit/submit@
 
 if [ "$#" != 1 ]; then
   error "$usage"
@@ -104,4 +105,4 @@ else
   trace "$name/$version submission is queued"
 fi
 
-exit_with_manifest 200 "$name/$version submission is queued" "$reference"
+exit_with_manifest 200 "$name/$version submission is queued"

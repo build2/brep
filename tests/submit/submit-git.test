@@ -466,6 +466,7 @@ pkg_ctl="$prj_ctl/hello.git"
       : 1
       status: 400
       message: author-name manifest value expected
+      reference: $checksum
       EOO
   }
 
@@ -482,6 +483,7 @@ pkg_ctl="$prj_ctl/hello.git"
       : 1
       status: 400
       message: author-email manifest value expected
+      reference: $checksum
       EOO
   }
 
@@ -498,6 +500,7 @@ pkg_ctl="$prj_ctl/hello.git"
       : 1
       status: 400
       message: author-name manifest value expected
+      reference: $checksum
       EOO
   }
 
@@ -519,10 +522,11 @@ pkg_ctl="$prj_ctl/hello.git"
     $g -C ref commit -m 'Add libhello-0.1.0.tar.gz';
     $g -C ref push;
 
-    $* "$root_tgt_url" $~/ref $data_dir >>EOO
+    $* "$root_tgt_url" $~/ref $data_dir >>"EOO"
       : 1
       status: 422
       message: duplicate submission
+      reference: $checksum
       EOO
   }
 
@@ -559,10 +563,11 @@ pkg_ctl="$prj_ctl/hello.git"
     $g -C ref commit -m 'Add ownership info';
     $g -C ref push;
 
-    $* "$root_tgt_url" $~/ref $data_dir >>EOO
+    $* "$root_tgt_url" $~/ref $data_dir >>"EOO"
       : 1
       status: 401
       message: package owner authentication failed
+      reference: $checksum
       EOO
   }
 
@@ -590,10 +595,11 @@ pkg_ctl="$prj_ctl/hello.git"
     $g -C ref commit -m 'Add project ownership info';
     $g -C ref push;
 
-    $* "$root_tgt_url" $~/ref $data_dir >>EOO
+    $* "$root_tgt_url" $~/ref $data_dir >>"EOO"
       : 1
       status: 401
       message: project owner authentication failed
+      reference: $checksum
       EOO
   }
 
@@ -630,10 +636,11 @@ pkg_ctl="$prj_ctl/hello.git"
     $g -C ref commit -m 'Add ownership info';
     $g -C ref push;
 
-    $* "$root_tgt_url" $~/ref $data_dir >>EOO
+    $* "$root_tgt_url" $~/ref $data_dir >>"EOO"
       : 1
       status: 401
       message: package owner authentication failed
+      reference: $checksum
       EOO
   }
 
@@ -655,10 +662,11 @@ pkg_ctl="$prj_ctl/hello.git"
     $g -C tgt commit -m 'Add libhello-0.1.0.tar.gz';
     $g -C tgt push;
 
-    $* "file:///$~/tgt.git" $data_dir >>EOO
+    $* "file:///$~/tgt.git" $data_dir >>"EOO"
       : 1
       status: 422
       message: duplicate submission
+      reference: $checksum
       EOO
   }
 
@@ -694,10 +702,11 @@ pkg_ctl="$prj_ctl/hello.git"
     $g -C tgt commit -m 'Add ownership info';
     $g -C tgt push;
 
-    $* "file:///$~/tgt.git" $data_dir >>EOO
+    $* "file:///$~/tgt.git" $data_dir >>"EOO"
       : 1
       status: 401
       message: package owner authentication failed
+      reference: $checksum
       EOO
   }
 
@@ -724,10 +733,11 @@ pkg_ctl="$prj_ctl/hello.git"
     $g -C tgt commit -am 'Disable ownership';
     $g -C tgt push;
 
-    $* "file:///$~/tgt.git" $root_ref_dir $data_dir >>EOO
+    $* "file:///$~/tgt.git" $root_ref_dir $data_dir >>"EOO"
       : 1
       status: 401
       message: project owner authentication failed
+      reference: $checksum
       EOO
   }
 
@@ -771,10 +781,11 @@ pkg_ctl="$prj_ctl/hello.git"
     $g -C tgt commit -am 'Disable ownership';
     $g -C tgt push;
 
-    $* "file:///$~/tgt.git" ref $data_dir >>EOO
+    $* "file:///$~/tgt.git" ref $data_dir >>"EOO"
       : 1
       status: 401
       message: package owner authentication failed
+      reference: $checksum
       EOO
   }
 
@@ -811,10 +822,11 @@ pkg_ctl="$prj_ctl/hello.git"
     $g -C tgt commit -m 'Add ownership info';
     $g -C tgt push;
 
-    $* "file:///$~/tgt.git" $data_dir >>EOO
+    $* "file:///$~/tgt.git" $data_dir >>"EOO"
       : 1
       status: 401
       message: package owner authentication failed
+      reference: $checksum
       EOO
   }
 
@@ -832,10 +844,11 @@ pkg_ctl="$prj_ctl/hello.git"
     $clone_root_tgt;
     $g clone tgt.git &tgt/***;
 
-    $* "file:///$~/tgt.git" $data_dir >>EOO
+    $* "file:///$~/tgt.git" $data_dir >>"EOO"
       : 1
       status: 401
       message: package publishing authorization failed
+      reference: $checksum
       EOO
   }
 
@@ -851,6 +864,7 @@ pkg_ctl="$prj_ctl/hello.git"
       : 1
       status: 400
       message: unrecognized section 'delta'
+      reference: $checksum
       EOO
   }
 }

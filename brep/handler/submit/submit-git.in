@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 
-# file      : brep/submit/submit-git.in
+# file      : brep/handler/submit/submit-git.in
 # copyright : Copyright (c) 2014-2018 Code Synthesis Ltd
 # license   : MIT; see accompanying LICENSE file
 
@@ -182,8 +182,9 @@ ref_lock_timeout=30
 trap "{ exit 1; }" ERR
 set -o errtrace # Trap ERR in functions.
 
-@import brep/submit/submit@
-@import brep/submit/submit-git@
+@import brep/handler/handler@
+@import brep/handler/submit/submit@
+@import brep/handler/submit/submit-git@
 
 # Parse the command line options.
 #
@@ -656,4 +657,4 @@ else
   trace "$name/$version submission is queued"
 fi
 
-exit_with_manifest 200 "$name/$version submission is queued" "$reference"
+exit_with_manifest 200 "$name/$version submission is queued"

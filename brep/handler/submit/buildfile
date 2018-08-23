@@ -1,0 +1,13 @@
+# file      : brep/handler/submit/buildfile
+# copyright : Copyright (c) 2014-2018 Code Synthesis Ltd
+# license   : MIT; see accompanying LICENSE file
+
+./: exe{brep-submit-dir} exe{brep-submit-git}
+
+exe{brep-submit-dir}: in{submit-dir} bash{submit} ../bash{handler}
+
+exe{brep-submit-git}: in{submit-git} \
+                      bash{submit-git} bash{submit} ../bash{handler}
+
+bash{submit}:     in{submit} ../bash{handler}
+bash{submit-git}: in{submit-git} bash{submit} ../bash{handler}

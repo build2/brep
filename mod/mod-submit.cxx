@@ -140,9 +140,9 @@ handle (request& rq, response& rs)
   //
   // return respond_error (); // Request is handled with an error.
   //
-  auto respond_manifest = [&rs] (status_code status,
-                                 const string& message,
-                                 const char* ref = nullptr) -> bool
+  string ref; // Will be set later.
+  auto respond_manifest = [&rs, &ref] (status_code status,
+                                       const string& message) -> bool
   {
     serializer s (rs.content (status, "text/manifest;charset=utf-8"),
                   "response");
@@ -151,7 +151,7 @@ handle (request& rq, response& rs)
     s.next ("status", to_string (status));
     s.next ("message", message);
 
-    if (ref != nullptr)
+    if (!ref.empty ())
       s.next ("reference", ref);
 
     s.next ("", ""); // End of manifest.
@@ -285,12 +285,16 @@ handle (request& rq, response& rs)
       return respond_manifest (400, "invalid parameter " + nv.name);
   }
 
+  // Note that from now on the result manifest will contain the reference
+  // value.
+  //
+  ref = string (sha256sum, 0, 12);
+
   // Check for a duplicate submission.
   //
   // Respond with the unprocessable entity (422) code if a duplicate is found.
   //
-  string ac (sha256sum, 0, 12);
-  dir_path dd (options_->submit_data () / dir_path (ac));
+  dir_path dd (options_->submit_data () / dir_path (ref));
 
   if (dir_exists (dd) || simulate == "duplicate-archive")
     return respond_manifest (422, "duplicate submission");
@@ -306,7 +310,7 @@ handle (request& rq, response& rs)
     // using the abbreviated checksum can be helpful for troubleshooting.
     //
     td = dir_path (options_->submit_temp () /
-                   dir_path (path::traits::temp_name (ac)));
+                   dir_path (path::traits::temp_name (ref)));
 
     // It's highly unlikely but still possible that the temporary directory
     // already exists. This can only happen due to the unclean web server
@@ -624,11 +628,11 @@ handle (request& rq, response& rs)
                                 dd));
       pipe.out.close ();
 
-      auto kill = [&pr, &warn, &handler, &ac] ()
+      auto kill = [&pr, &warn, &handler, &ref] ()
       {
         // We may still end up well (see below), thus this is a warning.
         //
-        warn << "ref " << ac << ": process " << handler
+        warn << "ref " << ref << ": process " << handler
              << " execution timeout expired";
 
         pr.kill ();
@@ -716,7 +720,7 @@ handle (request& rq, response& rs)
 
               is.close ();
 
-              warn << "ref " << ac << ": process " << handler
+              warn << "ref " << ref << ": process " << handler
                    << " stdout is not closed after termination (possibly "
                    << "handler's child still running)";
             }
@@ -781,14 +785,14 @@ handle (request& rq, response& rs)
         if (*pr.exit)
           break; // Get out of the breakout loop.
 
-        error << "ref " << ac << ": process " << handler << " " << *pr.exit;
+        error << "ref " << ref << ": process " << handler << " " << *pr.exit;
 
         // Fall through.
       }
       catch (const io_error& e)
       {
         if (pr.wait ())
-          error << "ref " << ac << ": unable to read handler's output: " << e;
+          error << "ref " << ref << ": unable to read handler's output: " << e;
 
         // Fall through.
       }
@@ -861,7 +865,7 @@ handle (request& rq, response& rs)
     }
     catch (const parsing& e)
     {
-      error << "ref " << ac << ": unable to parse handler's output: " << e;
+      error << "ref " << ref << ": unable to parse handler's output: " << e;
 
       // It appears the handler had misbehaved, so let's stash the submission
       // directory for troubleshooting.
@@ -885,7 +889,7 @@ handle (request& rq, response& rs)
     add ("", "1");                           // Start of manifest.
     add ("status", "200");
     add ("message", "submission is queued");
-    add ("reference", ac);
+    add ("reference", ref);
     add ("", "");                            // End of manifest.
   }
 
@@ -895,7 +899,7 @@ handle (request& rq, response& rs)
   // serialization error log the error description and return false, on the
   // stream error pass through the io_error exception, otherwise return true.
   //
-  auto rsm = [&rvs, &error, &ac] (ostream& os) -> bool
+  auto rsm = [&rvs, &error, &ref] (ostream& os) -> bool
   {
     try
     {
@@ -907,7 +911,7 @@ handle (request& rq, response& rs)
     }
     catch (const serialization& e)
     {
-      error << "ref " << ac << ": unable to serialize handler's output: " << e;
+      error << "ref " << ref << ": unable to serialize handler's output: " << e;
       return false;
     }
   };
@@ -971,7 +975,7 @@ handle (request& rq, response& rs)
     sendmail sm (print_args,
                  2 /* stderr */,
                  options_->email (),
-                 "new package submission " + a.string () + " (" + ac + ")",
+                 "new package submission " + a.string () + " (" + ref + ")",
                  {options_->submit_email ()});
 
     // Write the submission request manifest.

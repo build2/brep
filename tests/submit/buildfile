@@ -5,7 +5,7 @@
 define common: file
 common{*}: extension = test
 
-dir = ../../brep/submit/
+dir = ../../brep/handler/submit/
 
 commons = data
 

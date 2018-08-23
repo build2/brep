@@ -1,13 +1,13 @@
-# file      : brep/submit/submit.bash.in
+# file      : brep/handler/handler.bash.in
 # copyright : Copyright (c) 2014-2018 Code Synthesis Ltd
 # license   : MIT; see accompanying LICENSE file
 
-# Utility functions useful for implementing submission handlers.
+# Utility functions useful for implementing request handlers.
 
-if [ "$brep_submit" ]; then
+if [ "$brep_handler" ]; then
   return 0
 else
-  brep_submit=true
+  brep_handler=true
 fi
 
 @import libbutl/manifest-parser@
@@ -33,7 +33,11 @@ fi
 info_self="$(basename $0)"
 
 if [ "$#" -gt 0 ]; then
-  info_ref="$(basename "${!#/}")" # Last argument is the submission directory.
+  # Last argument is the request data directory which leaf component normally
+  # identifies the posted entity. A handler may overwrite this value if that's
+  # not the case.
+  #
+  info_ref="$(basename "${!#/}")"
 fi
 
 function info () # <severity> <text>
@@ -144,54 +148,4 @@ function manifest_serialize () # <name> <value>
 {
 #  trace "$1: $2"
   printf "%s:%s\0" "$1" "$2" >&"$manifest_serializer_ifd"
-}
-
-# Serialize the submission result manifest to stdout and exit the (sub-)shell
-# with the zero status.
-#
-function exit_with_manifest () # <status> <message> [<reference>]
-{
-  trace_func "$@"
-
-  local sts="$1"
-  local msg="$2"
-  local ref="$3"
-
-  manifest_serializer_start
-
-  manifest_serialize ""        "1"    # Start of manifest.
-  manifest_serialize "status"  "$sts"
-  manifest_serialize "message" "$msg"
-
-  if [ -n "$ref" ]; then
-    if [ "$sts" != "200" ]; then
-      error "reference for code $sts"
-    fi
-
-    manifest_serialize "reference" "$ref"
-  elif [ "$sts" == "200" ]; then
-    error "no reference for code $sts"
-  fi
-
-  manifest_serializer_finish
-  run exit 0
-}
-
-# Verify archive is a valid package and extract its manifest into
-# <manifest> file.
-#
-function extract_package_manifest () # <archive> <manifest>
-{
-  local arc="$1"
-  local man="$2"
-
-  if ! run_silent bpkg pkg-verify --manifest "$arc" >"$man"; then
-    # Perform the sanity check to make sure that bpkg is runnable.
-    #
-    if ! run bpkg --version >/dev/null; then
-      error "unable to run bpkg"
-    fi
-
-    exit_with_manifest 400 "archive is not a valid package (run bpkg pkg-verify for details)"
-  fi
 }
