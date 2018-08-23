@@ -533,7 +533,7 @@ handle (request& rq, response& rs)
 
       for (size_t n (1); true; ++n) // Eventually we should find the free one.
       {
-        string ext ('.' + to_string (n));
+        string ext (".fail." + to_string (n));
         dir_path d (dd + ext);
 
         if (!dir_exists (d))
@@ -566,11 +566,8 @@ handle (request& rq, response& rs)
 
   // Run the submission handler, if specified, reading the result manifest
   // from its stdout and caching it as a name/value pair list for later use
-  // (forwarding to the client, sending via email, etc.).
-  //
-  // Note that if the handler is configured then the cache can never be empty,
-  // containing at least the status value. Thus, an empty cache indicates that
-  // the handler is not configured.
+  // (forwarding to the client, sending via email, etc.). Otherwise, create
+  // implied result manifest.
   //
   status_code sc (200);
   vector<manifest_name_value> rvs;
@@ -874,6 +871,25 @@ handle (request& rq, response& rs)
       return respond_error ();
     }
   }
+  else // Create implied result manifest.
+  {
+    auto add = [&rvs] (string n, string v)
+    {
+      manifest_name_value nv {move (n), move (v),
+                              0 /* name_line */,  0 /* name_column */,
+                              0 /* value_line */, 0 /* value_column */};
+
+      rvs.emplace_back (move (nv));
+    };
+
+    add ("", "1");                           // Start of manifest.
+    add ("status", "200");
+    add ("message", "submission is queued");
+    add ("reference", ac);
+    add ("", "");                            // End of manifest.
+  }
+
+  assert (!rvs.empty ()); // Produced by the handler or is implied.
 
   // Serialize the submission result manifest to a stream. On the
   // serialization error log the error description and return false, on the
@@ -881,8 +897,6 @@ handle (request& rq, response& rs)
   //
   auto rsm = [&rvs, &error, &ac] (ostream& os) -> bool
   {
-    assert (!rvs.empty ());
-
     try
     {
       serializer s (os, "result");
@@ -909,15 +923,13 @@ handle (request& rq, response& rs)
     if (sc >= 400 && sc < 500)
       rmdir_r (dd);
 
-    // Otherwise, save the result manifest, if generated, into the directory.
-    // Also stash the directory for troubleshooting in case of the server
-    // error.
+    // Otherwise, save the result manifest, into the directory. Also stash the
+    // directory for troubleshooting in case of the server error.
     //
     else
     {
       path rsf (dd / "result.manifest");
 
-      if (!rvs.empty ())
       try
       {
         ofdstream os (rsf);
@@ -967,14 +979,11 @@ handle (request& rq, response& rs)
     bool r (rqm (sm.out));
     assert (r); // The serialization succeeded once, so can't fail now.
 
-    // Write the submission result manifest, if present.
+    // Write the submission result manifest.
     //
-    if (!rvs.empty ())
-    {
-      sm.out << "\n\n";
+    sm.out << "\n\n";
 
-      rsm (sm.out); // We don't care about the result (see above).
-    }
+    rsm (sm.out); // We don't care about the result (see above).
 
     sm.out.close ();
 
@@ -987,11 +996,6 @@ handle (request& rq, response& rs)
   {
     error << "sendmail error: " << e;
   }
-
-  // Respond with implied result manifest if the handler is not configured.
-  //
-  if (rvs.empty ())
-    return respond_manifest (200, "submission queued", ac.c_str ());
 
   if (!rsm (rs.content (sc, "text/manifest;charset=utf-8")))
     return respond_error (); // The error description is already logged.

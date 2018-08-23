@@ -111,7 +111,7 @@ exit in the allotted time, then it is killed and its termination is treated as
 abnormal.
 
 If the handler program is not specified, then the following submission result
-manifest is implied (note that it is not saved):
+manifest is implied:
 
 \
 status: 200
@@ -268,7 +268,7 @@ exit in the allotted time, then it is killed and its termination is treated as
 abnormal.
 
 If the handler program is not specified, then the following CI result
-manifest is implied (note that it is not saved):
+manifest is implied:
 
 \
 status: 200
