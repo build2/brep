@@ -1,0 +1,41 @@
+# file      : brep/handler/ci/ci.bash.in
+# copyright : Copyright (c) 2014-2018 Code Synthesis Ltd
+# license   : MIT; see accompanying LICENSE file
+
+# Utility functions useful for implementing CI request handlers.
+
+if [ "$brep_handler_ci" ]; then
+  return 0
+else
+  brep_handler_ci=true
+fi
+
+@import brep/handler/handler@
+
+# Serialize the CI result manifest to stdout and exit the (sub-)shell with the
+# zero status.
+#
+reference= # Should be assigned by the handler when becomes available.
+
+function exit_with_manifest () # <status> <message>
+{
+  trace_func "$@"
+
+  local sts="$1"
+  local msg="$2"
+
+  manifest_serializer_start
+
+  manifest_serialize ""        "1"    # Start of manifest.
+  manifest_serialize "status"  "$sts"
+  manifest_serialize "message" "$msg"
+
+  if [ -n "$reference" ]; then
+    manifest_serialize "reference" "$reference"
+  elif [ "$sts" == "200" ]; then
+    error "no reference for code $sts"
+  fi
+
+  manifest_serializer_finish
+  run exit 0
+}

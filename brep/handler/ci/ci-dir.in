@@ -1,0 +1,93 @@
+#!/usr/bin/env bash
+
+# file      : brep/handler/ci/ci-dir.in
+# copyright : Copyright (c) 2014-2018 Code Synthesis Ltd
+# license   : MIT; see accompanying LICENSE file
+
+# Simple package CI request handler with directory storage.
+#
+# Keep the CI request directory unless simulating. Write the CI result
+# manifest to stdout.
+#
+usage="usage: $0 <dir>"
+
+verbose= #true
+
+trap "{ exit 1; }" ERR
+set -o errtrace # Trap ERR in functions.
+
+@import brep/handler/handler@
+@import brep/handler/ci/ci@
+
+if [ "$#" != 1 ]; then
+  error "$usage"
+fi
+
+# CI request data directory (last and the only argument).
+#
+data_dir="${!#/}"
+
+if [ -z "$data_dir" ]; then
+  error "$usage"
+fi
+
+if [ ! -d "$data_dir" ]; then
+  error "'$data_dir' does not exist or is not a directory"
+fi
+
+reference="$(basename "$data_dir")"
+
+# Parse the CI request manifest and obtain the repository URL, package names
+# with optional versions, as well as the simulate value.
+#
+manifest_parser_start "$data_dir/request.manifest"
+
+repository=
+packages=()
+simulate=
+
+while IFS=: read -ru "$manifest_parser_ofd" -d '' n v; do
+  case "$n" in
+    repository) repository="$v"  ;;
+    package)    packages+=("$v") ;;
+    simulate)   simulate="$v"    ;;
+  esac
+done
+
+manifest_parser_finish
+
+if [ -z "$repository" ]; then
+  error "repository manifest value expected"
+fi
+
+if [ -n "$simulate" -a "$simulate" != "success" ]; then
+  exit_with_manifest 400 "unrecognized simulation outcome '$simulate'"
+fi
+
+# Produce the bpkg-build(1)-like package spec for tracing.
+#
+spec=
+for p in "${packages[@]}"; do
+  if [ -n "$spec" ]; then
+    spec="$spec,"
+  fi
+  spec="$spec$p"
+done
+
+if [ -n "$spec" ]; then
+  spec="$spec@"
+fi
+
+spec="$spec$repository"
+
+if [ -n "$simulate" ]; then
+  rm -r "$data_dir"
+  trace "CI request for '$spec' is simulated"
+else
+  trace "CI request for '$spec' is queued"
+fi
+
+# The spec normally contains the full commit id and so feels too hairy for
+# including in the message.
+#
+exit_with_manifest 200 "CI request is queued"

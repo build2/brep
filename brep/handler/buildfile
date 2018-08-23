@@ -5,6 +5,6 @@
 import mods  = libbutl.bash%bash{manifest-parser}
 import mods += libbutl.bash%bash{manifest-serializer}
 
-./: bash{handler} submit/
+./: bash{handler} submit/ ci/
 
 bash{handler}: in{handler} $mods

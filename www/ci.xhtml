@@ -1,0 +1,26 @@
+<!-- Note that in HTML5 the boolean attribute absence represents false value,
+     true otherwise. If it is present then the value must be empty or
+     case-insensitively match the attribute's name. -->
+
+<form method="post">
+  <table id="ci" class="proplist">
+    <tbody>
+      <tr>
+        <th>repository</th>
+        <td><input type="text" name="repository" required=""/></td>
+      </tr>
+      <tr>
+        <th>package</th>
+        <td><input type="text" name="package"/></td>
+      </tr>
+    </tbody>
+  </table>
+  <table class="form-table">
+    <tbody>
+      <tr>
+        <td id="submit-padding"/>
+        <td><input type="submit" value="Submit"/></td>
+      </tr>
+    </tbody>
+  </table>
+</form>

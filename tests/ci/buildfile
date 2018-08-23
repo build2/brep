@@ -1,0 +1,16 @@
+# file      : tests/ci/buildfile
+# copyright : Copyright (c) 2014-2018 Code Synthesis Ltd
+# license   : MIT; see accompanying LICENSE file
+
+define common: file
+common{*}: extension = test
+
+dir = ../../brep/handler/ci/
+
+include $dir
+
+commons = data
+
+./: test{* -{$commons}} common{$commons} $dir/exe{brep-ci-dir}
+
+test{ci-dir}@./: test = $out_base/$dir/brep-ci-dir

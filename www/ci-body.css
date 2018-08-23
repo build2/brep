@@ -1,0 +1,22 @@
+/*
+ * CI request submission form (based on proplist and form-table)
+ */
+#ci
+{
+  margin-top: .8em;
+  margin-bottom: .8em;
+
+  padding-top: .4em;
+  padding-bottom: .4em;
+}
+
+#ci th
+{
+  width: 7.5em;
+}
+
+#ci input, #submit-padding
+{
+  width: 100%;
+  margin:0;
+}

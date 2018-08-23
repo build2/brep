@@ -12,6 +12,8 @@
 
 #include <mod/module.hxx>
 #include <mod/options.hxx>
+
+#include <mod/mod-ci.hxx>
 #include <mod/mod-submit.hxx>
 #include <mod/mod-builds.hxx>
 #include <mod/mod-build-log.hxx>
@@ -112,7 +114,8 @@ namespace brep
         build_force_ (make_shared<build_force> ()),
         build_log_ (make_shared<build_log> ()),
         builds_ (make_shared<builds> ()),
-        submit_ (make_shared<submit> ())
+        submit_ (make_shared<submit> ()),
+        ci_ (make_shared<ci> ())
   {
   }
 
@@ -164,6 +167,10 @@ namespace brep
           r.initialized_
           ? r.submit_
           : make_shared<submit> (*r.submit_)),
+        ci_ (
+          r.initialized_
+          ? r.ci_
+          : make_shared<ci> (*r.ci_)),
         options_ (
           r.initialized_
           ? r.options_
@@ -188,6 +195,7 @@ namespace brep
     append (r, build_log_->options ());
     append (r, builds_->options ());
     append (r, submit_->options ());
+    append (r, ci_->options ());
     return r;
   }
 
@@ -231,6 +239,7 @@ namespace brep
     sub_init (*build_log_, "build_log");
     sub_init (*builds_, "builds");
     sub_init (*submit_, "submit");
+    sub_init (*ci_, "ci");
 
     // Parse own configuration options.
     //
@@ -370,6 +379,13 @@ namespace brep
             handler_.reset (new submit (*submit_));
 
           return handle ("submit", true);
+        }
+        else if (fn == "ci")
+        {
+          if (handler_ == nullptr)
+            handler_.reset (new ci (*ci_));
+
+          return handle ("ci", true);
         }
       }
 

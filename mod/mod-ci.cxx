@@ -1,12 +1,12 @@
-// file      : mod/mod-submit.cxx -*- C++ -*-
+// file      : mod/mod-ci.cxx -*- C++ -*-
 // copyright : Copyright (c) 2014-2018 Code Synthesis Ltd
 // license   : MIT; see accompanying LICENSE file
 
-#include <mod/mod-submit.hxx>
+#include <mod/mod-ci.hxx>
 
 #include <ostream>
 
-#include <libbutl/sha256.mxx>
+#include <libbutl/uuid.hxx>
 #include <libbutl/sendmail.mxx>
 #include <libbutl/fdstream.mxx>
 #include <libbutl/timestamp.mxx>
@@ -14,6 +14,9 @@
 #include <libbutl/process-io.mxx>          // operator<<(ostream, process_args)
 #include <libbutl/manifest-parser.mxx>
 #include <libbutl/manifest-serializer.mxx>
+
+#include <libbpkg/manifest.hxx>
+#include <libbpkg/package-name.hxx>
 
 #include <web/xhtml.hxx>
 #include <web/module.hxx>
@@ -27,8 +30,8 @@ using namespace butl;
 using namespace web;
 using namespace brep::cli;
 
-brep::submit::
-submit (const submit& r)
+brep::ci::
+ci (const ci& r)
     : handler (r),
       options_ (r.initialized_ ? r.options_ : nullptr),
       form_ (r.initialized_ || r.form_ == nullptr
@@ -37,71 +40,67 @@ submit (const submit& r)
 {
 }
 
-void brep::submit::
+void brep::ci::
 init (scanner& s)
 {
   HANDLER_DIAG;
 
-  options_ = make_shared<options::submit> (
+  options_ = make_shared<options::ci> (
     s, unknown_mode::fail, unknown_mode::fail);
 
-  // Verify that the submission handling is setup properly, if configured.
+  // Verify that the CI request handling is setup properly, if configured.
   //
-  if (options_->submit_data_specified ())
+  if (options_->ci_data_specified ())
   {
-    // Verify that directories satisfy the requirements.
+    // Verify the data directory satisfies the requirements.
     //
-    auto verify = [&fail] (const dir_path& d, const char* what)
-    {
-      if (d.relative ())
-        fail << what << " directory path must be absolute";
+    const dir_path& d (options_->ci_data ());
 
-      if (!dir_exists (d))
-        fail << what << " directory '" << d << "' does not exist";
-    };
+    if (d.relative ())
+      fail << "ci-data directory path must be absolute";
 
-    verify (options_->submit_data (), "submit-data");
-    verify (options_->submit_temp (), "submit-temp");
+    if (!dir_exists (d))
+      fail << "ci-data directory '" << d << "' does not exist";
 
     // Parse XHTML5 form file, if configured.
     //
-    if (options_->submit_form_specified ())
+    if (options_->ci_form_specified ())
     {
-      const path& submit_form (options_->submit_form ());
+      const path& ci_form (options_->ci_form ());
 
-      if (submit_form.relative ())
-        fail << "submit-form path must be absolute";
+      if (ci_form.relative ())
+        fail << "ci-form path must be absolute";
 
       try
       {
-        ifdstream is (submit_form);
+        ifdstream is (ci_form);
 
         form_ = make_shared<xhtml::fragment> (is.read_text (),
-                                              submit_form.string ());
+                                              ci_form.string ());
       }
       catch (const xml::parsing& e)
       {
-        fail << "unable to parse submit-form file: " << e;
+        fail << "unable to parse ci-form file: " << e;
       }
       catch (const io_error& e)
       {
-        fail << "unable to read submit-form file '" << submit_form << "': "
-             << e;
+        fail << "unable to read ci-form file '" << ci_form << "': " << e;
       }
     }
 
-    if (options_->submit_handler_specified () &&
-        options_->submit_handler ().relative ())
-      fail << "submit-handler path must be absolute";
+    if (options_->ci_handler_specified () &&
+        options_->ci_handler ().relative ())
+      fail << "ci-handler path must be absolute";
   }
 
   if (options_->root ().empty ())
     options_->root (dir_path ("/"));
 }
 
-bool brep::submit::
+bool brep::ci::
 handle (request& rq, response& rs)
 {
+  using namespace bpkg;
   using namespace xhtml;
 
   using serializer    = manifest_serializer;
@@ -111,13 +110,13 @@ handle (request& rq, response& rs)
 
   const dir_path& root (options_->root ());
 
-  // We will respond with the manifest to the submission protocol violations
-  // and with a plain text message on the internal errors. In the latter case
-  // we will always respond with the same neutral message for security reason,
-  // logging the error details. Note that descriptions of exceptions caught by
-  // the web server are returned to the client (see web/module.hxx for
-  // details), and we want to avoid this when there is a danger of exposing
-  // sensitive data.
+  // We will respond with the manifest to the CI request submission protocol
+  // violations and with a plain text message on the internal errors. In the
+  // latter case we will always respond with the same neutral message for
+  // security reason, logging the error details. Note that descriptions of
+  // exceptions caught by the web server are returned to the client (see
+  // web/module.hxx for details), and we want to avoid this when there is a
+  // danger of exposing sensitive data.
   //
   // Also we will pass through exceptions thrown by the underlying API, unless
   // we need to handle them or add details for the description, in which case
@@ -129,9 +128,9 @@ handle (request& rq, response& rs)
   //
   // return respond_error (); // Request is handled with an error.
   //
-  string ref; // Will be set later.
-  auto respond_manifest = [&rs, &ref] (status_code status,
-                                       const string& message) -> bool
+  string request_id; // Will be set later.
+  auto respond_manifest = [&rs, &request_id] (status_code status,
+                                              const string& message) -> bool
   {
     serializer s (rs.content (status, "text/manifest;charset=utf-8"),
                   "response");
@@ -140,65 +139,47 @@ handle (request& rq, response& rs)
     s.next ("status", to_string (status));
     s.next ("message", message);
 
-    if (!ref.empty ())
-      s.next ("reference", ref);
+    if (!request_id.empty ())
+      s.next ("reference", request_id);
 
-    s.next ("", ""); // End of manifest.
+    s.next ("", "");                       // End of manifest.
     return true;
   };
 
   auto respond_error = [&rs] (status_code status = 500) -> bool
   {
     rs.content (status, "text/plain;charset=utf-8")
-      << "submission handling failed" << endl;
+      << "CI request submission handling failed" << endl;
 
     return true;
   };
 
-  // Check if the package submission functionality is enabled.
+  // Check if the CI request functionality is enabled.
   //
   // Note that this is not a submission protocol violation but it feels right
   // to respond with the manifest, to help the client a bit.
   //
-  if (!options_->submit_data_specified ())
-    return respond_manifest (404, "submission disabled");
+  if (!options_->ci_data_specified ())
+    return respond_manifest (404, "CI request submission disabled");
 
-  // Parse the request form data and verifying the submission size limit.
+  // Parse the request form data.
   //
-  // Note that if it is exceeded, then there are parameters and this is the
-  // submission rather than the form request, and so we respond with the
-  // manifest.
-  //
-  try
-  {
-    rq.parameters (options_->submit_max_size ());
-  }
-  catch (const invalid_request& e)
-  {
-    if (e.status == 413) // Payload too large?
-      return respond_manifest (e.status, "submission size exceeds limit");
+  const name_values& rps (rq.parameters (64 * 1024));
 
-    throw;
-  }
-
-  // The request parameters are now parsed and the limit doesn't really matter.
-  //
-  const name_values& rps (rq.parameters (0 /* limit */));
-
-  // If there is no request parameters then we respond with the submission
-  // form XHTML, if configured. Otherwise, will proceed as for the submission
-  // request and will fail (missing parameters).
+  // If there is no request parameters then we respond with the CI form XHTML,
+  // if configured. Otherwise, will proceed as for the CI request and will fail
+  // (missing parameters).
   //
   if (rps.empty () && form_ != nullptr)
   {
-    const string title ("Submit");
+    const string title ("CI");
 
     xml::serializer s (rs.content (), title);
 
     s << HTML
       <<   HEAD
       <<     TITLE << title << ~TITLE
-      <<     CSS_LINKS (path ("submit.css"), root)
+      <<     CSS_LINKS (path ("ci.css"), root)
       <<   ~HEAD
       <<   BODY
       <<     DIV_HEADER (root, options_->logo (), options_->menu ())
@@ -209,15 +190,15 @@ handle (request& rq, response& rs)
     return true;
   }
 
-  // Verify the submission parameters we expect. The unknown ones will be
-  // serialized to the submission manifest.
+  // Verify the CI request parameters we expect. The unknown ones will be
+  // serialized to the CI request manifest.
   //
-  params::submit params;
+  params::ci params;
 
   try
   {
     name_value_scanner s (rps);
-    params = params::submit (s, unknown_mode::skip, unknown_mode::skip);
+    params = params::ci (s, unknown_mode::skip, unknown_mode::skip);
   }
   catch (const cli::exception&)
   {
@@ -235,23 +216,59 @@ handle (request& rq, response& rs)
 
     s << HTML
       <<   HEAD << TITLE << title << ~TITLE << ~HEAD
-      <<   BODY << "submission handling failed" << ~BODY
+      <<   BODY << "CI request submission handling failed" << ~BODY
       << ~HTML;
 
     return true;
   }
 
-  const string& archive (params.archive ());
-  const string& sha256sum (params.sha256sum ());
+  // Parse and verify the remote repository location.
+  //
+  repository_location rl;
 
-  if (archive.empty ())
-    return respond_manifest (400, "package archive expected");
+  try
+  {
+    const repository_url& u (params.repository ());
 
-  if (sha256sum.empty ())
-    return respond_manifest (400, "package archive checksum expected");
+    if (u.empty () || u.scheme == repository_protocol::file)
+      throw invalid_argument ("");
 
-  if (sha256sum.size () != 64)
-    return respond_manifest (400, "invalid package archive checksum");
+    rl = repository_location (u, guess_type (u, false /* local */));
+  }
+  catch (const invalid_argument&)
+  {
+    return respond_manifest (400, "invalid repository location");
+  }
+
+  // Verify the package name[/version] arguments.
+  //
+  for (const string& s: params.package())
+  {
+    //  Let's skip the potentially unfilled package form fields.
+    //
+    if (s.empty ())
+      continue;
+
+    try
+    {
+      size_t p (s.find ('/'));
+
+      if (p != string::npos)
+      {
+        package_name (string (s, 0, p));
+
+        // Not to confuse with module::version.
+        //
+        bpkg::version (string (s, p + 1));
+      }
+      else
+        package_name p (s); // Not to confuse with the s variable declaration.
+    }
+    catch (const invalid_argument&)
+    {
+      return respond_manifest (400, "invalid package " + s);
+    }
+  }
 
   // Verify that unknown parameter values satisfy the requirements (contain
   // only ASCII printable characters plus '\r', '\n', and '\t').
@@ -274,131 +291,54 @@ handle (request& rq, response& rs)
       return respond_manifest (400, "invalid parameter " + nv.name);
   }
 
-  // Note that from now on the result manifest we respond with will contain
-  // the reference value.
-  //
-  ref = string (sha256sum, 0, 12);
-
-  // Check for a duplicate submission.
-  //
-  // Respond with the unprocessable entity (422) code if a duplicate is found.
-  //
-  dir_path dd (options_->submit_data () / dir_path (ref));
-
-  if (dir_exists (dd) || simulate == "duplicate-archive")
-    return respond_manifest (422, "duplicate submission");
-
-  // Create the temporary submission data directory.
-  //
-  dir_path td;
-
   try
   {
-    // Note that providing a meaningful prefix for temp_name() is not really
-    // required as the temporary directory is used by brep exclusively. However,
-    // using the abbreviated checksum can be helpful for troubleshooting.
+    // Note that from now on the result manifest we respond with will contain
+    // the reference value.
     //
-    td = dir_path (options_->submit_temp () /
-                   dir_path (path::traits::temp_name (ref)));
-
-    // It's highly unlikely but still possible that the temporary directory
-    // already exists. This can only happen due to the unclean web server
-    // shutdown. Let's remove it and retry.
-    //
-    if (try_mkdir (td) == mkdir_status::already_exists)
-    {
-      try_rmdir_r (td);
-
-      if (try_mkdir (td) == mkdir_status::already_exists)
-        throw_generic_error (EEXIST);
-    }
-  }
-  catch (const invalid_path&)
-  {
-    return respond_manifest (400, "invalid package archive checksum");
+    request_id = uuid::generate ().string ();
   }
   catch (const system_error& e)
   {
-    error << "unable to create directory '" << td << "': " << e;
+    error << "unable to generate request id: " << e;
     return respond_error ();
   }
 
-  auto_rmdir tdr (td);
-
-  // Save the package archive into the temporary directory and verify its
-  // checksum.
+  // Create the submission data directory.
   //
-  // Note that the archive file name can potentially contain directory path
-  // in the client's form (e.g., Windows), so let's strip it if that's the
-  // case.
-  //
-  path a;
-  path af;
+  dir_path dd (options_->ci_data () / dir_path (request_id));
 
   try
   {
-    size_t n (archive.find_last_of ("\\/"));
-    a = path (n != string::npos ? string (archive, n + 1) : archive);
-    af = td / a;
-  }
-  catch (const invalid_path&)
-  {
-    return respond_manifest (400, "invalid package archive name");
-  }
-
-  try
-  {
-    istream& is (rq.open_upload ("archive"));
-
-    // Note that istream::read() sets failbit if unable to read the requested
-    // number of bytes.
+    // It's highly unlikely but still possible that the directory already
+    // exists. This can only happen if the generated uuid is not unique.
     //
-    is.exceptions (istream::badbit);
-
-    sha256 sha;
-    char buf[8192];
-    ofdstream os (af, ios::binary);
-
-    while (!eof (is))
-    {
-      is.read (buf, sizeof (buf));
-
-      if (size_t n = is.gcount ())
-      {
-        sha.append (buf, n);
-        os.write (buf, n);
-      }
-    }
-
-    os.close ();
-
-    // Respond with the unprocessable entity (422) code for the archive
-    // checksum mismatch.
-    //
-    if (sha.string () != sha256sum)
-      return respond_manifest (422, "package archive checksum mismatch");
+    if (try_mkdir (dd) == mkdir_status::already_exists)
+      throw_generic_error (EEXIST);
   }
-  // Note that invalid_argument (thrown by open_upload() function call) can
-  // mean both no archive upload or multiple archive uploads.
-  //
-  catch (const invalid_argument&)
+  catch (const system_error& e)
   {
-    return respond_manifest (400, "package archive upload expected");
-  }
-  catch (const io_error& e)
-  {
-    error << "unable to write package archive '" << af << "': " << e;
+    error << "unable to create directory '" << dd << "': " << e;
     return respond_error ();
   }
 
-  // Serialize the submission request manifest to a stream. On the
-  // serialization error respond to the client with the manifest containing
-  // the bad request (400) code and return false, on the stream error pass
-  // through the io_error exception, otherwise return true.
+  auto_rmdir ddr (dd);
+
+  // Serialize the CI request manifest to a stream. On the serialization error
+  // respond to the client with the manifest containing the bad request (400)
+  // code and return false, on the stream error pass through the io_error
+  // exception, otherwise return true.
   //
   timestamp ts (system_clock::now ());
 
-  auto rqm = [&a, &sha256sum, &ts, &simulate, &rq, &rps, &respond_manifest]
+  auto rqm = [&request_id,
+              &rl,
+              &ts,
+              &simulate,
+              &rq,
+              &rps,
+              &params,
+              &respond_manifest]
              (ostream& os) -> bool
   {
     try
@@ -408,8 +348,14 @@ handle (request& rq, response& rs)
       // Serialize the submission manifest header.
       //
       s.next ("", "1");                // Start of manifest.
-      s.next ("archive", a.string ());
-      s.next ("sha256sum", sha256sum);
+      s.next ("id", request_id);
+      s.next ("repository", rl.string ());
+
+      for (const string& p: params.package())
+      {
+        if (!p.empty ()) // Skip empty package names (see above for details).
+          s.next ("package", p);
+      }
 
       s.next ("timestamp",
               butl::to_string (ts,
@@ -446,7 +392,11 @@ handle (request& rq, response& rs)
       for (const name_value& nv: rps)
       {
         const string& n (nv.name);
-        if (n != "archive" && n != "sha256sum" && n != "simulate")
+
+        if (n != "repository" &&
+            n != "_"          &&
+            n != "package"    &&
+            n != "simulate")
           s.next (n, nv.value ? *nv.value : "");
       }
 
@@ -460,10 +410,9 @@ handle (request& rq, response& rs)
     }
   };
 
-  // Serialize the submission request manifest to the temporary submission
-  // directory.
+  // Serialize the CI request manifest to the submission directory.
   //
-  path rqf (td / "request.manifest");
+  path rqf (dd / "request.manifest");
 
   try
   {
@@ -480,32 +429,11 @@ handle (request& rq, response& rs)
     return respond_error ();
   }
 
-  // Make the temporary submission directory permanent.
-  //
-  // Respond with the unprocessable entity (422) code if a submission race is
-  // detected.
-  //
-  try
-  {
-    mvdir (td, dd);
-  }
-  catch (const system_error& e)
-  {
-    int ec (e.code ().value ());
-    if (ec == ENOTEMPTY || ec == EEXIST)
-      return respond_manifest (422, "duplicate submission");
-
-    error << "unable to rename directory '" << td << "' to '" << dd << "': "
-          << e;
-
-    return respond_error ();
-  }
-
   // Given that the submission data is now successfully persisted we are no
   // longer in charge of removing it, except for the cases when the submission
   // handler terminates with an error (see below for details).
   //
-  tdr.cancel ();
+  ddr.cancel ();
 
   // If the handler terminates with non-zero exit status or specifies 5XX
   // (HTTP server error) submission result manifest status value, then we
@@ -519,29 +447,10 @@ handle (request& rq, response& rs)
   //
   auto stash_submit_dir = [&dd, error] ()
   {
+    if (dir_exists (dd))
     try
     {
-      if (!dir_exists (dd))
-        return;
-
-      for (size_t n (1); true; ++n) // Eventually we should find the free one.
-      {
-        string ext (".fail." + to_string (n));
-        dir_path d (dd + ext);
-
-        if (!dir_exists (d))
-        try
-        {
-          mvdir (dd, d);
-          break;
-        }
-        catch (const system_error& e)
-        {
-          int ec (e.code ().value ());
-          if (ec != ENOTEMPTY && ec != EEXIST) // Note: there can be a race.
-            throw;
-        }
-      }
+      mvdir (dd, dir_path (dd + ".fail"));
     }
     catch (const system_error& e)
     {
@@ -552,11 +461,6 @@ handle (request& rq, response& rs)
     }
   };
 
-  auto print_args = [&trace, this] (const char* args[], size_t n)
-  {
-    l2 ([&]{trace << process_args {args, n};});
-  };
-
   // Run the submission handler, if specified, reading the result manifest
   // from its stdout and caching it as a name/value pair list for later use
   // (forwarding to the client, sending via email, etc.). Otherwise, create
@@ -565,14 +469,14 @@ handle (request& rq, response& rs)
   status_code sc;
   vector<manifest_name_value> rvs;
 
-  if (options_->submit_handler_specified ())
+  if (options_->ci_handler_specified ())
   {
     using namespace external_handler;
 
-    optional<result_manifest> r (run (options_->submit_handler (),
-                                      options_->submit_handler_argument (),
+    optional<result_manifest> r (run (options_->ci_handler (),
+                                      options_->ci_handler_argument (),
                                       dd,
-                                      options_->submit_handler_timeout (),
+                                      options_->ci_handler_timeout (),
                                       error,
                                       warn,
                                       verb_ ? &trace : nullptr));
@@ -581,7 +485,6 @@ handle (request& rq, response& rs)
       stash_submit_dir ();
       return respond_error (); // The diagnostics is already issued.
     }
-
 
     sc = r->status;
     rvs = move (r->values);
@@ -601,8 +504,8 @@ handle (request& rq, response& rs)
 
     add ("", "1");                           // Start of manifest.
     add ("status", "200");
-    add ("message", "submission is queued");
-    add ("reference", ref);
+    add ("message", "CI request is queued");
+    add ("reference", request_id);
     add ("", "");                            // End of manifest.
   }
 
@@ -612,7 +515,7 @@ handle (request& rq, response& rs)
   // serialization error log the error description and return false, on the
   // stream error pass through the io_error exception, otherwise return true.
   //
-  auto rsm = [&rvs, &error, &ref] (ostream& os) -> bool
+  auto rsm = [&rvs, &error, &request_id] (ostream& os) -> bool
   {
     try
     {
@@ -624,7 +527,8 @@ handle (request& rq, response& rs)
     }
     catch (const serialization& e)
     {
-      error << "ref " << ref << ": unable to serialize handler's output: " << e;
+      error << "ref " << request_id << ": unable to serialize handler's "
+            << "output: " << e;
       return false;
     }
   };
@@ -670,7 +574,7 @@ handle (request& rq, response& rs)
     }
   }
 
-  // Send email, if configured, and the submission is not simulated.
+  // Send email, if configured, and the CI request submission is not simulated.
   //
   // Note that we don't consider the email sending failure to be a submission
   // failure as the submission data is successfully persisted and the handler
@@ -680,16 +584,19 @@ handle (request& rq, response& rs)
   // web server error log is monitored and the email sending failure will be
   // noticed.
   //
-  if (options_->submit_email_specified () && simulate.empty ())
+  if (options_->ci_email_specified () && simulate.empty ())
   try
   {
     // Redirect the diagnostics to the web server error log.
     //
-    sendmail sm (print_args,
+    sendmail sm ([&trace, this] (const char* args[], size_t n)
+                 {
+                   l2 ([&]{trace << process_args {args, n};});
+                 },
                  2 /* stderr */,
                  options_->email (),
-                 "new package submission " + a.string () + " (" + ref + ")",
-                 {options_->submit_email ()});
+                 "CI request submission (" + request_id + ")",
+                 {options_->ci_email ()});
 
     // Write the submission request manifest.
     //

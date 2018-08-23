@@ -7,6 +7,8 @@ common{*}: extension = test
 
 dir = ../../brep/handler/submit/
 
+include $dir
+
 commons = data
 
 ./: test{* -{$commons}} common{$commons} {*/ -test/}{**} \

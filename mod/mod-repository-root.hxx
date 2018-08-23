@@ -23,6 +23,7 @@ namespace brep
   class build_log;
   class builds;
   class submit;
+  class ci;
 
   class repository_root: public handler
   {
@@ -67,6 +68,8 @@ namespace brep
     shared_ptr<build_log> build_log_;
     shared_ptr<builds> builds_;
     shared_ptr<submit> submit_;
+    shared_ptr<ci> ci_;
+
     shared_ptr<options::repository_root> options_;
 
     // Sub-handler the request is dispatched to. Initially is NULL. It is set

@@ -190,12 +190,14 @@ message: <string>
 
 The CI functionality allows submission of package CI requests as well as
 additional, repository-specific information via the HTTP \c{GET} and \c{POST}
-methods. The implementation in \c{brep} only handles reception as well as
-basic parameter verification expecting the rest of the CI logic to be handled
-by a separate entity according to the repository policy. Such an entity can be
-notified by \c{brep} about a new CI request as an invocation of the \i{handler
-program} (as part of the HTTP request) and/or via email. It could also be a
-separate process that monitors the CI data directory.
+methods using the \c{application/x-www-form-urlencoded} or
+\c{multipart/form-data} parameters encoding. The implementation in \c{brep}
+only handles reception as well as basic parameter verification expecting the
+rest of the CI logic to be handled by a separate entity according to the
+repository policy. Such an entity can be notified by \c{brep} about a new CI
+request as an invocation of the \i{handler program} (as part of the HTTP
+request) and/or via email. It could also be a separate process that monitors
+the CI data directory.
 
 The CI request without any parameters is treated as the CI form request. If
 \c{ci-form} is configured, then such a form is generated and returned.
@@ -208,11 +210,11 @@ For each CI request \c{brep} performs the following steps.
 
 \li|Verify the required \c{repository} and optional \c{package} parameters.
 
-The \c{repository} parameter is the repository URL that contains the packages
-to be tested. If one or more \c{package} parameters are present, then only the
-specified packages are tested. If no \c{package} parameters are specified,
-then all the packages present in the repository (but excluding complement
-repositories) are tested.
+The \c{repository} parameter is the remote \c{bpkg} repository location that
+contains the packages to be tested. If one or more \c{package} parameters are
+present, then only the specified packages are tested. If no \c{package}
+parameters are specified, then all the packages present in the repository (but
+excluding complement repositories) are tested.
 
 Each \c{package} parameter can specify either just the package name, in which
 case all the versions of this package present in the repository will be
@@ -322,7 +324,7 @@ timestamp: <date-time>
 [user-agent]: <string>
 \
 
-The \c{package} value can be repeated multiple time. The \c{timestamp} value
+The \c{package} value can be repeated multiple times. The \c{timestamp} value
 is in the ISO-8601 \c{<YYYY>-<MM>-<DD>T<hh>:<mm>:<ss>Z} form (always
 UTC). Note also that \c{client-ip} can be IPv4 or IPv6.
 

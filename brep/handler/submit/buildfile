@@ -4,6 +4,8 @@
 
 ./: exe{brep-submit-dir} exe{brep-submit-git}
 
+include ../
+
 exe{brep-submit-dir}: in{submit-dir} bash{submit} ../bash{handler}
 
 exe{brep-submit-git}: in{submit-git} \

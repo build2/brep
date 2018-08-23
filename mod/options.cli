@@ -729,7 +729,10 @@ namespace brep
     {
       // Package repository URL.
       //
-      bpkg::repository_url repository;
+      // Note that the ci parameter is renamed to '_' by the root handler (see
+      // the request_proxy class for details).
+      //
+      bpkg::repository_url repository | _;
 
       // Package names/versions.
       //

@@ -1,0 +1,39 @@
+# file      : tests/ci/data.test
+# copyright : Copyright (c) 2014-2018 Code Synthesis Ltd
+# license   : MIT; see accompanying LICENSE file
+
+# Pre-created CI request submission data directory that will be copied by
+# subsequent tests and scope setup commands. The common approach will be that
+# group scopes copy and modify the parent scope submission directory as
+# required by the nested tests and scopes. Tests will also clone the parent
+# scope submission data directory to optionally modify it, use and cleanup at
+# the end. Note that configuration can not be shared between multiple
+# submission handler processes. Also we need to make sure that submission data
+# directories are not cloned while being used by submission handler scripts.
+#
+request_id = 4cfa00ec-8459-4f4f-9ef0-8883ddcc4f5b
+data_dir = $request_id/
+
++mkdir $data_dir
+
++cat <<"EOI" >=$data_dir/request.manifest
+  : 1
+  id: $request_id
+  repository: https://example.com/hello.git#master
+  package: foo
+  package: bar/1.0
+  timestamp: 2018-08-24T18:08:01Z
+  EOI
+
+root_data_dir = $~/$data_dir
+
+# The most commonly used submission data directory cloning command that copies
+# it from the parent scope working directory.
+#
+clone_data       = cp --no-cleanup -r ../$data_dir ./
+clone_data_clean = cp --no-cleanup -r ../$data_dir ./ &$data_dir/***
+
+# Clones the original submission data directory.
+#
+clone_root_data       = cp --no-cleanup -r $root_data_dir ./
+clone_root_data_clean = cp --no-cleanup -r $root_data_dir ./ &$data_dir/***

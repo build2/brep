@@ -4,8 +4,9 @@ you are using a systemd-based distribution. If not, then you will need to
 replace systemctl commands with the equivalent init.d ones.
 
 The below instructions include steps for setting up brep as the build2 build
-bot controller and package submission service. Both of these functionalities
-are optional and, if not needed, then the corresponding steps can be omitted.
+bot controller, package submission, and CI request services. All these
+functionalities are optional and, if not needed, then the corresponding steps
+can be omitted.
 
 1. Create 'brep' User
 
@@ -240,7 +241,26 @@ example:
 $ cp install/share/brep/www/submit.xhtml config/
 $ edit config/submit.xhtml # Add custom form fields, adjust CSS style, etc.
 
-For sample submission handler implementations see brep/submit/.
+For sample submission handler implementations see brep/handler/submit/.
+
+To enable the CI request functionality you will need to specify the ci-data
+directory in brep-module.conf. Note that this directory must exist and have
+read, write, and execute permissions granted to the www-data user. This, for
+example, can be achieved with the following commands:
+
+$ mkdir /home/brep/ci-data
+$ setfacl -m g:www-data:rwx /home/brep/ci-data
+
+To also enable the CI request submission web form set the ci-form option. You
+can use the installed sample CI form fragment or create a custom one if your
+CI request handler requires additional information (besides the repository URL
+and optional package name[/version]) to be supplied by the client. For
+example:
+
+$ cp install/share/brep/www/ci.xhtml config/
+$ edit config/ci.xhtml # Add custom form fields, adjust CSS style, etc.
+
+For sample CI request handler implementations see brep/handler/ci/.
 
 Here we assume you have setup an appropriate Apache2 virtual server. Open the
 corresponding Apache2 .conf file and add the following inside VirtualHost (you
