@@ -8,6 +8,8 @@
 #ifndef MOD_TYPES_PARSERS_HXX
 #define MOD_TYPES_PARSERS_HXX
 
+#include <libbpkg/manifest.hxx> // repository_url
+
 #include <web/xhtml-fragment.hxx>
 
 #include <libbrep/types.hxx>
@@ -36,6 +38,13 @@ namespace brep
     {
       static void
       parse (dir_path&, bool&, scanner&);
+    };
+
+    template <>
+    struct parser<bpkg::repository_url>
+    {
+      static void
+      parse (bpkg::repository_url&, bool&, scanner&);
     };
 
     template <>

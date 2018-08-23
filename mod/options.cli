@@ -2,6 +2,8 @@
 // copyright : Copyright (c) 2014-2018 Code Synthesis Ltd
 // license   : MIT; see accompanying LICENSE file
 
+include <libbpkg/manifest.hxx>; // repository_url
+
 include <web/xhtml-fragment.hxx>;
 
 include <libbrep/types.hxx>;
@@ -727,7 +729,7 @@ namespace brep
     {
       // Package repository URL.
       //
-      url repository;
+      bpkg::repository_url repository;
 
       // Package names/versions.
       //

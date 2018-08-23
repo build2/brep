@@ -7,6 +7,7 @@
 #include <mod/options.hxx>
 
 using namespace std;
+using namespace bpkg;
 using namespace web::xhtml;
 
 namespace brep
@@ -48,6 +49,30 @@ namespace brep
     {
       xs = true;
       parse_path (x, s);
+    }
+
+    // Parse repository_url.
+    //
+    void parser<repository_url>::
+    parse (repository_url& x, bool& xs, scanner& s)
+    {
+      xs = true;
+
+      const char* o (s.next ());
+
+      if (!s.more ())
+        throw missing_value (o);
+
+      const char* v (s.next ());
+
+      try
+      {
+        x = repository_url (v);
+      }
+      catch (const invalid_argument&)
+      {
+        throw invalid_value (o, v);
+      }
     }
 
     // Parse page_form.
