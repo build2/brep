@@ -299,15 +299,20 @@ function url_scheme () # <url>
   sed -n -e 's%^\(.*\)://.*$%\L\1%p' <<<"$1"
 }
 
-# Checks that the repository properly responds to the probing request before
+# Check that the repository properly responds to the probing request before
 # the timeout (in seconds). Noop for protocols other than HTTP(S).
 #
-function check_connectivity () # <repo-url> <timeout>
+# If the repository is other than ours (e.g., control) then don't log a
+# failure and respond with the 422 (client) rather than 503 (server) HTTP
+# error.
+#
+function check_connectivity () # <repo-url> <timeout> <ours>
 {
   trace_func "$@"
 
   local url="$1"
   local tmo="$2"
+  local our="$3"
 
   local s
   s="$(url_scheme "$url")"
@@ -324,11 +329,14 @@ function check_connectivity () # <repo-url> <timeout>
       u="$u/info/refs$q&service=git-upload-pack"
     fi
 
-    # This function is called on repositories other than ours (e.g., control)
-    # so we don't want a failure to be logged.
-    #
-    if ! run_silent curl -S -s --max-time "$tmo" "$u" >/dev/null; then
-      exit_with_manifest 503 "submission service temporarily unavailable"
+    local cmd=(curl -S -s --max-time "$tmo" "$u")
+
+    if [ "$our" ]; then
+      if ! run "${cmd[@]}" >/dev/null; then
+        exit_with_manifest 503 "submission service temporarily unavailable"
+      fi
+    elif ! run_silent "${cmd[@]}" >/dev/null; then
+      exit_with_manifest 422 "repository $url unavailable"
     fi
   fi
 }

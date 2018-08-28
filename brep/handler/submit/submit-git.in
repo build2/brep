@@ -387,18 +387,6 @@ function git_add () # <repo-dir> <path>...
   run git -C "$d" add $gvo "$@" >&2
 }
 
-function git_clone () # <repo-url> <repo-dir> <extra-options>...
-{
-  local url="$1"
-  shift
-
-  local dir="$1"
-  shift
-
-  check_connectivity "$url" "$git_timeout"
-  run git "${git_http_timeout[@]}" clone $gqo $gvo "$@" "$url" "$dir" >&2
-}
-
 # Dor now we make 10 re-tries to add the package and push to target. Push can
 # fail due to the target-to-reference information move race (see the above
 # notes for details) or because concurrent submissions. We may want to make it
@@ -411,7 +399,10 @@ for i in {1..11}; do
   # Clone the target repository.
   #
   tgt_dir="$data_dir/target"
-  git_clone "$tgt_repo" "$tgt_dir" --single-branch --depth 1
+  check_connectivity "$tgt_repo" "$git_timeout" true
+
+  run git "${git_http_timeout[@]}" clone $gqo $gvo --single-branch --depth 1 \
+"$tgt_repo" "$tgt_dir" >&2
 
   check_package_duplicate "$name" "$version" "$tgt_dir"
 
@@ -435,7 +426,7 @@ for i in {1..11}; do
 
     # Pull the reference repository.
     #
-    check_connectivity "$remote_url" "$git_timeout"
+    check_connectivity "$remote_url" "$git_timeout" true
     run git "${git_http_timeout[@]}" -C "$ref_repo" pull $gqo $gvo >&2
 
     # Check the package duplicate.
@@ -600,8 +591,12 @@ for i in {1..11}; do
     #
     ctl_dir="$data_dir/control"
 
-    git_clone "$control" "$ctl_dir" --single-branch --depth 1 \
- --branch "build2-control"
+    check_connectivity "$control" "$git_timeout" ""
+
+    if ! run_silent git "${git_http_timeout[@]}" clone $gqo $gvo --depth 1 \
+--single-branch --branch "build2-control" "$control" "$ctl_dir" >&2; then
+      exit_with_manifest 422 "failed to git-clone $control"
+    fi
 
     if [ ! -f "$ctl_dir/submit/${sha256sum:0:16}" ]; then
       exit_with_manifest 401 "package publishing authorization failed"
@@ -638,7 +633,7 @@ Add $name/$version to $s/$project
 $(cat "$data_dir/request.manifest")
 EOF
 
-  check_connectivity "$tgt_repo" "$git_timeout"
+  check_connectivity "$tgt_repo" "$git_timeout" true
 
   # Try to push the target modifications. If this succeeds then we are done.
   # Otherwise, drop the target directory and re-try the whole

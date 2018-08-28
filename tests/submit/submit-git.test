@@ -151,7 +151,7 @@ pkg_ctl="$prj_ctl/hello.git"
       %.*
       EOO
 
-      git -C tgt log -1 "--pretty=format:%an %ae %cn %ce" >>:EOO
+      git -C tgt log -1 '--pretty=format:%an %ae %cn %ce' >>:EOO
         User Name user@example.org Commiter commiter@example.com
         EOO
   }
@@ -257,7 +257,7 @@ pkg_ctl="$prj_ctl/hello.git"
   :
   {
     $clone_root_data;
-    sed -i -e "s%^author-.+\$%%" $data_dir/request.manifest;
+    sed -i -e 's%^author-.+$%%' $data_dir/request.manifest;
 
     $clone_root_ref;
     $g clone ref.git &ref/***;
@@ -304,7 +304,7 @@ pkg_ctl="$prj_ctl/hello.git"
     #
     $g -C tgt pull;
 
-    git -C tgt log -1 "--pretty=format:%an %ae %cn %ce" >>:EOO
+    git -C tgt log -1 '--pretty=format:%an %ae %cn %ce' >>:EOO
       Submission Handler noreply@example.com Submission Handler noreply@example.com
       EOO
   }
@@ -424,7 +424,7 @@ pkg_ctl="$prj_ctl/hello.git"
   :
   {
     $clone_root_data;
-    sed -i -e "s%^\(section:\) .+\$%\\1 delta%" $data_dir/request.manifest;
+    sed -i -e 's%^(section:) .+$%\1 delta%' $data_dir/request.manifest;
 
     $clone_root_tgt;
     $g clone tgt.git &tgt/***;
@@ -438,10 +438,28 @@ pkg_ctl="$prj_ctl/hello.git"
       owners=owners
       EOI
 
-    $g -C tgt commit -am "Add section name fallback";
+    $g -C tgt commit -am 'Add section name fallback';
     $g -C tgt push;
 
     $* "file:///$~/tgt.git" $root_ref_dir $data_dir >>"EOO"
+      : 1
+      status: 200
+      message: libhello/0.1.0 submission is queued
+      reference: $checksum
+      EOO
+  }
+
+  : simulate
+  :
+  : Test that the simulated submission still succeeds given no control URL.
+  :
+  {
+    $clone_root_data;
+    sed -i -e 's%^control: .+$%simulate: success%' $data_dir/request.manifest;
+
+    $clone_root_tgt;
+
+    $* "file:///$~/tgt.git" $data_dir >>"EOO"
       : 1
       status: 200
       message: libhello/0.1.0 submission is queued
@@ -457,7 +475,7 @@ pkg_ctl="$prj_ctl/hello.git"
   :
   {
     $clone_root_data_clean;
-    sed -i -e "s%^author-.+\$%%" $data_dir/request.manifest;
+    sed -i -e 's%^author-.+$%%' $data_dir/request.manifest;
 
     $clone_root_tgt;
     tgt_url = "file:///$~/tgt.git";
@@ -474,7 +492,7 @@ pkg_ctl="$prj_ctl/hello.git"
   :
   {
     $clone_root_data_clean;
-    sed -i -e "s%^author-email.+\$%%" $data_dir/request.manifest;
+    sed -i -e 's%^author-email.+$%%' $data_dir/request.manifest;
 
     $clone_root_tgt;
     tgt_url = "file:///$~/tgt.git";
@@ -491,7 +509,7 @@ pkg_ctl="$prj_ctl/hello.git"
   :
   {
     $clone_root_data_clean;
-    sed -i -e "s%^author-name.+\$%%" $data_dir/request.manifest;
+    sed -i -e 's%^author-name.+$%%' $data_dir/request.manifest;
 
     $clone_root_tgt;
     tgt_url = "file:///$~/tgt.git";
@@ -838,7 +856,7 @@ pkg_ctl="$prj_ctl/hello.git"
   {
     $clone_root_data_clean;
 
-    sed -i -e "s%^\(sha256sum:\) .+\$%\\1 59941e842667%" \
+    sed -i -e 's%^(sha256sum:) .+$%\1 59941e842667%' \
 	$data_dir/request.manifest;
 
     $clone_root_tgt;
@@ -856,7 +874,7 @@ pkg_ctl="$prj_ctl/hello.git"
   :
   {
     $clone_root_data_clean;
-    sed -i -e "s%^\(section:\) .+\$%\\1 delta%" $data_dir/request.manifest;
+    sed -i -e 's%^(section:) .+$%\1 delta%' $data_dir/request.manifest;
 
     $clone_root_tgt;
 
@@ -866,5 +884,64 @@ pkg_ctl="$prj_ctl/hello.git"
       message: unrecognized section 'delta'
       reference: $checksum
       EOO
+  }
+
+  : control-unavailable
+  :
+  {
+    $clone_root_data_clean;
+    sed -i -e 's%^(control:) .+$%\1 http://non-existent-host/path/rep.git%' \
+	$data_dir/request.manifest;
+
+    $clone_root_tgt;
+
+    $* "file:///$~/tgt.git" $data_dir >>"EOO"
+      : 1
+      status: 422
+      message: repository http://non-existent-host/path/rep.git unavailable
+      reference: $checksum
+      EOO
+  }
+
+  : control-clone-failed
+  :
+  {
+    $clone_root_data_clean;
+    sed -i -e 's%^(control:) .+$%\1 http://example.com/path/rep.git%' \
+	$data_dir/request.manifest;
+
+    $clone_root_tgt;
+
+    $* "file:///$~/tgt.git" $data_dir >>"EOO"
+      : 1
+      status: 422
+      message: failed to git-clone http://example.com/path/rep.git
+      reference: $checksum
+      EOO
+  }
+
+  : target-unavailable
+  :
+  {
+    $clone_root_data_clean;
+
+    $* 'http://non-existent-host/path/rep.git' $data_dir >>"EOO" 2>>~%EOE%
+      : 1
+      status: 503
+      message: submission service temporarily unavailable
+      reference: $checksum
+      EOO
+      %curl: .+%
+      EOE
+  }
+
+  : target-clone-failed
+  :
+  {
+    $clone_root_data_clean;
+
+    $* 'http://example.com/path/rep.git' $data_dir 2>>~%EOE% != 0
+      %fatal: .+%
+      EOE
   }
 }

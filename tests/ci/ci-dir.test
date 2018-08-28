@@ -29,7 +29,7 @@
   {
     $clone_root_data;
 
-    echo "simulate: success" >+$data_dir/request.manifest;
+    echo 'simulate: success' >+$data_dir/request.manifest;
 
     $* >>"EOO";
       : 1
@@ -65,7 +65,7 @@
   {
     $clone_root_data_clean;
 
-    echo "simulate: fly" >+$data_dir/request.manifest;
+    echo 'simulate: fly' >+$data_dir/request.manifest;
 
     $* >>"EOO"
       : 1
