@@ -367,6 +367,18 @@ if [ -z "$project" ]; then
   project="$name"
 fi
 
+# Exit with the 'submission is queued' result manifest if simulating.
+#
+# Note that we can't expect a real control repository URL to be specified for
+# simulating, so trying to authenticate/authorize would be meaningless.
+#
+if [ -n "$simulate" ]; then
+  run rm -r -f "$data_dir"
+
+  trace "$name/$version submission is simulated"
+  exit_with_manifest 200 "$name/$version submission is queued" "$reference"
+fi
+
 function git_add () # <repo-dir> <path>...
 {
   local d="$1"
@@ -628,18 +640,15 @@ EOF
 
   check_connectivity "$tgt_repo" "$git_timeout"
 
-  # Try to push the target modifications, unless simulating. If this succeeds
-  # then we are done. Otherwise, drop the target directory and re-try the
-  # whole authentication/authorization procedure, unless we are out of
-  # attempts.
+  # Try to push the target modifications. If this succeeds then we are done.
+  # Otherwise, drop the target directory and re-try the whole
+  # authentication/authorization procedure, unless we are out of attempts.
   #
-  if [ -z "$simulate" ]; then
-    if run_silent git "${git_http_timeout[@]}" -C "$tgt_dir" push >&2; then
-      pkg_added=true
-      break
-    else
-      run rm -r -f "$tgt_dir" "$ctl_dir"
-    fi
+  if run_silent git "${git_http_timeout[@]}" -C "$tgt_dir" push >&2; then
+    pkg_added=true
+    break
+  else
+    run rm -r -f "$tgt_dir" "$ctl_dir"
   fi
 done
 
@@ -651,10 +660,5 @@ fi
 #
 run rm -r -f "$data_dir"
 
-if [ -n "$simulate" ]; then
-  trace "$name/$version submission is simulated"
-else
-  trace "$name/$version submission is queued"
-fi
-
+trace "$name/$version submission is queued"
 exit_with_manifest 200 "$name/$version submission is queued"
