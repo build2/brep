@@ -68,12 +68,34 @@ struct internal_repository
 
 using internal_repositories = vector<internal_repository>;
 
-  // Parse loadtab file.
-  //
-  // loadtab consists of lines in the following format:
-  //
-  // <remote-repository-location> <display-name> cache:<local-repository-location> [fingerprint:<fingerprint>]
-  //
+// Parse loadtab file.
+//
+// loadtab consists of lines in the following format:
+//
+// <remote-repository-location> <display-name> cache:<local-repository-location> [fingerprint:<fingerprint>]
+//
+// Note that if the remote repository location is a pkg repository, then the
+// repository cache should be its local copy. Otherwise, the cache directory
+// is expected to contain just repositories.manifest and packages.manifest
+// files as dumped by bpkg-rep-info, for example:
+//
+// $ bpkg rep-info --manifest
+//   --repositories-file repositories.manifest
+//   --packages-file     packages.manifest
+//   <remote-repository-location>
+//
+// Specifically, the packages.manifest is not a pkg package manifest list. It
+// contains a raw list of package manifests that may contain values forbidden
+// for the pkg package manifest list (description-file, changes-file) and may
+// omit the required ones (sha256sum).
+//
+// @@ Latter, we may also want to support loading bpkg repositories using
+//    manifest files produced by bpkg-rep-info command. This, in particular,
+//    will allow handling CI requests for bpkg repositories.
+//
+//    The current thinking is that the CI handler will be able to "suggest"
+//    this using (the planned) cache:file+dir:// form.
+//
 static internal_repositories
 load_repositories (path p)
 {
@@ -116,8 +138,10 @@ load_repositories (path p)
 
       try
       {
-        r.location = repository_location (repository_url (tl[i].value),
-                                          repository_type::pkg);
+        repository_url u (tl[i].value);
+
+        r.location = repository_location (u,
+                                          guess_type (u, false /* local */));
       }
       catch (const invalid_argument& e)
       {
@@ -164,9 +188,15 @@ load_repositories (path p)
             if (cache_path.relative ())
               cache_path = p.directory () / cache_path;
 
+            // A non-pkg repository cache is not a real repository (see
+            // above). We create the location of the dir type for such a cache
+            // to distinguish it when it comes to the manifest files parsing.
+            //
             r.cache_location = repository_location (
               repository_url (cache_path.string ()),
-              repository_type::pkg);
+              r.location.type () == repository_type::pkg
+              ? r.location.type ()
+              : repository_type::dir);
 
             // Created from the absolute path repository location can not be
             // other than absolute.
@@ -318,8 +348,10 @@ load_packages (const shared_ptr<repository>& rp, database& db)
   //
   assert (!rp->cache_location.empty ());
 
-  pkg_package_manifests pkm;
-  path p (rp->cache_location.path () / packages);
+  vector<package_manifest> pms;
+  const repository_location& cl (rp->cache_location);
+
+  path p (cl.path () / packages);
 
   try
   {
@@ -327,7 +359,25 @@ load_packages (const shared_ptr<repository>& rp, database& db)
     rp->packages_timestamp = file_mtime (p);
 
     manifest_parser mp (ifs, p.string ());
-    pkm = pkg_package_manifests (mp);
+
+    // If the repository cache directory is not a pkg repository, then the
+    // packages.manifest file it contains is a raw list of the package
+    // manifests that we need to parse manually (see above).
+    //
+    if (cl.type () != repository_type::pkg)
+    {
+      // We put no restrictions on the manifest values present since it's not
+      // critical for displaying and building if the packages omit some
+      // manifest values (see libbpkg/manifest.hxx for details).
+      //
+      for (manifest_name_value nv (mp.next ()); !nv.empty (); nv = mp.next ())
+        pms.emplace_back (mp,
+                          move (nv),
+                          false /* ignore_unknown */,
+                          package_manifest_flags::none);
+    }
+    else
+      pms = pkg_package_manifests (mp);
   }
   catch (const io_error& e)
   {
@@ -335,15 +385,15 @@ load_packages (const shared_ptr<repository>& rp, database& db)
     throw failed ();
   }
 
-  for (auto& pm: pkm)
+  for (auto& pm: pms)
   {
     shared_ptr<package> p (
       db.find<package> (package_id (pm.name, pm.version)));
 
     // sha256sum should always be present if the package manifest comes from
-    // the packages.manifest file.
+    // the packages.manifest file belonging to the pkg repository.
     //
-    assert (pm.sha256sum);
+    assert (pm.sha256sum || cl.type () != repository_type::pkg);
 
     if (p == nullptr)
     {
@@ -354,23 +404,34 @@ load_packages (const shared_ptr<repository>& rp, database& db)
         optional<string> dsc;
         if (pm.description)
         {
-          assert (!pm.description->file);
-          dsc = move (pm.description->text);
+          // The description value should not be of the file type if the
+          // package manifest comes from the pkg repository.
+          //
+          assert (!pm.description->file || cl.type () != repository_type::pkg);
+
+          if (!pm.description->file)
+            dsc = move (pm.description->text);
         }
 
         string chn;
         for (auto& c: pm.changes)
         {
-          assert (!c.file);
+          // The changes value should not be of the file type if the package
+          // manifest comes from the pkg repository.
+          //
+          assert (!c.file || cl.type () != repository_type::pkg);
 
-          if (chn.empty ())
-            chn = move (c.text);
-          else
+          if (!c.file)
           {
-            if (chn.back () != '\n')
-              chn += '\n'; // Always have a blank line as a separator.
+            if (chn.empty ())
+              chn = move (c.text);
+            else
+            {
+              if (chn.back () != '\n')
+                chn += '\n'; // Always have a blank line as a separator.
 
-            chn += "\n" + c.text;
+              chn += "\n" + c.text;
+            }
           }
         }
 
@@ -392,14 +453,12 @@ load_packages (const shared_ptr<repository>& rp, database& db)
           ds.emplace_back (pda.conditional, pda.buildtime, move (pda.comment));
 
           for (auto& pd: pda)
-            // Proper version will be assigned during dependency resolution
-            // procedure. Here we rely on the fact the foreign key constraint
-            // check is deferred until the current transaction commit.
+            // The package member will be assigned during dependency
+            // resolution procedure.
             //
-            ds.back ().push_back ({
-                lazy_shared_ptr<package> (
-                  db, package_id (move (pd.name), version ())),
-                move (pd.constraint)});
+            ds.back ().push_back ({move (pd.name),
+                                   move (pd.constraint),
+                                   nullptr /* package */});
         }
 
         // Cache before the package name is moved.
@@ -427,6 +486,7 @@ load_packages (const shared_ptr<repository>& rp, database& db)
           move (pm.requirements),
           move (pm.build_constraints),
           move (pm.location),
+          move (pm.fragment),
           move (pm.sha256sum),
           rp);
       }
@@ -444,13 +504,24 @@ load_packages (const shared_ptr<repository>& rp, database& db)
       //
       assert (!rp->internal || p->internal ());
 
-      if (rp->internal && pm.sha256sum != p->sha256sum)
-        cerr << "warning: sha256sum mismatch for package " << p->id.name
-             << " " << p->version << endl
-             << "  info: " << p->internal_repository.load ()->location
-             << " has " << *p->sha256sum << endl
-             << "  info: " << rp->location << " has " << *pm.sha256sum
-             << endl;
+      // Note that the sha256sum manifest value can only be present if the
+      // package comes from the pkg repository.
+      //
+      if (rp->internal && pm.sha256sum)
+      {
+        // Save the package sha256sum if it is not present yet, match
+        // otherwise.
+        //
+        if (!p->sha256sum)
+          p->sha256sum = move (pm.sha256sum);
+        else if (*pm.sha256sum != *p->sha256sum)
+          cerr << "warning: sha256sum mismatch for package " << p->id.name
+               << " " << p->version << endl
+               << "  info: " << p->internal_repository.load ()->location
+               << " has " << *p->sha256sum << endl
+               << "  info: " << rp->location << " has " << *pm.sha256sum
+               << endl;
+      }
 
       p->other_repositories.push_back (rp);
       db.update (p);
@@ -460,13 +531,15 @@ load_packages (const shared_ptr<repository>& rp, database& db)
   db.persist (rp); // Save the repository state.
 }
 
-// Load the repository manifest values, prerequsite repositories, and their
-// complements state from the repositories.manifest file. Update the repository
-// persistent state to save changed members. Should be called once per
-// persisted internal repository.
+// Load the repository manifest values from the repositories.manifest file.
+// Unless this is a shallow load, also load prerequsite repositories and
+// their complements state. Update the repository persistent state to save
+// changed members. Should be called once per persisted internal repository.
 //
 static void
-load_repositories (const shared_ptr<repository>& rp, database& db)
+load_repositories (const shared_ptr<repository>& rp,
+                   database& db,
+                   bool shallow)
 {
   // repositories_timestamp other than timestamp_nonexistent signals that
   // repository prerequisites are already loaded.
@@ -508,11 +581,11 @@ load_repositories (const shared_ptr<repository>& rp, database& db)
 
     if (rm.effective_role () == repository_role::base)
     {
-      assert (rp->location.remote () && !rp->url);
+      assert (rp->location.remote () && !rp->interface_url);
 
       // Update the base repository with manifest values.
       //
-      rp->url = rm.effective_url (rp->location);
+      rp->interface_url = rm.effective_url (rp->location);
 
       // @@ Should we throw if url is not available for external repository ?
       //    Can, basically, repository be available on the web but have no web
@@ -521,11 +594,11 @@ load_repositories (const shared_ptr<repository>& rp, database& db)
       //    Yes, there can be no web interface. So we should just not form
       //    links to packages from such repos.
       //
-      if (rp->url)
+      if (rp->interface_url)
       {
         // Normalize web interface url adding trailing '/' if not present.
         //
-        auto& u (*rp->url);
+        auto& u (*rp->interface_url);
         assert (!u.empty ());
         if (u.back () != '/')
           u += '/';
@@ -561,8 +634,12 @@ load_repositories (const shared_ptr<repository>& rp, database& db)
       continue;
     }
 
-    // Load prerequisite or complement repository.
+    // Load prerequisite or complement repository unless this is a shallow
+    // load.
     //
+    if (shallow)
+      continue;
+
     assert (!rm.location.empty ());
 
     repository_location rl;
@@ -581,8 +658,7 @@ load_repositories (const shared_ptr<repository>& rp, database& db)
     {
       // Absolute path location make no sense for the web interface.
       //
-      if (rm.location.type () != repository_type::pkg ||
-          rm.location.absolute ())
+      if (rm.location.absolute ())
         bad_location ();
 
       // Convert the relative repository location to remote one, leave remote
@@ -639,7 +715,7 @@ load_repositories (const shared_ptr<repository>& rp, database& db)
     }
 
     load_packages (pr, db);
-    load_repositories (pr, db);
+    load_repositories (pr, db, false /* shallow */);
   }
 
   db.update (rp);
@@ -680,7 +756,7 @@ find (const lazy_shared_ptr<repository>& r,
   return false;
 }
 
-// Resolve package dependencies. Ensure that the best matching dependency
+// Resolve package dependencies. Make sure that the best matching dependency
 // belongs to the package repositories, their immediate prerequisite
 // repositories, or their complements, recursively. Should be called once per
 // internal package.
@@ -701,10 +777,10 @@ resolve_dependencies (package& p, database& db)
     {
       // Dependency should not be resolved yet.
       //
-      assert (d.package.object_id ().version.empty ());
+      assert (d.package == nullptr);
 
       using query = query<package>;
-      query q (query::id.name == d.name ());
+      query q (query::id.name == d.name);
       const auto& vm (query::id.version);
 
       if (d.constraint)
@@ -755,7 +831,7 @@ resolve_dependencies (package& p, database& db)
         }
       }
 
-      if (d.package.object_id ().version.empty ())
+      if (d.package == nullptr)
       {
         cerr << "error: can't resolve dependency " << d << " of the package "
              << p.id.name << " " << p.version << endl
@@ -778,16 +854,17 @@ resolve_dependencies (package& p, database& db)
 
 using package_ids = vector<package_id>;
 
-// Ensure the package dependency chain do not contain the package id. Throw
-// failed otherwise. Continue the chain with the package id and call itself
-// recursively for each prerequisite of the package. Should be called once per
-// internal package.
+// Make sure the package dependency chain doesn't contain the package id.
+// Throw failed otherwise. Continue the chain with the package id and call
+// itself recursively for each prerequisite of the package. Should be called
+// once per internal package.
 //
 // @@ This should probably be eventually moved to bpkg.
 //
 static void
-detect_dependency_cycle (
-  const package_id& id, package_ids& chain, database& db)
+detect_dependency_cycle (const package_id& id,
+                         package_ids& chain,
+                         database& db)
 {
   // Package of one version depending on the same package of another version
   // is something obscure. So the comparison is made up to a package name.
@@ -1042,7 +1119,7 @@ try
   //
   internal_repositories irs (load_repositories (path (argv[1])));
 
-  if (changed (irs, db))
+  if (ops.force () || changed (irs, db))
   {
     // Rebuild repositories persistent state from scratch.
     //
@@ -1055,11 +1132,13 @@ try
     uint16_t priority (1);
     for (const auto& ir: irs)
     {
-      optional<certificate> cert (
-        certificate_info (
+      optional<certificate> cert;
+
+      if (ir.location.type () == repository_type::pkg)
+        cert = certificate_info (
           ops,
           !ir.cache_location.empty () ? ir.cache_location : ir.location,
-          ir.fingerprint));
+          ir.fingerprint);
 
       shared_ptr<repository> r (
         make_shared<repository> (ir.location,
@@ -1080,24 +1159,27 @@ try
       shared_ptr<repository> r (
         db.load<repository> (ir.location.canonical_name ()));
 
-      load_repositories (r, db);
+      load_repositories (r, db, ops.shallow ());
     }
 
-    session s;
-    using query = query<package>;
-
-    // Resolve internal packages dependencies.
+    // Resolve internal packages dependencies unless this is a shallow load.
     //
-    for (auto& p:
-           db.query<package> (query::internal_repository.is_not_null ()))
-      resolve_dependencies (p, db);
+    if (!ops.shallow ())
+    {
+      session s;
+      using query = query<package>;
 
-    // Ensure there is no package dependency cycles.
-    //
-    package_ids chain;
-    for (const auto& p:
-           db.query<package> (query::internal_repository.is_not_null ()))
-      detect_dependency_cycle (p.id, chain, db);
+      for (auto& p:
+             db.query<package> (query::internal_repository.is_not_null ()))
+        resolve_dependencies (p, db);
+
+      // Make sure there is no package dependency cycles.
+      //
+      package_ids chain;
+      for (const auto& p:
+             db.query<package> (query::internal_repository.is_not_null ()))
+        detect_dependency_cycle (p.id, chain, db);
+    }
   }
 
   t.commit ();

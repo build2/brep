@@ -15,16 +15,10 @@ namespace brep
 {
   // dependency
   //
-  package_name dependency::
-  name () const
-  {
-    return package.object_id ().name;
-  }
-
   ostream&
   operator<< (ostream& o, const dependency& d)
   {
-    o << d.name ();
+    o << d.name;
 
     if (d.constraint)
       o << ' ' << *d.constraint;
@@ -35,7 +29,7 @@ namespace brep
   bool
   operator== (const dependency& x, const dependency& y)
   {
-    return x.name () == y.name () && x.constraint == y.constraint;
+    return x.name == y.name && x.constraint == y.constraint;
   }
 
   bool
@@ -67,6 +61,7 @@ namespace brep
            requirements_type rq,
            build_constraints_type bc,
            optional<path> lc,
+           optional<string> fr,
            optional<string> sh,
            shared_ptr<repository_type> rp)
       : id (move (nm), vr),
@@ -93,6 +88,7 @@ namespace brep
           : build_constraints_type ()),
         internal_repository (move (rp)),
         location (move (lc)),
+        fragment (move (fr)),
         sha256sum (move (sh))
   {
     assert (internal_repository->internal);

@@ -120,17 +120,16 @@ namespace brep
   {
     using package_type = brep::package;
 
-    lazy_shared_ptr<package_type> package;
+    package_name name;
     optional<dependency_constraint> constraint;
 
-    // Prerequisite package name.
+    // Resolved dependency package. NULL if the repository load was shallow
+    // and so the package dependencies are not resolved.
     //
-    package_name
-    name () const;
+    lazy_shared_ptr<package_type> package;
 
     // Database mapping.
     //
-    #pragma db member(package) column("") not_null
     #pragma db member(constraint) column("")
   };
 
@@ -212,7 +211,7 @@ namespace brep
     //
     uint16_t priority;
 
-    optional<string> url;
+    optional<string> interface_url;
 
     // Present only for internal repositories.
     //
@@ -318,6 +317,7 @@ namespace brep
              requirements_type,
              build_constraints_type,
              optional<path> location,
+             optional<string> fragment,
              optional<string> sha256sum,
              shared_ptr<repository_type>);
 
@@ -369,6 +369,11 @@ namespace brep
     // Path to the package file. Present only for internal packages.
     //
     optional<path> location;
+
+    // Present only for packages that come from the supporting fragmentation
+    // internal repository (normally version control-based).
+    //
+    optional<string> fragment;
 
     // Present only for internal packages.
     //

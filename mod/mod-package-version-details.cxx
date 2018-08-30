@@ -184,8 +184,6 @@ handle (request& rq, response& rs)
           : P_DESCRIPTION (*d, options_->package_description (),
                            url (!full, id)));
 
-  assert (pkg->location && pkg->sha256sum);
-
   const repository_location& rl (pkg->internal_repository.load ()->location);
 
   s << TABLE(CLASS="proplist", ID="version")
@@ -198,10 +196,22 @@ handle (request& rq, response& rs)
     <<     TR_PRIORITY (pkg->priority)
     <<     TR_LICENSES (pkg->license_alternatives)
     <<     TR_REPOSITORY (rl.canonical_name (), root)
-    <<     TR_LOCATION (rl)
-    <<     TR_DOWNLOAD (rl.string () + "/" + pkg->location->string ())
-    <<     TR_SHA256SUM (*pkg->sha256sum)
-    <<   ~TBODY
+    <<     TR_LOCATION (rl);
+
+  if (rl.type () == repository_type::pkg)
+  {
+    assert (pkg->location);
+
+    s << TR_DOWNLOAD (rl.string () + "/" + pkg->location->string ());
+  }
+
+  if (pkg->fragment)
+    s << TR_VALUE ("fragment", *pkg->fragment);
+
+  if (pkg->sha256sum)
+    s << TR_SHA256SUM (*pkg->sha256sum);
+
+  s <<   ~TBODY
     << ~TABLE
 
     << TABLE(CLASS="proplist", ID="package")
@@ -267,38 +277,49 @@ handle (request& rq, response& rs)
         if (&d != &da[0])
           s << " | ";
 
-        shared_ptr<package> p (d.package.load ());
-        assert (p->internal () || !p->other_repositories.empty ());
-
-        shared_ptr<repository> r (
-          p->internal ()
-          ? p->internal_repository.load ()
-          : p->other_repositories[0].load ());
-
         const auto& dcon (d.constraint);
-        const package_name& dname (p->id.name);
-        string ename (mime_url_encode (dname.string (), false));
+        const package_name& dname (d.name);
 
-        if (r->url)
+        // Try to display the dependency as a link if it is resolved.
+        // Otherwise display it as a plain text.
+        //
+        if (d.package != nullptr)
         {
-          string u (*r->url + ename);
-          s << A(HREF=u) << dname << ~A;
+          shared_ptr<package> p (d.package.load ());
+          assert (p->internal () || !p->other_repositories.empty ());
 
-          if (dcon)
-            s << ' ' << A(HREF=u + "/" + p->version.string ()) << *dcon << ~A;
-        }
-        else if (p->internal ())
-        {
-          dir_path u (root / dir_path (ename));
-          s << A(HREF=u) << dname << ~A;
+          shared_ptr<repository> r (
+            p->internal ()
+            ? p->internal_repository.load ()
+            : p->other_repositories[0].load ());
 
-          if (dcon)
-            s << ' ' << A(HREF=u / path (p->version.string ())) << *dcon << ~A;
+          string ename (mime_url_encode (dname.string (), false));
+
+          if (r->interface_url)
+          {
+            string u (*r->interface_url + ename);
+            s << A(HREF=u) << dname << ~A;
+
+            if (dcon)
+              s << ' '
+                << A(HREF=u + "/" + p->version.string ()) << *dcon << ~A;
+          }
+          else if (p->internal ())
+          {
+            dir_path u (root / dir_path (ename));
+            s << A(HREF=u) << dname << ~A;
+
+            if (dcon)
+              s << ' '
+                << A(HREF=u / path (p->version.string ())) << *dcon << ~A;
+          }
+          else
+            // Display the dependency as a plain text if no repository URL
+            // available.
+            //
+            s << d;
         }
         else
-          // Display the dependency as a plain text if no repository URL
-          // available.
-          //
           s << d;
       }
 

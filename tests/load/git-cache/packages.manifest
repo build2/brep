@@ -1,0 +1,14 @@
+: 1
+name: libfoo
+version: 1.0
+project: foo
+summary: The Foo Library
+license: MIT
+tags: c++, foo
+description-file: README
+changes-file: NEWS
+url: http://www.example.com/foo/
+email: foo-users@example.com
+depends: libmisc == 1.0
+location: libfoo
+fragment: 0f50af28d1cfb0c22f5b88e2bf674ab732e058d9

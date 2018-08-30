@@ -401,7 +401,7 @@ namespace brep
       //
       set<package_name> names;
       for (const auto& da: d)
-        names.emplace (da.name ());
+        names.emplace (da.name);
 
       bool mult (names.size () > 1);
 
@@ -411,7 +411,7 @@ namespace brep
       bool first (true);
       for (const auto& da: d)
       {
-        package_name n (da.name ());
+        const package_name& n (da.name);
         if (names.find (n) != names.end ())
         {
           names.erase (n);
@@ -421,24 +421,32 @@ namespace brep
           else
             s << " | ";
 
-          shared_ptr<package> p (da.package.load ());
-          assert (p->internal () || !p->other_repositories.empty ());
+          // Try to display the dependency as a link if it is resolved.
+          // Otherwise display it as plain text.
+          //
+          if (da.package != nullptr)
+          {
+            shared_ptr<package> p (da.package.load ());
+            assert (p->internal () || !p->other_repositories.empty ());
 
-          shared_ptr<repository> r (
-            p->internal ()
-            ? p->internal_repository.load ()
-            : p->other_repositories[0].load ());
+            shared_ptr<repository> r (
+              p->internal ()
+              ? p->internal_repository.load ()
+              : p->other_repositories[0].load ());
 
-          auto en (mime_url_encode (n.string (), false));
+            auto en (mime_url_encode (n.string (), false));
 
-          if (r->url)
-            s << A(HREF=*r->url + en) << n << ~A;
-          else if (p->internal ())
-            s << A(HREF=root_ / path (en)) << n << ~A;
+            if (r->interface_url)
+              s << A(HREF=*r->interface_url + en) << n << ~A;
+            else if (p->internal ())
+              s << A(HREF=root_ / path (en)) << n << ~A;
+            else
+              // Display the dependency as plain text if no repository URL
+              // available.
+              //
+              s << n;
+          }
           else
-            // Display the dependency as a plain text if no repository URL
-            // available.
-            //
             s << n;
         }
       }

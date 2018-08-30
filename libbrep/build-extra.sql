@@ -14,7 +14,8 @@ DROP FOREIGN TABLE IF EXISTS build_repository;
 --
 CREATE FOREIGN TABLE build_repository (
   name TEXT NOT NULL,
-  location TEXT NOT NULL,
+  location_url TEXT NOT NULL,
+  location_type TEXT NOT NULL,
   certificate_fingerprint TEXT NULL)
 SERVER package_server OPTIONS (table_name 'repository');
 

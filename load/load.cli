@@ -10,7 +10,7 @@ include <libbrep/types.hxx>;
 
 "\section=1"
 "\name=brep-load"
-"\summary=load build2 repositories into brep package database"
+"\summary=load repositories into brep package database"
 
 {
   "<options> <loadtab>",
@@ -23,10 +23,10 @@ include <libbrep/types.hxx>;
 
    \h|DESCRIPTION|
 
-   \cb{brep-load} reads the list of repositories from the specified
-   <loadtab> configuration file, fetches their manifest files, and loads the
-   repository and package information into the \cb{package} database, suitable
-   for consumption by the \cb{brep} web module.
+   \cb{brep-load} reads the list of repositories from the specified <loadtab>
+   configuration file, fetches their manifest files, and loads the repository
+   and package information into the \cb{package} database, suitable for
+   consumption by the \cb{brep} web module.
 
    Note that \cb{brep-load} expects the \cb{package} database schema to have
    already been created using \l{brep-migrate(1)}.
@@ -39,6 +39,18 @@ include <libbrep/types.hxx>;
 class options
 {
   "\h|OPTIONS|"
+
+  bool --force
+  {
+    "Reload package information regardless of the repository manifest file
+     timestamps."
+  };
+
+  bool --shallow
+  {
+    "Don't load package information from prerequisite or complement
+     repositories."
+  };
 
   std::string --db-user|-u
   {

@@ -1,0 +1,7 @@
+: 1
+location: ../libmisc.git##HEAD
+type: git
+role: prerequisite
+fragment: 0f50af28d1cfb0c22f5b88e2bf674ab732e058d9
+:
+summary: foo project repository

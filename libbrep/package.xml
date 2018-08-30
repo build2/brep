@@ -2,15 +2,17 @@
   <model version="7">
     <table name="repository" kind="object">
       <column name="name" type="TEXT" null="false"/>
-      <column name="location" type="TEXT" null="false"/>
+      <column name="location_url" type="TEXT" null="false"/>
+      <column name="location_type" type="TEXT" null="false"/>
       <column name="display_name" type="TEXT" null="false"/>
       <column name="priority" type="INTEGER" null="false"/>
-      <column name="url" type="TEXT" null="true"/>
+      <column name="interface_url" type="TEXT" null="true"/>
       <column name="email" type="TEXT" null="true"/>
       <column name="email_comment" type="TEXT" null="true"/>
       <column name="summary" type="TEXT" null="true"/>
       <column name="description" type="TEXT" null="true"/>
-      <column name="cache_location" type="TEXT" null="false"/>
+      <column name="cache_location_url" type="TEXT" null="false"/>
+      <column name="cache_location_type" type="TEXT" null="false"/>
       <column name="certificate_fingerprint" type="TEXT" null="true"/>
       <column name="certificate_name" type="TEXT" null="true"/>
       <column name="certificate_organization" type="TEXT" null="true"/>
@@ -99,6 +101,7 @@
       <column name="build_email_comment" type="TEXT" null="true"/>
       <column name="internal_repository" type="TEXT" null="true"/>
       <column name="location" type="TEXT" null="true"/>
+      <column name="fragment" type="TEXT" null="true"/>
       <column name="sha256sum" type="TEXT" null="true"/>
       <column name="search_index" type="tsvector" null="true"/>
       <primary-key>
@@ -259,10 +262,6 @@
       <column name="dependency_index" type="BIGINT" null="false"/>
       <column name="index" type="BIGINT" null="false"/>
       <column name="dep_name" type="CITEXT" null="false"/>
-      <column name="dep_version_epoch" type="INTEGER" null="false"/>
-      <column name="dep_version_canonical_upstream" type="TEXT" null="false"/>
-      <column name="dep_version_canonical_release" type="TEXT" null="false" options="COLLATE &quot;C&quot;"/>
-      <column name="dep_version_revision" type="INTEGER" null="false"/>
       <column name="dep_min_version_epoch" type="INTEGER" null="true"/>
       <column name="dep_min_version_canonical_upstream" type="TEXT" null="true"/>
       <column name="dep_min_version_canonical_release" type="TEXT" null="true"/>
@@ -277,6 +276,11 @@
       <column name="dep_max_version_release" type="TEXT" null="true"/>
       <column name="dep_min_open" type="BOOLEAN" null="true"/>
       <column name="dep_max_open" type="BOOLEAN" null="true"/>
+      <column name="dep_package_name" type="CITEXT" null="true"/>
+      <column name="dep_package_version_epoch" type="INTEGER" null="true"/>
+      <column name="dep_package_version_canonical_upstream" type="TEXT" null="true"/>
+      <column name="dep_package_version_canonical_release" type="TEXT" null="true" options="COLLATE &quot;C&quot;"/>
+      <column name="dep_package_version_revision" type="INTEGER" null="true"/>
       <foreign-key name="object_id_fk" on-delete="CASCADE">
         <column name="name"/>
         <column name="version_epoch"/>
@@ -299,11 +303,11 @@
         <column name="version_revision"/>
       </index>
       <foreign-key name="dep_package_fk" deferrable="DEFERRED">
-        <column name="dep_name"/>
-        <column name="dep_version_epoch"/>
-        <column name="dep_version_canonical_upstream"/>
-        <column name="dep_version_canonical_release"/>
-        <column name="dep_version_revision"/>
+        <column name="dep_package_name"/>
+        <column name="dep_package_version_epoch"/>
+        <column name="dep_package_version_canonical_upstream"/>
+        <column name="dep_package_version_canonical_release"/>
+        <column name="dep_package_version_revision"/>
         <references table="package">
           <column name="name"/>
           <column name="version_epoch"/>

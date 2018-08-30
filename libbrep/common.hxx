@@ -218,21 +218,39 @@ namespace brep
   // repository_type
   //
   using bpkg::repository_type;
+  using bpkg::to_repository_type;
+
+  #pragma db map type(repository_type) as(string) \
+    to(to_string (?))                             \
+    from(brep::to_repository_type (?))
 
   // repository_url
   //
   using bpkg::repository_url;
 
+  #pragma db map type(repository_url) as(string)                            \
+    to((?).string ())                                                       \
+    from((?).empty () ? brep::repository_url () : brep::repository_url (?))
+
   // repository_location
   //
   using bpkg::repository_location;
 
-  #pragma db map type(repository_location) as(string)            \
-    to((?).url ().string ())                                     \
-    from(brep::repository_location ((?).empty ()                 \
-                                    ? bpkg::repository_url ()    \
-                                    : brep::repository_url (?),  \
-                                    brep::repository_type::pkg))
+  #pragma db value
+  struct _repository_location
+  {
+    repository_url  url;
+    repository_type type;
+  };
+
+  // Note that the type() call fails for an empty repository location.
+  //
+  #pragma db map type(repository_location) as(_repository_location) \
+    to(brep::_repository_location {(?).url (),                      \
+                                   (?).empty ()                     \
+                                   ? brep::repository_type::pkg     \
+                                   : (?).type ()})                  \
+    from(brep::repository_location (std::move ((?).url), (?).type))
 
   // Version comparison operators.
   //
