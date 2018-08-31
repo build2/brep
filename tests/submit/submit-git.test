@@ -66,14 +66,21 @@ pkg_ctl="$prj_ctl/hello.git"
 
   : dir-only
   :
-  $* $~/dir 2>>~%EOE% != 0
+  $* dir 2>>~%EOE% != 0
     %\[.+\] \[brep:error\] \[ref dir\] \[brep-submit-git\]: usage: .+brep-submit-git \[<options>\] <tgt-repo> \[<ref-repo>\] <dir>%
     EOE
 
   : ref-not-exist
   :
-  $* "$root_tgt_url" ref $~/dir 2>>~%EOE% != 0
+  $* "$root_tgt_url" ref dir 2>>~%EOE% != 0
     %\[.+\] \[brep:error\] \[ref dir\] \[brep-submit-git\]: 'ref' does not exist or is not a directory%
+    EOE
+
+  : dir-not-exist
+  :
+  mkdir ref;
+  $* "$root_tgt_url" ref dir 2>>~%EOE% != 0
+    %\[.+\] \[brep:error\] \[ref dir\] \[brep-submit-git\]: 'dir' does not exist or is not a directory%
     EOE
 }
 

@@ -1,0 +1,141 @@
+# file      : tests/ci/ci-load.test
+# copyright : Copyright (c) 2014-2018 Code Synthesis Ltd
+# license   : MIT; see accompanying LICENSE file
+
+.include data.test
+
+: args
+{
+  : none
+  :
+  $* 2>>~%EOE% != 0
+  %\[.+\] \[brep:error\] \[ref \] \[brep-ci-load\]: usage: .+brep-ci-load \[--result-url <url>\] <loader-path> \[<loader-options>\] <dir>%
+  EOE
+
+  : no-dir
+  :
+  $* brep-load 2>>~%EOE% != 0
+  %\[.+\] \[brep:error\] \[ref brep-load\] \[brep-ci-load\]: usage: .+brep-ci-load \[--result-url <url>\] <loader-path> \[<loader-options>\] <dir>%
+  EOE
+
+  : dir-not-exist
+  :
+  $* brep-load $~/dir 2>>~%EOE% != 0
+    %\[.+\] \[brep:error\] \[ref dir\] \[brep-ci-load\]: '.+dir' does not exist or is not a directory%
+    EOE
+}
+
+: success
+:
+{
+  : simulate
+  :
+  {
+    $clone_root_data;
+
+    echo 'simulate: success' >+$data_dir/request.manifest;
+
+    $* ./brep-load $data_dir >>"EOO";
+      : 1
+      status: 200
+      message: CI request is queued
+      reference: $request_id
+      EOO
+
+    test -d $data_dir != 0
+  }
+
+  : for-real
+  :
+  {
+    # Create the loader script that validates the arguments passed and the
+    # files produced by the handler.
+    #
+    loader=$~/brep-load
+
+    cat <<"EOI" >=$loader;
+      #!/usr/bin/env bash
+      if [ "\$#" != 5 -o \
+           "\$1" != "--db-host=localhost" -o \
+           "\$2" != "--db-port=8432" -o \
+           "\$3" != "--force" -o \
+           "\$4" != "--shallow" -o \
+           "\$5" != "$data_dir/loadtab" -o \
+           ! -f "$data_dir/cache/repositories.manifest" -o \
+           ! -f "$data_dir/cache/packages.manifest" ]; then
+        exit 1
+      fi
+      if ! diff "$data_dir/loadtab" - <<<"https://git.build2.org/hello/hello.git#master hello cache:cache"; then
+        exit 1
+      fi
+      EOI
+
+    chmod 755 $loader;
+
+    $clone_root_data;
+
+    $* $loader --db-host=localhost --db-port=8432 $data_dir >>"EOO"
+      : 1
+      status: 200
+      message: CI request is queued
+      reference: $request_id
+      EOO
+
+    $clone_root_data;
+
+    $* --result-url "http://example.com/" \
+       $loader --db-host=localhost --db-port=8432 \
+       $data_dir >>"EOO"
+      : 1
+      status: 200
+      message: CI request is queued: http://example.com
+      reference: $request_id
+      EOO
+  }
+}
+
+: failure
+:
+{
+  test.arguments += ./brep-load $data_dir
+
+  : bad-simulate
+  :
+  {
+    $clone_root_data_clean;
+
+    echo 'simulate: fly' >+$data_dir/request.manifest;
+
+    $* >>"EOO"
+      : 1
+      status: 400
+      message: unrecognized simulation outcome 'fly'
+      reference: $request_id
+      EOO
+  }
+
+  : unable-fetch-repo
+  :
+  {
+    $clone_root_data_clean;
+
+    sed -i -e "s%^\(repository:\) .+\$%\\1 http://example.com/repo.git%" \
+	$data_dir/request.manifest;
+
+    $* >>~"%EOO%"
+      : 1
+      status: 422
+      %message: unable to fetch repository information .+%
+      %.*
+      reference: $request_id
+      EOO
+  }
+
+  : loader-not-exist
+  :
+  {
+    $clone_root_data_clean;
+
+    $* 2>~'%.*brep-load.*%' != 0
+  }
+}

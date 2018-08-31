@@ -6,12 +6,17 @@
 
 # Simple package CI request handler with directory storage.
 #
-# Keep the CI request directory unless simulating. Write the CI result
-# manifest to stdout.
+# Dump the repositories.manifest and packages.manifest files into the CI
+# request data directory as a sanity check. Keep the directory unless
+# simulating. Write the CI result manifest to stdout.
 #
 usage="usage: $0 <dir>"
 
 verbose= #true
+
+# Repository information fetch timeout (seconds).
+#
+fetch_timeout=60
 
 trap "{ exit 1; }" ERR
 set -o errtrace # Trap ERR in functions.
@@ -80,14 +85,20 @@ fi
 
 spec="$spec$repository"
 
+# Exit with the 'CI request is queued' response if simulating.
+#
+# Note that we can't assume a real repository URL is specified if simulating
+# so trying to query the repository info is not a good idea.
+#
 if [ -n "$simulate" ]; then
-  rm -r "$data_dir"
+  run rm -r "$data_dir"
   trace "CI request for '$spec' is simulated"
 else
+  dump_repository_manifests "$repository" "$data_dir" "$fetch_timeout"
   trace "CI request for '$spec' is queued"
 fi
 
-# The spec normally contains the full commit id and so feels too hairy for
-# including in the message.
+# The spec normally contains the full commit id and so feels too hairy to
+# include in the result manifest message.
 #
 exit_with_manifest 200 "CI request is queued"

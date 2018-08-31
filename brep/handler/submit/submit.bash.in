@@ -49,6 +49,7 @@ function extract_package_manifest () # <archive> <manifest>
   local man="$2"
 
   if ! run_silent bpkg pkg-verify --manifest "$arc" >"$man"; then
+
     # Perform the sanity check to make sure that bpkg is runnable.
     #
     if ! run bpkg --version >/dev/null; then

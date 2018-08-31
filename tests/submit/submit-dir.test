@@ -12,7 +12,7 @@
   %\[.+\] \[brep:error\] \[ref \] \[brep-submit-dir\]: usage: .+brep-submit-dir <dir>%
   EOE
 
-  : not-exist
+  : dir-not-exist
   :
   $* $~/dir 2>>~%EOE% != 0
     %\[.+\] \[brep:error\] \[ref dir\] \[brep-submit-dir\]: '.+dir' does not exist or is not a directory%

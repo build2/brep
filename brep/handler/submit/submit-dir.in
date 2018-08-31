@@ -99,7 +99,7 @@ if [ -z "$project" ]; then
 fi
 
 if [ -n "$simulate" ]; then
-  rm -r "$data_dir"
+  run rm -r "$data_dir"
   trace "$name/$version submission is simulated"
 else
   trace "$name/$version submission is queued"

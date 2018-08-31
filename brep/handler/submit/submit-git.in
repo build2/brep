@@ -387,7 +387,7 @@ function git_add () # <repo-dir> <path>...
   run git -C "$d" add $gvo "$@" >&2
 }
 
-# Dor now we make 10 re-tries to add the package and push to target. Push can
+# For now we make 10 re-tries to add the package and push to target. Push can
 # fail due to the target-to-reference information move race (see the above
 # notes for details) or because concurrent submissions. We may want to make it
 # configurable in the future.

@@ -22,9 +22,13 @@ Move the archive into brep/tests/submit/ directory.
 
 Locally run brep server configured to use submit-dir handler.
 
-$ bdep publish --control http://example.org/hello.git \
-       --email user@example.org --repository http://localhost/pkg --yes \
-       -d hello
+$ bdep publish \
+--control http://example.org/hello.git \
+--email user@example.org \
+--repository http://localhost/pkg \
+--yes \
+-d hello
 
 Replace the submission data directory in brep/tests/submit/ with the one
-produced with the above command.
+produced with the above command, removing package.manifest and result.manifest
+files it contains.

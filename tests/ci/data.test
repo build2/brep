@@ -2,28 +2,24 @@
 # copyright : Copyright (c) 2014-2018 Code Synthesis Ltd
 # license   : MIT; see accompanying LICENSE file
 
-# Pre-created CI request submission data directory that will be copied by
-# subsequent tests and scope setup commands. The common approach will be that
-# group scopes copy and modify the parent scope submission directory as
-# required by the nested tests and scopes. Tests will also clone the parent
-# scope submission data directory to optionally modify it, use and cleanup at
-# the end. Note that configuration can not be shared between multiple
-# submission handler processes. Also we need to make sure that submission data
+# Pre-created CI request data directory that will be copied by subsequent
+# tests and scope setup commands. The common approach will be that group
+# scopes copy and modify the parent scope submission directory as required
+# by the nested tests and scopes. Tests will also clone the parent scope
+# submission data directory to optionally modify it, use and cleanup at the
+# end. Note that configuration can not be shared between multiple submission
+# handler processes. Also we need to make sure that submission data
 # directories are not cloned while being used by submission handler scripts.
 #
-request_id = 4cfa00ec-8459-4f4f-9ef0-8883ddcc4f5b
-data_dir = $request_id/
+data_dir = $regex.replace($path_search('*/request.manifest', $src_base), \
+                          '(.*)/.*', \
+                          '\1')
 
-+mkdir $data_dir
+request_id = "$data_dir"
 
-+cat <<"EOI" >=$data_dir/request.manifest
-  : 1
-  id: $request_id
-  repository: https://example.com/hello.git#master
-  package: foo
-  package: bar/1.0
-  timestamp: 2018-08-24T18:08:01Z
-  EOI
+# Copy the original CI request data directory to the root scope.
+#
++cp -r $src_base/$data_dir ./
 
 root_data_dir = $~/$data_dir
 

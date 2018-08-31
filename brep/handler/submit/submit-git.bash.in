@@ -127,10 +127,7 @@ function repository_base () # <repo-url>
 {
   # First, strip the URL query part, then component.
   #
-  sed -n \
--e 's%^\([^?]*\).*$%\1%' \
--e 's%^\(.*/\)[^/]\{1,\}/\{0,1\}$%\1%p' \
-<<<"$1"
+  sed -n -r -e 's%^([^?]*).*$%\1%' -e 's%^(.*/)[^/]+/?$%\1%p' <<<"$1"
 }
 
 # Authenticate the project name owner. Make sure that the control manifest
@@ -296,7 +293,7 @@ function auth_package_unknown () # <package> <repo-dir>
 #
 function url_scheme () # <url>
 {
-  sed -n -e 's%^\(.*\)://.*$%\L\1%p' <<<"$1"
+  sed -n -re 's%^(.*)://.*$%\L\1%p' <<<"$1"
 }
 
 # Check that the repository properly responds to the probing request before
@@ -320,8 +317,8 @@ function check_connectivity () # <repo-url> <timeout> <ours>
   if [ "$s" == "http" -o "$s" == "https" ]; then
     local u q
 
-    u="$(sed -n -e 's%^\([^?]*\).*$%\1%p' <<<"$url")" # Strips query part.
-    q="$(sed -n -e 's%^[^?]*\(.*\)$%\1%p' <<<"$url")" # Query part.
+    u="$(sed -n -re 's%^([^?]*).*$%\1%p' <<<"$url")" # Strips query part.
+    q="$(sed -n -re 's%^[^?]*(.*)$%\1%p' <<<"$url")" # Query part.
 
     if [ -z "$q" ]; then
       u="$u/info/refs?service=git-upload-pack"

@@ -1,0 +1,11 @@
+Prepare the test data with the following instructions.
+
+Locally run brep server configured to use ci-dir handler.
+
+$ curl \
+--form-string repository=https://git.build2.org/hello/hello.git#master \
+--form-string package=hello \
+http://localhost/pkg?ci
+
+Replace the submission data directory in brep/tests/ci/ with the one produced
+with the above command, removing all files it contains except request.manifest.

@@ -2,10 +2,11 @@
 # copyright : Copyright (c) 2014-2018 Code Synthesis Ltd
 # license   : MIT; see accompanying LICENSE file
 
-./: exe{brep-ci-dir}
+./: exe{brep-ci-dir} exe{brep-ci-load}
 
 include ../
 
-exe{brep-ci-dir}: in{ci-dir} bash{ci} ../bash{handler}
+exe{brep-ci-dir}:  in{ci-dir}  bash{ci} ../bash{handler}
+exe{brep-ci-load}: in{ci-load} bash{ci} ../bash{handler}
 
 bash{ci}: in{ci} ../bash{handler}

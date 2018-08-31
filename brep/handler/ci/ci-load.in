@@ -1,0 +1,186 @@
+#!/usr/bin/env bash
+
+# file      : brep/handler/ci/ci-load.in
+# copyright : Copyright (c) 2014-2018 Code Synthesis Ltd
+# license   : MIT; see accompanying LICENSE file
+
+# Package CI request handler that loads the packages into the brep database.
+#
+# --result-url <url>
+#  Result URL base for the response. If specified, the handler will append the
+#  brep tenant id to this value and include the resulting URL in the response
+#  message.
+#
+# <loader-path>
+#  Loader program (normally brep-load(1)).
+#
+# <loader-options>
+#  Loader options (normally --db-*).
+#
+usage="usage: $0 [--result-url <url>] <loader-path> [<loader-options>] <dir>"
+
+verbose= #true
+
+# Repository information fetch timeout (seconds).
+#
+fetch_timeout=60
+
+trap "{ exit 1; }" ERR
+set -o errtrace # Trap ERR in functions.
+
+@import brep/handler/handler@
+@import brep/handler/ci/ci@
+
+# The handler's own options.
+#
+result_url=
+while [ $# -gt 0 ]; do
+  case $1 in
+    --result-url)
+      shift
+      result_url="${1%/}"
+      shift
+      ;;
+    *)
+      break
+      ;;
+  esac
+done
+
+# The loader path.
+#
+loader="$1"
+
+if [ -z "$loader" ]; then
+  error "$usage"
+fi
+
+shift
+
+# Assume that the remaining arguments except the last one are the loader
+# options.
+#
+loader_options=()
+while [ $# -gt 1 ]; do
+  loader_options+=("$1")
+  shift
+done
+
+# CI request data directory (last argument).
+#
+data_dir="$1"
+
+if [ -z "$data_dir" ]; then
+  error "$usage"
+fi
+
+if [ ! -d "$data_dir" ]; then
+  error "'$data_dir' does not exist or is not a directory"
+fi
+
+reference="$(basename "$data_dir")"
+
+# Parse the CI request manifest and obtain the repository URL, package names
+# with optional versions, as well as the simulate value.
+#
+manifest_parser_start "$data_dir/request.manifest"
+
+repository=
+packages=()
+simulate=
+
+while IFS=: read -ru "$manifest_parser_ofd" -d '' n v; do
+  case "$n" in
+    repository) repository="$v"  ;;
+    package)    packages+=("$v") ;;
+    simulate)   simulate="$v"    ;;
+  esac
+done
+
+manifest_parser_finish
+
+if [ -z "$repository" ]; then
+  error "repository manifest value expected"
+fi
+
+if [ -n "$simulate" -a "$simulate" != "success" ]; then
+  exit_with_manifest 400 "unrecognized simulation outcome '$simulate'"
+fi
+
+# Produce the bpkg-build(1)-like package spec for tracing.
+#
+# The spec normally contains the full commit id and so feels too hairy to
+# include in the result manifest message.
+#
+spec=
+for p in "${packages[@]}"; do
+  if [ -n "$spec" ]; then
+    spec="$spec,"
+  fi
+  spec="$spec$p"
+done
+
+if [ -n "$spec" ]; then
+  spec="$spec@"
+fi
+
+spec="$spec$repository"
+
+message_suffix=
+if [ -n "$result_url" ]; then
+  message_suffix=": $result_url"
+fi
+
+# Exit with the 'CI request is queued' response if simulating.
+#
+# Note that we can't assume a real repository URL is specified if simulating
+# so trying to query the repository info is not a good idea.
+#
+if [ -n "$simulate" ]; then
+  run rm -r "$data_dir"
+
+  trace "CI request for '$spec' is simulated$message_suffix"
+  exit_with_manifest 200 "CI request is queued$message_suffix"
+fi
+
+# Dump the repositories.manifest and packages.manifest files.
+#
+run mkdir "$data_dir/cache"
+dump_repository_manifests "$repository" "$data_dir/cache" "$fetch_timeout"
+
+# In most cases all the requested for CI packages belong to the same project,
+# which would be nice to use as the repository display name. However, that
+# would require parsing packages.manifest just to get this information. Which
+# feels like a bit of an overkill. So for now let's just use the leaf
+# component of the repository URL since it will be the same as the project
+# name in most (sane) cases.
+#
+# First, strip the URL query and fragment parts, then prefix, and, finally,
+# extension.
+#
+display_name="$(sed -r \
+-e 's%^([^?#]*).*$%\1%' \
+-e 's%^.*/([^/]+)/?$%\1%' \
+-e 's%(\.[^.]*)$%%' \
+<<<"$repository")"
+
+# Create the brep-load(1) loadtab file.
+#
+loadtab="$data_dir/loadtab"
+run echo "$repository $display_name cache:cache" >"$loadtab"
+
+# Load the repository into the brep package database.
+#
+# Note that for now we load all the packages the repository contains without
+# regard to the request manifest package values. Later, we could add filtering
+# of the packages.manifest file against the request manifest values. While at
+# it, we could also deduce the repository display name (see above). @@ TODO
+#
+run "$loader" "${loader_options[@]}" --force --shallow "$loadtab"
+
+# Remove the no longer needed CI request data directory.
+#
+run rm -r "$data_dir"
+
+trace "CI request for '$spec' is queued$message_suffix"
+exit_with_manifest 200 "CI request is queued$message_suffix"
