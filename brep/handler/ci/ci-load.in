@@ -178,6 +178,20 @@ run echo "$repository $display_name cache:cache" >"$loadtab"
 #
 run "$loader" "${loader_options[@]}" --force --shallow "$loadtab"
 
+# @@ TMP TENANCY: before we add tenancy support we also need to manually
+#    cleanup the build database. We will assume the cleanup code to optionally
+#    be present in a separate bash script which path is deduced from the
+#    handler's own path by adding the -clean suffix.
+#
+cleaner="$0-clean"
+if [ -f "$cleaner" ]; then
+
+  # Let's pass the CI request data directory to the cleaner, so it can create
+  # temporary files in this directory.
+  #
+  run "$cleaner" "$data_dir"
+fi
+
 # Remove the no longer needed CI request data directory.
 #
 run rm -r "$data_dir"
