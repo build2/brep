@@ -3,7 +3,7 @@
 # license   : MIT; see accompanying LICENSE file
 
 define common: file
-common{*}: extension = test
+common{*}: extension = testscript
 
 dir = ../../brep/handler/submit/
 
@@ -11,8 +11,8 @@ include $dir
 
 commons = data
 
-./: test{* -{$commons}} common{$commons} {*/ -test/}{**} \
+./: testscript{* -{$commons}} common{$commons} {*/ -test/}{**} \
     $dir/exe{brep-submit-dir} $dir/exe{brep-submit-git}
 
-test{submit-dir}@./: test = $out_base/$dir/brep-submit-dir
-test{submit-git}@./: test = $out_base/$dir/brep-submit-git
+testscript{submit-dir}@./: test = $out_base/$dir/brep-submit-dir
+testscript{submit-git}@./: test = $out_base/$dir/brep-submit-git

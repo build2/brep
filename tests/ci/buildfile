@@ -3,7 +3,7 @@
 # license   : MIT; see accompanying LICENSE file
 
 define common: file
-common{*}: extension = test
+common{*}: extension = testscript
 
 dir = ../../brep/handler/ci/
 
@@ -11,8 +11,8 @@ include $dir
 
 commons = data
 
-./: test{* -{$commons}} common{$commons} \
+./: testscript{* -{$commons}} common{$commons} \
     $dir/exe{brep-ci-dir} $dir/exe{brep-ci-load}
 
-test{ci-dir}@./:  test = $out_base/$dir/brep-ci-dir
-test{ci-load}@./: test = $out_base/$dir/brep-ci-load
+testscript{ci-dir}@./:  test = $out_base/$dir/brep-ci-dir
+testscript{ci-load}@./: test = $out_base/$dir/brep-ci-load

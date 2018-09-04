@@ -1,11 +1,11 @@
-# file      : tests/ci/data.test
+# file      : tests/submit/data.testscript
 # copyright : Copyright (c) 2014-2018 Code Synthesis Ltd
 # license   : MIT; see accompanying LICENSE file
 
-# Pre-created CI request data directory that will be copied by subsequent
+# Pre-created submission data directory that will be copied by subsequent
 # tests and scope setup commands. The common approach will be that group
-# scopes copy and modify the parent scope submission directory as required
-# by the nested tests and scopes. Tests will also clone the parent scope
+# scopes copy and modify the parent scope submission directory as required by
+# the nested tests and scopes. Tests will also clone the parent scope
 # submission data directory to optionally modify it, use and cleanup at the
 # end. Note that configuration can not be shared between multiple submission
 # handler processes. Also we need to make sure that submission data
@@ -15,9 +15,9 @@ data_dir = $regex.replace($path_search('*/request.manifest', $src_base), \
                           '(.*)/.*', \
                           '\1')
 
-request_id = "$data_dir"
+checksum = "$data_dir"
 
-# Copy the original CI request data directory to the root scope.
+# Copy the original submission data directory to the root scope.
 #
 +cp -r $src_base/$data_dir ./
 
