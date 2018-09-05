@@ -29,21 +29,25 @@ namespace brep
   class build_repository
   {
   public:
-    string name; // Object id (canonical name).
+    repository_id id;
+
+    const string& canonical_name;             // Tracks id.canonical_name.
     repository_location location;
     optional<string> certificate_fingerprint;
 
     // Database mapping.
     //
-    #pragma db member(name) id
+    #pragma db member(id) id column("")
 
-    #pragma db member(location)                                  \
-      set(this.location = std::move (?);                         \
-          assert (this.name == this.location.canonical_name ()))
+    #pragma db member(canonical_name) transient
+
+    #pragma db member(location)                                            \
+      set(this.location = std::move (?);                                   \
+          assert (this.canonical_name == this.location.canonical_name ()))
 
   private:
     friend class odb::access;
-    build_repository () = default;
+    build_repository (): canonical_name (id.canonical_name) {}
   };
 
   // "Foreign" value type that is mapped to a subset of the build_constraint
@@ -85,12 +89,16 @@ namespace brep
 
   // Packages that can potentially be built (internal non-stub).
   //
-  #pragma db view                                                          \
-    object(build_package)                                                  \
-    object(build_repository inner:                                         \
-           build_package::internal_repository == build_repository::name && \
-           brep::compare_version_ne (build_package::id.version,            \
-                                     brep::wildcard_version,               \
+  // Note that ADL can't find the equal operator, so we use the function call
+  // notation.
+  //
+  #pragma db view                                                \
+    object(build_package)                                        \
+    object(build_repository inner:                               \
+           brep::operator== (build_package::internal_repository, \
+                             build_repository::id) &&            \
+           brep::compare_version_ne (build_package::id.version,  \
+                                     brep::wildcard_version,     \
                                      false))
   struct buildable_package
   {
@@ -102,12 +110,13 @@ namespace brep
     #pragma db member(version) set(this.version.init (this.id.version, (?)))
   };
 
-  #pragma db view                                                          \
-    object(build_package)                                                  \
-    object(build_repository inner:                                         \
-           build_package::internal_repository == build_repository::name && \
-           brep::compare_version_ne (build_package::id.version,            \
-                                     brep::wildcard_version,               \
+  #pragma db view                                                \
+    object(build_package)                                        \
+    object(build_repository inner:                               \
+           brep::operator== (build_package::internal_repository, \
+                             build_repository::id) &&            \
+           brep::compare_version_ne (build_package::id.version,  \
+                                     brep::wildcard_version,     \
                                      false))
   struct buildable_package_count
   {
@@ -128,6 +137,7 @@ namespace brep
     table("build_package_constraints" = "c")                          \
     object(build_package = package inner:                             \
            "c.exclusion AND "                                         \
+           "c.tenant = " + package::id.tenant + "AND" +               \
            "c.name = " + package::id.name + "AND" +                   \
            "c.version_epoch = " + package::id.version.epoch + "AND" + \
            "c.version_canonical_upstream = " +                        \

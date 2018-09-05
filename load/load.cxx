@@ -272,13 +272,16 @@ load_repositories (path p)
 // package model, including search related objects, settles down.
 //
 static bool
-changed (const internal_repositories& repos, database& db)
+changed (const string& tenant,
+         const internal_repositories& repos,
+         database& db)
 {
   strings names;
   for (auto& r: repos)
   {
     shared_ptr<repository> pr (
-      db.find<repository> (r.location.canonical_name ()));
+      db.find<repository> (repository_id (tenant,
+                                          r.location.canonical_name ())));
 
     if (pr == nullptr || r.location.string () != pr->location.string () ||
         r.display_name != pr->display_name ||
@@ -298,8 +301,10 @@ changed (const internal_repositories& repos, database& db)
   //
   return
     !db.query<repository> (
-      query::internal &&
-      !query::name.in_range (names.begin (), names.end ())).empty ();
+      query::id.tenant == tenant &&
+      query::internal            &&
+      !query::id.canonical_name.in_range (names.begin (),
+                                          names.end ())).empty ();
 }
 
 // Start 'bpkg rep-info [options] <repository_location>' process.
@@ -388,7 +393,7 @@ load_packages (const shared_ptr<repository>& rp, database& db)
   for (auto& pm: pms)
   {
     shared_ptr<package> p (
-      db.find<package> (package_id (pm.name, pm.version)));
+      db.find<package> (package_id (rp->tenant, pm.name, pm.version)));
 
     // sha256sum should always be present if the package manifest comes from
     // the packages.manifest file belonging to the pkg repository.
@@ -515,7 +520,7 @@ load_packages (const shared_ptr<repository>& rp, database& db)
         if (!p->sha256sum)
           p->sha256sum = move (pm.sha256sum);
         else if (*pm.sha256sum != *p->sha256sum)
-          cerr << "warning: sha256sum mismatch for package " << p->id.name
+          cerr << "warning: sha256sum mismatch for package " << p->name
                << " " << p->version << endl
                << "  info: " << p->internal_repository.load ()->location
                << " has " << *p->sha256sum << endl
@@ -551,9 +556,12 @@ load_repositories (const shared_ptr<repository>& rp,
   //
   assert (!rp->cache_location.empty ());
 
+  const string& tenant (rp->tenant);
+
   // Repository is already persisted by the load_packages() function call.
   //
-  assert (db.find<repository> (rp->name) != nullptr);
+  assert (db.find<repository> (
+            repository_id (tenant, rp->canonical_name)) != nullptr);
 
   pkg_repository_manifests rpm;
 
@@ -680,16 +688,17 @@ load_repositories (const shared_ptr<repository>& rp,
               ? rp->prerequisites
               : rp->complements);
 
-    rs.emplace_back (db, cn);
+    rs.emplace_back (db, repository_id (tenant, cn));
 
-    shared_ptr<repository> pr (db.find<repository> (cn));
+    shared_ptr<repository> pr (
+      db.find<repository> (repository_id (tenant, cn)));
 
     if (pr != nullptr)
       // The prerequisite repository is already loaded.
       //
       continue;
 
-    pr = make_shared<repository> (move (rl));
+    pr = make_shared<repository> (tenant, move (rl));
 
     // If the prerequsite repository location is a relative path, then
     // calculate its cache location.
@@ -834,7 +843,7 @@ resolve_dependencies (package& p, database& db)
       if (d.package == nullptr)
       {
         cerr << "error: can't resolve dependency " << d << " of the package "
-             << p.id.name << " " << p.version << endl
+             << p.name << " " << p.version << endl
              << "  info: repository "
              << p.internal_repository.load ()->location
              << " appears to be broken" << endl;
@@ -886,7 +895,7 @@ detect_dependency_cycle (const package_id& id,
         ? p->internal_repository.load ()
         : p->other_repositories[0].load ());
 
-      cerr << id.name << " " << p->version << " (" << r->name << ")";
+      cerr << p->name << " " << p->version << " (" << r->canonical_name << ")";
     };
 
     for (; i != chain.end (); ++i)
@@ -1089,6 +1098,18 @@ try
     return 1;
   }
 
+  // By default the tenant is empty and assumes a single-tenant mode. Let's
+  // require the specified tenant to be non-empty.
+  //
+  const string& tenant (ops.tenant ());
+
+  if (ops.tenant_specified () && tenant.empty ())
+  {
+    cerr << "error: empty tenant" << endl
+         << help_info << endl;
+    return 1;
+  }
+
   odb::pgsql::database db (
     ops.db_user (),
     ops.db_password (),
@@ -1119,12 +1140,31 @@ try
   //
   internal_repositories irs (load_repositories (path (argv[1])));
 
-  if (ops.force () || changed (irs, db))
+  if (ops.force () || changed (tenant, irs, db))
   {
     // Rebuild repositories persistent state from scratch.
     //
-    db.erase_query<package> ();
-    db.erase_query<repository> ();
+    // Note that in the single-tenant mode the tenant must be empty. In the
+    // multi-tenant mode all tenants must be non-empty. So in the
+    // single-tenant mode we erase all database objects (possibly from
+    // multiple tenants). Otherwise, cleanup the specified and the empty
+    // tenants only.
+    //
+    if (tenant.empty ())             // Single-tenant mode.
+    {
+      db.erase_query<package> ();
+      db.erase_query<repository> ();
+    }
+    else                             // Multi-tenant mode.
+    {
+      cstrings ts ({tenant.c_str (), ""});
+
+      db.erase_query<package> (
+        query<package>::id.tenant.in_range (ts.begin (), ts.end ()));
+
+      db.erase_query<repository> (
+        query<repository>::id.tenant.in_range (ts.begin (), ts.end ()));
+    }
 
     // On the first pass over the internal repositories we load their
     // certificate information and packages.
@@ -1141,7 +1181,8 @@ try
           ir.fingerprint);
 
       shared_ptr<repository> r (
-        make_shared<repository> (ir.location,
+        make_shared<repository> (tenant,
+                                 ir.location,
                                  move (ir.display_name),
                                  move (ir.cache_location),
                                  move (cert),
@@ -1157,7 +1198,8 @@ try
     for (const auto& ir: irs)
     {
       shared_ptr<repository> r (
-        db.load<repository> (ir.location.canonical_name ()));
+        db.load<repository> (repository_id (tenant,
+                                            ir.location.canonical_name ())));
 
       load_repositories (r, db, ops.shallow ());
     }
@@ -1170,14 +1212,18 @@ try
       using query = query<package>;
 
       for (auto& p:
-             db.query<package> (query::internal_repository.is_not_null ()))
+             db.query<package> (
+               query::id.tenant == tenant &&
+               query::internal_repository.canonical_name.is_not_null ()))
         resolve_dependencies (p, db);
 
       // Make sure there is no package dependency cycles.
       //
       package_ids chain;
       for (const auto& p:
-             db.query<package> (query::internal_repository.is_not_null ()))
+             db.query<package> (
+               query::id.tenant == tenant &&
+               query::internal_repository.canonical_name.is_not_null ()))
         detect_dependency_cycle (p.id, chain, db);
     }
   }

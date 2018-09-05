@@ -122,7 +122,7 @@ handle (request& rq, response& rs)
     if (c.empty ())
       throw invalid_argument ("no configuration name");
 
-    id = build_id (package_id (move (p), package_version),
+    id = build_id (package_id (move (tenant), move (p), package_version),
                    move (c),
                    toolchain_version);
   }
@@ -168,6 +168,7 @@ handle (request& rq, response& rs)
       build_db_->update (b);
 
       l1 ([&]{trace << "force rebuild for "
+                    << b->tenant << ' '
                     << b->package_name << '/' << b->package_version << ' '
                     << b->configuration << ' '
                     << b->toolchain_name << '-' << b->toolchain_version

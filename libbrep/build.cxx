@@ -55,13 +55,16 @@ namespace brep
   // build
   //
   build::
-  build (package_name_type pnm, version pvr,
+  build (string tnt,
+         package_name_type pnm,
+         version pvr,
          string cfg,
          string tnm, version tvr,
          optional<string> afp, optional<string> ach,
          string mnm, string msm,
          butl::target_triplet trg)
-      : id (package_id (move (pnm), pvr), move (cfg), tvr),
+      : id (package_id (move (tnt), move (pnm), pvr), move (cfg), tvr),
+        tenant (id.package.tenant),
         package_name (id.package.name),
         package_version (move (pvr)),
         configuration (id.configuration),

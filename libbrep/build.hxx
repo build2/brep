@@ -74,19 +74,25 @@ namespace brep
   template <typename T>
   inline auto
   operator== (const T& x, const build_id& y)
-    -> decltype (x.package == y.package)
+    -> decltype (x.package == y.package             &&
+                 x.configuration == y.configuration &&
+                 x.toolchain_version.epoch == y.toolchain_version.epoch)
   {
-    return x.package == y.package && x.configuration == y.configuration &&
-      compare_version_eq (x.toolchain_version, y.toolchain_version, true);
+    return x.package == y.package             &&
+           x.configuration == y.configuration &&
+           compare_version_eq (x.toolchain_version, y.toolchain_version, true);
   }
 
   template <typename T>
   inline auto
   operator!= (const T& x, const build_id& y)
-    -> decltype (x.package == y.package)
+    -> decltype (x.package == y.package             &&
+                 x.configuration == y.configuration &&
+                 x.toolchain_version.epoch == y.toolchain_version.epoch)
   {
-    return x.package != y.package || x.configuration != y.configuration ||
-      compare_version_ne (x.toolchain_version, y.toolchain_version, true);
+    return x.package != y.package             ||
+           x.configuration != y.configuration ||
+           compare_version_ne (x.toolchain_version, y.toolchain_version, true);
   }
 
   // build_state
@@ -167,7 +173,9 @@ namespace brep
     // Create the build object with the building state, non-existent status,
     // the timestamp set to now and the force state set to unforced.
     //
-    build (package_name_type, version,
+    build (string tenant,
+           package_name_type,
+           version,
            string configuration,
            string toolchain_name, version toolchain_version,
            optional<string> agent_fingerprint,
@@ -177,6 +185,7 @@ namespace brep
 
     build_id id;
 
+    string& tenant;                     // Tracks id.package.tenant.
     package_name_type& package_name;    // Tracks id.package.name.
     upstream_version package_version;   // Original of id.package.version.
     string& configuration;              // Tracks id.configuration.
@@ -215,6 +224,7 @@ namespace brep
     //
     #pragma db member(id) id column("")
 
+    #pragma db member(tenant) transient
     #pragma db member(package_name) transient
     #pragma db member(package_version) \
       set(this.package_version.init (this.id.package.version, (?)))
@@ -232,20 +242,13 @@ namespace brep
 
   private:
     friend class odb::access;
+
     build ()
-        : package_name (id.package.name), configuration (id.configuration) {}
-  };
-
-  #pragma db view object(build)
-  struct build_count
-  {
-    size_t result;
-
-    operator size_t () const {return result;}
-
-    // Database mapping.
-    //
-    #pragma db member(result) column("count(" + build::package_name + ")")
+        : tenant (id.package.tenant),
+          package_name (id.package.name),
+          configuration (id.configuration)
+    {
+    }
   };
 
   #pragma db view object(build) query(distinct)
@@ -290,21 +293,21 @@ namespace brep
   // Note that ADL can't find the equal operator, so we use the function call
   // notation.
   //
-  #pragma db view                                                     \
-    object(build)                                                     \
-    object(build_package inner:                                       \
-           brep::operator== (build::id.package, build_package::id) && \
-           build_package::internal_repository.is_not_null ())
+  #pragma db view                                                            \
+    object(build)                                                            \
+    object(build_package inner:                                              \
+           brep::operator== (build::id.package, build_package::id) &&        \
+           build_package::internal_repository.canonical_name.is_not_null ())
   struct package_build
   {
     shared_ptr<brep::build> build;
   };
 
-  #pragma db view                                                     \
-    object(build)                                                     \
-    object(build_package inner:                                       \
-           brep::operator== (build::id.package, build_package::id) && \
-           build_package::internal_repository.is_not_null ())
+  #pragma db view                                                            \
+    object(build)                                                            \
+    object(build_package inner:                                              \
+           brep::operator== (build::id.package, build_package::id) &&        \
+           build_package::internal_repository.canonical_name.is_not_null ())
   struct package_build_count
   {
     size_t result;

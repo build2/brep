@@ -106,8 +106,8 @@ handle (request& rq, response&)
   }
 
   // Parse the task response session to obtain the build configuration name and
-  // the timestamp, and to make sure the session matches the result manifest's
-  // package name and version.
+  // the timestamp, and to make sure the session matches tenant and the result
+  // manifest's package name, and version.
   //
   build_id id;
   timestamp session_timestamp;
@@ -116,9 +116,18 @@ handle (request& rq, response&)
   {
     const string& s (rqm.session);
 
-    size_t p (s.find ('/')); // End of package name.
+    size_t p (s.find ('/')); // End of tenant.
 
-    if (p == 0)
+    if (p == string::npos)
+      throw invalid_argument ("no package name");
+
+    if (tenant.compare (0, tenant.size (), s, 0, p) != 0)
+      throw invalid_argument ("tenant mismatch");
+
+    size_t b (p + 1);    // Start of package name.
+    p = s.find ('/', b); // End of package name.
+
+    if (p == b)
       throw invalid_argument ("empty package name");
 
     if (p == string::npos)
@@ -127,11 +136,11 @@ handle (request& rq, response&)
     package_name& name (rqm.result.name);
     {
       const string& n (name.string ());
-      if (n.compare (0, n.size (), s, 0, p) != 0)
+      if (n.compare (0, n.size (), s, b, p - b) != 0)
         throw invalid_argument ("package name mismatch");
     }
 
-    size_t b (p + 1);    // Start of version.
+    b = p + 1;           // Start of version.
     p = s.find ('/', b); // End of version.
 
     if (p == string::npos)
@@ -172,7 +181,7 @@ handle (request& rq, response&)
 
     version toolchain_version (parse_version ("toolchain version"));
 
-    id = build_id (package_id (move (name), package_version),
+    id = build_id (package_id (move (tenant), move (name), package_version),
                    move (config),
                    toolchain_version);
 

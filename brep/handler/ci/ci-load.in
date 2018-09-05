@@ -128,7 +128,7 @@ spec="$spec$repository"
 
 message_suffix=
 if [ -n "$result_url" ]; then
-  message_suffix=": $result_url"
+  message_suffix=": $result_url/@$reference" # Append the tenant id.
 fi
 
 # Exit with the 'CI request is queued' response if simulating.
@@ -169,28 +169,16 @@ display_name="$(sed -r \
 loadtab="$data_dir/loadtab"
 run echo "$repository $display_name cache:cache" >"$loadtab"
 
-# Load the repository into the brep package database.
+# Load the repository into the brep package database for the tenant identified
+# by the reference.
 #
 # Note that for now we load all the packages the repository contains without
 # regard to the request manifest package values. Later, we could add filtering
 # of the packages.manifest file against the request manifest values. While at
 # it, we could also deduce the repository display name (see above). @@ TODO
 #
-run "$loader" "${loader_options[@]}" --force --shallow "$loadtab"
-
-# @@ TMP TENANCY: before we add tenancy support we also need to manually
-#    cleanup the build database. We will assume the cleanup code to optionally
-#    be present in a separate bash script which path is deduced from the
-#    handler's own path by adding the -clean suffix.
-#
-cleaner="$0-clean"
-if [ -f "$cleaner" ]; then
-
-  # Let's pass the CI request data directory to the cleaner, so it can create
-  # temporary files in this directory.
-  #
-  run "$cleaner" "$data_dir"
-fi
+run "$loader" "${loader_options[@]}" --force --shallow --tenant "$reference" \
+"$loadtab"
 
 # Remove the no longer needed CI request data directory.
 #

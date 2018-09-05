@@ -44,18 +44,20 @@ namespace brep
   class DIV_HEADER
   {
   public:
-    DIV_HEADER (const dir_path& root,
-                const web::xhtml::fragment& logo,
-                const vector<page_menu>& menu):
-        root_ (root), logo_ (logo), menu_ (menu)  {}
+    DIV_HEADER (const web::xhtml::fragment& logo,
+                const vector<page_menu>& menu,
+                const dir_path& root,
+                const string& tenant):
+        logo_ (logo), menu_ (menu), root_ (root), tenant_ (tenant) {}
 
     void
     operator() (xml::serializer&) const;
 
   private:
-    const dir_path& root_;
     const web::xhtml::fragment& logo_;
     const vector<page_menu>& menu_;
+    const dir_path& root_;
+    const string& tenant_;
   };
 
   // Generates package search form element.
@@ -163,8 +165,11 @@ namespace brep
   class TR_NAME
   {
   public:
-    TR_NAME (const package_name& n, const string& q, const dir_path& r)
-        : name_ (n), query_param_ (q), root_ (r) {}
+    TR_NAME (const package_name& n,
+             const string& q,
+             const dir_path& r,
+             const string& t)
+        : name_ (n), query_param_ (q), root_ (r), tenant_ (t) {}
 
     void
     operator() (xml::serializer&) const;
@@ -173,6 +178,7 @@ namespace brep
     const package_name& name_;
     const string& query_param_;
     const dir_path& root_;
+    const string& tenant_;
   };
 
   // Generates package version element.
@@ -182,11 +188,15 @@ namespace brep
   public:
     // Display the version as a link to the package version details page.
     //
-    TR_VERSION (const package_name& p, const version& v, const dir_path& r)
+    TR_VERSION (const package_name& p,
+                const version& v,
+                const dir_path& r,
+                const string& t)
         : package_ (&p),
           version_ (v.string ()),
           stub_ (v.compare (wildcard_version, true) == 0),
-          root_ (&r)
+          root_ (&r),
+          tenant_ (&t)
     {
     }
 
@@ -196,7 +206,8 @@ namespace brep
         : package_ (nullptr),
           version_ (v.string ()),
           stub_ (v.compare (wildcard_version, true) == 0),
-          root_ (nullptr)
+          root_ (nullptr),
+          tenant_ (nullptr)
     {
     }
 
@@ -208,6 +219,7 @@ namespace brep
     string version_;
     bool stub_;
     const dir_path* root_;
+    const string* tenant_;
   };
 
   // Generates package project name element.
@@ -218,8 +230,8 @@ namespace brep
   class TR_PROJECT
   {
   public:
-    TR_PROJECT (const package_name& p, const dir_path& r)
-        : project_ (p), root_ (r) {}
+    TR_PROJECT (const package_name& p, const dir_path& r, const string& t)
+        : project_ (p), root_ (r), tenant_ (t) {}
 
     void
     operator() (xml::serializer&) const;
@@ -227,6 +239,7 @@ namespace brep
   private:
     const package_name& project_;
     const dir_path& root_;
+    const string& tenant_;
   };
 
   // Generates package summary element.
@@ -279,14 +292,17 @@ namespace brep
   public:
     // Display the tag link list.
     //
-    TR_TAGS (const strings& ts, const dir_path& r)
-        : project_ (nullptr), tags_ (ts), root_ (r) {}
+    TR_TAGS (const strings& ts, const dir_path& r, const string& t)
+        : project_ (nullptr), tags_ (ts), root_ (r), tenant_ (t) {}
 
     // As above but prepend the list with a tag link produced from the project
     // name, if it differs from other tags.
     //
-    TR_TAGS (const package_name& pr, const strings& ts, const dir_path& r)
-        : project_ (&pr), tags_ (ts), root_ (r) {}
+    TR_TAGS (const package_name& pr,
+             const strings& ts,
+             const dir_path& r,
+             const string& t)
+        : project_ (&pr), tags_ (ts), root_ (r), tenant_ (t) {}
 
     void
     operator() (xml::serializer&) const;
@@ -295,6 +311,7 @@ namespace brep
     const package_name* project_;
     const strings& tags_;
     const dir_path& root_;
+    const string& tenant_;
   };
 
   // Generates package dependencies element.
@@ -302,8 +319,8 @@ namespace brep
   class TR_DEPENDS
   {
   public:
-    TR_DEPENDS (const dependencies& d, const dir_path& r)
-        : dependencies_ (d), root_ (r) {}
+    TR_DEPENDS (const dependencies& d, const dir_path& r, const string& t)
+        : dependencies_ (d), root_ (r), tenant_ (t) {}
 
     void
     operator() (xml::serializer&) const;
@@ -311,6 +328,7 @@ namespace brep
   private:
     const dependencies& dependencies_;
     const dir_path& root_;
+    const string& tenant_;
   };
 
   // Generates package requirements element.
@@ -377,8 +395,8 @@ namespace brep
   class TR_REPOSITORY
   {
   public:
-    TR_REPOSITORY (const string& n, const dir_path& r)
-        : name_ (n), root_ (r) {}
+    TR_REPOSITORY (const string& n, const dir_path& r, const string& t)
+        : name_ (n), root_ (r), tenant_ (t) {}
 
     void
     operator() (xml::serializer&) const;
@@ -386,6 +404,7 @@ namespace brep
   private:
     const string& name_;
     const dir_path& root_;
+    const string& tenant_;
   };
 
   // Generates repository location element.

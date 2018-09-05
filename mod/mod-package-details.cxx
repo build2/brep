@@ -50,7 +50,9 @@ init (scanner& s)
 
 template <typename T>
 static inline query<T>
-search_params (const brep::package_name& n, const brep::string& q)
+search_params (const brep::string& q,
+               const brep::string& t,
+               const brep::package_name& n)
 {
   using query = query<T>;
 
@@ -58,6 +60,8 @@ search_params (const brep::package_name& n, const brep::string& q)
     (q.empty ()
      ? query ("NULL")
      : "plainto_tsquery (" + query::_val (q) + ")") +
+    "," +
+    query::_val (t) +
     "," +
     query::_val (n) +
     ")";
@@ -100,12 +104,13 @@ handle (request& rq, response& rs)
 
   try
   {
+    using query = query<latest_package>;
+
     package_name n (*rq.path ().rbegin ());
 
     latest_package lp;
     if (!package_db_->query_one<latest_package> (
-          query<latest_package> ("(" + query<latest_package>::_val (n) + ")"),
-          lp))
+          "(" + query::_val (tenant) + "," + query::_val (n) + ")", lp))
       throw invalid_request (404, "Package '" + n.string () + "' not found");
 
     pkg = package_db_->load<package> (lp.id);
@@ -115,7 +120,7 @@ handle (request& rq, response& rs)
     throw invalid_request (400, "invalid package name format");
   }
 
-  const package_name&  name (pkg->id.name);
+  const package_name&  name (pkg->name);
   const string        ename (mime_url_encode (name.string (), false));
 
   auto url = [&ename] (bool f = false,
@@ -156,7 +161,7 @@ handle (request& rq, response& rs)
     <<     SCRIPT << " " << ~SCRIPT
     <<   ~HEAD
     <<   BODY
-    <<     DIV_HEADER (root, options_->logo (), options_->menu ())
+    <<     DIV_HEADER (options_->logo (), options_->menu (), root, tenant)
     <<     DIV(ID="content");
 
   if (full)
@@ -187,7 +192,7 @@ handle (request& rq, response& rs)
     s << TABLE(CLASS="proplist", ID="package")
       <<   TBODY
       <<     TR_LICENSE (licenses)
-      <<     TR_PROJECT (pkg->project, root);
+      <<     TR_PROJECT (pkg->project, root, tenant);
 
     if (pkg->url)
       s <<   TR_URL (*pkg->url);
@@ -201,14 +206,14 @@ handle (request& rq, response& rs)
     if (pkg->email)
       s <<   TR_EMAIL (*pkg->email);
 
-    s <<     TR_TAGS (pkg->tags, root)
+    s <<     TR_TAGS (pkg->tags, root, tenant)
       <<   ~TBODY
       << ~TABLE;
   }
 
   auto pkg_count (
     package_db_->query_value<package_count> (
-      search_params<package_count> (name, squery)));
+      search_params<package_count> (squery, tenant, name)));
 
   s << FORM_SEARCH (squery)
     << DIV_COUNTER (pkg_count, "Version", "Versions");
@@ -218,7 +223,7 @@ handle (request& rq, response& rs)
   s << DIV;
   for (const auto& pr:
          package_db_->query<package_search_rank> (
-           search_params<package_search_rank> (name, squery) +
+           search_params<package_search_rank> (squery, tenant, name) +
            "ORDER BY rank DESC, version_epoch DESC, "
            "version_canonical_upstream DESC, version_canonical_release DESC, "
            "version_revision DESC" +
@@ -229,7 +234,7 @@ handle (request& rq, response& rs)
 
     s << TABLE(CLASS="proplist version")
       <<   TBODY
-      <<     TR_VERSION (name, p->version, root)
+      <<     TR_VERSION (name, p->version, root, tenant)
 
       // @@ Shouldn't we skip low priority row ? Don't think so, why?
       //
@@ -256,8 +261,11 @@ handle (request& rq, response& rs)
     //
     //    Hm, I am not so sure about this. Consider: stable/testing/unstable.
     //
-    s <<     TR_REPOSITORY (p->internal_repository.object_id (), root)
-      <<     TR_DEPENDS (p->dependencies, root)
+    s <<     TR_REPOSITORY (
+               p->internal_repository.object_id ().canonical_name,
+               root,
+               tenant)
+      <<     TR_DEPENDS (p->dependencies, root, tenant)
       <<     TR_REQUIRES (p->requirements)
       <<   ~TBODY
       << ~TABLE;

@@ -203,12 +203,14 @@ namespace brep
   #pragma db value
   struct package_id
   {
+    string tenant;
     package_name name;
     canonical_version version;
 
     package_id () = default;
-    package_id (package_name n, const brep::version& v)
-        : name (move (n)),
+    package_id (string t, package_name n, const brep::version& v)
+        : tenant (move (t)),
+          name (move (n)),
           version {
             v.epoch, v.canonical_upstream, v.canonical_release, v.revision}
     {
@@ -251,6 +253,19 @@ namespace brep
                                    ? brep::repository_type::pkg     \
                                    : (?).type ()})                  \
     from(brep::repository_location (std::move ((?).url), (?).type))
+
+  // repository_id
+  //
+  #pragma db value
+  struct repository_id
+  {
+    string tenant;
+    string canonical_name;
+
+    repository_id () = default;
+    repository_id (string t, string n)
+        : tenant (move (t)), canonical_name (move (n)) {}
+  };
 
   // Version comparison operators.
   //
@@ -381,35 +396,93 @@ namespace brep
       + x.revision + "DESC";
   }
 
+  template <typename T>
+  inline auto
+  order_by_version (
+    const T& x,
+    bool first = true) -> //decltype ("ORDER BY" + x.epoch)
+                          decltype (x.epoch == 0)
+  {
+    return (first ? "ORDER BY" : ", ")
+      + x.epoch + ","
+      + x.canonical_upstream + ","
+      + x.canonical_release + ","
+      + x.revision;
+  }
+
   // Package id comparison operators.
   //
   inline bool
   operator< (const package_id& x, const package_id& y)
   {
+    if (int r = x.tenant.compare (y.tenant))
+      return r < 0;
+
     if (int r = x.name.compare (y.name))
       return r < 0;
 
     return compare_version_lt (x.version, y.version, true);
   }
 
-  // They allow comparing objects that have name and version data members. The
-  // idea is that this works for both query members of package id types (in
-  // particular in join conditions) as well as for values of package_id type.
+  // They allow comparing objects that have tenant, name, and version data
+  // members. The idea is that this works for both query members of package id
+  // types (in particular in join conditions) as well as for values of
+  // package_id type.
   //
   template <typename T1, typename T2>
   inline auto
   operator== (const T1& x, const T2& y)
-    -> decltype (x.name == y.name && x.version.epoch == y.version.epoch)
+    -> decltype (x.tenant == y.tenant &&
+                 x.name == y.name     &&
+                 x.version.epoch == y.version.epoch)
   {
-    return x.name == y.name && compare_version_eq (x.version, y.version, true);
+    return x.tenant == y.tenant &&
+           x.name == y.name     &&
+           compare_version_eq (x.version, y.version, true);
   }
 
   template <typename T1, typename T2>
   inline auto
   operator!= (const T1& x, const T2& y)
-    -> decltype (x.name == y.name && x.version.epoch == y.version.epoch)
+    -> decltype (x.tenant == y.tenant &&
+                 x.name == y.name     &&
+                 x.version.epoch == y.version.epoch)
   {
-    return x.name != y.name || compare_version_ne (x.version, y.version, true);
+    return x.tenant != y.tenant ||
+           x.name != y.name     ||
+           compare_version_ne (x.version, y.version, true);
+  }
+
+  // Repository id comparison operators.
+  //
+  inline bool
+  operator< (const repository_id& x, const repository_id& y)
+  {
+    if (int r = x.tenant.compare (y.tenant))
+      return r < 0;
+
+    return x.canonical_name.compare (y.canonical_name) < 0;
+  }
+
+  // They allow comparing objects that have tenant and canonical_name data
+  // members. The idea is that this works for both query members of repository
+  // id types (in particular in join conditions) as well as for values of
+  // repository_id type.
+  //
+  template <typename T1, typename T2>
+  inline auto
+  operator== (const T1& x, const T2& y)
+    -> decltype (x.tenant == y.tenant && x.canonical_name == y.canonical_name)
+  {
+    return x.tenant == y.tenant && x.canonical_name == y.canonical_name;
+  }
+
+  template <typename T1, typename T2>
+  inline auto
+  operator!= (const T1& x, const T2& y)
+    -> decltype (x.tenant == y.tenant && x.canonical_name == y.canonical_name)
+  {
+    return x.tenant != y.tenant || x.canonical_name != y.canonical_name;
   }
 }
 

@@ -275,13 +275,27 @@ namespace brep
     if (!rpath.sub (root))
       return false;
 
-    const path& lpath (rpath.leaf (root));
+    path lpath (rpath.leaf (root));
+
+    if (!lpath.empty ())
+    {
+      path::iterator i (lpath.begin ());
+      const string& s (*i);
+
+      if (s[0] == '@' && s.size () > 1)
+      {
+        tenant = string (s, 1);
+        lpath = path (++i, lpath.end ());
+      }
+    }
 
     // Delegate the request handling to the selected sub-handler. Intercept
     // exception handling to add sub-handler attribution.
     //
-    auto handle = [&rq, &rs, this] (const char* nm, bool fn = false) -> bool
+    auto handle = [&rq, &rs, this] (const char* nm, bool fn = false)
     {
+      handler_->tenant = move (tenant);
+
       try
       {
         // Delegate the handling straight away if the sub-handler is not a

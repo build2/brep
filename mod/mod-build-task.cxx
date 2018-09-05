@@ -188,13 +188,15 @@ handle (request& rq, response& rs)
         chrono::duration_cast<std::chrono::nanoseconds> (
           b->timestamp.time_since_epoch ()).count ());
 
-      string session (b->package_name.string () + '/' +
-                      b->package_version.string () +
-                      '/' + b->configuration +
-                      '/' + b->toolchain_version.string () +
-                      '/' + to_string (ts));
+      string session (b->tenant + '/' +
+                      b->package_name.string () + '/' +
+                      b->package_version.string () + '/' +
+                      b->configuration + '/' +
+                      b->toolchain_version.string () + '/' +
+                      to_string (ts));
 
-      string result_url (options_->host () + options_->root ().string () +
+      string result_url (options_->host () +
+                         tenant_dir (options_->root (), b->tenant).string () +
                          "?build-result");
 
       lazy_shared_ptr<build_repository> r (p->internal_repository);
@@ -319,6 +321,10 @@ handle (request& rq, response& rs)
     // harmful in that: updates are infrequent and missed packages will be
     // picked up on the next request.
     //
+    // Also note that we disregard the request tenant and operate on the whole
+    // set of the packages and builds. In future we may add support for
+    // building packages for a specific tenant.
+    //
     using pkg_query = query<buildable_package>;
     using prep_pkg_query = prepared_query<buildable_package>;
 
@@ -330,18 +336,17 @@ handle (request& rq, response& rs)
 
     if (!rp.empty ())
       pq = pq &&
-        pkg_query::build_repository::name.in_range (rp.begin (), rp.end ());
+        pkg_query::build_repository::id.canonical_name.in_range (rp.begin (),
+                                                                 rp.end ());
 
     // Specify the portion.
     //
     size_t offset (0);
 
     pq += "ORDER BY" +
-      pkg_query::build_package::id.name + "," +
-      pkg_query::build_package::id.version.epoch + "," +
-      pkg_query::build_package::id.version.canonical_upstream + "," +
-      pkg_query::build_package::id.version.canonical_release + "," +
-      pkg_query::build_package::id.version.revision +
+      pkg_query::build_package::id.tenant + "," +
+      pkg_query::build_package::id.name +
+      order_by_version (pkg_query::build_package::id.version, false) +
       "OFFSET" + pkg_query::_ref (offset) + "LIMIT 50";
 
     connection_ptr conn (build_db_->connection ());
@@ -368,20 +373,23 @@ handle (request& rq, response& rs)
     const auto& qv (bld_query::id.package.version);
 
     bld_query bq (
-      bld_query::id.package.name == bld_query::_ref (id.name) &&
+      bld_query::id.package.tenant == bld_query::_ref (id.tenant) &&
 
-      qv.epoch == bld_query::_ref (id.version.epoch) &&
+      bld_query::id.package.name == bld_query::_ref (id.name)     &&
+
+      qv.epoch == bld_query::_ref (id.version.epoch)              &&
       qv.canonical_upstream ==
-      bld_query::_ref (id.version.canonical_upstream) &&
-      qv.canonical_release == bld_query::_ref (id.version.canonical_release) &&
-      qv.revision == bld_query::_ref (id.version.revision) &&
+        bld_query::_ref (id.version.canonical_upstream)           &&
+      qv.canonical_release ==
+        bld_query::_ref (id.version.canonical_release) &&
+      qv.revision == bld_query::_ref (id.version.revision)        &&
 
       bld_query::id.configuration.in_range (cfg_names.begin (),
-                                            cfg_names.end ()) &&
+                                            cfg_names.end ())     &&
 
       compare_version_eq (bld_query::id.toolchain_version,
                           toolchain_version,
-                          true) &&
+                          true)                                   &&
 
       (bld_query::state == "built" ||
        ((bld_query::force == "forcing" &&
@@ -467,13 +475,14 @@ handle (request& rq, response& rs)
             shared_ptr<build> b (build_db_->find<build> (bid));
             optional<string> cl (challenge ());
 
-            // If build configuration doesn't exist then create the new one and
-            // persist. Otherwise put it into the building state, refresh the
-            // timestamp and update.
+            // If build configuration doesn't exist then create the new one
+            // and persist. Otherwise put it into the building state, refresh
+            // the timestamp and update.
             //
             if (b == nullptr)
             {
-              b = make_shared<build> (move (bid.package.name),
+              b = make_shared<build> (move (bid.package.tenant),
+                                      move (bid.package.name),
                                       move (bp.version),
                                       move (bid.configuration),
                                       move (tqm.toolchain_name),
@@ -493,9 +502,9 @@ handle (request& rq, response& rs)
               //
               // Note that in both cases we keep the status intact to be able
               // to compare it with the final one in the result request
-              // handling in order to decide if to send the notification email.
-              // The same is true for the forced flag (in the sense that we
-              // don't set the force state to unforced).
+              // handling in order to decide if to send the notification
+              // email. The same is true for the forced flag (in the sense
+              // that we don't set the force state to unforced).
               //
               // Load the section to assert the above statement.
               //
@@ -558,8 +567,7 @@ handle (request& rq, response& rs)
       // 2: overall status
       // 3: timestamp (less is preferred)
       //
-      auto cmp = [] (const shared_ptr<build>& x,
-                     const shared_ptr<build>& y) -> bool
+      auto cmp = [] (const shared_ptr<build>& x, const shared_ptr<build>& y)
       {
         if (x->force != y->force)
           return x->force > y->force;       // Forced goes first.
@@ -611,7 +619,8 @@ handle (request& rq, response& rs)
             shared_ptr<build_package> p (
               build_db_->find<build_package> (b->id.package));
 
-            if (p != nullptr && p->internal_repository != nullptr &&
+            if (p != nullptr                      &&
+                p->internal_repository != nullptr &&
                 !exclude (*p, *cm.config))
             {
               assert (b->status);

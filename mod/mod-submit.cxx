@@ -201,7 +201,7 @@ handle (request& rq, response& rs)
       <<     CSS_LINKS (path ("submit.css"), root)
       <<   ~HEAD
       <<   BODY
-      <<     DIV_HEADER (root, options_->logo (), options_->menu ())
+      <<     DIV_HEADER (options_->logo (), options_->menu (), root, tenant)
       <<     DIV(ID="content") << *form_ << ~DIV
       <<   ~BODY
       << ~HTML;

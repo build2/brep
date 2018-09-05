@@ -1,6 +1,7 @@
 <changelog xmlns="http://www.codesynthesis.com/xmlns/odb/changelog" database="pgsql" schema-name="build" version="1">
   <model version="4">
     <table name="build" kind="object">
+      <column name="package_tenant" type="TEXT" null="false"/>
       <column name="package_name" type="CITEXT" null="false"/>
       <column name="package_version_epoch" type="INTEGER" null="false"/>
       <column name="package_version_canonical_upstream" type="TEXT" null="false"/>
@@ -26,6 +27,7 @@
       <column name="machine_summary" type="TEXT" null="false"/>
       <column name="target" type="TEXT" null="false"/>
       <primary-key>
+        <column name="package_tenant"/>
         <column name="package_name"/>
         <column name="package_version_epoch"/>
         <column name="package_version_canonical_upstream"/>
@@ -39,6 +41,7 @@
       </primary-key>
     </table>
     <table name="build_results" kind="container">
+      <column name="package_tenant" type="TEXT" null="false"/>
       <column name="package_name" type="CITEXT" null="false"/>
       <column name="package_version_epoch" type="INTEGER" null="false"/>
       <column name="package_version_canonical_upstream" type="TEXT" null="false"/>
@@ -54,6 +57,7 @@
       <column name="status" type="TEXT" null="false"/>
       <column name="log" type="TEXT" null="false"/>
       <foreign-key name="object_id_fk" on-delete="CASCADE">
+        <column name="package_tenant"/>
         <column name="package_name"/>
         <column name="package_version_epoch"/>
         <column name="package_version_canonical_upstream"/>
@@ -65,6 +69,7 @@
         <column name="toolchain_version_canonical_release"/>
         <column name="toolchain_version_revision"/>
         <references table="build">
+          <column name="package_tenant"/>
           <column name="package_name"/>
           <column name="package_version_epoch"/>
           <column name="package_version_canonical_upstream"/>
@@ -78,6 +83,7 @@
         </references>
       </foreign-key>
       <index name="build_results_object_id_i">
+        <column name="package_tenant"/>
         <column name="package_name"/>
         <column name="package_version_epoch"/>
         <column name="package_version_canonical_upstream"/>

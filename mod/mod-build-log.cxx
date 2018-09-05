@@ -78,13 +78,22 @@ handle (request& rq, response& rs)
 
   path lpath (rq.path ().leaf (options_->root ()));
 
+  // If the tenant is not empty then it is contained in the leftmost path
+  // component (see repository_root for details). Strip it if that's the case.
+  //
+  if (!tenant.empty ())
+  {
+    assert (!lpath.empty ());
+    lpath = path (++lpath.begin (), lpath.end ());
+  }
+
+  assert (!lpath.empty ());
+
   try
   {
     auto i (lpath.begin ());
 
-    assert (i != lpath.end ());
     package_name name;
-
     try
     {
       name = package_name (*i++);
@@ -127,7 +136,7 @@ handle (request& rq, response& rs)
 
     version toolchain_version (parse_version (*i++, "toolchain version"));
 
-    id = build_id (package_id (move (name), package_version),
+    id = build_id (package_id (tenant, move (name), package_version),
                    move (config),
                    toolchain_version);
 
@@ -164,6 +173,7 @@ handle (request& rq, response& rs)
   auto config_expired = [&trace, &lpath, this] (const string& d)
   {
     l2 ([&]{trace << "package build configuration for " << lpath
+                  << (!tenant.empty () ? "(" + tenant + ")" : "")
                   << " expired: " << d;});
 
     throw invalid_request (404, "package build configuration expired: " + d);
@@ -204,6 +214,8 @@ handle (request& rq, response& rs)
 
   auto print_header = [&os, &b] ()
   {
+    // @@ Should we print the tenant? How to call it if that's the case?
+    //
     os << "package:   " << b->package_name << endl
        << "version:   " << b->package_version << endl
        << "toolchain: " << b->toolchain_name << '-' << b->toolchain_version

@@ -13,7 +13,8 @@ DROP FOREIGN TABLE IF EXISTS build_repository;
 --
 --
 CREATE FOREIGN TABLE build_repository (
-  name TEXT NOT NULL,
+  tenant TEXT NOT NULL,
+  canonical_name TEXT NOT NULL,
   location_url TEXT NOT NULL,
   location_type TEXT NOT NULL,
   certificate_fingerprint TEXT NULL)
@@ -23,6 +24,7 @@ SERVER package_server OPTIONS (table_name 'repository');
 --
 --
 CREATE FOREIGN TABLE build_package (
+  tenant TEXT NOT NULL,
   name CITEXT NOT NULL,
   version_epoch INTEGER NOT NULL,
   version_canonical_upstream TEXT NOT NULL,
@@ -30,7 +32,8 @@ CREATE FOREIGN TABLE build_package (
   version_revision INTEGER NOT NULL,
   version_upstream TEXT NOT NULL,
   version_release TEXT NULL,
-  internal_repository TEXT NULL)
+  internal_repository_tenant TEXT NULL,
+  internal_repository_canonical_name TEXT NULL)
 SERVER package_server OPTIONS (table_name 'package');
 
 -- The foreign table for the build_package object constraints member (that is
@@ -38,6 +41,7 @@ SERVER package_server OPTIONS (table_name 'package');
 --
 --
 CREATE FOREIGN TABLE build_package_constraints (
+  tenant TEXT NOT NULL,
   name CITEXT NOT NULL,
   version_epoch INTEGER NOT NULL,
   version_canonical_upstream TEXT NOT NULL,

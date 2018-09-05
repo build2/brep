@@ -14,6 +14,8 @@
 
 #include <web/mime-url-encoding.hxx>
 
+#include <mod/utility.hxx>
+
 namespace brep
 {
   using namespace std;
@@ -117,7 +119,7 @@ namespace brep
     // needs to be url-encoded, and only in the query part of the URL. We embed
     // the package version into the URL path part and so don't encode it.
     //
-    string url (host + root.representation () +
+    string url (host + tenant_dir (root, b.tenant).representation () +
                 mime_url_encode (b.package_name.string (), false) + '/' +
                 b.package_version.string () + "/log/" +
                 mime_url_encode (b.configuration, false) + '/' +
@@ -140,7 +142,7 @@ namespace brep
     // we embed the package version into the URL query part, where it is not
     // encoded by design.
     //
-    return host + root.string () +
+    return host + tenant_dir (root, b.tenant).string () +
       "?build-force&pn=" + mime_url_encode (b.package_name.string ()) +
       "&pv=" + b.package_version.string () +
       "&cf=" + mime_url_encode (b.configuration) +
@@ -148,7 +150,8 @@ namespace brep
   }
 
   bool
-  match (const string& config_pattern, const optional<string>& target_pattern,
+  match (const string& config_pattern,
+         const optional<string>& target_pattern,
          const build_config& c)
   {
     return path_match (config_pattern, c.name) &&

@@ -87,6 +87,8 @@ namespace brep
   using paths = std::vector<path>;
   using dir_paths = std::vector<dir_path>;
 
+  using butl::path_cast;
+
   // <libbutl/timestamp.mxx>
   //
   using butl::system_clock;

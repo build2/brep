@@ -92,7 +92,9 @@ transform (const string& s)
 
 template <typename T>
 static inline query<T>
-build_query (const brep::cstrings& configs, const brep::params::builds& params)
+build_query (const brep::cstrings& configs,
+             const brep::params::builds& params,
+             const brep::optional<string>& tenant)
 {
   using namespace brep;
   using query = query<T>;
@@ -101,6 +103,11 @@ build_query (const brep::cstrings& configs, const brep::params::builds& params)
   query q (!configs.empty ()
            ? qb::id.configuration.in_range (configs.begin (), configs.end ())
            : query (true));
+
+  const auto& pid (qb::id.package);
+
+  if (tenant)
+    q = q && pid.tenant == *tenant;
 
   // Note that there is no error reported if the filter parameters parsing
   // fails. Instead, it is considered that no package builds match such a
@@ -111,13 +118,13 @@ build_query (const brep::cstrings& configs, const brep::params::builds& params)
     // Package name.
     //
     if (!params.name ().empty ())
-      q = q && qb::id.package.name.like (
-        package_name (transform (params.name ()), package_name::raw_string));
+      q = q && pid.name.like (package_name (transform (params.name ()),
+                                            package_name::raw_string));
 
     // Package version.
     //
     if (!params.version ().empty () && params.version () != "*")
-      q = q && compare_version_eq (qb::id.package.version,
+      q = q && compare_version_eq (pid.version,
                                    version (params.version ()), // May throw.
                                    true);
 
@@ -200,12 +207,12 @@ build_query (const brep::cstrings& configs, const brep::params::builds& params)
 
 template <typename T, typename P = typename query<T>::build_package>
 static inline query<T>
-package_query (const brep::params::builds& params)
+package_query (const brep::params::builds& params, const string& tenant)
 {
   using namespace brep;
   using query = query<T>;
 
-  query q (true);
+  query q (P::id.tenant == tenant);
 
   // Note that there is no error reported if the filter parameters parsing
   // fails. Instead, it is considered that no packages match such a query.
@@ -240,22 +247,24 @@ package_id_eq (const ID& x, const brep::package_id& y)
   using query = query<T>;
   const auto& qv (x.version);
 
-  return x.name == query::_ref (y.name) &&
-    qv.epoch == query::_ref (y.version.epoch) &&
+  return
+    x.tenant == query::_ref (y.tenant)                                  &&
+    x.name == query::_ref (y.name)                                      &&
+    qv.epoch == query::_ref (y.version.epoch)                           &&
     qv.canonical_upstream == query::_ref (y.version.canonical_upstream) &&
-    qv.canonical_release == query::_ref (y.version.canonical_release) &&
+    qv.canonical_release == query::_ref (y.version.canonical_release)   &&
     qv.revision == query::_ref (y.version.revision);
 }
 
 static const vector<pair<string, string>> build_results ({
-    {"unbuilt", "<unbuilt>"},
-    {"*", "*"},
-    {"pending", "pending"},
+    {"unbuilt",  "<unbuilt>"},
+    {"*",        "*"},
+    {"pending",  "pending"},
     {"building", "building"},
-    {"success", "success"},
-    {"warning", "warning"},
-    {"error", "error"},
-    {"abort", "abort"},
+    {"success",  "success"},
+    {"warning",  "warning"},
+    {"error",    "error"},
+    {"abort",    "abort"},
     {"abnormal", "abnormal"}});
 
 bool brep::builds::
@@ -309,7 +318,7 @@ handle (request& rq, response& rs)
     <<     SCRIPT << " " << ~SCRIPT
     <<   ~HEAD
     <<   BODY
-    <<     DIV_HEADER (root, options_->logo (), options_->menu ())
+    <<     DIV_HEADER (options_->logo (), options_->menu (), root, tenant)
     <<     DIV(ID="content");
 
   // Return the list of distinct toolchain name/version pairs. The build db
@@ -323,6 +332,7 @@ handle (request& rq, response& rs)
 
     toolchains r;
     for (auto& t: build_db_->query<toolchain> (
+           (query::id.package.tenant == tenant) +
            "ORDER BY" + query::toolchain_name +
            order_by_version_desc (query::id.toolchain_version, false)))
       r.emplace_back (move (t.name), move (t.version));
@@ -356,11 +366,11 @@ handle (request& rq, response& rs)
       }
 
       // The 'action' attribute is optional in HTML5. While the standard
-      // doesn't specify browser behavior explicitly for the case the attribute
-      // is omitted, the only reasonable behavior is to default it to the
-      // current document URL. Note that we specify the function name using the
-      // "hidden" <input/> element since the action url must not contain the
-      // query part.
+      // doesn't specify browser behavior explicitly for the case the
+      // attribute is omitted, the only reasonable behavior is to default it
+      // to the current document URL. Note that we specify the function name
+      // using the "hidden" <input/> element since the action url must not
+      // contain the query part.
       //
       s << FORM
         <<   TABLE(ID="filter", CLASS="proplist")
@@ -418,7 +428,7 @@ handle (request& rq, response& rs)
     transaction t (build_db_->begin ());
 
     count = build_db_->query_value<package_build_count> (
-      build_query<package_build_count> (*build_conf_names_, params));
+      build_query<package_build_count> (*build_conf_names_, params, tenant));
 
     // Print the filter form.
     //
@@ -433,8 +443,8 @@ handle (request& rq, response& rs)
     //
     s << DIV;
     for (auto& pb: build_db_->query<package_build> (
-           build_query<package_build> (*build_conf_names_, params) +
-           "ORDER BY" + query<build>::timestamp + "DESC" +
+           build_query<package_build> (*build_conf_names_, params, tenant) +
+           "ORDER BY" + query<package_build>::build::timestamp + "DESC" +
            "OFFSET" + to_string (page * page_configs) +
            "LIMIT" + to_string (page_configs)))
     {
@@ -451,8 +461,8 @@ handle (request& rq, response& rs)
 
       s << TABLE(CLASS="proplist build")
         <<   TBODY
-        <<     TR_NAME (b.package_name, string (), root)
-        <<     TR_VERSION (b.package_name, b.package_version, root)
+        <<     TR_NAME (b.package_name, string (), root, tenant)
+        <<     TR_VERSION (b.package_name, b.package_version, root, tenant)
         <<     TR_VALUE ("toolchain",
                          b.toolchain_name + '-' +
                          b.toolchain_version.string ())
@@ -470,8 +480,8 @@ handle (request& rq, response& rs)
   }
   else // Print unbuilt package configurations.
   {
-    // Parameters to use for package build configurations queries. Note that we
-    // cleanup the machine and the result filter arguments, as they are
+    // Parameters to use for package build configurations queries. Note that
+    // we cleanup the machine and the result filter arguments, as they are
     // irrelevant for unbuilt configurations.
     //
     params::builds bld_params (params);
@@ -506,8 +516,8 @@ handle (request& rq, response& rs)
       }
     };
 
-    // Note that config_toolchains contains shallow references to the toolchain
-    // names and versions.
+    // Note that config_toolchains contains shallow references to the
+    // toolchain names and versions.
     //
     set<config_toolchain> config_toolchains;
     {
@@ -576,12 +586,15 @@ handle (request& rq, response& rs)
       // due to the build configuration target change. We should deduct such
       // builds count from the number of existing package builds.
       //
-      size_t nmax (config_toolchains.size () *
-                   build_db_->query_value<buildable_package_count> (
-                     package_query<buildable_package_count> (params)));
+      size_t nmax (
+        config_toolchains.size () *
+        build_db_->query_value<buildable_package_count> (
+          package_query<buildable_package_count> (params, tenant)));
 
       size_t ncur = build_db_->query_value<package_build_count> (
-        build_query<package_build_count> (*build_conf_names_, bld_params));
+        build_query<package_build_count> (*build_conf_names_,
+                                          bld_params,
+                                          tenant));
 
       // From now we will be using specific package name and version for each
       // build database query.
@@ -602,11 +615,18 @@ handle (request& rq, response& rs)
         package_id id;
         string config;
 
+        const auto& bid (bld_query::build::id);
+
         bld_query bq (
-          package_id_eq<package_build_count> (
-            bld_query::build::id.package, id) &&
-          bld_query::build::id.configuration == bld_query::_ref (config) &&
-          build_query<package_build_count> (cstrings (), bld_params));
+          package_id_eq<package_build_count> (bid.package, id) &&
+          bid.configuration == bld_query::_ref (config)        &&
+
+          // Note that the query already constrains the tenant via the build
+          // package id.
+          //
+          build_query<package_build_count> (cstrings () /* configs */,
+                                            bld_params,
+                                            nullopt /* tenant */));
 
         prep_bld_query bld_prep_query (
           build_db_->prepare_query<package_build_count> (
@@ -620,7 +640,8 @@ handle (request& rq, response& rs)
         // form parameters.
         //
         using query = query<build_constrained_package>;
-        query q (package_query<build_constrained_package, query> (params));
+        query q (package_query<build_constrained_package, query> (params,
+                                                                  tenant));
 
         for (const auto& p: build_db_->query<build_constrained_package> (q))
         {
@@ -675,13 +696,15 @@ handle (request& rq, response& rs)
     using pkg_query = query<buildable_package>;
     using prep_pkg_query = prepared_query<buildable_package>;
 
-    pkg_query pq (package_query<buildable_package> (params));
+    pkg_query pq (package_query<buildable_package> (params, tenant));
 
     // Specify the portion. Note that we will still be querying packages in
     // chunks, not to hold locks for too long.
     //
     size_t offset (0);
 
+    // @@ TENANT: use tenant for sorting when add support for global view.
+    //
     pq += "ORDER BY" +
       pkg_query::build_package::id.name +
       order_by_version_desc (pkg_query::build_package::id.version, false) +
@@ -706,7 +729,13 @@ handle (request& rq, response& rs)
 
     bld_query bq (
       package_id_eq<package_build> (bld_query::build::id.package, id) &&
-      build_query<package_build> (*build_conf_names_, bld_params));
+
+      // Note that the query already constrains the tenant via the build
+      // package id.
+      //
+      build_query<package_build> (*build_conf_names_,
+                                  bld_params,
+                                  nullopt /* tenant */));
 
     prep_bld_query bld_prep_query (
       conn->prepare_query<package_build> ("mod-builds-build-query", bq));
@@ -805,8 +834,8 @@ handle (request& rq, response& rs)
 
             s << TABLE(CLASS="proplist build")
               <<   TBODY
-              <<     TR_NAME (id.name, string (), root)
-              <<     TR_VERSION (id.name, p.version, root)
+              <<     TR_NAME (id.name, string (), root, tenant)
+              <<     TR_VERSION (id.name, p.version, root, tenant)
               <<     TR_VALUE ("toolchain",
                                string (ct.toolchain_name) + '-' +
                                ct.toolchain_version.string ())
@@ -829,7 +858,7 @@ handle (request& rq, response& rs)
     s << ~DIV;
   }
 
-  string u (root.string () + "?builds");
+  string u (tenant_dir (root, tenant).string () + "?builds");
 
   if (!params.name ().empty ())
   {

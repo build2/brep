@@ -55,12 +55,14 @@
 
     cat <<"EOI" >=$loader;
       #!/usr/bin/env bash
-      if [ "\$#" != 5 -o \
+      if [ "\$#" != 7 -o \
            "\$1" != "--db-host=localhost" -o \
            "\$2" != "--db-port=8432" -o \
            "\$3" != "--force" -o \
            "\$4" != "--shallow" -o \
-           "\$5" != "$data_dir/loadtab" -o \
+           "\$5" != "--tenant" -o \
+           -z "\$6" -o \
+           "\$7" != "$data_dir/loadtab" -o \
            ! -f "$data_dir/cache/repositories.manifest" -o \
            ! -f "$data_dir/cache/packages.manifest" ]; then
         exit 1
@@ -74,7 +76,7 @@
 
     $clone_root_data;
 
-    $* $loader --db-host=localhost --db-port=8432 $data_dir >>"EOO"
+    $* $loader --db-host=localhost --db-port=8432 $data_dir >>"EOO";
       : 1
       status: 200
       message: CI request is queued
@@ -85,10 +87,11 @@
 
     $* --result-url "http://example.com/" \
        $loader --db-host=localhost --db-port=8432 \
-       $data_dir >>"EOO"
+       $data_dir >>~"%EOO%"
       : 1
       status: 200
-      message: CI request is queued: http://example.com
+      %message: CI request is queued: http://example.com/@.+%
+      %.
       reference: $request_id
       EOO
   }

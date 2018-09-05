@@ -134,7 +134,9 @@ try
   using prep_bld_query = prepared_query<build>;
 
   size_t offset (0);
-  bld_query bq ("ORDER BY" + bld_query::id.package.name +
+  bld_query bq ("ORDER BY" +
+                bld_query::id.package.tenant + "," +
+                bld_query::id.package.name +
                 order_by_version_desc (bld_query::id.package.version, false) +
                 "OFFSET" + bld_query::_ref (offset) + "LIMIT 100");
 

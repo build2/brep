@@ -171,6 +171,8 @@ namespace brep
 
   #pragma db value(build_constraint) definition
 
+  // certificate
+  //
   #pragma db value
   class certificate
   {
@@ -191,7 +193,8 @@ namespace brep
 
     // Create internal repository.
     //
-    repository (repository_location,
+    repository (string tenant,
+                repository_location,
                 string display_name,
                 repository_location cache_location,
                 optional<certificate_type>,
@@ -200,9 +203,12 @@ namespace brep
     // Create external repository.
     //
     explicit
-    repository (repository_location);
+    repository (string tenant, repository_location);
 
-    string name;                  // Object id (canonical name).
+    repository_id id;
+
+    const string& tenant;         // Tracks id.tenant.
+    const string& canonical_name; // Tracks id.canonical_name.
     repository_location location; // Note: foreign-mapped in build.
     string display_name;
 
@@ -243,21 +249,24 @@ namespace brep
 
     // Database mapping.
     //
-    #pragma db member(name) id
+    #pragma db member(id) id column("")
 
-    #pragma db member(location)                                  \
-      set(this.location = std::move (?);                         \
-          assert (this.name == this.location.canonical_name ()))
+    #pragma db member(tenant) transient
+    #pragma db member(canonical_name) transient
 
-    #pragma db member(complements) id_column("repository") \
-      value_column("complement") value_not_null
+    #pragma db member(location)                                            \
+      set(this.location = std::move (?);                                   \
+          assert (this.canonical_name == this.location.canonical_name ()))
 
-    #pragma db member(prerequisites) id_column("repository") \
-      value_column("prerequisite") value_not_null
+    #pragma db member(complements) id_column("repository_") \
+      value_column("complement_") value_not_null
+
+    #pragma db member(prerequisites) id_column("repository_") \
+      value_column("prerequisite_") value_not_null
 
   private:
     friend class odb::access;
-    repository () = default;
+    repository (): tenant (id.tenant), canonical_name (id.canonical_name) {}
   };
 
   // The 'to' expression calls the PostgreSQL to_tsvector(weighted_text)
@@ -336,6 +345,8 @@ namespace brep
     // Manifest data.
     //
     package_id id;
+
+    const package_name& name; // Tracks id.name.
     upstream_version version;
 
     // Matches the package name if the project name is not specified in
@@ -384,6 +395,7 @@ namespace brep
     // Database mapping.
     //
     #pragma db member(id) id column("")
+    #pragma db member(name) transient
     #pragma db member(version) set(this.version.init (this.id.version, (?)))
 
     // license
@@ -453,7 +465,7 @@ namespace brep
     // other_repositories
     //
     #pragma db member(other_repositories)                     \
-      id_column("") value_column("repository") value_not_null
+      id_column("") value_column("repository_") value_not_null
 
     // search_index
     //
@@ -464,7 +476,7 @@ namespace brep
 
   private:
     friend class odb::access;
-    package () = default;
+    package (): name (id.name) {}
 
     // Save keywords, summary, description, and changes to weighted_text
     // a, b, c, d members, respectively. So a word found in keywords will

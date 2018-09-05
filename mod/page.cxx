@@ -18,6 +18,7 @@
 #include <libbrep/package.hxx>
 #include <libbrep/package-odb.hxx>
 
+#include <mod/utility.hxx>
 #include <mod/build-config.hxx> // build_log_url()
 
 using namespace std;
@@ -61,11 +62,14 @@ namespace brep
         s << DIV(ID="header-menu")
           <<   DIV(ID="header-menu-body");
 
+        dir_path root (tenant_dir (root_, tenant_));
+
         for (const auto& m: menu_)
         {
-          const string& l (m.link[0] == '/' || m.link.find (':') != string::npos
-                           ? m.link
-                           : root_.string () + m.link);
+          const string& l (
+            m.link[0] == '/' || m.link.find (':') != string::npos
+            ? m.link
+            : root.string () + m.link);
 
           s << A(HREF=l) << m.label << ~A;
         }
@@ -191,7 +195,8 @@ namespace brep
 
       // Propagate search criteria to the package details page.
       //
-      <<         root_ / path (mime_url_encode (name_.string (), false))
+      <<         tenant_dir (root_, tenant_) /
+                 path (mime_url_encode (name_.string (), false))
       <<         query_param_
 
       <<       ~HREF
@@ -221,8 +226,9 @@ namespace brep
     }
     else
     {
-      assert (root_ != nullptr);
-      s << A(HREF=*root_ /
+      assert (root_ != nullptr && tenant_ != nullptr);
+
+      s << A(HREF=tenant_dir (*root_, *tenant_) /
              dir_path (mime_url_encode (package_->string (), false)) /
              path (version_))
         <<   version_;
@@ -249,7 +255,8 @@ namespace brep
       <<     SPAN(CLASS="value")
       <<       A
       <<         HREF
-      <<           root_ << "?q=" << mime_url_encode (project_.string ())
+      <<           tenant_dir (root_, tenant_) << "?q="
+      <<           mime_url_encode (project_.string ())
       <<         ~HREF
       <<         project_
       <<       ~A
@@ -347,7 +354,10 @@ namespace brep
 
       auto print = [&s, this] (const string& t)
       {
-        s << A << HREF << root_ << "?q=" << mime_url_encode (t) << ~HREF
+        s << A
+          <<   HREF
+          <<     tenant_dir (root_, tenant_) << "?q=" << mime_url_encode (t)
+          <<   ~HREF
           <<   t
           << ~A;
       };
@@ -439,7 +449,7 @@ namespace brep
             if (r->interface_url)
               s << A(HREF=*r->interface_url + en) << n << ~A;
             else if (p->internal ())
-              s << A(HREF=root_ / path (en)) << n << ~A;
+              s << A(HREF=tenant_dir (root_, tenant_) / path (en)) << n << ~A;
             else
               // Display the dependency as plain text if no repository URL
               // available.
@@ -586,7 +596,8 @@ namespace brep
       <<     SPAN(CLASS="value")
       <<       A
       <<       HREF
-      <<         root_ << "?about#" << mime_url_encode (html_id (name_), false)
+      <<         tenant_dir (root_, tenant_) << "?about#"
+      <<         mime_url_encode (html_id (name_), false)
       <<       ~HREF
       <<         name_
       <<       ~A

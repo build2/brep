@@ -82,7 +82,7 @@ handle (request& rq, response& rs)
     <<     CSS_LINKS (path ("repository-details.css"), root)
     <<   ~HEAD
     <<   BODY
-    <<     DIV_HEADER (root, options_->logo (), options_->menu ())
+    <<     DIV_HEADER (options_->logo (), options_->menu (), root, tenant)
     <<     DIV(ID="content");
 
   transaction t (package_db_->begin ());
@@ -91,13 +91,14 @@ handle (request& rq, response& rs)
 
   for (const auto& r:
          package_db_->query<repository> (
-           query::internal + "ORDER BY" + query::priority))
+           (query::internal && query::id.tenant == tenant) +
+           "ORDER BY" + query::priority))
   {
     //@@ Feels like a lot of trouble (e.g., id_attribute()) for very
     //   dubious value. A link to the package search page just for
     //   this repository would probably be more useful.
     //
-    string id (html_id (r.name));
+    string id (html_id (r.canonical_name));
     s << H1(ID=id)
       <<   A(HREF="#" + web::mime_url_encode (id, false))
       <<     r.display_name
@@ -144,9 +145,9 @@ handle (request& rq, response& rs)
       //
       s << P << "REPOSITORY CERTIFICATE" << ~P
         << P
-        << "CN=" << cert.name.c_str () + np + 1 << *BR
-        << "O=" << cert.organization << *BR
-        << email (cert.email)
+        <<   "CN=" << cert.name.c_str () + np + 1 << *BR
+        <<   "O=" << cert.organization << *BR
+        <<   email (cert.email)
         << ~P
         << P(CLASS="certfp") << cert.fingerprint << ~P
         << PRE(CLASS="certpem") << cert.pem << ~PRE;

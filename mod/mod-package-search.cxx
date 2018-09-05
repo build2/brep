@@ -67,13 +67,15 @@ init (scanner& s)
 
 template <typename T>
 static inline query<T>
-search_param (const brep::string& q)
+search_param (const brep::string& q, const brep::string& t)
 {
   using query = query<T>;
   return "(" +
     (q.empty ()
      ? query ("NULL")
      : "plainto_tsquery (" + query::_val (q) + ")") +
+    "," +
+    query::_val (t) +
     ")";
 }
 
@@ -133,7 +135,7 @@ handle (request& rq, response& rs)
     <<     SCRIPT << " " << ~SCRIPT
     <<   ~HEAD
     <<   BODY
-    <<     DIV_HEADER (root, options_->logo (), options_->menu ())
+    <<     DIV_HEADER (options_->logo (), options_->menu (), root, tenant)
     <<     DIV(ID="content");
 
   session sn;
@@ -141,17 +143,19 @@ handle (request& rq, response& rs)
 
   auto pkg_count (
     package_db_->query_value<latest_package_count> (
-      search_param<latest_package_count> (squery)));
+      search_param<latest_package_count> (squery, tenant)));
 
   s << FORM_SEARCH (squery)
     << DIV_COUNTER (pkg_count, "Package", "Packages");
 
   // Enclose the subsequent tables to be able to use nth-child CSS selector.
   //
+  // @@ TENANT: use tenant for sorting when add support for global view.
+  //
   s << DIV;
   for (const auto& pr:
          package_db_->query<latest_package_search_rank> (
-           search_param<latest_package_search_rank> (squery) +
+           search_param<latest_package_search_rank> (squery, tenant) +
            "ORDER BY rank DESC, name" +
            "OFFSET" + to_string (page * res_page) +
            "LIMIT" + to_string (res_page)))
@@ -160,11 +164,11 @@ handle (request& rq, response& rs)
 
     s << TABLE(CLASS="proplist package")
       <<   TBODY
-      <<     TR_NAME (p->id.name, squery_param, root)
+      <<     TR_NAME (p->name, squery_param, root, tenant)
       <<     TR_SUMMARY (p->summary)
       <<     TR_LICENSE (p->license_alternatives)
-      <<     TR_TAGS (p->project, p->tags, root)
-      <<     TR_DEPENDS (p->dependencies, root)
+      <<     TR_TAGS (p->project, p->tags, root, tenant)
+      <<     TR_DEPENDS (p->dependencies, root, tenant)
       <<     TR_REQUIRES (p->requirements)
       <<   ~TBODY
       << ~TABLE;
@@ -174,7 +178,7 @@ handle (request& rq, response& rs)
   t.commit ();
 
   s <<       DIV_PAGER (page, pkg_count, res_page, options_->search_pages (),
-                        root.string () + squery_param)
+                        tenant_dir (root, tenant).string () + squery_param)
     <<     ~DIV
     <<   ~BODY
     << ~HTML;

@@ -35,7 +35,7 @@ check_location (shared_ptr<package>& p)
 {
   if (p->internal ())
     return p->location && *p->location ==
-      path (p->id.name.string () + "-" + p->version.string () + ".tar.gz");
+      path (p->name.string () + "-" + p->version.string () + ".tar.gz");
   else
     return !p->location;
 }
@@ -63,12 +63,14 @@ namespace bpkg
 static void
 test_pkg_repos (const cstrings& loader_args,
                 const dir_path& loadtab_dir,
-                odb::pgsql::database&);
+                odb::pgsql::database&,
+                const string& tenant);
 
 static void
 test_git_repos (const cstrings& loader_args,
                 const dir_path& loadtab_dir,
-                odb::pgsql::database&);
+                odb::pgsql::database&,
+                const string& tenant);
 
 int
 main (int argc, char* argv[])
@@ -98,8 +100,9 @@ main (int argc, char* argv[])
     return 1;
   }
 
-  // Parse the database options.
+  // Parse the tenant and database options.
   //
+  string tenant;
   string user;
   string password;
   string name ("brep_package");
@@ -109,7 +112,9 @@ main (int argc, char* argv[])
   for (++i; i < argc - 1; ++i)
   {
     string n (argv[i]);
-    if (n == "--db-user" || n == "-u")
+    if (n == "--tenant")
+      tenant = argv[++i];
+    else if (n == "--db-user" || n == "-u")
       user = argv[++i];
     else if (n == "--db-password")
       password = argv[++i];
@@ -157,12 +162,12 @@ main (int argc, char* argv[])
     {
     case repository_type::pkg:
       {
-        test_pkg_repos (loader_args, loadtab_dir, db);
+        test_pkg_repos (loader_args, loadtab_dir, db, tenant);
         break;
       }
     case repository_type::git:
       {
-        test_git_repos (loader_args, loadtab_dir, db);
+        test_git_repos (loader_args, loadtab_dir, db, tenant);
         break;
       }
     default:
@@ -192,7 +197,8 @@ dep (const char* n, optional<dependency_constraint> c)
 static void
 test_git_repos (const cstrings& loader_args,
                 const dir_path& loadtab_dir,
-                odb::pgsql::database& db)
+                odb::pgsql::database& db,
+                const string& tenant)
 {
   path loadtab (loadtab_dir / "git-loadtab");
 
@@ -212,13 +218,17 @@ test_git_repos (const cstrings& loader_args,
     session s;
     transaction t (db.begin ());
 
-    assert (db.query<repository> ().size () == 1);
-    assert (db.query<package> ().size () == 1);
+    assert (db.query<repository> (
+              query<repository>::id.tenant == tenant).size () == 1);
+
+    assert (db.query<package> (
+              query<package>::id.tenant == tenant).size () == 1);
 
     // Verify 'foo' repository.
     //
     shared_ptr<repository> r (
-      db.load<repository> ("git:example.com/foo#master"));
+      db.load<repository> (repository_id (tenant,
+                                          "git:example.com/foo#master")));
 
     assert (r->location.string () == "https://git.example.com/foo.git#master");
     assert (r->summary && *r->summary == "foo project repository");
@@ -229,7 +239,7 @@ test_git_repos (const cstrings& loader_args,
     //
     shared_ptr<package> p (
       db.load<package> (
-        package_id (package_name ("libfoo"), version ("1.0"))));
+        package_id (tenant, package_name ("libfoo"), version ("1.0"))));
 
     assert (p->fragment &&
             *p->fragment == "0f50af28d1cfb0c22f5b88e2bf674ab732e058d9");
@@ -249,7 +259,8 @@ test_git_repos (const cstrings& loader_args,
 static void
 test_pkg_repos (const cstrings& loader_args,
                 const dir_path& loadtab_dir,
-                odb::pgsql::database& db)
+                odb::pgsql::database& db,
+                const string& tenant)
 {
   path p (loadtab_dir / dir_path ("1/stable") / packages);
   timestamp srt (file_mtime (p));
@@ -273,23 +284,30 @@ test_pkg_repos (const cstrings& loader_args,
     session s;
     transaction t (db.begin ());
 
-    assert (db.query<repository> ().size () == 7);
-    assert (db.query<package> ().size () == 18);
+    assert (db.query<repository> (
+              query<repository>::id.tenant == tenant).size () == 7);
+
+    assert (db.query<package> (
+              query<package>::id.tenant == tenant).size () == 18);
 
     shared_ptr<repository> sr (
-      db.load<repository> ("pkg:dev.cppget.org/stable"));
+      db.load<repository> (repository_id (tenant,
+                                          "pkg:dev.cppget.org/stable")));
 
     shared_ptr<repository> mr (
-      db.load<repository> ("pkg:dev.cppget.org/math"));
+      db.load<repository> (repository_id (tenant,
+                                          "pkg:dev.cppget.org/math")));
 
     shared_ptr<repository> cr (
-      db.load<repository> ("pkg:dev.cppget.org/misc"));
+      db.load<repository> (repository_id (tenant, "pkg:dev.cppget.org/misc")));
 
     shared_ptr<repository> tr (
-      db.load<repository> ("pkg:dev.cppget.org/testing"));
+      db.load<repository> (repository_id (tenant,
+                                          "pkg:dev.cppget.org/testing")));
 
     shared_ptr<repository> gr (
-      db.load<repository> ("pkg:dev.cppget.org/staging"));
+      db.load<repository> (repository_id (tenant,
+                                          "pkg:dev.cppget.org/staging")));
 
     // Verify 'stable' repository.
     //
@@ -326,7 +344,7 @@ test_pkg_repos (const cstrings& loader_args,
     //
     shared_ptr<package> fpvxy (
       db.load<package> (
-        package_id (package_name ("libfoo"), version ("+0-X.Y"))));
+        package_id (tenant, package_name ("libfoo"), version ("+0-X.Y"))));
 
     assert (fpvxy->project == package_name ("libfoo"));
     assert (fpvxy->summary == "The Foo Library");
@@ -359,7 +377,7 @@ test_pkg_repos (const cstrings& loader_args,
     //
     shared_ptr<package> fpv1 (
       db.load<package> (
-        package_id (package_name ("libfoo"), version ("1.0"))));
+        package_id (tenant, package_name ("libfoo"), version ("1.0"))));
 
     assert (fpv1->summary == "The Foo Library");
     assert (fpv1->tags.empty ());
@@ -393,7 +411,7 @@ test_pkg_repos (const cstrings& loader_args,
     //
     shared_ptr<package> fpv2 (
       db.load<package> (
-        package_id (package_name ("libfoo"), version ("1.2.2"))));
+        package_id (tenant, package_name ("libfoo"), version ("1.2.2"))));
 
     assert (fpv2->summary == "The Foo library");
     assert (fpv2->tags == strings ({"c++", "foo"}));
@@ -435,7 +453,9 @@ test_pkg_repos (const cstrings& loader_args,
     //
     shared_ptr<package> fpv2a (
       db.load<package> (
-        package_id (package_name ("libfoo"), version ("1.2.2-alpha.1"))));
+        package_id (tenant,
+                    package_name ("libfoo"),
+                    version ("1.2.2-alpha.1"))));
 
     assert (fpv2a->summary == "The Foo library");
     assert (fpv2a->tags == strings ({"c++", "foo"}));
@@ -495,7 +515,7 @@ test_pkg_repos (const cstrings& loader_args,
     //
     shared_ptr<package> fpv3 (
       db.load<package> (
-        package_id (package_name ("libfoo"), version ("1.2.3+4"))));
+        package_id (tenant, package_name ("libfoo"), version ("1.2.3+4"))));
 
     assert (fpv3->summary == "The Foo library");
     assert (fpv3->tags == strings ({"c++", "foo"}));
@@ -531,7 +551,7 @@ test_pkg_repos (const cstrings& loader_args,
     //
     shared_ptr<package> fpv4 (
       db.load<package> (
-        package_id (package_name ("libfoo"), version ("1.2.4"))));
+        package_id (tenant, package_name ("libfoo"), version ("1.2.4"))));
 
     assert (fpv4->summary == "The Foo Library");
     assert (fpv4->tags == strings ({"c++", "foo"}));
@@ -597,7 +617,9 @@ test_pkg_repos (const cstrings& loader_args,
     //
     shared_ptr<package> xpv (
       db.load<package> (
-        package_id (package_name ("libstudxml"), version ("1.0.0+1"))));
+        package_id (tenant,
+                    package_name ("libstudxml"),
+                    version ("1.0.0+1"))));
 
     assert (xpv->summary == "Modern C++ XML API");
     assert (xpv->tags == strings ({"c++", "xml", "parser", "serializer",
@@ -646,7 +668,7 @@ test_pkg_repos (const cstrings& loader_args,
     //
     shared_ptr<package> fpv5 (
       db.load<package> (
-        package_id (package_name ("libfoo"), version ("1.2.4+1"))));
+        package_id (tenant, package_name ("libfoo"), version ("1.2.4+1"))));
 
     assert (fpv5->summary == "The Foo Math Library");
     assert (fpv5->tags == strings ({"c++", "foo", "math"}));
@@ -761,7 +783,7 @@ test_pkg_repos (const cstrings& loader_args,
     //
     shared_ptr<package> epv (
       db.load<package> (
-        package_id (package_name ("libexp"), version ("+2-1.2+1"))));
+        package_id (tenant, package_name ("libexp"), version ("+2-1.2+1"))));
 
     assert (epv->project == "mathLab");
     assert (epv->summary == "The exponent");
@@ -812,7 +834,9 @@ test_pkg_repos (const cstrings& loader_args,
     // libpq-0
     //
     shared_ptr<package> qpv (
-      db.load<package> (package_id (package_name ("libpq"), version ("0"))));
+      db.load<package> (package_id (tenant,
+                                    package_name ("libpq"),
+                                    version ("0"))));
 
     assert (qpv->summary == "PostgreSQL C API client library");
 
@@ -849,7 +873,7 @@ test_pkg_repos (const cstrings& loader_args,
     //
     shared_ptr<package> bpv (
       db.load<package> (
-        package_id (package_name ("libbar"), version ("2.4.0+3"))));
+        package_id (tenant, package_name ("libbar"), version ("2.4.0+3"))));
 
     assert (check_external (*bpv));
     assert (bpv->other_repositories.size () == 1);
@@ -862,7 +886,7 @@ test_pkg_repos (const cstrings& loader_args,
     //
     shared_ptr<package> fpv0 (
       db.load<package> (
-        package_id (package_name ("libfoo"), version ("0.1"))));
+        package_id (tenant, package_name ("libfoo"), version ("0.1"))));
 
     assert (check_external (*fpv0));
     assert (fpv0->other_repositories.size () == 1);
@@ -873,7 +897,7 @@ test_pkg_repos (const cstrings& loader_args,
     //
     shared_ptr<package> fpv6 (
       db.load<package> (
-        package_id (package_name ("libfoo"), version ("1.2.4+2"))));
+        package_id (tenant, package_name ("libfoo"), version ("1.2.4+2"))));
 
     assert (check_external (*fpv6));
     assert (fpv6->other_repositories.size () == 1);
@@ -913,7 +937,7 @@ test_pkg_repos (const cstrings& loader_args,
     //
     shared_ptr<package> mpv0 (
       db.load<package> (
-        package_id (package_name ("libmisc"), version ("2.4.0"))));
+        package_id (tenant, package_name ("libmisc"), version ("2.4.0"))));
 
     assert (check_external (*mpv0));
     assert (mpv0->other_repositories.size () == 1);
@@ -924,7 +948,7 @@ test_pkg_repos (const cstrings& loader_args,
     //
     shared_ptr<package> mpv1 (
       db.load<package> (
-        package_id (package_name ("libmisc"), version ("2.3.0+1"))));
+        package_id (tenant, package_name ("libmisc"), version ("2.3.0+1"))));
 
     assert (check_external (*mpv1));
     assert (mpv1->other_repositories.size () == 1);
@@ -963,7 +987,7 @@ test_pkg_repos (const cstrings& loader_args,
     //
     shared_ptr<package> tpv (
       db.load<package> (
-        package_id (package_name ("libexpat"), version ("5.1"))));
+        package_id (tenant, package_name ("libexpat"), version ("5.1"))));
 
     assert (check_external (*tpv));
     assert (tpv->other_repositories.size () == 1);
@@ -976,7 +1000,7 @@ test_pkg_repos (const cstrings& loader_args,
     //
     shared_ptr<package> gpv (
       db.load<package> (
-        package_id (package_name ("libgenx"), version ("1.0"))));
+        package_id (tenant, package_name ("libgenx"), version ("1.0"))));
 
     assert (check_external (*gpv));
     assert (gpv->other_repositories.size () == 1);
@@ -989,7 +1013,7 @@ test_pkg_repos (const cstrings& loader_args,
     //
     shared_ptr<package> mpv2 (
       db.load<package> (
-        package_id (package_name ("libmisc"), version ("1.0"))));
+        package_id (tenant, package_name ("libmisc"), version ("1.0"))));
 
     assert (check_external (*mpv2));
     assert (mpv2->other_repositories.size () == 1);
@@ -1019,7 +1043,7 @@ test_pkg_repos (const cstrings& loader_args,
 
     shared_ptr<package> bpv (
       db.load<package> (
-        package_id (package_name ("libbar"), version ("2.4.0+3"))));
+        package_id (tenant, package_name ("libbar"), version ("2.4.0+3"))));
 
     assert (bpv->summary == "test");
 
@@ -1040,7 +1064,7 @@ test_pkg_repos (const cstrings& loader_args,
 
     shared_ptr<package> bpv (
       db.find<package> (
-        package_id (package_name ("libbar"), version ("2.4.0+3"))));
+        package_id (tenant, package_name ("libbar"), version ("2.4.0+3"))));
 
     // External package summary is not saved.
     //

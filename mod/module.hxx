@@ -10,6 +10,7 @@
 #include <libbrep/types.hxx>
 #include <libbrep/utility.hxx>
 
+#include <mod/utility.hxx>
 #include <mod/options.hxx>
 #include <mod/diagnostics.hxx>
 
@@ -70,6 +71,13 @@ namespace brep
   //
   class handler: public web::handler
   {
+  public:
+    // If not empty, denotes the repository tenant the request is for.
+    // Extracted by the handler implementation from the request (URL path,
+    // parameters, etc).
+    //
+    string tenant;
+
     // Diagnostics.
     //
   protected:
@@ -89,7 +97,7 @@ namespace brep
 
     // Set to true when the handler is successfully initialized.
     //
-    bool initialized_ {false};
+    bool initialized_ = false;
 
     // Implementation details.
     //

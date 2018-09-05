@@ -64,32 +64,32 @@ namespace brep
            optional<string> fr,
            optional<string> sh,
            shared_ptr<repository_type> rp)
-      : id (move (nm), vr),
-        version (move (vr)),
-        project (move (pn)),
-        priority (move (pr)),
-        summary (move (sm)),
-        license_alternatives (move (la)),
-        tags (move (tg)),
-        description (move (ds)),
-        changes (move (ch)),
-        url (move (ur)),
-        doc_url (move (du)),
-        src_url (move (su)),
-        package_url (move (pu)),
-        email (move (em)),
-        package_email (move (pe)),
-        build_email (move (be)),
-        dependencies (move (dp)),
-        requirements (move (rq)),
-        build_constraints (
-          version.compare (wildcard_version, true) != 0
-          ? move (bc)
-          : build_constraints_type ()),
-        internal_repository (move (rp)),
-        location (move (lc)),
-        fragment (move (fr)),
-        sha256sum (move (sh))
+  : id (rp->tenant, move (nm), vr),
+    name (id.name),
+    version (move (vr)),
+    project (move (pn)),
+    priority (move (pr)),
+    summary (move (sm)),
+    license_alternatives (move (la)),
+    tags (move (tg)),
+    description (move (ds)),
+    changes (move (ch)),
+    url (move (ur)),
+    doc_url (move (du)),
+    src_url (move (su)),
+    package_url (move (pu)),
+    email (move (em)),
+    package_email (move (pe)),
+    build_email (move (be)),
+    dependencies (move (dp)),
+    requirements (move (rq)),
+    build_constraints (version.compare (wildcard_version, true) != 0
+                       ? move (bc)
+                       : build_constraints_type ()),
+    internal_repository (move (rp)),
+    location (move (lc)),
+    fragment (move (fr)),
+    sha256sum (move (sh))
   {
     assert (internal_repository->internal);
   }
@@ -98,7 +98,8 @@ namespace brep
   package (package_name nm,
            version_type vr,
            shared_ptr<repository_type> rp)
-      : id (move (nm), vr),
+      : id (rp->tenant, move (nm), vr),
+        name (id.name),
         version (move (vr))
   {
     assert (!rp->internal);
@@ -121,7 +122,7 @@ namespace brep
     //   Probably drop-box would be better as also tells what are
     //   the available internal repositories.
     //
-    string k (project.string () + " " + id.name.string () + " " +
+    string k (project.string () + " " + name.string () + " " +
               version.string () + " " + version.string (true));
 
     // Add tags to keywords.
@@ -151,12 +152,15 @@ namespace brep
   // repository
   //
   repository::
-  repository (repository_location l,
+  repository (string t,
+              repository_location l,
               string d,
               repository_location h,
               optional<certificate_type> c,
               uint16_t r)
-      : name (l.canonical_name ()),
+      : id (move (t), l.canonical_name ()),
+        tenant (id.tenant),
+        canonical_name (id.canonical_name),
         location (move (l)),
         display_name (move (d)),
         priority (r),
@@ -167,8 +171,10 @@ namespace brep
   }
 
   repository::
-  repository (repository_location l)
-      : name (l.canonical_name ()),
+  repository (string t, repository_location l)
+      : id (move (t), l.canonical_name ()),
+        tenant (id.tenant),
+        canonical_name (id.canonical_name),
         location (move (l)),
         priority (0),
         internal (false)

@@ -52,6 +52,12 @@ class options
      repositories."
   };
 
+  std::string --tenant
+  {
+    "Tenant the package and repository information should be loaded in. If not
+     specified, then the single-tenant mode is assumed."
+  };
+
   std::string --db-user|-u
   {
     "<user>",

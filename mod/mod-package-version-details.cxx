@@ -131,7 +131,7 @@ handle (request& rq, response& rs)
 
   try
   {
-    pkg = package_db_->load<package> (package_id (pn, ver));
+    pkg = package_db_->load<package> (package_id (tenant, pn, ver));
 
     // If the requested package turned up to be an "external" one just
     // respond that no "internal" package is present.
@@ -147,7 +147,7 @@ handle (request& rq, response& rs)
     throw invalid_request (
       404, "Package '" + pn.string () + ' ' + sver + "' not found");
 
-  const string& name (pkg->id.name.string ());
+  const string& name (pkg->name.string ());
 
   const string title (name + " " + sver);
   xml::serializer s (rs.content (), title);
@@ -158,7 +158,7 @@ handle (request& rq, response& rs)
     <<     CSS_LINKS (path ("package-version-details.css"), root)
     <<   ~HEAD
     <<   BODY
-    <<     DIV_HEADER (root, options_->logo (), options_->menu ())
+    <<     DIV_HEADER (options_->logo (), options_->menu (), root, tenant)
     <<     DIV(ID="content");
 
   if (full)
@@ -166,7 +166,8 @@ handle (request& rq, response& rs)
 
   s <<       DIV(ID="heading")
     <<         H1
-    <<           A(HREF=root / path (mime_url_encode (name, false)))
+    <<           A(HREF=tenant_dir (root, tenant) /
+                   path (mime_url_encode (name, false)))
     <<             name
     <<           ~A
     <<           "/"
@@ -195,7 +196,7 @@ handle (request& rq, response& rs)
 
     <<     TR_PRIORITY (pkg->priority)
     <<     TR_LICENSES (pkg->license_alternatives)
-    <<     TR_REPOSITORY (rl.canonical_name (), root)
+    <<     TR_REPOSITORY (rl.canonical_name (), root, tenant)
     <<     TR_LOCATION (rl);
 
   if (rl.type () == repository_type::pkg)
@@ -216,7 +217,7 @@ handle (request& rq, response& rs)
 
     << TABLE(CLASS="proplist", ID="package")
     <<   TBODY
-    <<     TR_PROJECT (pkg->project, root);
+    <<     TR_PROJECT (pkg->project, root, tenant);
 
   const auto& u (pkg->url);
 
@@ -246,7 +247,7 @@ handle (request& rq, response& rs)
   if (be && ((pe && be != pe) || (!pe && be != em)))
     s << TR_EMAIL (*be, "build-email");
 
-  s <<     TR_TAGS (pkg->tags, root)
+  s <<     TR_TAGS (pkg->tags, root, tenant)
     <<   ~TBODY
     << ~TABLE;
 
@@ -306,7 +307,7 @@ handle (request& rq, response& rs)
           }
           else if (p->internal ())
           {
-            dir_path u (root / dir_path (ename));
+            dir_path u (tenant_dir (root, tenant) / dir_path (ename));
             s << A(HREF=u) << dname << ~A;
 
             if (dcon)
