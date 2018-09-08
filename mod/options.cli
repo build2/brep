@@ -311,7 +311,8 @@ namespace brep
 
     // Handler options.
     //
-    class package_search: search, package_db, page, handler
+
+    class packages: search, package_db, page, handler
     {
       string search-title = "Packages"
       {
@@ -532,6 +533,21 @@ namespace brep
 
     class repository_root: handler
     {
+      string root-global-view = "packages"
+      {
+        "<service>",
+        "The default view to display for the global repository root. The
+         <service> argument is one of the supported services (\c{packages},
+         \c{builds}, \c{submit}, \c{ci}, etc)."
+      }
+
+      string root-tenant-view = "packages"
+      {
+        "<service>"
+        "The default view to display for the tenant repository root. The
+         <service> argument is one of the supported services (\c{packages},
+         \c{builds}, \c{submit}, \c{ci}, etc)."
+      }
     };
   }
 
@@ -542,7 +558,7 @@ namespace brep
     // Use parameters long names in the C++ code, short aliases (if present)
     // in HTTP URL.
     //
-    class package_search
+    class packages
     {
       // Display package search result list starting from this page.
       //
@@ -550,7 +566,10 @@ namespace brep
 
       // Package search criteria.
       //
-      string query | q;
+      // Note that the packages parameter is renamed to '_' by the root
+      // handler (see the request_proxy class for details).
+      //
+      string q | _;
     };
 
     class package_details

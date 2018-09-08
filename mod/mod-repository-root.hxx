@@ -13,7 +13,7 @@
 
 namespace brep
 {
-  class package_search;
+  class packages;
   class package_details;
   class package_version_details;
   class repository_details;
@@ -58,7 +58,7 @@ namespace brep
     version ();
 
   private:
-    shared_ptr<package_search> package_search_;
+    shared_ptr<packages> packages_;
     shared_ptr<package_details> package_details_;
     shared_ptr<package_version_details> package_version_details_;
     shared_ptr<repository_details> repository_details_;

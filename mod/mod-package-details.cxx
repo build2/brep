@@ -215,7 +215,7 @@ handle (request& rq, response& rs)
     package_db_->query_value<package_count> (
       search_params<package_count> (squery, tenant, name)));
 
-  s << FORM_SEARCH (squery)
+  s << FORM_SEARCH (squery, "q")
     << DIV_COUNTER (pkg_count, "Version", "Versions");
 
   // Enclose the subsequent tables to be able to use nth-child CSS selector.

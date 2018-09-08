@@ -1,8 +1,8 @@
-// file      : mod/mod-package-search.cxx -*- C++ -*-
+// file      : mod/mod-packages.cxx -*- C++ -*-
 // copyright : Copyright (c) 2014-2018 Code Synthesis Ltd
 // license   : MIT; see accompanying LICENSE file
 
-#include <mod/mod-package-search.hxx>
+#include <mod/mod-packages.hxx>
 
 #include <libstudxml/serializer.hxx>
 
@@ -28,19 +28,19 @@ using namespace brep::cli;
 // need to deep copy nullptr's), it is a good idea to keep the placeholder
 // ready for less trivial cases.
 //
-brep::package_search::
-package_search (const package_search& r)
+brep::packages::
+packages (const packages& r)
     : database_module (r),
       options_ (r.initialized_ ? r.options_ : nullptr)
 {
 }
 
-void brep::package_search::
+void brep::packages::
 init (scanner& s)
 {
   HANDLER_DIAG;
 
-  options_ = make_shared<options::package_search> (
+  options_ = make_shared<options::packages> (
     s, unknown_mode::fail, unknown_mode::fail);
 
   database_module::init (*options_, options_->package_db_retry ());
@@ -79,7 +79,7 @@ search_param (const brep::string& q, const brep::string& t)
     ")";
 }
 
-bool brep::package_search::
+bool brep::packages::
 handle (request& rq, response& rs)
 {
   using namespace web::xhtml;
@@ -90,13 +90,12 @@ handle (request& rq, response& rs)
   const dir_path& root (options_->root ());
   const string& title (options_->search_title ());
 
-  params::package_search params;
+  params::packages params;
 
   try
   {
     name_value_scanner s (rq.parameters (8 * 1024));
-    params = params::package_search (
-      s, unknown_mode::fail, unknown_mode::fail);
+    params = params::packages (s, unknown_mode::fail, unknown_mode::fail);
   }
   catch (const cli::exception& e)
   {
@@ -104,10 +103,8 @@ handle (request& rq, response& rs)
   }
 
   size_t page (params.page ());
-  const string& squery (params.query ());
-  string squery_param (squery.empty ()
-                       ? ""
-                       : "?q=" + web::mime_url_encode (squery));
+  const string& squery (params.q ());
+  string equery (web::mime_url_encode (squery));
 
   xml::serializer s (rs.content (), title);
 
@@ -145,7 +142,7 @@ handle (request& rq, response& rs)
     package_db_->query_value<latest_package_count> (
       search_param<latest_package_count> (squery, tenant)));
 
-  s << FORM_SEARCH (squery)
+  s << FORM_SEARCH (squery, "packages")
     << DIV_COUNTER (pkg_count, "Package", "Packages");
 
   // Enclose the subsequent tables to be able to use nth-child CSS selector.
@@ -164,7 +161,7 @@ handle (request& rq, response& rs)
 
     s << TABLE(CLASS="proplist package")
       <<   TBODY
-      <<     TR_NAME (p->name, squery_param, root, tenant)
+      <<     TR_NAME (p->name, equery, root, tenant)
       <<     TR_SUMMARY (p->summary)
       <<     TR_LICENSE (p->license_alternatives)
       <<     TR_TAGS (p->project, p->tags, root, tenant)
@@ -177,8 +174,19 @@ handle (request& rq, response& rs)
 
   t.commit ();
 
-  s <<       DIV_PAGER (page, pkg_count, res_page, options_->search_pages (),
-                        tenant_dir (root, tenant).string () + squery_param)
+  string url (tenant_dir (root, tenant).string () + "?packages");
+
+  if (!equery.empty ())
+  {
+    url += '=';
+    url += equery;
+  }
+
+  s <<       DIV_PAGER (page,
+                        pkg_count,
+                        res_page,
+                        options_->search_pages (),
+                        url)
     <<     ~DIV
     <<   ~BODY
     << ~HTML;

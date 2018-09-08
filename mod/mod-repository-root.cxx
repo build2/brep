@@ -7,6 +7,7 @@
 #include <time.h> // tzset()
 
 #include <sstream>
+#include <algorithm> // find()
 
 #include <web/module.hxx>
 
@@ -16,11 +17,11 @@
 #include <mod/mod-ci.hxx>
 #include <mod/mod-submit.hxx>
 #include <mod/mod-builds.hxx>
+#include <mod/mod-packages.hxx>
 #include <mod/mod-build-log.hxx>
 #include <mod/mod-build-task.hxx>
 #include <mod/mod-build-force.hxx>
 #include <mod/mod-build-result.hxx>
-#include <mod/mod-package-search.hxx>
 #include <mod/mod-package-details.hxx>
 #include <mod/mod-repository-details.hxx>
 #include <mod/mod-package-version-details.hxx>
@@ -105,7 +106,7 @@ namespace brep
   //
   repository_root::
   repository_root ()
-      : package_search_ (make_shared<package_search> ()),
+      : packages_ (make_shared<packages> ()),
         package_details_ (make_shared<package_details> ()),
         package_version_details_ (make_shared<package_version_details> ()),
         repository_details_ (make_shared<repository_details> ()),
@@ -126,10 +127,10 @@ namespace brep
         // Deep/shallow-copy sub-handlers depending on whether this is an
         // exemplar/handler.
         //
-        package_search_ (
+        packages_ (
           r.initialized_
-          ? r.package_search_
-          : make_shared<package_search> (*r.package_search_)),
+          ? r.packages_
+          : make_shared<packages> (*r.packages_)),
         package_details_ (
           r.initialized_
           ? r.package_details_
@@ -185,7 +186,7 @@ namespace brep
   options ()
   {
     option_descriptions r (handler::options ());
-    append (r, package_search_->options ());
+    append (r, packages_->options ());
     append (r, package_details_->options ());
     append (r, package_version_details_->options ());
     append (r, repository_details_->options ());
@@ -229,7 +230,7 @@ namespace brep
 
     // Initialize sub-handlers.
     //
-    sub_init (*package_search_, "package_search");
+    sub_init (*packages_, "packages");
     sub_init (*package_details_, "package_details");
     sub_init (*package_version_details_, "package_version_details");
     sub_init (*repository_details_, "repository_details");
@@ -254,6 +255,19 @@ namespace brep
 
     options_ = make_shared<options::repository_root> (
       s, unknown_mode::fail, unknown_mode::fail);
+
+    // Verify that the root default views are properly configured.
+    //
+    auto verify = [&fail] (const string& v, const char* what)
+    {
+      cstrings vs ({"packages", "builds", "about", "submit", "ci"});
+
+      if (find (vs.begin (), vs.end (), v) == vs.end ())
+        fail << what << " value '" << v << "' is invalid";
+    };
+
+    verify (options_->root_global_view (), "root-global-view");
+    verify (options_->root_tenant_view (), "root-tenant-view");
 
     if (options_->root ().empty ())
       options_->root (dir_path ("/"));
@@ -340,73 +354,97 @@ namespace brep
     //
     if (lpath.empty ())
     {
-      // Dispatch request handling to the repository_details or the one of
-      // build_* handlers depending on the function name passed as a first HTTP
-      // request parameter (example: cppget.org/?about). Dispatch to the
-      // package_search handler if the function name is unavailable (no
-      // parameters) or is not recognized.
+      // Dispatch request handling to one of the sub-handlers depending on the
+      // function name passed as a first HTTP request parameter (example:
+      // cppget.org/?about). If it doesn't denote a handler or there are no
+      // parameters, then dispatch to the default handler.
       //
       const name_values& params (rq.parameters (0 /* limit */,
                                                 true /* url_only */));
-      if (!params.empty ())
+
+      auto dispatch = [&handle, this] (const string& func,
+                                       bool param) -> optional<bool>
       {
-        const string& fn (params.front ().name);
-
-        if (fn == "about")
-        {
-          if (handler_ == nullptr)
-            handler_.reset (new repository_details (*repository_details_));
-
-          return handle ("repository_details", true);
-        }
-        else if (fn == "build-task")
+        // When adding a new handler don't forget to check if need to add it
+        // to the default view list in the init() function.
+        //
+        if (func == "build-task")
         {
           if (handler_ == nullptr)
             handler_.reset (new build_task (*build_task_));
 
-          return handle ("build_task", true);
+          return handle ("build_task", param);
         }
-        else if (fn == "build-result")
+        else if (func == "build-result")
         {
           if (handler_ == nullptr)
             handler_.reset (new build_result (*build_result_));
 
-          return handle ("build_result", true);
+          return handle ("build_result", param);
         }
-        else if (fn == "build-force")
+        else if (func == "build-force")
         {
           if (handler_ == nullptr)
             handler_.reset (new build_force (*build_force_));
 
-          return handle ("build_force", true);
+          return handle ("build_force", param);
         }
-        else if (fn == "builds")
+        else if (func == "builds")
         {
           if (handler_ == nullptr)
             handler_.reset (new builds (*builds_));
 
-          return handle ("builds", true);
+          return handle ("builds", param);
         }
-        else if (fn == "submit")
+        else if (func == "packages")
+        {
+          if (handler_ == nullptr)
+            handler_.reset (new packages (*packages_));
+
+          return handle ("packages", param);
+        }
+        else if (func == "about")
+        {
+          if (handler_ == nullptr)
+            handler_.reset (new repository_details (*repository_details_));
+
+          return handle ("repository_details", param);
+        }
+        else if (func == "submit")
         {
           if (handler_ == nullptr)
             handler_.reset (new submit (*submit_));
 
-          return handle ("submit", true);
+          return handle ("submit", param);
         }
-        else if (fn == "ci")
+        else if (func == "ci")
         {
           if (handler_ == nullptr)
             handler_.reset (new ci (*ci_));
 
-          return handle ("ci", true);
+          return handle ("ci", param);
         }
-      }
+        else
+          return nullopt;
+      };
 
-      if (handler_ == nullptr)
-        handler_.reset (new package_search (*package_search_));
+      optional<bool> r;
 
-      return handle ("package_search");
+      if (!params.empty () &&
+          (r = dispatch (params.front ().name, true /* param */)))
+        return *r;
+
+      const string& view (!tenant.empty ()
+                          ? options_->root_tenant_view ()
+                          : options_->root_global_view ());
+
+      r = dispatch (view, false /* param */);
+
+      // The default views are verified in the init() function.
+      //
+      assert (r);
+
+      return *r;
     }
     else
     {

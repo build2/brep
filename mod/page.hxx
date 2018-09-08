@@ -60,18 +60,20 @@ namespace brep
     const string& tenant_;
   };
 
-  // Generates package search form element.
+  // Generates package search form element with the specified query input
+  // element name.
   //
   class FORM_SEARCH
   {
   public:
-    FORM_SEARCH (const string& q): query_ (q) {}
+    FORM_SEARCH (const string& q, const string& n): query_ (q), name_ (n) {}
 
     void
     operator() (xml::serializer&) const;
 
   private:
     const string& query_;
+    const string& name_;
   };
 
   // Generates counter element.
@@ -160,7 +162,8 @@ namespace brep
     const vector<pair<string, string>>& options_;
   };
 
-  // Generates package name element.
+  // Generates package name element with an optional search criteria. The
+  // search string should be url-encoded, if specified.
   //
   class TR_NAME
   {
@@ -169,14 +172,14 @@ namespace brep
              const string& q,
              const dir_path& r,
              const string& t)
-        : name_ (n), query_param_ (q), root_ (r), tenant_ (t) {}
+        : name_ (n), query_ (q), root_ (r), tenant_ (t) {}
 
     void
     operator() (xml::serializer&) const;
 
   private:
     const package_name& name_;
-    const string& query_param_;
+    const string& query_;
     const dir_path& root_;
     const string& tenant_;
   };

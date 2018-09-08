@@ -98,7 +98,8 @@ namespace brep
       <<     TBODY
       <<       TR
       <<         TD(ID="search-txt")
-      <<           *INPUT(TYPE="search", NAME="q", VALUE=query_, AUTOFOCUS="")
+      <<           *INPUT(TYPE="search", NAME=name_, VALUE=query_,
+                          AUTOFOCUS="")
       <<         ~TD
       <<         TD(ID="search-btn")
       <<           *INPUT(TYPE="submit", VALUE="Search")
@@ -192,14 +193,15 @@ namespace brep
       <<     SPAN(CLASS="value")
       <<       A
       <<       HREF
-
-      // Propagate search criteria to the package details page.
-      //
       <<         tenant_dir (root_, tenant_) /
-                 path (mime_url_encode (name_.string (), false))
-      <<         query_param_
+                 path (mime_url_encode (name_.string (), false));
 
-      <<       ~HREF
+    // Propagate search criteria to the package details page.
+    //
+    if (!query_.empty ())
+      s << "?q=" << query_;
+
+    s <<       ~HREF
       <<          name_
       <<       ~A
       <<     ~SPAN
@@ -255,7 +257,7 @@ namespace brep
       <<     SPAN(CLASS="value")
       <<       A
       <<         HREF
-      <<           tenant_dir (root_, tenant_) << "?q="
+      <<           tenant_dir (root_, tenant_) << "?packages="
       <<           mime_url_encode (project_.string ())
       <<         ~HREF
       <<         project_
@@ -356,7 +358,8 @@ namespace brep
       {
         s << A
           <<   HREF
-          <<     tenant_dir (root_, tenant_) << "?q=" << mime_url_encode (t)
+          <<     tenant_dir (root_, tenant_) << "?packages="
+          <<     mime_url_encode (t)
           <<   ~HREF
           <<   t
           << ~A;
@@ -500,8 +503,8 @@ namespace brep
 
       if (r.empty ())
       {
-        // If there is no requirement alternatives specified, then
-        // print the comment first word.
+        // If there is no requirement alternatives specified, then print the
+        // comment first word.
         //
         const auto& c (r.comment);
         if (!c.empty ())
