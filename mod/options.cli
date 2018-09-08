@@ -538,7 +538,8 @@ namespace brep
         "<service>",
         "The default view to display for the global repository root. The
          <service> argument is one of the supported services (\c{packages},
-         \c{builds}, \c{submit}, \c{ci}, etc)."
+         \c{builds}, \c{submit}, \c{ci}, etc). The default service is
+         packages."
       }
 
       string root-tenant-view = "packages"
@@ -546,7 +547,8 @@ namespace brep
         "<service>"
         "The default view to display for the tenant repository root. The
          <service> argument is one of the supported services (\c{packages},
-         \c{builds}, \c{submit}, \c{ci}, etc)."
+         \c{builds}, \c{submit}, \c{ci}, etc). The default service is
+         packages."
       }
     };
   }
