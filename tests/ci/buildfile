@@ -11,8 +11,8 @@ include $dir
 
 commons = data
 
-./: testscript{* -{$commons}} common{$commons} \
-    $dir/exe{brep-ci-dir} $dir/exe{brep-ci-load}
+./: testscript{* -{$commons}} common{$commons} {*/ -test/}{**} \
+    $dir/exe{brep-ci-dir} $dir/exe{brep-ci-load} doc{README}
 
 testscript{ci-dir}@./:  test = $out_base/$dir/brep-ci-dir
 testscript{ci-load}@./: test = $out_base/$dir/brep-ci-load

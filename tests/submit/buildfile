@@ -11,8 +11,9 @@ include $dir
 
 commons = data
 
-./: testscript{* -{$commons}} common{$commons} {*/ -test/}{**} \
-    $dir/exe{brep-submit-dir} $dir/exe{brep-submit-git}
+./: testscript{* -{$commons}} common{$commons} {*/ -test/}{**}             \
+    $dir/exe{brep-submit-dir} $dir/exe{brep-submit-git} file{hello.tar.gz} \
+    doc{README}
 
 testscript{submit-dir}@./: test = $out_base/$dir/brep-submit-dir
 testscript{submit-git}@./: test = $out_base/$dir/brep-submit-git
