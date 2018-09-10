@@ -34,7 +34,7 @@
     $* >>"EOO";
       : 1
       status: 200
-      message: libhello/0.1.0 submission is queued
+      message: package submission is queued: libhello/0.1.0
       reference: $checksum
       EOO
 
@@ -49,7 +49,7 @@
     $* >>"EOO"
       : 1
       status: 200
-      message: libhello/0.1.0 submission is queued
+      message: package submission is queued: libhello/0.1.0
       reference: $checksum
       EOO
   }

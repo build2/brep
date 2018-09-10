@@ -161,6 +161,12 @@
 #   Email to use for the target repository commits. noreply@example.com if
 #   unspecified.
 #
+# --result-url <url>
+#
+#   Result URL base for the response. If specified, the handler will append
+#   the <package>/<version> to this value and include the resulting URL in the
+#   response message.
+#
 usage="usage: $0 [<options>] <tgt-repo> [<ref-repo>] <dir>"
 
 # Diagnostics.
@@ -190,6 +196,7 @@ set -o errtrace # Trap ERR in functions.
 #
 committer_name="Submission Handler"
 committer_email="noreply@example.com"
+result_url=
 
 while [ $# -gt 0 ]; do
   case $1 in
@@ -201,6 +208,11 @@ while [ $# -gt 0 ]; do
     --committer-email)
       shift
       committer_email="$1"
+      shift
+      ;;
+    --result-url)
+      shift
+      result_url="${1%/}"
       shift
       ;;
     *)
@@ -367,6 +379,12 @@ if [ -z "$project" ]; then
   project="$name"
 fi
 
+if [ -n "$result_url" ]; then
+  message_suffix=": $result_url/$name/$version"
+else
+  message_suffix=": $name/$version"
+fi
+
 # Exit with the 'submission is queued' result manifest if simulating.
 #
 # Note that we can't expect a real control repository URL to be specified for
@@ -375,8 +393,8 @@ fi
 if [ -n "$simulate" ]; then
   run rm -r -f "$data_dir"
 
-  trace "$name/$version submission is simulated"
-  exit_with_manifest 200 "$name/$version submission is queued" "$reference"
+  trace "package submission is simulated$message_suffix"
+  exit_with_manifest 200 "package submission is queued$message_suffix"
 fi
 
 function git_add () # <repo-dir> <path>...
@@ -655,5 +673,5 @@ fi
 #
 run rm -r -f "$data_dir"
 
-trace "$name/$version submission is queued"
-exit_with_manifest 200 "$name/$version submission is queued"
+trace "package submission is queued$message_suffix"
+exit_with_manifest 200 "package submission is queued$message_suffix"

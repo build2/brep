@@ -601,7 +601,7 @@ handle (request& rq, response& rs)
 
     add ("", "1");                           // Start of manifest.
     add ("status", "200");
-    add ("message", "submission is queued");
+    add ("message", "package submission is queued");
     add ("reference", ref);
     add ("", "");                            // End of manifest.
   }

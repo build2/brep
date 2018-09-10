@@ -145,7 +145,7 @@ handle (request& rq, response& rs)
 
   if (not_found)
     throw invalid_request (
-      404, "Package '" + pn.string () + ' ' + sver + "' not found");
+      404, "Package " + pn.string () + '/' + sver + " not (yet) found");
 
   const string& name (pkg->name.string ());
 

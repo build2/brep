@@ -100,9 +100,9 @@ fi
 
 if [ -n "$simulate" ]; then
   run rm -r "$data_dir"
-  trace "$name/$version submission is simulated"
+  trace "package submission is simulated: $name/$version"
 else
-  trace "$name/$version submission is queued"
+  trace "package submission is queued: $name/$version"
 fi
 
-exit_with_manifest 200 "$name/$version submission is queued"
+exit_with_manifest 200 "package submission is queued: $name/$version"

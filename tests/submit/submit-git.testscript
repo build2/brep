@@ -106,7 +106,7 @@ pkg_ctl="$prj_ctl/hello.git"
        "$tgt_url" $root_ref_dir $data_dir >>"EOO";
       : 1
       status: 200
-      message: libhello/0.1.0 submission is queued
+      message: package submission is queued: libhello/0.1.0
       reference: $checksum
       EOO
 
@@ -191,7 +191,7 @@ pkg_ctl="$prj_ctl/hello.git"
     $* "file:///$~/tgt.git" ref $data_dir >>"EOO"
       : 1
       status: 200
-      message: libhello/0.1.0 submission is queued
+      message: package submission is queued: libhello/0.1.0
       reference: $checksum
       EOO
   }
@@ -201,14 +201,16 @@ pkg_ctl="$prj_ctl/hello.git"
   : Test that on the first package submit the project and package names
   : ownership is successfully aquired. Reference repo is absent.
   :
+  : Note that here we also pass the --result-url option.
+  :
   {
     $clone_root_data;
     $clone_root_tgt;
 
-    $* "file:///$~/tgt.git" $data_dir >>"EOO"
+    $* --result-url 'https://example.com/' "file:///$~/tgt.git" $data_dir >>"EOO"
       : 1
       status: 200
-      message: libhello/0.1.0 submission is queued
+      message: package submission is queued: https://example.com/libhello/0.1.0
       reference: $checksum
       EOO
   }
@@ -249,7 +251,7 @@ pkg_ctl="$prj_ctl/hello.git"
     $* "file:///$~/tgt.git" $root_ref_dir $data_dir >>"EOO"
       : 1
       status: 200
-      message: libhello/0.1.0 submission is queued
+      message: package submission is queued: libhello/0.1.0
       reference: $checksum
       EOO
   }
@@ -303,7 +305,7 @@ pkg_ctl="$prj_ctl/hello.git"
     $* "file:///$~/tgt.git" ref $data_dir >>"EOO";
       : 1
       status: 200
-      message: libhello/0.1.0 submission is queued
+      message: package submission is queued: libhello/0.1.0
       reference: $checksum
       EOO
 
@@ -357,7 +359,7 @@ pkg_ctl="$prj_ctl/hello.git"
     $* "file:///$~/tgt.git" ref $data_dir >>"EOO"
       : 1
       status: 200
-      message: libhello/0.1.0 submission is queued
+      message: package submission is queued: libhello/0.1.0
       reference: $checksum
       EOO
   }
@@ -392,7 +394,7 @@ pkg_ctl="$prj_ctl/hello.git"
     $* "file:///$~/tgt.git" ref $data_dir >>"EOO"
       : 1
       status: 200
-      message: libhello/0.1.0 submission is queued
+      message: package submission is queued: libhello/0.1.0
       reference: $checksum
       EOO
   }
@@ -422,7 +424,7 @@ pkg_ctl="$prj_ctl/hello.git"
     $* "file:///$~/tgt.git" $data_dir >>"EOO"
       : 1
       status: 200
-      message: libhello/0.1.0 submission is queued
+      message: package submission is queued: libhello/0.1.0
       reference: $checksum
       EOO
   }
@@ -451,7 +453,7 @@ pkg_ctl="$prj_ctl/hello.git"
     $* "file:///$~/tgt.git" $root_ref_dir $data_dir >>"EOO"
       : 1
       status: 200
-      message: libhello/0.1.0 submission is queued
+      message: package submission is queued: libhello/0.1.0
       reference: $checksum
       EOO
   }
@@ -461,17 +463,36 @@ pkg_ctl="$prj_ctl/hello.git"
   : Test that the simulated submission still succeeds given no control URL.
   :
   {
-    $clone_root_data;
-    sed -i -e 's%^control: .+$%simulate: success%' $data_dir/request.manifest;
+    +$clone_root_data_clean
+    +sed -i -e 's%^control: .+$%simulate: success%' $data_dir/request.manifest
 
-    $clone_root_tgt;
+    : no-result-url
+    :
+    {
+      $clone_data;
+      $clone_root_tgt;
 
-    $* "file:///$~/tgt.git" $data_dir >>"EOO"
-      : 1
-      status: 200
-      message: libhello/0.1.0 submission is queued
-      reference: $checksum
-      EOO
+      $* "file:///$~/tgt.git" $data_dir >>"EOO"
+        : 1
+        status: 200
+        message: package submission is queued: libhello/0.1.0
+        reference: $checksum
+        EOO
+    }
+
+    : result-url
+    :
+    {
+      $clone_data;
+      $clone_root_tgt;
+
+      $* --result-url 'https://example.com' "file:///$~/tgt.git" $data_dir >>"EOO"
+        : 1
+        status: 200
+        message: package submission is queued: https://example.com/libhello/0.1.0
+        reference: $checksum
+        EOO
+    }
   }
 }
 

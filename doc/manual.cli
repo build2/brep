@@ -115,7 +115,7 @@ manifest is implied:
 
 \
 status: 200
-message: submission is queued
+message: package submission is queued
 reference: <abbrev-checksum>
 \
 

@@ -111,7 +111,8 @@ handle (request& rq, response& rs)
     latest_package lp;
     if (!package_db_->query_one<latest_package> (
           "(" + query::_val (tenant) + "," + query::_val (n) + ")", lp))
-      throw invalid_request (404, "Package '" + n.string () + "' not found");
+      throw invalid_request (404,
+                             "Package " + n.string () + " not (yet) found");
 
     pkg = package_db_->load<package> (lp.id);
   }
