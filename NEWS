@@ -1,3 +1,14 @@
+Version 0.8.0
+
+  * Package CI service (?ci). See the repository interface manual for details.
+
+  * Package submission service (?submit). See the repository interface manual
+    for details.
+
+  * Multi-tenancy support.
+
+  * Support for customizing repository root view.
+
 Version 0.7.0
 
   * Make package name case-insensitive.
