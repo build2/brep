@@ -22,6 +22,7 @@
 #include <mod/mod-build-task.hxx>
 #include <mod/mod-build-force.hxx>
 #include <mod/mod-build-result.hxx>
+#include <mod/mod-build-configs.hxx>
 #include <mod/mod-package-details.hxx>
 #include <mod/mod-repository-details.hxx>
 #include <mod/mod-package-version-details.hxx>
@@ -115,6 +116,7 @@ namespace brep
         build_force_ (make_shared<build_force> ()),
         build_log_ (make_shared<build_log> ()),
         builds_ (make_shared<builds> ()),
+        build_configs_ (make_shared<build_configs> ()),
         submit_ (make_shared<submit> ()),
         ci_ (make_shared<ci> ())
   {
@@ -164,6 +166,10 @@ namespace brep
           r.initialized_
           ? r.builds_
           : make_shared<builds> (*r.builds_)),
+        build_configs_ (
+          r.initialized_
+          ? r.build_configs_
+          : make_shared<build_configs> (*r.build_configs_)),
         submit_ (
           r.initialized_
           ? r.submit_
@@ -195,6 +201,7 @@ namespace brep
     append (r, build_force_->options ());
     append (r, build_log_->options ());
     append (r, builds_->options ());
+    append (r, build_configs_->options ());
     append (r, submit_->options ());
     append (r, ci_->options ());
     return r;
@@ -239,6 +246,7 @@ namespace brep
     sub_init (*build_force_, "build_force");
     sub_init (*build_log_, "build_log");
     sub_init (*builds_, "builds");
+    sub_init (*build_configs_, "build_configs");
     sub_init (*submit_, "submit");
     sub_init (*ci_, "ci");
 
@@ -260,7 +268,8 @@ namespace brep
     //
     auto verify = [&fail] (const string& v, const char* what)
     {
-      cstrings vs ({"packages", "builds", "about", "submit", "ci"});
+      cstrings vs ({
+          "packages", "builds", "build-configs", "about", "submit", "ci"});
 
       if (find (vs.begin (), vs.end (), v) == vs.end ())
         fail << what << " value '" << v << "' is invalid";
@@ -395,6 +404,13 @@ namespace brep
             handler_.reset (new builds (*builds_));
 
           return handle ("builds", param);
+        }
+        else if (func == "build-configs")
+        {
+          if (handler_ == nullptr)
+            handler_.reset (new build_configs (*build_configs_));
+
+          return handle ("build_configs", param);
         }
         else if (func == "packages")
         {

@@ -22,6 +22,7 @@ namespace brep
   class build_force;
   class build_log;
   class builds;
+  class build_configs;
   class submit;
   class ci;
 
@@ -67,6 +68,7 @@ namespace brep
     shared_ptr<build_force> build_force_;
     shared_ptr<build_log> build_log_;
     shared_ptr<builds> builds_;
+    shared_ptr<build_configs> build_configs_;
     shared_ptr<submit> submit_;
     shared_ptr<ci> ci_;
 

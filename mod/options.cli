@@ -391,6 +391,10 @@ namespace brep
       }
     };
 
+    class build_configs: build, page, handler
+    {
+    };
+
     class submit: page, handler
     {
       dir_path submit-data
@@ -712,6 +716,12 @@ namespace brep
       // the rest - for being greater or equal.
       //
       string result | rs = "*";
+    };
+
+    class build_configs
+    {
+      // No parameters so far.
+      //
     };
 
     // Parameters, except simulate, must either be all present (actual
