@@ -117,7 +117,7 @@ handle (request& rq, response& rs)
     s << " " << squery;
 
   s <<     ~TITLE
-    <<     CSS_LINKS (path ("package-search.css"), root)
+    <<     CSS_LINKS (path ("packages.css"), root)
     //
     // This hack is required to avoid the "flash of unstyled content", which
     // happens due to the presence of the autofocus attribute in the input
