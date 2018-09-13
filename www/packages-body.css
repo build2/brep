@@ -33,7 +33,8 @@
 
 .package tr.name td .value,
 .package tr.depends td .value,
-.package tr.requires td .value
+.package tr.requires td .value,
+.package tr.tenant td .value
 {
   /* <code> style. */
   font-family: monospace;

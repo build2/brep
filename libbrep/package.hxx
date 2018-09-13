@@ -346,6 +346,7 @@ namespace brep
     //
     package_id id;
 
+    const string& tenant;     // Tracks id.tenant.
     const package_name& name; // Tracks id.name.
     upstream_version version;
 
@@ -395,6 +396,7 @@ namespace brep
     // Database mapping.
     //
     #pragma db member(id) id column("")
+    #pragma db member(tenant) transient
     #pragma db member(name) transient
     #pragma db member(version) set(this.version.init (this.id.version, (?)))
 
@@ -476,7 +478,7 @@ namespace brep
 
   private:
     friend class odb::access;
-    package (): name (id.name) {}
+    package (): tenant (id.tenant), name (id.name) {}
 
     // Save keywords, summary, description, and changes to weighted_text
     // a, b, c, d members, respectively. So a word found in keywords will

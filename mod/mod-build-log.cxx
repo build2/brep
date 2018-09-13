@@ -212,10 +212,13 @@ handle (request& rq, response& rs)
   //
   ostream& os (rs.content (200, "text/plain;charset=utf-8", false));
 
-  auto print_header = [&os, &b] ()
+  auto print_header = [&os, &b, this] ()
   {
-    // @@ Should we print the tenant? How to call it if that's the case?
+    // Print the build tenant in the multi-tenant mode.
     //
+    if (!b->tenant.empty ())
+      os << options_->tenant_name () << ": " << b->tenant << endl << endl;
+
     os << "package:   " << b->package_name << endl
        << "version:   " << b->package_version << endl
        << "toolchain: " << b->toolchain_name << '-' << b->toolchain_version

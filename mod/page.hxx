@@ -162,6 +162,29 @@ namespace brep
     const vector<pair<string, string>>& options_;
   };
 
+  // Generates tenant id element.
+  //
+  // Displays a link to the service page for the specified tenant.
+  //
+  class TR_TENANT
+  {
+  public:
+    TR_TENANT (const string& n,
+               const string& s,
+               const dir_path& r,
+               const string& t)
+        : name_ (n), service_ (s), root_ (r), tenant_ (t) {}
+
+    void
+    operator() (xml::serializer&) const;
+
+  private:
+    const string& name_;
+    const string& service_;
+    const dir_path& root_;
+    const string& tenant_;
+  };
+
   // Generates package name element with an optional search criteria. The
   // search string should be url-encoded, if specified.
   //

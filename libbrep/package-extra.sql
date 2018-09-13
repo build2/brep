@@ -30,7 +30,8 @@ DROP FUNCTION IF EXISTS latest_packages(IN tenant TEXT);
 DROP TYPE IF EXISTS weighted_text CASCADE;
 CREATE TYPE weighted_text AS (a TEXT, b TEXT, c TEXT, d TEXT);
 
--- Return the latest versions of internal packages as a set of package rows.
+-- Return the latest versions of matching a tenant internal packages as a set
+-- of package rows. If tenant is NULL, then match all tenants.
 --
 CREATE FUNCTION
 latest_packages(IN tenant TEXT)
@@ -49,7 +50,7 @@ RETURNS SETOF package AS $$
        p1.version_canonical_release = p2.version_canonical_release AND
        p1.version_revision < p2.version_revision))))
   WHERE
-    p1.tenant = latest_packages.tenant AND
+    (latest_packages.tenant IS NULL OR p1.tenant = latest_packages.tenant) AND
     p1.internal_repository_canonical_name IS NOT NULL AND
     p2.name IS NULL;
 $$ LANGUAGE SQL STABLE;
@@ -72,10 +73,10 @@ RETURNS SETOF record AS $$
   WHERE name = latest_package.name;
 $$ LANGUAGE SQL STABLE;
 
--- Search for the latest version of an internal packages matching the specified
--- search query. Return a set of rows containing the package id and search
--- rank. If query is NULL, then match all packages and return 0 rank for
--- all rows.
+-- Search for the latest version of an internal packages matching the
+-- specified search query and tenant. Return a set of rows containing the
+-- package id and search rank. If query is NULL, then match all packages and
+-- return 0 rank for all rows. If tenant is NULL, then match all tenants.
 --
 CREATE FUNCTION
 search_latest_packages(IN query tsquery,
@@ -98,10 +99,10 @@ RETURNS SETOF record AS $$
   WHERE query IS NULL OR search_index @@ query;
 $$ LANGUAGE SQL STABLE;
 
--- Search for packages matching the search query and having the specified
--- tenant and name. Return a set of rows containing the package id and search
+-- Search for packages matching the search query and tenant and having the
+-- specified  name. Return a set of rows containing the package id and search
 -- rank. If query is NULL, then match all packages and return 0 rank for all
--- rows.
+-- rows. If tenant is NULL, then match all tenants.
 --
 CREATE FUNCTION
 search_packages(IN query tsquery,
@@ -122,7 +123,7 @@ RETURNS SETOF record AS $$
 	 END AS rank
   FROM package
   WHERE
-  tenant = search_packages.tenant AND
+  (search_packages.tenant IS NULL OR tenant = search_packages.tenant) AND
   name = search_packages.name AND
   internal_repository_canonical_name IS NOT NULL AND
   (query IS NULL OR search_index @@ query);

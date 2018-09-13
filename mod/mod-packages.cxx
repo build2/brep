@@ -67,7 +67,7 @@ init (scanner& s)
 
 template <typename T>
 static inline query<T>
-search_param (const brep::string& q, const brep::string& t)
+search_param (const brep::string& q, const brep::optional<brep::string>& t)
 {
   using query = query<T>;
   return "(" +
@@ -75,7 +75,7 @@ search_param (const brep::string& q, const brep::string& t)
      ? query ("NULL")
      : "plainto_tsquery (" + query::_val (q) + ")") +
     "," +
-    query::_val (t) +
+    (!t ? query ("NULL") : query (query::_val (*t))) +
     ")";
 }
 
@@ -89,6 +89,7 @@ handle (request& rq, response& rs)
   const size_t res_page (options_->search_results ());
   const dir_path& root (options_->root ());
   const string& title (options_->search_title ());
+  const string& tenant_name (options_->tenant_name ());
 
   params::packages params;
 
@@ -135,25 +136,30 @@ handle (request& rq, response& rs)
     <<     DIV_HEADER (options_->logo (), options_->menu (), root, tenant)
     <<     DIV(ID="content");
 
+  // If the tenant is empty then we are in the global view and will display
+  // packages from all the tenants.
+  //
+  optional<string> tn;
+  if (!tenant.empty ())
+    tn = tenant;
+
   session sn;
   transaction t (package_db_->begin ());
 
   auto pkg_count (
     package_db_->query_value<latest_package_count> (
-      search_param<latest_package_count> (squery, tenant)));
+      search_param<latest_package_count> (squery, tn)));
 
   s << FORM_SEARCH (squery, "packages")
     << DIV_COUNTER (pkg_count, "Package", "Packages");
 
   // Enclose the subsequent tables to be able to use nth-child CSS selector.
   //
-  // @@ TENANT: use tenant for sorting when add support for global view.
-  //
   s << DIV;
   for (const auto& pr:
          package_db_->query<latest_package_search_rank> (
-           search_param<latest_package_search_rank> (squery, tenant) +
-           "ORDER BY rank DESC, name" +
+           search_param<latest_package_search_rank> (squery, tn) +
+           "ORDER BY rank DESC, name, tenant" +
            "OFFSET" + to_string (page * res_page) +
            "LIMIT" + to_string (res_page)))
   {
@@ -161,13 +167,20 @@ handle (request& rq, response& rs)
 
     s << TABLE(CLASS="proplist package")
       <<   TBODY
-      <<     TR_NAME (p->name, equery, root, tenant)
+      <<     TR_NAME (p->name, equery, root, p->tenant)
       <<     TR_SUMMARY (p->summary)
       <<     TR_LICENSE (p->license_alternatives)
       <<     TR_TAGS (p->project, p->tags, root, tenant)
-      <<     TR_DEPENDS (p->dependencies, root, tenant)
-      <<     TR_REQUIRES (p->requirements)
-      <<   ~TBODY
+      <<     TR_DEPENDS (p->dependencies, root, p->tenant)
+      <<     TR_REQUIRES (p->requirements);
+
+    // In the global view mode add the tenant packages link. Note that the
+    // global view (and the link) makes sense only in the multi-tenant mode.
+    //
+    if (!tn && !p->tenant.empty ())
+      s << TR_TENANT (tenant_name, "packages", root, p->tenant);
+
+    s <<   ~TBODY
       << ~TABLE;
   }
   s << ~DIV;

@@ -64,32 +64,33 @@ namespace brep
            optional<string> fr,
            optional<string> sh,
            shared_ptr<repository_type> rp)
-  : id (rp->tenant, move (nm), vr),
-    name (id.name),
-    version (move (vr)),
-    project (move (pn)),
-    priority (move (pr)),
-    summary (move (sm)),
-    license_alternatives (move (la)),
-    tags (move (tg)),
-    description (move (ds)),
-    changes (move (ch)),
-    url (move (ur)),
-    doc_url (move (du)),
-    src_url (move (su)),
-    package_url (move (pu)),
-    email (move (em)),
-    package_email (move (pe)),
-    build_email (move (be)),
-    dependencies (move (dp)),
-    requirements (move (rq)),
-    build_constraints (version.compare (wildcard_version, true) != 0
-                       ? move (bc)
-                       : build_constraints_type ()),
-    internal_repository (move (rp)),
-    location (move (lc)),
-    fragment (move (fr)),
-    sha256sum (move (sh))
+      : id (rp->tenant, move (nm), vr),
+        tenant (id.tenant),
+        name (id.name),
+        version (move (vr)),
+        project (move (pn)),
+        priority (move (pr)),
+        summary (move (sm)),
+        license_alternatives (move (la)),
+        tags (move (tg)),
+        description (move (ds)),
+        changes (move (ch)),
+        url (move (ur)),
+        doc_url (move (du)),
+        src_url (move (su)),
+        package_url (move (pu)),
+        email (move (em)),
+        package_email (move (pe)),
+        build_email (move (be)),
+        dependencies (move (dp)),
+        requirements (move (rq)),
+        build_constraints (version.compare (wildcard_version, true) != 0
+                           ? move (bc)
+                           : build_constraints_type ()),
+        internal_repository (move (rp)),
+        location (move (lc)),
+        fragment (move (fr)),
+        sha256sum (move (sh))
   {
     assert (internal_repository->internal);
   }
@@ -99,6 +100,7 @@ namespace brep
            version_type vr,
            shared_ptr<repository_type> rp)
       : id (rp->tenant, move (nm), vr),
+        tenant (id.tenant),
         name (id.name),
         version (move (vr))
   {

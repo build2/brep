@@ -47,7 +47,8 @@
 .build tr.machine td .value,
 .build tr.target td .value,
 .build tr.timestamp td .value,
-.build tr.result td .value
+.build tr.result td .value,
+.build tr.tenant td .value
 {
   /* <code> style. */
   font-family: monospace;

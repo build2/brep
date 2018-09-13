@@ -46,6 +46,13 @@ namespace brep
          (\cb{http://example.org/})."
       }
 
+      string tenant-name = "tenant"
+      {
+        "<name>",
+        "Name to call the tenant values on web pages. If not specified, then
+         \cb{tenant} is used."
+      }
+
       uint16_t verbosity = 0
       {
         "<level>",

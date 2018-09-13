@@ -182,6 +182,24 @@ namespace brep
       << ~TR;
   }
 
+  // TR_TENANT
+  //
+  void TR_TENANT::
+  operator() (serializer& s) const
+  {
+    s << TR(CLASS="tenant")
+      <<   TH << name_ << ~TH
+      <<   TD
+      <<     SPAN(CLASS="value")
+      <<       A
+      <<       HREF << tenant_dir (root_, tenant_) << '?' << service_ << ~HREF
+      <<          tenant_
+      <<       ~A
+      <<     ~SPAN
+      <<   ~TD
+      << ~TR;
+  }
+
   // TR_NAME
   //
   void TR_NAME::

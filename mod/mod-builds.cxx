@@ -94,7 +94,7 @@ template <typename T>
 static inline query<T>
 build_query (const brep::cstrings& configs,
              const brep::params::builds& params,
-             const brep::optional<string>& tenant)
+             const brep::optional<brep::string>& tenant)
 {
   using namespace brep;
   using query = query<T>;
@@ -207,12 +207,16 @@ build_query (const brep::cstrings& configs,
 
 template <typename T, typename P = typename query<T>::build_package>
 static inline query<T>
-package_query (const brep::params::builds& params, const string& tenant)
+package_query (const brep::params::builds& params,
+               const brep::optional<brep::string>& tenant)
 {
   using namespace brep;
   using query = query<T>;
 
-  query q (P::id.tenant == tenant);
+  query q (true);
+
+  if (tenant)
+    q = q && P::id.tenant == *tenant;
 
   // Note that there is no error reported if the filter parameters parsing
   // fails. Instead, it is considered that no packages match such a query.
@@ -281,6 +285,7 @@ handle (request& rq, response& rs)
   const size_t page_configs (options_->build_configurations ());
   const string& host (options_->host ());
   const dir_path& root (options_->root ());
+  const string& tenant_name (options_->tenant_name ());
 
   params::builds params;
 
@@ -321,18 +326,25 @@ handle (request& rq, response& rs)
     <<     DIV_HEADER (options_->logo (), options_->menu (), root, tenant)
     <<     DIV(ID="content");
 
+  // If the tenant is empty then we are in the global view and will display
+  // builds from all the tenants.
+  //
+  optional<string> tn;
+  if (!tenant.empty ())
+    tn = tenant;
+
   // Return the list of distinct toolchain name/version pairs. The build db
   // transaction must be started.
   //
   using toolchains = vector<pair<string, version>>;
 
-  auto query_toolchains = [this] () -> toolchains
+  auto query_toolchains = [this, &tn] () -> toolchains
   {
     using query = query<toolchain>;
 
     toolchains r;
     for (auto& t: build_db_->query<toolchain> (
-           (query::id.package.tenant == tenant) +
+           (tn ? query::id.package.tenant == *tn : query (true)) +
            "ORDER BY" + query::toolchain_name +
            order_by_version_desc (query::id.toolchain_version, false)))
       r.emplace_back (move (t.name), move (t.version));
@@ -428,7 +440,7 @@ handle (request& rq, response& rs)
     transaction t (build_db_->begin ());
 
     count = build_db_->query_value<package_build_count> (
-      build_query<package_build_count> (*build_conf_names_, params, tenant));
+      build_query<package_build_count> (*build_conf_names_, params, tn));
 
     // Print the filter form.
     //
@@ -443,7 +455,7 @@ handle (request& rq, response& rs)
     //
     s << DIV;
     for (auto& pb: build_db_->query<package_build> (
-           build_query<package_build> (*build_conf_names_, params, tenant) +
+           build_query<package_build> (*build_conf_names_, params, tn) +
            "ORDER BY" + query<package_build>::build::timestamp + "DESC" +
            "OFFSET" + to_string (page * page_configs) +
            "LIMIT" + to_string (page_configs)))
@@ -461,8 +473,8 @@ handle (request& rq, response& rs)
 
       s << TABLE(CLASS="proplist build")
         <<   TBODY
-        <<     TR_NAME (b.package_name, string (), root, tenant)
-        <<     TR_VERSION (b.package_name, b.package_version, root, tenant)
+        <<     TR_NAME (b.package_name, string (), root, b.tenant)
+        <<     TR_VERSION (b.package_name, b.package_version, root, b.tenant)
         <<     TR_VALUE ("toolchain",
                          b.toolchain_name + '-' +
                          b.toolchain_version.string ())
@@ -470,8 +482,15 @@ handle (request& rq, response& rs)
         <<     TR_VALUE ("machine", b.machine)
         <<     TR_VALUE ("target", b.target.string ())
         <<     TR_VALUE ("timestamp", ts)
-        <<     TR_BUILD_RESULT (b, host, root)
-        <<   ~TBODY
+        <<     TR_BUILD_RESULT (b, host, root);
+
+      // In the global view mode add the tenant builds link. Note that the
+      // global view (and the link) makes sense only in the multi-tenant mode.
+      //
+      if (!tn && !b.tenant.empty ())
+        s << TR_TENANT (tenant_name, "builds", root, b.tenant);
+
+      s <<   ~TBODY
         << ~TABLE;
     }
     s << ~DIV;
@@ -589,12 +608,12 @@ handle (request& rq, response& rs)
       size_t nmax (
         config_toolchains.size () *
         build_db_->query_value<buildable_package_count> (
-          package_query<buildable_package_count> (params, tenant)));
+          package_query<buildable_package_count> (params, tn)));
 
       size_t ncur = build_db_->query_value<package_build_count> (
         build_query<package_build_count> (*build_conf_names_,
                                           bld_params,
-                                          tenant));
+                                          tn));
 
       // From now we will be using specific package name and version for each
       // build database query.
@@ -641,7 +660,7 @@ handle (request& rq, response& rs)
         //
         using query = query<build_constrained_package>;
         query q (package_query<build_constrained_package, query> (params,
-                                                                  tenant));
+                                                                  tn));
 
         for (const auto& p: build_db_->query<build_constrained_package> (q))
         {
@@ -696,18 +715,17 @@ handle (request& rq, response& rs)
     using pkg_query = query<buildable_package>;
     using prep_pkg_query = prepared_query<buildable_package>;
 
-    pkg_query pq (package_query<buildable_package> (params, tenant));
+    pkg_query pq (package_query<buildable_package> (params, tn));
 
     // Specify the portion. Note that we will still be querying packages in
     // chunks, not to hold locks for too long.
     //
     size_t offset (0);
 
-    // @@ TENANT: use tenant for sorting when add support for global view.
-    //
     pq += "ORDER BY" +
       pkg_query::build_package::id.name +
       order_by_version_desc (pkg_query::build_package::id.version, false) +
+      "," + pkg_query::build_package::id.tenant +
       "OFFSET" + pkg_query::_ref (offset) + "LIMIT 50";
 
     connection_ptr conn (build_db_->connection ());
@@ -834,14 +852,22 @@ handle (request& rq, response& rs)
 
             s << TABLE(CLASS="proplist build")
               <<   TBODY
-              <<     TR_NAME (id.name, string (), root, tenant)
-              <<     TR_VERSION (id.name, p.version, root, tenant)
+              <<     TR_NAME (id.name, string (), root, id.tenant)
+              <<     TR_VERSION (id.name, p.version, root, id.tenant)
               <<     TR_VALUE ("toolchain",
                                string (ct.toolchain_name) + '-' +
                                ct.toolchain_version.string ())
               <<     TR_VALUE ("config", ct.configuration)
-              <<     TR_VALUE ("target", i->second->target.string ())
-              <<   ~TBODY
+              <<     TR_VALUE ("target", i->second->target.string ());
+
+            // In the global view mode add the tenant builds link. Note that
+            // the global view (and the link) makes sense only in the
+            // multi-tenant mode.
+            //
+            if (!tn && !id.tenant.empty ())
+              s << TR_TENANT (tenant_name, "builds", root, id.tenant);
+
+            s <<   ~TBODY
               << ~TABLE;
 
             if (--print == 0) // Bail out the configuration loop.
