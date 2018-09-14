@@ -27,7 +27,7 @@ fi
 
 # Submission data directory (last and the only argument).
 #
-data_dir="${!#/}"
+data_dir="${!#%/}"
 
 if [ -z "$data_dir" ]; then
   error "$usage"

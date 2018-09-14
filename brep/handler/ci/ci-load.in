@@ -68,7 +68,7 @@ done
 
 # CI request data directory (last argument).
 #
-data_dir="$1"
+data_dir="${1%/}"
 
 if [ -z "$data_dir" ]; then
   error "$usage"
@@ -85,19 +85,49 @@ reference="$(basename "$data_dir")"
 #
 manifest_parser_start "$data_dir/request.manifest"
 
-repository=
-packages=()
 simulate=
+repository=
+
+# Package map. We first enter packages from the request manifest as keys and
+# setting the values to true. Then we go through the repository package list
+# consulting this map and, if found, clearing the value to empty. Finally, we
+# go through the map looking for any "unhandled" packages (value is still
+# true).
+#
+# Note that keys can be in both <name> and <name>/<version> forms.
+#
+declare -A packages
+
+# While at it, produce the bpkg-build(1)-like package spec for tracing.
+#
+# The spec normally contains the full commit id and so feels too hairy to
+# include in the result manifest message.
+#
+spec=
 
 while IFS=: read -ru "$manifest_parser_ofd" -d '' n v; do
   case "$n" in
-    repository) repository="$v"  ;;
-    package)    packages+=("$v") ;;
-    simulate)   simulate="$v"    ;;
+    simulate)   simulate="$v"   ;;
+    repository) repository="$v" ;;
+
+    package)
+      packages["$v"]=true
+
+      if [ -n "$spec" ]; then
+        spec="$spec,"
+      fi
+      spec="$spec$v"
+      ;;
   esac
 done
 
 manifest_parser_finish
+
+if [ -n "$spec" ]; then
+  spec="$spec@"
+fi
+
+spec="$spec$repository"
 
 if [ -z "$repository" ]; then
   error "repository manifest value expected"
@@ -106,25 +136,6 @@ fi
 if [ -n "$simulate" -a "$simulate" != "success" ]; then
   exit_with_manifest 400 "unrecognized simulation outcome '$simulate'"
 fi
-
-# Produce the bpkg-build(1)-like package spec for tracing.
-#
-# The spec normally contains the full commit id and so feels too hairy to
-# include in the result manifest message.
-#
-spec=
-for p in "${packages[@]}"; do
-  if [ -n "$spec" ]; then
-    spec="$spec,"
-  fi
-  spec="$spec$p"
-done
-
-if [ -n "$spec" ]; then
-  spec="$spec@"
-fi
-
-spec="$spec$repository"
 
 message_suffix=
 if [ -n "$result_url" ]; then
@@ -145,37 +156,140 @@ fi
 
 # Dump the repositories.manifest and packages.manifest files.
 #
-run mkdir "$data_dir/cache"
-dump_repository_manifests "$repository" "$data_dir/cache" "$fetch_timeout"
+cache_dir="$data_dir/cache"
+run mkdir "$cache_dir"
+dump_repository_manifests "$repository" "$cache_dir" "$fetch_timeout"
 
-# In most cases all the requested for CI packages belong to the same project,
-# which would be nice to use as the repository display name. However, that
-# would require parsing packages.manifest just to get this information. Which
-# feels like a bit of an overkill. So for now let's just use the leaf
-# component of the repository URL since it will be the same as the project
-# name in most (sane) cases.
+# Filter the packages manifest keeping only the packages listed in the request
+# manifest. Keep all the packages if the request specified no packages.
 #
-# First, strip the URL query and fragment parts, then prefix, and, finally,
-# extension.
+
+# Resulting manifest.
 #
-display_name="$(sed -r \
--e 's%^([^?#]*).*$%\1%' \
--e 's%^.*/([^/]+)/?$%\1%' \
--e 's%(\.[^.]*)$%%' \
-<<<"$repository")"
+packages_manifest_names=()
+packages_manifest_values=()
+
+# While at it, set the repository display name to the first package's project
+# name.
+#
+display_name=
+
+manifest_parser_start "$cache_dir/packages.manifest"
+
+# The outer loop iterates over package manifests while the inner loop iterates
+# over manifest values in each such manifest.
+#
+# Note that the first manifest case is special in that we will see its version
+# value (empty name) first while for others -- last, as part of the previous
+# manifest. We try to deal with this irregularity by reducing the first case
+# (manifest_version is empty) to "as-if" it followed another manifest.
+#
+manifest_names=()
+manifest_values=()
+manifest_version=
+
+more=true
+while [ "$more" ]; do
+
+  if [ -n "$manifest_version" ]; then
+    manifest_names=("")
+    manifest_values=("$manifest_version")
+  fi
+
+  more=
+  project=
+
+  while IFS=: read -ru "$manifest_parser_ofd" -d '' n v; do
+    case "$n" in
+      "") # Start of (next) manifest.
+	more=true
+	manifest_version="$v"
+	break
+	;;
+
+      name)    name="$v"    ;;
+      version) version="$v" ;;
+      project) project="$v" ;;
+    esac
+
+    manifest_names+=("$n")
+    manifest_values+=("$v")
+
+  done
+
+  # Reduce the first manifest case.
+  #
+  if [ ${#manifest_names[@]} -eq 0 ]; then
+    continue
+  fi
+
+  # Add or filter out the manifest, if present.
+  #
+  if [ ${#packages[@]} -ne 0 ]; then
+
+    if [[ -v packages["$name"] ]]; then
+      packages["$name"]=
+      packages["$name/$version"]= # Clear it either, as may also be present.
+    elif [[ -v packages["$name/$version"] ]]; then
+      packages["$name/$version"]=
+    else
+      continue # Skip.
+    fi
+
+  fi
+
+  packages_manifest_names+=("${manifest_names[@]}")
+  packages_manifest_values+=("${manifest_values[@]}")
+
+  if [ -z "$display_name" ]; then
+    if [ -n "$project" ]; then
+      display_name="$project"
+    else
+      display_name="$name"
+    fi
+  fi
+done
+
+manifest_parser_finish
+
+# Verify that all the listed in the request manifest packages are present in
+# the repository.
+#
+for p in "${!packages[@]}"; do
+  if [ "${packages[$p]}" ]; then
+    exit_with_manifest 422 "unknown package $p"
+  fi
+done
+
+# Verify that the repository is not empty. Failed that, the repository display
+# name wouldn't be set.
+#
+if [ -z "$display_name" ]; then
+  exit_with_manifest 422 "no packages in repository"
+fi
+
+# Stash the original packages manifest file for troubleshooting.
+#
+run mv "$cache_dir/packages.manifest" "$cache_dir/packages.manifest.orig"
+
+# Serialize the filtered packages manifest.
+#
+manifest_serializer_start "$cache_dir/packages.manifest"
+
+for ((i=0; i <= ${#packages_manifest_names[@]}; ++i)); do
+  manifest_serialize "${packages_manifest_names[$i]}" \
+		     "${packages_manifest_values[$i]}"
+done
+
+manifest_serializer_finish
 
 # Create the brep-load(1) loadtab file.
 #
 loadtab="$data_dir/loadtab"
 run echo "$repository $display_name cache:cache" >"$loadtab"
 
-# Load the repository into the brep package database for the tenant identified
-# by the reference.
-#
-# Note that for now we load all the packages the repository contains without
-# regard to the request manifest package values. Later, we could add filtering
-# of the packages.manifest file against the request manifest values. While at
-# it, we could also deduce the repository display name (see above). @@ TODO
+# Load the requested repository packages into the brep package database for
+# the tenant identified by the reference.
 #
 run "$loader" "${loader_options[@]}" --force --shallow --tenant "$reference" \
 "$loadtab"

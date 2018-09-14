@@ -17,6 +17,14 @@
   $* $~/dir 2>>~%EOE% != 0
     %\[.+\] \[brep:error\] \[ref dir\] \[brep-submit-dir\]: '.+dir' does not exist or is not a directory%
     EOE
+
+  : slash-stripped
+  :
+  : Test that the trailing slash is stripped from the data directory path.
+  :
+  $* $~/dir/ 2>>~%EOE% != 0
+    %\[.+\] \[brep:error\] \[ref dir\] \[brep-submit-dir\]: '.+dir' does not exist or is not a directory%
+    EOE
 }
 
 : success

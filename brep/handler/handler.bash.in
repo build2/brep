@@ -37,7 +37,7 @@ if [ "$#" -gt 0 ]; then
   # identifies the posted entity. A handler may overwrite this value if that's
   # not the case.
   #
-  info_ref="$(basename "${!#/}")"
+  info_ref="$(basename "${!#%/}")"
 fi
 
 function info () # <severity> <text>

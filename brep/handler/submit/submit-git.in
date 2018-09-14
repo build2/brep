@@ -261,7 +261,7 @@ fi
 
 # Submission data directory.
 #
-data_dir="$1"
+data_dir="${1%/}"
 shift
 
 if [ -z "$data_dir" ]; then

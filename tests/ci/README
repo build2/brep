@@ -1,11 +1,34 @@
 Prepare the test data with the following instructions.
 
+Create the git repository:
+
+$ mkdir hello.git
+$ git -C hello.git/ init --bare
+
+Create the project:
+
+$ bdep new -t empty hello
+$ BDEP_AUTHOR_EMAIL=user@example.org bdep new --package -t lib libhello -d hello
+$ BDEP_AUTHOR_EMAIL=user@example.org bdep new --package -t exe hello -d hello
+
+Edit hello/libhello/manifest and hello/hello/manifest files setting version to
+0.1.0.
+
+$ git -C hello remote add origin "$(pwd)/hello.git"
+$ git -C hello add '*'
+$ git -C hello commit -m "Create"
+$ git -C hello push --set-upstream origin master
+
+$ tar cf hello.tar.gz hello.git/
+
+Move the archive into tests/ci/ directory.
+
 Locally run brep server configured to use ci-dir handler.
 
 $ curl \
 --form-string repository=https://git.build2.org/hello/hello.git#master \
---form-string package=hello \
 http://localhost/pkg?ci
 
-Replace the submission data directory in brep/tests/ci/ with the one produced
-with the above command, removing all files it contains except request.manifest.
+Replace the CI request data directory in tests/ci/ with the one produced by
+the above command removing all entries it contains except request.manifest
+file.

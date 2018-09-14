@@ -1,7 +1,6 @@
 : 1
 id: 8716f424-fd94-4def-9e2e-687203bbf4ad
 repository: https://git.build2.org/hello/hello.git#master
-package: hello
 timestamp: 2018-09-01T08:38:55Z
 client-ip: fe80::56e1:adff:fe83:82f5
 user-agent: curl/7.59.0

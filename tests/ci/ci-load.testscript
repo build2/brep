@@ -23,6 +23,14 @@
   $* brep-load $~/dir 2>>~%EOE% != 0
     %\[.+\] \[brep:error\] \[ref dir\] \[brep-ci-load\]: '.+dir' does not exist or is not a directory%
     EOE
+
+  : slash-stripped
+  :
+  : Test that the trailing slash is stripped from the data directory path.
+  :
+  $* brep-load $~/dir/ 2>>~%EOE% != 0
+    %\[.+\] \[brep:error\] \[ref dir\] \[brep-ci-load\]: '.+dir' does not exist or is not a directory%
+    EOE
 }
 
 : success
@@ -48,12 +56,13 @@
   : for-real
   :
   {
-    # Create the loader script that validates the arguments passed and the
-    # files produced by the handler.
+    # Create the loader script that validates the arguments passed and prints
+    # the loadtab, repositories manifest, and packages manifest files to
+    # stderr.
     #
     loader=$~/brep-load
 
-    cat <<"EOI" >=$loader;
+    +cat <<"EOI" >=$loader
       #!/usr/bin/env bash
       if [ "\$#" != 7 -o \
            "\$1" != "--db-host=localhost" -o \
@@ -62,38 +71,139 @@
            "\$4" != "--shallow" -o \
            "\$5" != "--tenant" -o \
            -z "\$6" -o \
-           "\$7" != "$data_dir/loadtab" -o \
-           ! -f "$data_dir/cache/repositories.manifest" -o \
-           ! -f "$data_dir/cache/packages.manifest" ]; then
+           "\$7" != "$data_dir/loadtab" ]; then
         exit 1
       fi
-      if ! diff "$data_dir/loadtab" - <<<"https://git.build2.org/hello/hello.git#master hello cache:cache"; then
-        exit 1
-      fi
+      cat \
+      "$data_dir/loadtab" \
+      "$data_dir/cache/repositories.manifest" \
+      "$data_dir/cache/packages.manifest" >&2
       EOI
 
-    chmod 755 $loader;
+    +chmod 755 $loader
 
-    $clone_root_data;
+    : whole-repo
+    :
+    {
+      $clone_root_data;
 
-    $* $loader --db-host=localhost --db-port=8432 $data_dir >>"EOO";
-      : 1
-      status: 200
-      message: CI request is queued
-      reference: $request_id
-      EOO
+      $* $loader --db-host=localhost --db-port=8432 $data_dir >>"EOO" 2>>~"%EOE%"
+        : 1
+        status: 200
+        message: CI request is queued
+        reference: $request_id
+        EOO
+        $rep hello cache:cache
+        : 1
+        summary: hello project repository
+        : 1
+        name: libhello
+        version: 0.1.0
+        project: hello
+        summary: hello library
+        license: TODO
+        url: https://example.org/hello
+        email: user@example.org
+        %depends: \\* build2 .+%
+        %depends: \\* bpkg .+%
+        location: libhello
+        %fragment: .+%
+        :
+        name: hello
+        version: 0.1.0
+        summary: hello executable
+        license: TODO
+        url: https://example.org/hello
+        email: user@example.org
+        %depends: \\* build2 .+%
+        %depends: \\* bpkg .+%
+        location: hello
+        %fragment: .+%
+        EOE
+    }
 
-    $clone_root_data;
+    : package
+    :
+    {
+      $clone_root_data;
 
-    $* --result-url "http://example.com/" \
-       $loader --db-host=localhost --db-port=8432 \
-       $data_dir >>~"%EOO%"
-      : 1
-      status: 200
-      %message: CI request is queued: http://example.com/@.+%
-      %.
-      reference: $request_id
-      EOO
+      cat <<EOI >+$data_dir/request.manifest;
+        package: hello
+        EOI
+
+      $* $loader --db-host=localhost --db-port=8432 $data_dir >>"EOO" 2>>~"%EOE%"
+        : 1
+        status: 200
+        message: CI request is queued
+        reference: $request_id
+        EOO
+        $rep hello cache:cache
+        : 1
+        summary: hello project repository
+        : 1
+        name: hello
+        version: 0.1.0
+        summary: hello executable
+        license: TODO
+        url: https://example.org/hello
+        email: user@example.org
+        %depends: \\* build2 .+%
+        %depends: \\* bpkg .+%
+        location: hello
+        %fragment: .+%
+        EOE
+    }
+
+    : package-version
+    :
+    {
+      $clone_root_data;
+
+      cat <<EOI >+$data_dir/request.manifest;
+        package: libhello/0.1.0
+        EOI
+
+      $* $loader --db-host=localhost --db-port=8432 $data_dir >>"EOO" 2>>~"%EOE%"
+        : 1
+        status: 200
+        message: CI request is queued
+        reference: $request_id
+        EOO
+        $rep hello cache:cache
+        : 1
+        summary: hello project repository
+        : 1
+        name: libhello
+        version: 0.1.0
+        project: hello
+        summary: hello library
+        license: TODO
+        url: https://example.org/hello
+        email: user@example.org
+        %depends: \\* build2 .+%
+        %depends: \\* bpkg .+%
+        location: libhello
+        %fragment: .+%
+        EOE
+    }
+
+    : result-url
+    :
+    {
+      $clone_root_data;
+
+      $* --result-url "http://example.com/" \
+         $loader --db-host=localhost --db-port=8432 \
+         $data_dir >>~"%EOO%" 2>>~%EOE%
+        : 1
+        status: 200
+        %message: CI request is queued: http://example.com/@.+%
+        %.
+        reference: $request_id
+        EOO
+	%.*:.*%+
+	EOE
+    }
   }
 }
 

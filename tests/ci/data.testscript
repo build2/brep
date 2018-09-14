@@ -17,9 +17,18 @@ data_dir = $regex.replace($path_search('*/request.manifest', $src_base), \
 
 request_id = "$data_dir"
 
+# Prepare the repository.
+#
+rep="file:$~/hello.git#master"
++tar -C $~ -xf $src_base/hello.tar.gz &hello.git/***
+
 # Copy the original CI request data directory to the root scope.
 #
 +cp -r $src_base/$data_dir ./
+
+# Fix-up the repository value in the request manifest.
+#
++sed -i -e "s%^\(repository:\) .+\$%\\1 $rep%" $data_dir/request.manifest
 
 root_data_dir = $~/$data_dir
 

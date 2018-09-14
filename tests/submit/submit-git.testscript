@@ -82,6 +82,14 @@ pkg_ctl="$prj_ctl/hello.git"
   $* "$root_tgt_url" ref dir 2>>~%EOE% != 0
     %\[.+\] \[brep:error\] \[ref dir\] \[brep-submit-git\]: 'dir' does not exist or is not a directory%
     EOE
+
+  : slash-stripped
+  :
+  : Test that the trailing slash is stripped from the data directory path.
+  :
+  $* "$root_tgt_url" dir/ 2>>~%EOE% != 0
+    %\[.+\] \[brep:error\] \[ref dir\] \[brep-submit-git\]: 'dir' does not exist or is not a directory%
+    EOE
 }
 
 : success
