@@ -127,7 +127,7 @@ $ migrate/brep-migrate build
 
 To verify:
 
-$ psql -d brep_package -c 'SELECT name, summary FROM repository'
+$ psql -d brep_package -c 'SELECT canonical_name, summary FROM repository'
 $ psql -d brep_build -c 'SELECT package_name FROM build' # Empty row set.
 $ psql -d brep_build -c 'SELECT DISTINCT name FROM build_package'
 

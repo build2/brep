@@ -1,4 +1,6 @@
 <changelog xmlns="http://www.codesynthesis.com/xmlns/odb/changelog" database="pgsql" schema-name="package" version="1">
+  <changeset version="8"/>
+
   <model version="7">
     <table name="repository" kind="object">
       <column name="tenant" type="TEXT" null="false"/>

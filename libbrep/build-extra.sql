@@ -2,6 +2,9 @@
 -- parser complexity, there is a number of restrictions, see package-extra.sql
 -- file for details.
 --
+-- Increment the database 'build' schema version when update this file, see
+-- package-extra.sql file for details.
+--
 
 DROP FOREIGN TABLE IF EXISTS build_package_constraints;
 

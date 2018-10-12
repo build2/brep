@@ -40,10 +40,10 @@ public:
   schema (const char* extra, string name);
 
   void
-  create (database&) const;
+  create (database&, bool extra_only = false) const;
 
   void
-  drop (database&) const;
+  drop (database&, bool extra_only = false) const;
 
 private:
   string name_;
@@ -177,7 +177,7 @@ schema (const char* s, string name)
 }
 
 void schema::
-drop (database& db) const
+drop (database& db, bool extra_only) const
 {
   for (const auto& s: drop_statements_)
     // If the statement execution fails, the corresponding source file line
@@ -187,15 +187,17 @@ drop (database& db) const
     //
     db.execute (s);
 
-  schema_catalog::drop_schema (db, name_);
+  if (!extra_only)
+    schema_catalog::drop_schema (db, name_);
 }
 
 void schema::
-create (database& db) const
+create (database& db, bool extra_only) const
 {
-  drop (db);
+  drop (db, extra_only);
 
-  schema_catalog::create_schema (db, name_);
+  if (!extra_only)
+    schema_catalog::create_schema (db, name_);
 
   for (const auto& s: create_statements_)
     db.execute (s);
@@ -289,6 +291,9 @@ try
   //
   schema_version schema_version (db.schema_version (db_schema));
 
+  odb::schema_version schema_current_version (
+    schema_catalog::current_version (db, db_schema));
+
   // It is impossible to operate with the database which is out of the
   // [base_version, current_version] range due to the lack of the knowlege
   // required not just for migration, but for the database wiping as well.
@@ -301,7 +306,7 @@ try
       throw failed ();
     }
 
-    if (schema_version > schema_catalog::current_version (db, db_schema))
+    if (schema_version > schema_current_version)
     {
       cerr << "error: database schema is too new" << endl;
       throw failed ();
@@ -317,8 +322,9 @@ try
   // Let the user decide if they want to migrate or just drop the entire
   // database (followed with the database creation for the --recreate option).
   //
-  if ((create || drop) && schema_version != 0 &&
-      schema_version != schema_catalog::current_version (db, db_schema))
+  if ((create || drop)    &&
+      schema_version != 0 &&
+      schema_version != schema_current_version)
   {
     cerr << "error: database schema requires migration" << endl
          << "  info: either migrate the database first or drop the entire "
@@ -326,34 +332,45 @@ try
     throw failed ();
   }
 
+  static const char package_extras[] = {
+#include <libbrep/package-extra.hxx>
+    , '\0'};
+
+  static const char build_extras[] = {
+#include <libbrep/build-extra.hxx>
+    , '\0'};
+
+  schema s (db_schema == "package" ? package_extras : build_extras,
+            db_schema);
+
   transaction t (db.begin ());
 
   if (create || drop)
   {
-    static const char package_extras[] = {
-#include <libbrep/package-extra.hxx>
-      , '\0'};
-
-    static const char build_extras[] = {
-#include <libbrep/build-extra.hxx>
-      , '\0'};
-
-    schema s (db_schema == "package" ? package_extras : build_extras,
-              db_schema);
-
     if (create)
       s.create (db);
     else if (drop)
       s.drop (db);
   }
-  else
+  else if (schema_version != schema_current_version)
   {
+    // Drop the extras, migrate the database tables and data, and create the
+    // extras afterwards.
+    //
+    // Note that here we assume that the latest extras drop SQL statements can
+    // handle entities created by the create statements of the earlier schemas
+    // (see libbrep/package-extra.sql for details).
+    //
+    s.drop (db, true /* extra_only */);
+
     // Register the data migration functions.
     //
     // static const data_migration_entry<2, LIBBREP_XXX_SCHEMA_VERSION_BASE>
     // migrate_v2_entry (&migrate_v2);
     //
     schema_catalog::migrate (db, 0, db_schema);
+
+    s.create (db, true /* extra_only */);
   }
 
   t.commit ();

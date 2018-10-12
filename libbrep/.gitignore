@@ -2,9 +2,13 @@ common-odb.?xx
 
 package-odb.?xx
 package.sql
+package-???-pre.sql
+package-???-post.sql
 package-extra.hxx
 
 build-odb.?xx
 build-package-odb.?xx
 build.sql
+build-???-pre.sql
+build-???-post.sql
 build-extra.hxx

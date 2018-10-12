@@ -8,6 +8,13 @@
 -- * strings other then function bodies must be quoted with ' or "
 -- * statements must end with ";\n"
 --
+-- Increment the database 'package' schema version when update this file. Note
+-- that the brep-migrate utility executes the drop SQL statements prior to the
+-- schema migration and the create statements afterwards. That, in particular,
+-- means that the extras may depend on the tables but not the other way
+-- around. Make sure that the drop statements properly handle entities created
+-- for all schema versions starting from LIBBREP_PACKAGE_SCHEMA_VERSION_BASE.
+--
 
 -- There is no need to drop to_tsvector() explicitly, as we can rely on "DROP
 -- TYPE IF EXISTS weighted_text CASCADE" statement below, which will drop all
