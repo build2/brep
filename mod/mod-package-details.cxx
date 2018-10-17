@@ -183,12 +183,17 @@ handle (request& rq, response& rs)
     //
     s << H2 << pkg->summary << ~H2;
 
-    static const string id ("description");
-    if (const auto& d = pkg->description)
+    if (const optional<string>& d = pkg->description)
+    {
+      const string id ("description");
+
       s << (full
-            ? P_DESCRIPTION (*d, id)
-            : P_DESCRIPTION (*d, options_->package_description (),
-                             url (!full, squery, page, id)));
+            ? PRE_TEXT (*d, id)
+            : PRE_TEXT (*d,
+                        options_->package_description (),
+                        url (!full, squery, page, id),
+                        id));
+    }
 
     s << TABLE(CLASS="proplist", ID="package")
       <<   TBODY

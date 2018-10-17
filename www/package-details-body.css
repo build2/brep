@@ -59,6 +59,18 @@ h1, h2
 }
 
 /*
+ * Description.
+ *
+ * This is a <pre> block that fits lines up to 80 characters long and
+ * wraps longer ones.
+ */
+#description
+{
+  font-size: 0.85em;
+  white-space: pre-wrap;
+}
+
+/*
  * Package details table.
  */
 #package

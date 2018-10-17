@@ -178,12 +178,17 @@ handle (request& rq, response& rs)
 
   s << H2 << pkg->summary << ~H2;
 
-  static const string id ("description");
-  if (const auto& d = pkg->description)
+  if (const optional<string>& d = pkg->description)
+  {
+    const string id ("description");
+
     s << (full
-          ? P_DESCRIPTION (*d, id)
-          : P_DESCRIPTION (*d, options_->package_description (),
-                           url (!full, id)));
+          ? PRE_TEXT (*d, id)
+          : PRE_TEXT (*d,
+                      options_->package_description (),
+                      url (!full, id),
+                      id));
+  }
 
   const repository_location& rl (pkg->internal_repository.load ()->location);
 
@@ -483,14 +488,20 @@ handle (request& rq, response& rs)
     s << ~DIV;
   }
 
-  const auto& ch (pkg->changes);
+  const string& ch (pkg->changes);
+
   if (!ch.empty ())
+  {
+    const string id ("changes");
+
     s << H3 << "Changes" << ~H3
       << (full
-          ? PRE_CHANGES (ch)
-          : PRE_CHANGES (ch,
-                         options_->package_changes (),
-                         url (!full, "changes")));
+          ? PRE_TEXT (ch, id)
+          : PRE_TEXT (ch,
+                      options_->package_changes (),
+                      url (!full, "changes"),
+                      id));
+  }
 
   s <<     ~DIV
     <<   ~BODY

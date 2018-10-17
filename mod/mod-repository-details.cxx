@@ -130,7 +130,7 @@ handle (request& rq, response& rs)
       << ~P;
 
     if (r.description)
-      s << P_DESCRIPTION (*r.description);
+      s << P_TEXT (*r.description);
 
     if (r.certificate)
     {

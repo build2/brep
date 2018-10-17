@@ -73,6 +73,18 @@ h1, h2, h3
 }
 
 /*
+ * Description.
+ *
+ * This is a <pre> block that fits lines up to 80 characters long and
+ * wraps longer ones.
+ */
+#description
+{
+  font-size: 0.85em;
+  white-space: pre-wrap;
+}
+
+/*
  * Version details table.
  */
 #version
@@ -205,7 +217,7 @@ h1, h2, h3
  */
 #changes
 {
-  font-size: 0.78em;
+  font-size: 0.85em;
   white-space: pre-wrap;
   margin: .5em 0 .5em 0;
 }

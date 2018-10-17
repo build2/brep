@@ -746,23 +746,23 @@ namespace brep
     s << SPAN(CLASS=to_string (status_)) << status_ << ~SPAN;
   }
 
-  // P_DESCRIPTION
+  // P_TEXT
   //
-  void P_DESCRIPTION::
+  void P_TEXT::
   operator() (serializer& s) const
   {
-    if (description_.empty ())
+    if (text_.empty ())
       return;
 
-    auto n (description_.find_first_of (" \t\n", length_));
-    bool full (n == string::npos); // Description length is below the limit.
+    size_t n (text_.find_first_of (" \t\n", length_));
+    bool full (n == string::npos); // Text length is below the limit.
 
-    // Truncate description if length exceed the limit.
+    // Truncate the text if length exceeds the limit.
     //
-    const string& d (full ? description_ : string (description_, 0, n));
+    const string& t (full ? text_ : string (text_, 0, n));
 
-    // Format the description into paragraphs, recognizing a blank line as
-    // paragraph separator, and replacing single newlines with a space.
+    // Format the text into paragraphs, recognizing a blank line as paragraph
+    // separator, and replacing single newlines with a space.
     //
     s << P;
 
@@ -770,7 +770,7 @@ namespace brep
       s << ID(id_);
 
     bool nl (false); // The previous character is '\n'.
-    for (const auto& c: d)
+    for (const char& c: t)
     {
       if (c == '\n')
       {
@@ -803,21 +803,26 @@ namespace brep
     s << ~P;
   }
 
-  // PRE_CHANGES
+  // PRE_TEXT
   //
-  void PRE_CHANGES::
+  void PRE_TEXT::
   operator() (serializer& s) const
   {
-    if (changes_.empty ())
+    if (text_.empty ())
       return;
 
-    auto n (changes_.find_first_of (" \t\n", length_));
-    bool full (n == string::npos); // Changes length is below the limit.
+    size_t n (text_.find_first_of (" \t\n", length_));
+    bool full (n == string::npos); // Text length is below the limit.
 
-    // Truncate changes if length exceed the limit.
+    // Truncate the text if length exceeds the limit.
     //
-    const string& c (full ? changes_ : string (changes_, 0, n));
-    s << PRE(ID="changes") << c;
+    const string& t (full ? text_ : string (text_, 0, n));
+    s << PRE;
+
+    if (!id_.empty ())
+      s << ID(id_);
+
+    s << t;
 
     if (!full)
     {

@@ -520,53 +520,63 @@ namespace brep
     const bbot::result_status& status_;
   };
 
-  // Generates package description element.
+  // Generates paragraph elements converting a plain text into XHTML5 applying
+  // some heuristics (see implementation for details). Truncate the text if
+  // requested.
   //
-  class P_DESCRIPTION
+  // Note that there is no way to specify that some text fragment must stay
+  // pre-formatted. Thus, don't use this type for text that can contain such
+  // kind of fragments and consider using PRE_TEXT instead.
+  //
+  class P_TEXT
   {
   public:
-    // Genereate full description.
+    // Generate full text elements.
     //
-    P_DESCRIPTION (const string& d, const string& id = "")
-        : description_ (d), length_ (d.size ()), url_ (nullptr), id_ (id) {}
+    P_TEXT (const string& t, const string& id = "")
+        : text_ (t), length_ (t.size ()), url_ (nullptr), id_ (id) {}
 
-    // Genereate brief description.
+    // Generate brief text elements.
     //
-    P_DESCRIPTION (const string& d, size_t l, const string& u)
-        : description_ (d), length_ (l), url_ (&u) {}
+    P_TEXT (const string& t, size_t l, const string& u, const string& id = "")
+        : text_ (t), length_ (l), url_ (&u), id_ (id) {}
 
     void
     operator() (xml::serializer&) const;
 
   private:
-    const string& description_;
+    const string& text_;
     size_t length_;
     const string* url_; // Full page url.
     string id_;
   };
 
-  // Generates package description element.
+  // Generates pre-formatted text element. Truncate the text if requested.
   //
-  class PRE_CHANGES
+  class PRE_TEXT
   {
   public:
-    // Genereate full changes info.
+    // Generate a full text element.
     //
-    PRE_CHANGES (const string& c)
-        : changes_ (c), length_ (c.size ()), url_ (nullptr) {}
+    PRE_TEXT (const string& t, const string& id = "")
+        : text_ (t), length_ (t.size ()), url_ (nullptr), id_ (id) {}
 
-    // Genereate brief changes info.
+    // Generate a brief text element.
     //
-    PRE_CHANGES (const string& c, size_t l, const string& u)
-        : changes_ (c), length_ (l), url_ (&u) {}
+    PRE_TEXT (const string& t,
+              size_t l,
+              const string& u,
+              const string& id = "")
+        : text_ (t), length_ (l), url_ (&u), id_ (id) {}
 
     void
     operator() (xml::serializer&) const;
 
   private:
-    const string& changes_;
+    const string& text_;
     size_t length_;
     const string* url_; // Full page url.
+    string id_;
   };
 
   // Generates paging element.
