@@ -12,13 +12,13 @@ user under which Apache2 is running (See the "User" directive in the Apache2
 Check that the files in the brep/ directory are readable by "others". If they
 are not, then run the following two commands to grant Apache2 read access:
 
-setfacl -Rdm g:www-data:rx brep
-setfacl -n -Rm g:www-data:rx brep
+$ setfacl -Rdm g:www-data:rx brep
+$ setfacl -n -Rm g:www-data:rx brep
 
 And also for all the directories leading up to brep/, for example, if you have
 ~/projects/brep/, then:
 
-setfacl -m g:www-data:rx ~/ ~/projects
+$ setfacl -m g:www-data:rx ~/ ~/projects
 
 Note: strictly speaking www-data in the above two commands is the Apache2
 group, not user. However, most installations use the same name for both.
@@ -208,11 +208,11 @@ $ sudo tail -f /var/log/apache2/error.log
 To do a "complete reload" (i.e., recreate database schemes, load the repository
 data, and reload the Apache2 plugin), execute the following from brep/:
 
-migrate/brep-migrate --recreate package
-migrate/brep-migrate --recreate build
-load/brep-load --bpkg ../bpkg/bpkg/bpkg tests/load/loadtab
-sudo /etc/init.d/apache2 restart
-sudo systemctl restart apache2
+$ migrate/brep-migrate --recreate package
+$ migrate/brep-migrate --recreate build
+$ load/brep-load --bpkg ../bpkg/bpkg/bpkg tests/load/loadtab
+$ sudo /etc/init.d/apache2 restart
+$ sudo systemctl restart apache2
 
 Note that if instead you need to recreate the whole databases (e.g., migration
 is not possible), then one way to do it would be:

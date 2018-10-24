@@ -68,10 +68,8 @@ c) Install PostgreSQL and Apache2 development files. Specifically, we need
    Fedora/RHEL:   posqtgresql-devel   apr-devel   libapreq2-devel httpd-devel
    FreeBSD:       postgresqlXY-client apr         libapreq2       apache24
 
-d) Unless you already have the build2 toolchain installed, download (normally
-   from https://download.build2.org) and install build2-toolchain by following
-   its INSTALL file instructions. You can build build2-toolchain using brep's
-   login and in its home directory.
+d) Unless you already have the build2 toolchain, install it by following
+   instructions on https://build2.org/install.xhtml.
 
    Note that brep loader (discussed below) runs bpkg so it makes sense to have
    both from the same release.
@@ -92,16 +90,16 @@ below.
 $ mkdir brep
 $ cd brep
 
-bpkg create                                    \
-  cc                                           \
-  config.cc.poptions="-I$(apxs -q includedir)" \
-  config.bin.rpath=/home/brep/install/lib      \
-  config.install.root=/home/brep/install
+$ bpkg create                                   \
+   cc                                           \
+   config.cc.poptions="-I$(apxs -q includedir)" \
+   config.bin.rpath=$HOME/install/lib           \
+   config.install.root=$HOME/install
 
-bpkg add https://pkg.cppget.org/1/alpha
-bpkg fetch
-bpkg build brep ?sys:libapr1 ?sys:libapreq2 ?sys:libpq
-bpkg install brep
+$ bpkg add https://pkg.cppget.org/1/alpha
+$ bpkg fetch
+$ bpkg build brep ?sys:libapr1 ?sys:libapreq2 ?sys:libpq
+$ bpkg install brep
 
 $ cd .. # Back to brep home.
 
