@@ -20,7 +20,6 @@ if $cli.configured
 
   cli.options += -I $src_root --include-with-brackets --include-prefix clean \
 --guard-prefix CLEAN --generate-specifier --page-usage print_ --ansi-color   \
---cxx-prologue "#include <clean/types-parsers.hxx>"                          \
 --long-usage
 
   # Include the generated cli files into the distribution and don't remove

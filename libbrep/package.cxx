@@ -38,6 +38,15 @@ namespace brep
     return !(x == y);
   }
 
+  // tenant
+  //
+  tenant::
+  tenant (string i)
+      : id (move (i)),
+        creation_timestamp (timestamp::clock::now ())
+  {
+  }
+
   // package
   //
   package::

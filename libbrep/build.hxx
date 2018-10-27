@@ -26,7 +26,7 @@
 //
 #define LIBBREP_BUILD_SCHEMA_VERSION_BASE 4
 
-#pragma db model version(LIBBREP_BUILD_SCHEMA_VERSION_BASE, 4, closed)
+#pragma db model version(LIBBREP_BUILD_SCHEMA_VERSION_BASE, 5, open)
 
 // We have to keep these mappings at the global scope instead of inside
 // the brep namespace because they need to be also effective in the
@@ -251,7 +251,11 @@ namespace brep
     }
   };
 
-  #pragma db view object(build) query(distinct)
+  #pragma db view object(build)                                              \
+    object(build_package inner:                                              \
+           brep::operator== (build::id.package, build_package::id) &&        \
+           build_package::internal_repository.canonical_name.is_not_null ()) \
+    query(distinct)
   struct toolchain
   {
     string name;
@@ -297,7 +301,8 @@ namespace brep
     object(build)                                                            \
     object(build_package inner:                                              \
            brep::operator== (build::id.package, build_package::id) &&        \
-           build_package::internal_repository.canonical_name.is_not_null ())
+           build_package::internal_repository.canonical_name.is_not_null ()) \
+    object(build_tenant: build_package::id.tenant == build_tenant::id)
   struct package_build
   {
     shared_ptr<brep::build> build;
@@ -307,7 +312,8 @@ namespace brep
     object(build)                                                            \
     object(build_package inner:                                              \
            brep::operator== (build::id.package, build_package::id) &&        \
-           build_package::internal_repository.canonical_name.is_not_null ())
+           build_package::internal_repository.canonical_name.is_not_null ()) \
+    object(build_tenant: build_package::id.tenant == build_tenant::id)
   struct package_build_count
   {
     size_t result;

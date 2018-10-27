@@ -1101,9 +1101,9 @@ try
   // By default the tenant is empty and assumes a single-tenant mode. Let's
   // require the specified tenant to be non-empty.
   //
-  const string& tenant (ops.tenant ());
+  const string& tnt (ops.tenant ());
 
-  if (ops.tenant_specified () && tenant.empty ())
+  if (ops.tenant_specified () && tnt.empty ())
   {
     cerr << "error: empty tenant" << endl
          << help_info << endl;
@@ -1140,7 +1140,7 @@ try
   //
   internal_repositories irs (load_repositories (path (argv[1])));
 
-  if (ops.force () || changed (tenant, irs, db))
+  if (ops.force () || changed (tnt, irs, db))
   {
     // Rebuild repositories persistent state from scratch.
     //
@@ -1150,21 +1150,29 @@ try
     // multiple tenants). Otherwise, cleanup the specified and the empty
     // tenants only.
     //
-    if (tenant.empty ())             // Single-tenant mode.
+    if (tnt.empty ())                // Single-tenant mode.
     {
       db.erase_query<package> ();
       db.erase_query<repository> ();
+      db.erase_query<tenant> ();
     }
     else                             // Multi-tenant mode.
     {
-      cstrings ts ({tenant.c_str (), ""});
+      cstrings ts ({tnt.c_str (), ""});
 
       db.erase_query<package> (
         query<package>::id.tenant.in_range (ts.begin (), ts.end ()));
 
       db.erase_query<repository> (
         query<repository>::id.tenant.in_range (ts.begin (), ts.end ()));
+
+      db.erase_query<tenant> (
+        query<tenant>::id.in_range (ts.begin (), ts.end ()));
     }
+
+    // Persist the tenant.
+    //
+    db.persist (tenant (tnt));
 
     // On the first pass over the internal repositories we load their
     // certificate information and packages.
@@ -1181,7 +1189,7 @@ try
           ir.fingerprint);
 
       shared_ptr<repository> r (
-        make_shared<repository> (tenant,
+        make_shared<repository> (tnt,
                                  ir.location,
                                  move (ir.display_name),
                                  move (ir.cache_location),
@@ -1198,8 +1206,8 @@ try
     for (const auto& ir: irs)
     {
       shared_ptr<repository> r (
-        db.load<repository> (repository_id (tenant,
-                                            ir.location.canonical_name ())));
+        db.load<repository> (
+          repository_id (tnt, ir.location.canonical_name ())));
 
       load_repositories (r, db, ops.shallow ());
     }
@@ -1213,7 +1221,7 @@ try
 
       for (auto& p:
              db.query<package> (
-               query::id.tenant == tenant &&
+               query::id.tenant == tnt &&
                query::internal_repository.canonical_name.is_not_null ()))
         resolve_dependencies (p, db);
 
@@ -1222,7 +1230,7 @@ try
       package_ids chain;
       for (const auto& p:
              db.query<package> (
-               query::id.tenant == tenant &&
+               query::id.tenant == tnt &&
                query::internal_repository.canonical_name.is_not_null ()))
         detect_dependency_cycle (p.id, chain, db);
     }

@@ -23,7 +23,26 @@ namespace brep
   // The mapping is established in build-extra.sql. We also explicitly mark
   // non-primary key foreign-mapped members in the source object.
   //
-  // Foreign object that is mapped to a subset of repository object.
+  // Foreign object that is mapped to a subset of the tenant object.
+  //
+  #pragma db object table("build_tenant") pointer(shared_ptr) readonly
+  class build_tenant
+  {
+  public:
+    string id;
+
+    bool archived;
+
+    // Database mapping.
+    //
+    #pragma db member(id) id
+
+  private:
+    friend class odb::access;
+    build_tenant () = default;
+  };
+
+  // Foreign object that is mapped to a subset of the repository object.
   //
   #pragma db object table("build_repository") pointer(shared_ptr) readonly
   class build_repository
@@ -61,7 +80,7 @@ namespace brep
     optional<string> target;
   };
 
-  // Foreign object that is mapped to a subset of package object.
+  // Foreign object that is mapped to a subset of the package object.
   //
   #pragma db object table("build_package") pointer(shared_ptr) readonly
   class build_package
@@ -92,14 +111,15 @@ namespace brep
   // Note that ADL can't find the equal operator, so we use the function call
   // notation.
   //
-  #pragma db view                                                \
-    object(build_package)                                        \
-    object(build_repository inner:                               \
-           brep::operator== (build_package::internal_repository, \
-                             build_repository::id) &&            \
-           brep::compare_version_ne (build_package::id.version,  \
-                                     brep::wildcard_version,     \
-                                     false))
+  #pragma db view                                                      \
+    object(build_package)                                              \
+    object(build_repository inner:                                     \
+           brep::operator== (build_package::internal_repository,       \
+                             build_repository::id) &&                  \
+           brep::compare_version_ne (build_package::id.version,        \
+                                     brep::wildcard_version,           \
+                                     false))                           \
+    object(build_tenant: build_package::id.tenant == build_tenant::id)
   struct buildable_package
   {
     package_id id;
@@ -110,14 +130,15 @@ namespace brep
     #pragma db member(version) set(this.version.init (this.id.version, (?)))
   };
 
-  #pragma db view                                                \
-    object(build_package)                                        \
-    object(build_repository inner:                               \
-           brep::operator== (build_package::internal_repository, \
-                             build_repository::id) &&            \
-           brep::compare_version_ne (build_package::id.version,  \
-                                     brep::wildcard_version,     \
-                                     false))
+  #pragma db view                                                      \
+    object(build_package)                                              \
+    object(build_repository inner:                                     \
+           brep::operator== (build_package::internal_repository,       \
+                             build_repository::id) &&                  \
+           brep::compare_version_ne (build_package::id.version,        \
+                                     brep::wildcard_version,           \
+                                     false))                           \
+    object(build_tenant: build_package::id.tenant == build_tenant::id)
   struct buildable_package_count
   {
     size_t result;
@@ -133,18 +154,19 @@ namespace brep
   // (internal and non-stub) packages can have such constraints, so there is
   // no need for additional checks.
   //
-  #pragma db view                                                     \
-    table("build_package_constraints" = "c")                          \
-    object(build_package = package inner:                             \
-           "c.exclusion AND "                                         \
-           "c.tenant = " + package::id.tenant + "AND" +               \
-           "c.name = " + package::id.name + "AND" +                   \
-           "c.version_epoch = " + package::id.version.epoch + "AND" + \
-           "c.version_canonical_upstream = " +                        \
-             package::id.version.canonical_upstream + "AND" +         \
-           "c.version_canonical_release = " +                         \
-             package::id.version.canonical_release + "AND" +          \
-           "c.version_revision = " + package::id.version.revision)    \
+  #pragma db view                                                           \
+    table("build_package_constraints" = "c")                                \
+    object(build_package inner:                                             \
+           "c.exclusion AND "                                               \
+           "c.tenant = " + build_package::id.tenant + "AND" +               \
+           "c.name = " + build_package::id.name + "AND" +                   \
+           "c.version_epoch = " + build_package::id.version.epoch + "AND" + \
+           "c.version_canonical_upstream = " +                              \
+             build_package::id.version.canonical_upstream + "AND" +         \
+           "c.version_canonical_release = " +                               \
+             build_package::id.version.canonical_release + "AND" +          \
+           "c.version_revision = " + build_package::id.version.revision)    \
+    object(build_tenant: build_package::id.tenant == build_tenant::id)      \
     query(distinct)
   struct build_constrained_package
   {

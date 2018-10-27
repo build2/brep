@@ -5,7 +5,11 @@ Description=brep build database cleaner service
 Type=oneshot
 #User=brep
 #Group=brep
-ExecStart=/home/brep/install/bin/brep-clean /home/brep/config/buildtab
+
+# Run both tenants and builds cleaners if CI request functionality is enabled.
+#
+#ExecStart=/home/brep/install/bin/brep-clean tenants 240
+ExecStart=/home/brep/install/bin/brep-clean builds /home/brep/config/buildtab
 
 [Install]
 WantedBy=default.target

@@ -394,21 +394,26 @@ our setup. If you still would like to use systemd to run the loader and the
 cleaner, then you can set it up as a system-wide service which runs the
 utilities as the brep user/group. Otherwise, a cron job is a natural choice.
 
-Note that the cleaner execution is optional and is only required if the build2
-build bot functionality is enabled (see the build bot documentation for
+Note that the builds cleaner execution is optional and is only required if the
+build2 build bot functionality is enabled (see the build bot documentation for
 details). If it is disabled in you setup, then skip the cleaner-related
 parts in the subsequent subsections.
+
+If the CI request functionality is enabled you most likely will want to
+additionally setup the tenants cleanup.
+
 
 8.a Setup Periodic Loader and Cleaner Execution with cron
 
 The following crontab entries will execute the loader every five minutes
-and the cleaner once a day at midnight:
+and the tenants and builds cleaners once a day at midnight:
 
 $ crontab -l
 MAILTO=<brep-admin-email>
 PATH=/usr/local/bin:/bin:/usr/bin
 */5 * * * * $HOME/install/bin/brep-load $HOME/config/loadtab
-0 0 * * * $HOME/install/bin/brep-clean $HOME/config/buildtab
+0 0 * * * $HOME/install/bin/brep-clean tenants 240
+0 0 * * * $HOME/install/bin/brep-clean builds $HOME/config/buildtab
 ^D
 
 Note that here we assume that bpkg (which is executed by brep-load) is in one

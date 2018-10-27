@@ -94,7 +94,8 @@ template <typename T>
 static inline query<T>
 build_query (const brep::cstrings& configs,
              const brep::params::builds& params,
-             const brep::optional<brep::string>& tenant)
+             const brep::optional<brep::string>& tenant,
+             const brep::optional<bool>& archived)
 {
   using namespace brep;
   using query = query<T>;
@@ -108,6 +109,9 @@ build_query (const brep::cstrings& configs,
 
   if (tenant)
     q = q && pid.tenant == *tenant;
+
+  if (archived)
+    q = q && query::build_tenant::archived == *archived;
 
   // Note that there is no error reported if the filter parameters parsing
   // fails. Instead, it is considered that no package builds match such a
@@ -205,18 +209,23 @@ build_query (const brep::cstrings& configs,
   return q;
 }
 
-template <typename T, typename P = typename query<T>::build_package>
+template <typename T>
 static inline query<T>
 package_query (const brep::params::builds& params,
-               const brep::optional<brep::string>& tenant)
+               const brep::optional<brep::string>& tenant,
+               const brep::optional<bool>& archived)
 {
   using namespace brep;
   using query = query<T>;
+  using qp = typename query::build_package;
 
   query q (true);
 
   if (tenant)
-    q = q && P::id.tenant == *tenant;
+    q = q && qp::id.tenant == *tenant;
+
+  if (archived)
+    q = q && query::build_tenant::archived == *archived;
 
   // Note that there is no error reported if the filter parameters parsing
   // fails. Instead, it is considered that no packages match such a query.
@@ -226,13 +235,13 @@ package_query (const brep::params::builds& params,
     // Package name.
     //
     if (!params.name ().empty ())
-      q = q && P::id.name.like (
+      q = q && qp::id.name.like (
         package_name (transform (params.name ()), package_name::raw_string));
 
     // Package version.
     //
     if (!params.version ().empty () && params.version () != "*")
-      q = q && compare_version_eq (P::id.version,
+      q = q && compare_version_eq (qp::id.version,
                                    version (params.version ()), // May throw.
                                    true);
   }
@@ -344,9 +353,9 @@ handle (request& rq, response& rs)
 
     toolchains r;
     for (auto& t: build_db_->query<toolchain> (
-           (tn ? query::id.package.tenant == *tn : query (true)) +
-           "ORDER BY" + query::toolchain_name +
-           order_by_version_desc (query::id.toolchain_version, false)))
+           (tn ? query::build::id.package.tenant == *tn : query (true)) +
+           "ORDER BY" + query::build::toolchain_name +
+           order_by_version_desc (query::build::id.toolchain_version, false)))
       r.emplace_back (move (t.name), move (t.version));
 
     return r;
@@ -440,7 +449,8 @@ handle (request& rq, response& rs)
     transaction t (build_db_->begin ());
 
     count = build_db_->query_value<package_build_count> (
-      build_query<package_build_count> (*build_conf_names_, params, tn));
+      build_query<package_build_count> (
+        *build_conf_names_, params, tn, nullopt /* archived */));
 
     // Print the filter form.
     //
@@ -455,7 +465,8 @@ handle (request& rq, response& rs)
     //
     s << DIV;
     for (auto& pb: build_db_->query<package_build> (
-           build_query<package_build> (*build_conf_names_, params, tn) +
+           build_query<package_build> (
+             *build_conf_names_, params, tn, nullopt /* archived */) +
            "ORDER BY" + query<package_build>::build::timestamp + "DESC" +
            "OFFSET" + to_string (page * page_configs) +
            "LIMIT" + to_string (page_configs)))
@@ -608,12 +619,12 @@ handle (request& rq, response& rs)
       size_t nmax (
         config_toolchains.size () *
         build_db_->query_value<buildable_package_count> (
-          package_query<buildable_package_count> (params, tn)));
+          package_query<buildable_package_count> (
+            params, tn, false /* archived */)));
 
       size_t ncur = build_db_->query_value<package_build_count> (
-        build_query<package_build_count> (*build_conf_names_,
-                                          bld_params,
-                                          tn));
+        build_query<package_build_count> (
+          *build_conf_names_, bld_params, tn, false /* archived */));
 
       // From now we will be using specific package name and version for each
       // build database query.
@@ -645,7 +656,8 @@ handle (request& rq, response& rs)
           //
           build_query<package_build_count> (cstrings () /* configs */,
                                             bld_params,
-                                            nullopt /* tenant */));
+                                            nullopt /* tenant */,
+                                            false /* archived */));
 
         prep_bld_query bld_prep_query (
           build_db_->prepare_query<package_build_count> (
@@ -658,9 +670,9 @@ handle (request& rq, response& rs)
         // caching will not be easy as the cached values depend on the filter
         // form parameters.
         //
-        using query = query<build_constrained_package>;
-        query q (package_query<build_constrained_package, query> (params,
-                                                                  tn));
+        query q (
+          package_query<build_constrained_package> (
+            params, tn, false /* archived */));
 
         for (const auto& p: build_db_->query<build_constrained_package> (q))
         {
@@ -715,7 +727,8 @@ handle (request& rq, response& rs)
     using pkg_query = query<buildable_package>;
     using prep_pkg_query = prepared_query<buildable_package>;
 
-    pkg_query pq (package_query<buildable_package> (params, tn));
+    pkg_query pq (
+      package_query<buildable_package> (params, tn, false /* archived */));
 
     // Specify the portion. Note that we will still be querying packages in
     // chunks, not to hold locks for too long.
@@ -753,7 +766,8 @@ handle (request& rq, response& rs)
       //
       build_query<package_build> (*build_conf_names_,
                                   bld_params,
-                                  nullopt /* tenant */));
+                                  nullopt /* tenant */,
+                                  false /* archived */));
 
     prep_bld_query bld_prep_query (
       conn->prepare_query<package_build> ("mod-builds-build-query", bq));
@@ -767,7 +781,8 @@ handle (request& rq, response& rs)
     using prep_ctr_query = prepared_query<build_constrained_package>;
 
     ctr_query cq (
-      package_id_eq<build_constrained_package> (ctr_query::id, id));
+      package_id_eq<build_constrained_package> (
+        ctr_query::build_package::id, id));
 
     prep_ctr_query ctr_prep_query (
       conn->prepare_query<build_constrained_package> (

@@ -15,6 +15,8 @@
 
 #include <libbutl/pager.mxx>
 
+#include <libbrep/package.hxx>
+#include <libbrep/package-odb.hxx>
 #include <libbrep/database-lock.hxx>
 
 #include <migrate/migrate-options.hxx>
@@ -203,6 +205,31 @@ create (database& db, bool extra_only) const
     db.execute (s);
 }
 
+// Register the data migration functions for the package database schema.
+//
+template <odb::schema_version v>
+using package_migration_entry_base =
+  odb::data_migration_entry<v, LIBBREP_PACKAGE_SCHEMA_VERSION_BASE>;
+
+template <odb::schema_version v>
+struct package_migration_entry: package_migration_entry_base<v>
+{
+  package_migration_entry (void (*f) (odb::database& db))
+      : package_migration_entry_base<v> (f, "package") {}
+};
+
+// Don't forget to drop the repository_tenant view when stop supporting
+// data migration for this schema version.
+//
+static const package_migration_entry<9>
+package_migrate_v9 ([] (odb::database& db)
+{
+  // Add tenant objects.
+  //
+  for (const auto& t: db.query<repository_tenant> ())
+    db.persist (tenant (t.id));
+});
+
 // main() function
 //
 int
@@ -284,6 +311,15 @@ try
   //
   database_lock l (db);
 
+  // Currently we don't support data migration for the manual database scheme
+  // migration.
+  //
+  if (db.schema_migration (db_schema))
+  {
+    cerr << "error: manual database schema migration is not supported" << endl;
+    throw failed ();
+  }
+
   // Need to obtain schema version out of the transaction. If the
   // schema_version table does not exist, the SQL query fails, which makes the
   // transaction useless as all consequitive queries in that transaction will
@@ -363,11 +399,6 @@ try
     //
     s.drop (db, true /* extra_only */);
 
-    // Register the data migration functions.
-    //
-    // static const data_migration_entry<2, LIBBREP_XXX_SCHEMA_VERSION_BASE>
-    // migrate_v2_entry (&migrate_v2);
-    //
     schema_catalog::migrate (db, 0, db_schema);
 
     s.create (db, true /* extra_only */);

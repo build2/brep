@@ -21,7 +21,7 @@
 //
 #define LIBBREP_PACKAGE_SCHEMA_VERSION_BASE 7
 
-#pragma db model version(LIBBREP_PACKAGE_SCHEMA_VERSION_BASE, 8, open)
+#pragma db model version(LIBBREP_PACKAGE_SCHEMA_VERSION_BASE, 9, open)
 
 namespace brep
 {
@@ -185,6 +185,42 @@ namespace brep
   };
 
   #pragma db object pointer(shared_ptr) session
+  class tenant
+  {
+  public:
+    // Create the tenant object with the timestamp set to now and the archived
+    // flag set to false.
+    //
+    explicit
+    tenant (string id);
+
+    string id;
+
+    timestamp creation_timestamp;
+    bool archived = false;        // Note: foreign-mapped in build.
+
+    // Database mapping.
+    //
+    #pragma db member(id) id
+
+  private:
+    friend class odb::access;
+    tenant () = default;
+  };
+
+  #pragma db view object(tenant)
+  struct tenant_id
+  {
+    #pragma db column("id")
+    string value;
+  };
+
+  // Tweak repository_id mapping to include a constraint (this only affects
+  // the database schema).
+  //
+  #pragma db member(repository_id::tenant) points_to(tenant)
+
+  #pragma db object pointer(shared_ptr) session
   class repository
   {
   public:
@@ -269,6 +305,15 @@ namespace brep
     repository (): tenant (id.tenant), canonical_name (id.canonical_name) {}
   };
 
+  // Used for data migration (see migrate/migrate.cxx for details).
+  //
+  #pragma db view object(repository) query(distinct)
+  struct repository_tenant
+  {
+    #pragma db column("tenant")
+    string id;
+  };
+
   // The 'to' expression calls the PostgreSQL to_tsvector(weighted_text)
   // function overload (package-extra.sql). Since we are only interested
   // in "write-only" members of this type, make the 'from' expression
@@ -288,6 +333,11 @@ namespace brep
     string c;
     string d;
   };
+
+  // Tweak package_id mapping to include a constraint (this only affects the
+  // database schema).
+  //
+  #pragma db member(package_id::tenant) points_to(tenant)
 
   #pragma db object pointer(shared_ptr) session
   class package

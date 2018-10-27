@@ -6,28 +6,41 @@ include <vector>;
 include <string>;
 include <cstdint>; // uint16_t
 
-include <clean/options-types.hxx>;
-
 "\section=1"
 "\name=brep-clean"
-"\summary=clean brep build database"
+"\summary=clean brep databases"
 
 {
-  "<options> <buildtab>",
+  "<options> <buildtab> <timeout> <name> <hours>",
 
   "\h|SYNOPSIS|
 
    \c{\b{brep-clean --help}\n
       \b{brep-clean --version}\n
-      \b{brep-clean} [<options>] <buildtab>}
+      \b{brep-clean} [<options>] builds <buildtab> [<timeout>...]\n
+      \b{brep-clean} [<options>] tenants <timeout>}
 
    \h|DESCRIPTION|
 
    \cb{brep-clean} deletes expired package builds from the brep \cb{build}
-   database. The build is considered expired if the package version is not
-   in the \cb{package} database, or the configuration is not listed in the
-   <buildtab> file, or the timestamp is older than the one specified for
-   this build's toolchain (see \cb{--stale-timeout}).
+   database or deletes/archives tenants from the brep \cb{package} database.
+
+   The first form considers a build as expired if the corresponding package
+   version is not in the \cb{package} database, or the configuration is not
+   listed in the <buildtab> file, or its age is older than the specified
+   timeout for this build toolchain.
+
+   Build <timeout>, if specified, should have the \c{[<name>=]<hours>} form.
+   Specify zero for <hours> to make builds for a toolchain to never expire.
+   Omit <name> (including \cb{=}) to specify the default timeout. It will
+   apply to all the toolchains that don't have a toolchain-specific timeout.
+
+   The second form considers a tenant as expired if its age is older than the
+   specified <timeout>.
+
+   If the \cb{--archive} option is specified, then the tenant is archived
+   rather than deleted. In this state the tenant packages (and their builds)
+   are still visible in \cb{brep} but are not (re-)built by build bots.
 
    Note that \cb{brep-clean} expects the \cb{build} and \cb{package} database
    schemas to have already been created using \l{brep-migrate(1)}."
@@ -37,49 +50,44 @@ class options
 {
   "\h|OPTIONS|"
 
-  brep::toolchain_timeouts --stale-timeout
+  bool --archive
   {
-    "[<name>=]<days>",
-    "Number of days to wait before considering builds for the named toolchain
-     as stale. Specify zero for <days> to make builds for a toolchain never
-     expire. Omit <name> (including \cb{=}) to specify the default timeout.
-     It will apply to all the toolchains that don't have a timeout specified
-     explicitly. If unspecified, the default timeout is zero (never expire)."
+    "Archive old tenants."
   }
 
   std::string --db-user
   {
     "<user>",
-    "Build database user name. If not specified, then operating system (login)
-     name is used."
+    "Database user name. If not specified, then operating system (login) name
+     is used."
   }
 
   std::string --db-password
   {
     "<pass>",
-    "Build database password. If not specified, then login without password is
+    "Database password. If not specified, then login without password is
      expected to work."
   }
 
-  std::string --db-name = "brep_build"
+  std::string --db-name
   {
     "<name>",
-    "Build database name. If not specified, then \cb{brep_build} is used by
-     default."
+    "Database name. If not specified, then \cb{brep_build} is used for the
+     first form and \cb{brep_package} for the second."
   }
 
   std::string --db-host
   {
     "<host>",
-    "Build database host name, address, or socket. If not specified, then
-     connect to \cb{localhost} using the operating system-default mechanism
-     (Unix-domain socket, etc)."
+    "Database host name, address, or socket. If not specified, then connect to
+     \cb{localhost} using the operating system-default mechanism (Unix-domain
+     socket, etc)."
   }
 
   std::uint16_t --db-port = 0
   {
     "<port>",
-    "Build database port number. If not specified, the default port is used."
+    "Database port number. If not specified, the default port is used."
   }
 
   std::string --pager // String to allow empty value.

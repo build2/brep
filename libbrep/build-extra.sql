@@ -12,6 +12,16 @@ DROP FOREIGN TABLE IF EXISTS build_package;
 
 DROP FOREIGN TABLE IF EXISTS build_repository;
 
+DROP FOREIGN TABLE IF EXISTS build_tenant;
+
+-- The foreign table for build_tenant object.
+--
+--
+CREATE FOREIGN TABLE build_tenant (
+  id TEXT NOT NULL,
+  archived BOOLEAN NOT NULL)
+SERVER package_server OPTIONS (table_name 'tenant');
+
 -- The foreign table for build_repository object.
 --
 --
