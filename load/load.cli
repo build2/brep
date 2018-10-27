@@ -54,6 +54,7 @@ class options
 
   std::string --tenant
   {
+    "<id>",
     "Tenant the package and repository information should be loaded in. If not
      specified, then the single-tenant mode is assumed."
   };
