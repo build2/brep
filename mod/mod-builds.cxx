@@ -670,7 +670,7 @@ handle (request& rq, response& rs)
         // caching will not be easy as the cached values depend on the filter
         // form parameters.
         //
-        query q (
+        query<build_constrained_package> q (
           package_query<build_constrained_package> (
             params, tn, false /* archived */));
 

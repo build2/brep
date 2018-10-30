@@ -207,14 +207,14 @@ create (database& db, bool extra_only) const
 
 // Register the data migration functions for the package database schema.
 //
-template <odb::schema_version v>
+template <schema_version v>
 using package_migration_entry_base =
-  odb::data_migration_entry<v, LIBBREP_PACKAGE_SCHEMA_VERSION_BASE>;
+  data_migration_entry<v, LIBBREP_PACKAGE_SCHEMA_VERSION_BASE>;
 
-template <odb::schema_version v>
+template <schema_version v>
 struct package_migration_entry: package_migration_entry_base<v>
 {
-  package_migration_entry (void (*f) (odb::database& db))
+  package_migration_entry (void (*f) (database& db))
       : package_migration_entry_base<v> (f, "package") {}
 };
 
@@ -222,7 +222,7 @@ struct package_migration_entry: package_migration_entry_base<v>
 // data migration for this schema version.
 //
 static const package_migration_entry<9>
-package_migrate_v9 ([] (odb::database& db)
+package_migrate_v9 ([] (database& db)
 {
   // Add tenant objects.
   //
