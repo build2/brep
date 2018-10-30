@@ -108,8 +108,13 @@ handle (request& rq, response& rs)
     if (r.summary)
       s << H2 << *r.summary << ~H2;
 
+    // Cleanup the URL fragment, if present.
+    //
+    repository_url u (r.location.url ());
+    u.fragment = nullopt;
+
     s << P
-      << A(HREF=r.location.string ()) << r.location << ~A << *BR;
+      << A(HREF=u.string ()) << r.location << ~A << *BR;
 
     if (r.email)
     {
