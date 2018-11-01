@@ -179,7 +179,7 @@ namespace brep
   }
 
   static int
-  clean_builds (const options& ops,
+  clean_builds (const options&,
                 cli::argv_scanner& scan,
                 odb::pgsql::database& db)
   {
