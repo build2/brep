@@ -16,12 +16,14 @@
 #include <cstring>   // strlen(), strcmp()
 #include <exception>
 
+#include <libbutl/utility.mxx>  // function_cast()
 #include <libbutl/optional.mxx>
 
 #include <web/module.hxx>
 #include <web/apache/log.hxx>
 
 using namespace std;
+using namespace butl;
 
 namespace web
 {
@@ -52,7 +54,7 @@ namespace web
         *d++ =
           {
             i.first->first.c_str (),
-            reinterpret_cast<cmd_func> (parse_option),
+            function_cast<cmd_func> (parse_option),
             this,
 
             // Allow directives in both server and directory configuration
@@ -77,7 +79,7 @@ namespace web
       *d++ =
         {
           "SetHandler",
-          reinterpret_cast<cmd_func> (parse_option),
+          function_cast<cmd_func> (parse_option),
           this,
           RSRC_CONF | ACCESS_CONF,
           RAW_ARGS,
