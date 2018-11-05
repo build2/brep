@@ -66,6 +66,8 @@ namespace brep
            optional<email_type> em,
            optional<email_type> pe,
            optional<email_type> be,
+           optional<email_type> bwe,
+           optional<email_type> bee,
            dependencies_type dp,
            requirements_type rq,
            build_constraints_type bc,
@@ -91,6 +93,8 @@ namespace brep
         email (move (em)),
         package_email (move (pe)),
         build_email (move (be)),
+        build_warning_email (move (bwe)),
+        build_error_email (move (bee)),
         dependencies (move (dp)),
         requirements (move (rq)),
         build_constraints (version.compare (wildcard_version, true) != 0

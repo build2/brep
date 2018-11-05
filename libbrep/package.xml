@@ -1,4 +1,13 @@
 <changelog xmlns="http://www.codesynthesis.com/xmlns/odb/changelog" database="pgsql" schema-name="package" version="1">
+  <changeset version="10">
+    <alter-table name="package">
+      <add-column name="build_warning_email" type="TEXT" null="true"/>
+      <add-column name="build_warning_email_comment" type="TEXT" null="true"/>
+      <add-column name="build_error_email" type="TEXT" null="true"/>
+      <add-column name="build_error_email_comment" type="TEXT" null="true"/>
+    </alter-table>
+  </changeset>
+
   <changeset version="9">
     <add-table name="tenant" kind="object">
       <column name="id" type="TEXT" null="false"/>

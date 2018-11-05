@@ -21,7 +21,7 @@
 //
 #define LIBBREP_PACKAGE_SCHEMA_VERSION_BASE 7
 
-#pragma db model version(LIBBREP_PACKAGE_SCHEMA_VERSION_BASE, 9, open)
+#pragma db model version(LIBBREP_PACKAGE_SCHEMA_VERSION_BASE, 10, open)
 
 namespace brep
 {
@@ -372,6 +372,8 @@ namespace brep
              optional<email_type>,
              optional<email_type> package_email,
              optional<email_type> build_email,
+             optional<email_type> build_warning_email,
+             optional<email_type> build_error_email,
              dependencies_type,
              requirements_type,
              build_constraints_type,
@@ -418,6 +420,8 @@ namespace brep
     optional<email_type> email;
     optional<email_type> package_email;
     optional<email_type> build_email;
+    optional<email_type> build_warning_email;
+    optional<email_type> build_error_email;
     dependencies_type dependencies;
     requirements_type requirements;
 

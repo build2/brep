@@ -240,14 +240,14 @@ handle (request& rq, response&)
   // worth it here: email members are really secondary and we don't need to
   // switch transactions back and forth.
   //
-  shared_ptr<package> p;
+  shared_ptr<package> pkg;
   {
     transaction t (package_db_->begin ());
-    p = package_db_->find<package> (id.package);
+    pkg = package_db_->find<package> (id.package);
     t.commit ();
   }
 
-  if (p == nullptr)
+  if (pkg == nullptr)
   {
     warn_expired ("no package");
     return true;
@@ -260,19 +260,24 @@ handle (request& rq, response&)
 
   // Load and update the package build configuration (if present).
   //
-  shared_ptr<build> b;
+  // NULL if the package build doesn't exist or is not updated for any reason
+  // (authentication failed, etc).
+  //
+  shared_ptr<build> bld;
+
   optional<result_status> prev_status;
-  bool notify (false);
+  bool build_notify (false);
   bool unforced (true);
 
   {
     transaction t (build_db_->begin ());
 
     package_build pb;
+    shared_ptr<build> b;
     if (!build_db_->query_one<package_build> (
           query<package_build>::build::id == id, pb))
       warn_expired ("no package build");
-    else if ((b = pb.build)->state != build_state::building)
+    else if ((b = move (pb.build))->state != build_state::building)
       warn_expired ("package configuration state is " + to_string (b->state));
     else if (b->timestamp != session_timestamp)
       warn_expired ("non-matching timestamp");
@@ -357,11 +362,13 @@ handle (request& rq, response&)
       {
         unforced = b->force == force_state::unforced;
 
-        // Don's send email for the success-to-success status change, unless
-        // the build was forced.
+        // Don't send email to the build-email address for the
+        // success-to-success status change, unless the build was forced.
         //
-        notify = !(rqm.result.status == result_status::success &&
-                   b->status && *b->status == rqm.result.status && unforced);
+        build_notify = !(rqm.result.status == result_status::success &&
+                         b->status                                   &&
+                         *b->status == rqm.result.status             &&
+                         unforced);
 
         prev_status = move (b->status);
 
@@ -382,88 +389,111 @@ handle (request& rq, response&)
         b->timestamp = system_clock::now ();
 
         build_db_->update (b);
+
+        bld = move (b);
       }
     }
 
     t.commit ();
   }
 
-  // Don't send the notification email if the empty package build email is
-  // specified.
-  //
-  const optional<email>& build_email (p->build_email);
-  if (!notify || (build_email && build_email->empty ()))
+  if (bld == nullptr)
     return true;
 
-  // If the package build address is not specified, then it is assumed to be
-  // the same as the package email address, if specified, otherwise as the
-  // project email address, if specified, otherwise the notification email is
-  // not sent.
-  //
-  const optional<email>& to (build_email ? build_email
-                             : p->package_email
-                               ? p->package_email
-                               : p->email);
-  if (!to)
-    return true;
+  string subj ((unforced ? "build " : "rebuild ") +
+               to_string (*bld->status) + ": " +
+               bld->package_name.string () + '/' +
+               bld->package_version.string () + '/' +
+               bld->configuration + '/' +
+               bld->toolchain_name + '-' + bld->toolchain_version.string ());
 
-  assert (b != nullptr);
-
-  // Send email to the package owner.
+  // Send notification emails to the interested parties.
   //
-  try
+  auto send_email = [&pkg, &bld, &subj, &error, &trace, &print_args, this]
+                    (const string& to)
   {
-    string subj ((unforced ? "build " : "rebuild ") +
-                 to_string (*b->status) + ": " +
-                 b->package_name.string () + '/' +
-                 b->package_version.string () + '/' + b->configuration + '/' +
-                 b->toolchain_name + '-' + b->toolchain_version.string ());
-
-    // Redirect the diagnostics to webserver error log.
-    //
-    // Note: if using this somewhere else, then need to factor out all this
-    // exit status handling code.
-    //
-    sendmail sm (print_args,
-                 2,
-                 options_->email (),
-                 subj,
-                 {*to});
-
-    if (b->results.empty ())
-      sm.out << "No operation results available." << endl;
-    else
+    try
     {
-      const string& host (options_->host ());
-      const dir_path& root (options_->root ());
+      l2 ([&]{trace << "email '" << subj << "' to " << to;});
 
-      ostream& os (sm.out);
+      // Redirect the diagnostics to webserver error log.
+      //
+      // Note: if using this somewhere else, then need to factor out all this
+      // exit status handling code.
+      //
+      sendmail sm (print_args,
+                   2,
+                   options_->email (),
+                   subj,
+                   {to});
 
-      assert (b->status);
-      os << "combined: " << *b->status << endl << endl
-         << "  " << build_log_url (host, root, *b) << endl << endl;
+      if (bld->results.empty ())
+        sm.out << "No operation results available." << endl;
+      else
+      {
+        const string& host (options_->host ());
+        const dir_path& root (options_->root ());
 
-      for (const auto& r: b->results)
-        os << r.operation << ": " << r.status << endl << endl
-           << "  " << build_log_url (host, root, *b, &r.operation)
-           << endl << endl;
+        ostream& os (sm.out);
 
-      os << "Force rebuild (enter the reason, use '+' instead of spaces):"
-         << endl << endl
-         << "  " << force_rebuild_url (host, root, *b) << endl;
+        assert (bld->status);
+        os << "combined: " << *bld->status << endl << endl
+           << "  " << build_log_url (host, root, *bld) << endl << endl;
+
+        for (const auto& r: bld->results)
+          os << r.operation << ": " << r.status << endl << endl
+             << "  " << build_log_url (host, root, *bld, &r.operation)
+             << endl << endl;
+
+        os << "Force rebuild (enter the reason, use '+' instead of spaces):"
+           << endl << endl
+           << "  " << force_rebuild_url (host, root, *bld) << endl;
+      }
+
+      sm.out.close ();
+
+      if (!sm.wait ())
+        error << "sendmail " << *sm.exit;
     }
+    // Handle process_error and io_error (both derive from system_error).
+    //
+    catch (const system_error& e)
+    {
+      error << "sendmail error: " << e;
+    }
+  };
 
-    sm.out.close ();
-
-    if (!sm.wait ())
-      error << "sendmail " << *sm.exit;
-  }
-  // Handle process_error and io_error (both derive from system_error).
+  // Don't send the build notification email if the empty package build email
+  // is specified.
   //
-  catch (const system_error& e)
+  optional<email>& build_email (pkg->build_email);
+  if (build_notify && (!build_email || !build_email->empty ()))
   {
-    error << "sendmail error: " << e;
+    // If none of the package build-* addresses is specified, then the build
+    // email address is assumed to be the same as the package email address,
+    // if specified, otherwise as the project email address, if specified,
+    // otherwise the notification email is not sent.
+    //
+    optional<email> to;
+
+    if (build_email)
+      to = move (build_email);
+    else if (!pkg->build_warning_email && !pkg->build_error_email)
+      to = move (pkg->package_email ? pkg->package_email : pkg->email);
+
+    if (to)
+      send_email (*to);
   }
+
+  assert (bld->status);
+
+  // Send the build warning/error notification emails, if requested.
+  //
+  if (pkg->build_warning_email && *bld->status >= result_status::warning)
+    send_email (*pkg->build_warning_email);
+
+  if (pkg->build_error_email && *bld->status >= result_status::error)
+    send_email (*pkg->build_error_email);
 
   return true;
 }

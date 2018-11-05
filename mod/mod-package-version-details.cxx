@@ -248,10 +248,6 @@ handle (request& rq, response& rs)
   if (pe && pe != em)
     s << TR_EMAIL (*pe, "package-email");
 
-  const auto& be (pkg->build_email);
-  if (be && ((pe && be != pe) || (!pe && be != em)))
-    s << TR_EMAIL (*be, "build-email");
-
   s <<     TR_TAGS (pkg->tags, root, tenant)
     <<   ~TBODY
     << ~TABLE;

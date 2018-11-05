@@ -218,8 +218,8 @@ struct package_migration_entry: package_migration_entry_base<v>
       : package_migration_entry_base<v> (f, "package") {}
 };
 
-// Don't forget to drop the repository_tenant view when stop supporting
-// data migration for this schema version.
+// Don't forget to drop the repository_tenant view when stop supporting data
+// migration for this schema version.
 //
 static const package_migration_entry<9>
 package_migrate_v9 ([] (database& db)

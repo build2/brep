@@ -8,15 +8,15 @@ summary: The exponent
 license: MIT
 tags: mathlab, c++, exponent
 description: The exponent math function.
-url: http://www.exp.com
-email: users@exp.com
-build-email: builds@exp.com
+url: http://exp.example.com
+email: users@exp.example.com
+build-email: builds@exp.example.com
 depends: libmisc
 depends: libpq >= 9.0.0
 build-exclude: *; Only supported on Linux.
 build-include: linux*
 location: libexp-+2-1.2+1.tar.gz
-sha256sum: bc68940a1b3b7e345cbceac35d308b4e04b304f49ff2087340949f2879709967
+sha256sum: 9449cb008ca8cc3b91fbe5c44ae87f0e10fd24ff453bb88cf4504dabe2068eb3
 :
 name: libfoo
 version: +0-X.Y
@@ -113,10 +113,12 @@ summary: Modern C++ XML API
 license: MIT
 tags: c++, xml, parser, serializer, pull, streaming, modern
 url: http://www.codesynthesis.com/projects/libstudxml/
-email: studxml-users@codesynthesis.com; Public mailing list, posts by\
- non-members are allowed but moderated.
-package-email: boris@codesynthesis.com; Direct email to the author.
+email: studxml-users@example.com; Public mailing list, posts by non-members\
+ are allowed but moderated.
+package-email: studxml-package@example.com; Direct email to the packager.
+build-warning-email: studxml-warnings@example.com
+build-error-email: studxml-errors@example.com
 depends: libexpat >= 2.0.0
 depends: libgenx
 location: libstudxml-1.0.0+1.tar.gz
-sha256sum: cfa4b1f89f8e903d48eff1e1d14628c32aa4d126d09b0b056d2cd80f8dc78580
+sha256sum: 1833906dd93ccc0cda832d6a1b3ef9ed7877bb9958b46d9b2666033d4a7919c9

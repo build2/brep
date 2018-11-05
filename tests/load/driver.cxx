@@ -628,13 +628,20 @@ test_pkg_repos (const cstrings& loader_args,
     assert (xpv->url &&
             *xpv->url == "http://www.codesynthesis.com/projects/libstudxml/");
     assert (!xpv->package_url);
-    assert (xpv->email && *xpv->email ==
-            email ("studxml-users@codesynthesis.com",
+    assert (xpv->email && *xpv->email == email ("studxml-users@example.com",
                    "Public mailing list, posts by  non-members "
                    "are allowed but moderated."));
+
     assert (xpv->package_email &&
-            *xpv->package_email == email ("boris@codesynthesis.com",
-                                          "Direct email to the author."));
+            *xpv->package_email == email ("studxml-package@example.com",
+                                          "Direct email to the packager."));
+    assert (xpv->build_warning_email &&
+            *xpv->build_warning_email ==
+            email ("studxml-warnings@example.com"));
+
+    assert (xpv->build_error_email &&
+            *xpv->build_error_email ==
+            email ("studxml-errors@example.com"));
 
     assert (xpv->internal_repository.load () == mr);
     assert (xpv->other_repositories.empty ());
@@ -660,7 +667,7 @@ test_pkg_repos (const cstrings& loader_args,
     assert (check_location (xpv));
 
     assert (xpv->sha256sum && *xpv->sha256sum ==
-            "cfa4b1f89f8e903d48eff1e1d14628c32aa4d126d09b0b056d2cd80f8dc78580");
+            "1833906dd93ccc0cda832d6a1b3ef9ed7877bb9958b46d9b2666033d4a7919c9");
 
     // Verify libfoo package versions.
     //
@@ -790,11 +797,11 @@ test_pkg_repos (const cstrings& loader_args,
     assert (epv->tags == strings ({"mathlab", "c++", "exponent"}));
     assert (epv->description && *epv->description ==
             "The exponent math function.");
-    assert (epv->url && *epv->url == "http://www.exp.com");
+    assert (epv->url && *epv->url == "http://exp.example.com");
     assert (!epv->package_url);
-    assert (epv->email && *epv->email == email ("users@exp.com"));
+    assert (epv->email && *epv->email == email ("users@exp.example.com"));
     assert (!epv->package_email);
-    assert (epv->build_email && *epv->build_email == "builds@exp.com");
+    assert (epv->build_email && *epv->build_email == "builds@exp.example.com");
 
     assert (epv->internal_repository.load () == mr);
     assert (epv->other_repositories.empty ());
@@ -827,7 +834,7 @@ test_pkg_repos (const cstrings& loader_args,
 
     assert (check_location (epv));
     assert (epv->sha256sum && *epv->sha256sum ==
-            "bc68940a1b3b7e345cbceac35d308b4e04b304f49ff2087340949f2879709967");
+            "9449cb008ca8cc3b91fbe5c44ae87f0e10fd24ff453bb88cf4504dabe2068eb3");
 
     // Verify libpq package version.
     //

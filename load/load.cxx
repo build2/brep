@@ -487,6 +487,8 @@ load_packages (const shared_ptr<repository>& rp, database& db)
           move (pm.email),
           move (pm.package_email),
           move (pm.build_email),
+          move (pm.build_warning_email),
+          move (pm.build_error_email),
           move (ds),
           move (pm.requirements),
           move (pm.build_constraints),
