@@ -409,7 +409,7 @@ handle (request& rq, response&)
 
   // Send notification emails to the interested parties.
   //
-  auto send_email = [&pkg, &bld, &subj, &error, &trace, &print_args, this]
+  auto send_email = [&bld, &subj, &error, &trace, &print_args, this]
                     (const string& to)
   {
     try
