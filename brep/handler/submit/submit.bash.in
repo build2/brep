@@ -48,7 +48,10 @@ function extract_package_manifest () # <archive> <manifest>
   local arc="$1"
   local man="$2"
 
-  if ! run_silent bpkg pkg-verify --manifest "$arc" >"$man"; then
+  # Pass the --deep option to make sure that the *-file manifest values are
+  # resolvable, so rep-create will not fail due to this package down the road.
+  #
+  if ! run_silent bpkg pkg-verify --deep --manifest "$arc" >"$man"; then
 
     # Perform the sanity check to make sure that bpkg is runnable.
     #
