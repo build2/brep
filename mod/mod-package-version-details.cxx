@@ -208,7 +208,7 @@ handle (request& rq, response& rs)
   {
     assert (pkg->location);
 
-    s << TR_DOWNLOAD (rl.string () + "/" + pkg->location->string ());
+    s << TR_DOWNLOAD (rl.url ().string () + "/" + pkg->location->string ());
   }
 
   if (pkg->fragment)

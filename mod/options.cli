@@ -2,7 +2,7 @@
 // copyright : Copyright (c) 2014-2018 Code Synthesis Ltd
 // license   : MIT; see accompanying LICENSE file
 
-include <libbpkg/manifest.hxx>; // repository_url
+include <libbpkg/manifest.hxx>; // repository_location
 
 include <web/xhtml-fragment.hxx>;
 
@@ -765,12 +765,12 @@ namespace brep
     //
     class ci
     {
-      // Package repository URL.
+      // Package repository location.
       //
       // Note that the ci parameter is renamed to '_' by the root handler (see
       // the request_proxy class for details).
       //
-      bpkg::repository_url repository | _;
+      bpkg::repository_location repository | _;
 
       // Package names/versions.
       //

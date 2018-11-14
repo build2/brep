@@ -51,10 +51,10 @@ namespace brep
       parse_path (x, s);
     }
 
-    // Parse repository_url.
+    // Parse repository_location.
     //
-    void parser<repository_url>::
-    parse (repository_url& x, bool& xs, scanner& s)
+    void parser<repository_location>::
+    parse (repository_location& x, bool& xs, scanner& s)
     {
       xs = true;
 
@@ -67,7 +67,7 @@ namespace brep
 
       try
       {
-        x = repository_url (v);
+        x = repository_location (v);
       }
       catch (const invalid_argument&)
       {

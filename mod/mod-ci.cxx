@@ -222,23 +222,12 @@ handle (request& rq, response& rs)
     return true;
   }
 
-  // Parse and verify the remote repository location.
+  // Verify the remote repository location.
   //
-  repository_location rl;
+  const repository_location rl (params.repository ());
 
-  try
-  {
-    const repository_url& u (params.repository ());
-
-    if (u.empty () || u.scheme == repository_protocol::file)
-      throw invalid_argument ("");
-
-    rl = repository_location (u, guess_type (u, false /* local */));
-  }
-  catch (const invalid_argument&)
-  {
+  if (rl.empty () || rl.local ())
     return respond_manifest (400, "invalid repository location");
-  }
 
   // Verify the package name[/version] arguments.
   //

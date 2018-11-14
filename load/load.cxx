@@ -94,7 +94,7 @@ using internal_repositories = vector<internal_repository>;
 //    will allow handling CI requests for bpkg repositories.
 //
 //    The current thinking is that the CI handler will be able to "suggest"
-//    this using (the planned) cache:file+dir:// form.
+//    this using (the planned) cache:dir+file:// form.
 //
 static internal_repositories
 load_repositories (path p)
@@ -138,10 +138,7 @@ load_repositories (path p)
 
       try
       {
-        repository_url u (tl[i].value);
-
-        r.location = repository_location (u,
-                                          guess_type (u, false /* local */));
+        r.location = repository_location (tl[i].value);
       }
       catch (const invalid_argument& e)
       {
@@ -277,16 +274,17 @@ changed (const string& tenant,
          database& db)
 {
   strings names;
-  for (auto& r: repos)
+  for (const internal_repository& r: repos)
   {
     shared_ptr<repository> pr (
       db.find<repository> (repository_id (tenant,
                                           r.location.canonical_name ())));
 
-    if (pr == nullptr || r.location.string () != pr->location.string () ||
-        r.display_name != pr->display_name ||
-        r.cache_location.path () != pr->cache_location.path () ||
-        file_mtime (r.packages_path ()) != pr->packages_timestamp ||
+    if (pr == nullptr                                                     ||
+        r.location.string () != pr->location.string ()                    ||
+        r.display_name != pr->display_name                                ||
+        r.cache_location.path () != pr->cache_location.path ()            ||
+        file_mtime (r.packages_path ()) != pr->packages_timestamp         ||
         file_mtime (r.repositories_path ()) != pr->repositories_timestamp ||
         !pr->internal)
       return true;
