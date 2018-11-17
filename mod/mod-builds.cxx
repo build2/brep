@@ -5,6 +5,7 @@
 #include <mod/mod-builds.hxx>
 
 #include <set>
+#include <algorithm> // find_if()
 
 #include <libstudxml/serializer.hxx>
 
@@ -441,46 +442,173 @@ handle (request& rq, response& rs)
       s << DIV_COUNTER (build_count, "Build", "Builds");
   };
 
+  // We will not display hidden configurations, unless the configuration is
+  // specified explicitly.
+  //
+  cstrings conf_names;
+
+  if (params.configuration ().empty () ||
+      params.configuration ().find_first_of ("*?") != string::npos)
+  {
+    for (const auto& c: *build_conf_map_)
+    {
+      if (belongs (*c.second, "all"))
+        conf_names.push_back (c.first);
+    }
+  }
+  else
+    conf_names = *build_conf_names_;
+
   size_t count;
   size_t page (params.page ());
 
-  if (params.result () != "unbuilt")
+  if (params.result () != "unbuilt") // Print package build configurations.
   {
-    transaction t (build_db_->begin ());
-
-    count = build_db_->query_value<package_build_count> (
-      build_query<package_build_count> (
-        *build_conf_names_, params, tn, nullopt /* archived */));
-
-    // Print the filter form.
+    // It seems impossible to filter out the package-excluded configuration
+    // builds via the database query. Thus, we will traverse through builds
+    // that pass the form filter and match them against expressions and
+    // constraints of a package they are builds of.
     //
-    print_form (query_toolchains (), count);
+    // We will calculate the total builds count and cache build objects for
+    // printing on the same pass. Note that we need to print the count before
+    // printing the builds.
+    //
+    count = 0;
+    vector<shared_ptr<build>> builds;
+
+    // Prepare the package build prepared query.
+    //
+    using query = query<package_build>;
+    using prep_query = prepared_query<package_build>;
+
+    query q (build_query<package_build> (
+               conf_names, params, tn, nullopt /* archived */));
+
+    // Specify the portion. Note that we will be querying builds in chunks,
+    // not to hold locks for too long.
+    //
+    size_t offset (0);
 
     // Print package build configurations ordered by the timestamp (later goes
     // first).
+    //
+    q += "ORDER BY" + query::build::timestamp + "DESC" +
+      "OFFSET" + query::_ref (offset) + "LIMIT 50";
+
+    connection_ptr conn (build_db_->connection ());
+
+    prep_query pq (
+      conn->prepare_query<package_build> ("mod-builds-query", q));
+
+    // Note that we can't skip the proper number of builds in the database
+    // query for a page numbers greater than one. So we will query builds from
+    // the very beginning and skip the appropriate number of them while
+    // iterating through the query result.
+    //
+    size_t skip (page * page_configs);
+    size_t print (page_configs);
+
+    // Note that adjacent builds may well relate to the same package. We will
+    // use this fact for a cheap optimization, loading the build package only
+    // if it differs from the previous one.
+    //
+    shared_ptr<build_package> p;
+
+    for (bool ne (true); ne; )
+    {
+      transaction t (conn->begin ());
+
+      // Query package builds (and cache the result).
+      //
+      auto bs (pq.execute ());
+
+      if ((ne = !bs.empty ()))
+      {
+        offset += bs.size ();
+
+        // Iterate over builds and cache build objects that should be printed.
+        // Skip the appropriate number of them (for page number greater than
+        // one).
+        //
+        for (auto& pb: bs)
+        {
+          shared_ptr<build>& b (pb.build);
+
+          // Prior to loading the package object check if it is already
+          // loaded.
+          //
+          if (p == nullptr || p->id != b->id.package)
+            p = build_db_->load<build_package> (b->id.package);
+
+          auto i (build_conf_map_->find (b->configuration.c_str ()));
+          assert (i != build_conf_map_->end ());
+
+          // Match the configuration against the package build
+          // expressions/constraints.
+          //
+          if (!exclude (*p, *i->second))
+          {
+            if (skip != 0)
+              --skip;
+            else if (print != 0)
+            {
+              // As we query builds in multiple transactions we may see the
+              // same build multiple times. Let's skip the duplicates. Note:
+              // we don't increment the counter in this case.
+              //
+              if (find_if (builds.begin (),
+                           builds.end (),
+                           [&b] (const shared_ptr<build>& pb)
+                           {
+                             return b->id == pb->id;
+                           }) != builds.end ())
+                continue;
+
+              if (b->state == build_state::built)
+              {
+                build_db_->load (*b, b->results_section);
+
+                // Let's clear unneeded result logs for builds being cached.
+                //
+                for (operation_result& r: b->results)
+                  r.log.clear ();
+              }
+
+              builds.push_back (move (b));
+
+              --print;
+            }
+
+            ++count;
+          }
+        }
+      }
+
+      // Print the filter form after the build count is calculated. Note:
+      // query_toolchains() must be called inside the build db transaction.
+      //
+      else
+        print_form (query_toolchains (), count);
+
+      t.commit ();
+    }
+
+    // Finally, print the cached package build configurations.
     //
     timestamp now (system_clock::now ());
 
     // Enclose the subsequent tables to be able to use nth-child CSS selector.
     //
     s << DIV;
-    for (auto& pb: build_db_->query<package_build> (
-           build_query<package_build> (
-             *build_conf_names_, params, tn, nullopt /* archived */) +
-           "ORDER BY" + query<package_build>::build::timestamp + "DESC" +
-           "OFFSET" + to_string (page * page_configs) +
-           "LIMIT" + to_string (page_configs)))
+    for (const shared_ptr<build>& pb: builds)
     {
-      build& b (*pb.build);
+      const build& b (*pb);
 
       string ts (butl::to_string (b.timestamp,
                                   "%Y-%m-%d %H:%M:%S %Z",
                                   true,
                                   true) +
                  " (" + butl::to_string (now - b.timestamp, false) + " ago)");
-
-      if (b.state == build_state::built)
-        build_db_->load (b, b.results_section);
 
       s << TABLE(CLASS="proplist build")
         <<   TBODY
@@ -505,8 +633,6 @@ handle (request& rq, response& rs)
         << ~TABLE;
     }
     s << ~DIV;
-
-    t.commit ();
   }
   else // Print unbuilt package configurations.
   {
@@ -609,12 +735,12 @@ handle (request& rq, response& rs)
       //
       // Note that we also need to deduct the package-excluded configurations
       // count from the maximum possible number of unbuilt configurations. The
-      // only way to achieve this is to traverse through the build-constrained
-      // packages and match their constraints against our configurations.
+      // only way to achieve this is to traverse through the packages and
+      // match their build expressions/constraints against our configurations.
       //
       // Also note that some existing builds can now be excluded by packages
-      // due to the build configuration target change. We should deduct such
-      // builds count from the number of existing package builds.
+      // due to the build configuration target or class set change. We should
+      // deduct such builds count from the number of existing package builds.
       //
       size_t nmax (
         config_toolchains.size () *
@@ -624,7 +750,7 @@ handle (request& rq, response& rs)
 
       size_t ncur = build_db_->query_value<package_build_count> (
         build_query<package_build_count> (
-          *build_conf_names_, bld_params, tn, false /* archived */));
+          conf_names, bld_params, tn, false /* archived */));
 
       // From now we will be using specific package name and version for each
       // build database query.
@@ -665,23 +791,23 @@ handle (request& rq, response& rs)
 
         size_t nt (tc == "*" ? toolchains.size () : 1);
 
-        // The number of build-constrained packages can potentially be large,
-        // and we may implement some caching in the future. However, the
-        // caching will not be easy as the cached values depend on the filter
-        // form parameters.
+        // The number of packages can potentially be large, and we may
+        // implement some caching in the future. However, the caching will not
+        // be easy as the cached values depend on the filter form parameters.
         //
-        query<build_constrained_package> q (
-          package_query<build_constrained_package> (
+        query<buildable_package> q (
+          package_query<buildable_package> (
             params, tn, false /* archived */));
 
-        for (const auto& p: build_db_->query<build_constrained_package> (q))
+        for (auto& bp: build_db_->query<buildable_package> (q))
         {
-          const build_package& bp (*p.package);
-          id = bp.id;
+          id = move (bp.id);
+
+          shared_ptr<build_package> p (build_db_->load<build_package> (id));
 
           for (const auto& c: configs)
           {
-            if (exclude (bp, *c))
+            if (exclude (*p, *c))
             {
               nmax -= nt;
 
@@ -706,9 +832,10 @@ handle (request& rq, response& rs)
     //
     // 1: package name
     // 2: package version (descending)
-    // 3: configuration name
-    // 4: toolchain name
-    // 5: toolchain version (descending)
+    // 3: package tenant
+    // 4: configuration name
+    // 5: toolchain name
+    // 6: toolchain version (descending)
     //
     // Prepare the build package prepared query.
     //
@@ -764,29 +891,11 @@ handle (request& rq, response& rs)
       // Note that the query already constrains the tenant via the build
       // package id.
       //
-      build_query<package_build> (*build_conf_names_,
-                                  bld_params,
-                                  nullopt /* tenant */,
-                                  false /* archived */));
+      build_query<package_build> (
+        conf_names, bld_params, nullopt /* tenant */, false /* archived */));
 
     prep_bld_query bld_prep_query (
       conn->prepare_query<package_build> ("mod-builds-build-query", bq));
-
-    // Prepare the build-constrained package prepared query.
-    //
-    // For each build-constrained package we will exclude the corresponding
-    // configurations from being printed.
-    //
-    using ctr_query = query<build_constrained_package>;
-    using prep_ctr_query = prepared_query<build_constrained_package>;
-
-    ctr_query cq (
-      package_id_eq<build_constrained_package> (
-        ctr_query::build_package::id, id));
-
-    prep_ctr_query ctr_prep_query (
-      conn->prepare_query<build_constrained_package> (
-        "mod-builds-build-constrained-package-query", cq));
 
     size_t skip (page * page_configs);
     size_t print (page_configs);
@@ -816,29 +925,20 @@ handle (request& rq, response& rs)
           id = move (p.id);
 
           // Copy configuration/toolchain combinations for this package,
-          // skipping explicitly excluded configurations.
+          // skipping excluded configurations.
           //
           set<config_toolchain> unbuilt_configs;
           {
-            build_constrained_package p;
-            if (ctr_prep_query.execute_one (p))
-            {
-              const build_package& bp (*p.package);
-              for (const auto& ct: config_toolchains)
-              {
-                auto i (build_conf_map_->find (ct.configuration.c_str ()));
-                assert (i != build_conf_map_->end ());
+            shared_ptr<build_package> p (build_db_->load<build_package> (id));
 
-                if (!exclude (bp, *i->second))
-                  unbuilt_configs.insert (ct);
-              }
+            for (const auto& ct: config_toolchains)
+            {
+              auto i (build_conf_map_->find (ct.configuration.c_str ()));
+              assert (i != build_conf_map_->end ());
+
+              if (!exclude (*p, *i->second))
+                unbuilt_configs.insert (ct);
             }
-            else
-              // For libc++, the set's copy-assignment operator requires the
-              // element type to be copy-assignable, for some reason.
-              //
-              unbuilt_configs.insert (config_toolchains.begin (),
-                                      config_toolchains.end ());
           }
 
           // Iterate through the package configuration builds and erase them
@@ -856,7 +956,7 @@ handle (request& rq, response& rs)
           //
           for (const auto& ct: unbuilt_configs)
           {
-            if (skip > 0)
+            if (skip != 0)
             {
               --skip;
               continue;

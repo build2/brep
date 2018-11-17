@@ -26,7 +26,7 @@
 //
 #define LIBBREP_BUILD_SCHEMA_VERSION_BASE 4
 
-#pragma db model version(LIBBREP_BUILD_SCHEMA_VERSION_BASE, 5, open)
+#pragma db model version(LIBBREP_BUILD_SCHEMA_VERSION_BASE, 6, open)
 
 // We have to keep these mappings at the global scope instead of inside
 // the brep namespace because they need to be also effective in the

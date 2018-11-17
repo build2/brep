@@ -21,7 +21,7 @@
 //
 #define LIBBREP_PACKAGE_SCHEMA_VERSION_BASE 7
 
-#pragma db model version(LIBBREP_PACKAGE_SCHEMA_VERSION_BASE, 10, open)
+#pragma db model version(LIBBREP_PACKAGE_SCHEMA_VERSION_BASE, 11, open)
 
 namespace brep
 {
@@ -163,13 +163,6 @@ namespace brep
   using requirements = vector<requirement_alternatives>;
 
   #pragma db value(requirement_alternatives) definition
-
-  // build_constraints
-  //
-  using bpkg::build_constraint;
-  using build_constraints = vector<build_constraint>;
-
-  #pragma db value(build_constraint) definition
 
   // certificate
   //
@@ -376,6 +369,7 @@ namespace brep
              optional<email_type> build_error_email,
              dependencies_type,
              requirements_type,
+             build_class_exprs,
              build_constraints_type,
              optional<path> location,
              optional<string> fragment,
@@ -425,6 +419,7 @@ namespace brep
     dependencies_type dependencies;
     requirements_type requirements;
 
+    build_class_exprs builds;                 // Note: foreign-mapped in build.
     build_constraints_type build_constraints; // Note: foreign-mapped in build.
     odb::section build_section;
 
@@ -510,6 +505,11 @@ namespace brep
       get(odb::nested_get (this.requirements))                \
       set(odb::nested_set (this.requirements, std::move (?))) \
       id_column("") key_column("") value_column("id")
+
+    // builds
+    //
+    #pragma db member(builds) id_column("") value_column("") \
+      section(build_section)
 
     // build_constraints
     //

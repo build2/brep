@@ -489,6 +489,7 @@ load_packages (const shared_ptr<repository>& rp, database& db)
           move (pm.build_error_email),
           move (ds),
           move (pm.requirements),
+          move (pm.builds),
           move (pm.build_constraints),
           move (pm.location),
           move (pm.fragment),

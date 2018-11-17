@@ -267,6 +267,27 @@ namespace brep
         : tenant (move (t)), canonical_name (move (n)) {}
   };
 
+  // build_class_expr
+  //
+  using bpkg::build_class_expr;
+  using build_class_exprs = vector<build_class_expr>;
+
+  #pragma db value(build_class_expr) definition
+
+  #pragma db member(build_class_expr::expr) transient
+  #pragma db member(build_class_expr::underlying_classes) transient
+
+  #pragma db member(build_class_expr::expression) virtual(string) before \
+    get(this.string ())                                                  \
+    set(this = brep::build_class_expr ((?), "" /* comment */))
+
+  // build_constraints
+  //
+  using bpkg::build_constraint;
+  using build_constraints = vector<build_constraint>;
+
+  #pragma db value(build_constraint) definition
+
   // Version comparison operators.
   //
   // They allow comparing objects that have epoch, canonical_upstream,

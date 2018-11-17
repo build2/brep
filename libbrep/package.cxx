@@ -70,6 +70,7 @@ namespace brep
            optional<email_type> bee,
            dependencies_type dp,
            requirements_type rq,
+           build_class_exprs bs,
            build_constraints_type bc,
            optional<path> lc,
            optional<string> fr,
@@ -97,6 +98,7 @@ namespace brep
         build_error_email (move (bee)),
         dependencies (move (dp)),
         requirements (move (rq)),
+        builds (move (bs)),
         build_constraints (version.compare (wildcard_version, true) != 0
                            ? move (bc)
                            : build_constraints_type ()),

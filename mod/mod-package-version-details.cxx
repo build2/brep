@@ -10,8 +10,6 @@
 #include <odb/database.hxx>
 #include <odb/transaction.hxx>
 
-#include <libbutl/utility.mxx> // alpha(), ucase(), lcase()
-
 #include <web/xhtml.hxx>
 #include <web/module.hxx>
 #include <web/mime-url-encoding.hxx>
@@ -390,24 +388,48 @@ handle (request& rq, response& rs)
 
   if (builds)
   {
+    using bbot::build_config;
+
     s << H3 << "Builds" << ~H3
       << DIV(ID="builds");
+
+    auto exclude = [&pkg] (const build_config& cfg, string* reason = nullptr)
+    {
+      return brep::exclude (pkg->builds, pkg->build_constraints, cfg, reason);
+    };
 
     timestamp now (system_clock::now ());
     transaction t (build_db_->begin ());
 
-    // Print built package configurations.
+    // Print built package configurations, except those that are hidden or
+    // excluded by the package.
     //
+    cstrings conf_names;
+
+    for (const auto& c: *build_conf_map_)
+    {
+      if (belongs (*c.second, "all"))
+        conf_names.push_back (c.first);
+    }
+
     using query = query<build>;
 
     for (auto& b: build_db_->query<build> (
            (query::id.package == pkg->id &&
 
-            query::id.configuration.in_range (build_conf_names_->begin (),
-                                              build_conf_names_->end ())) +
+            query::id.configuration.in_range (conf_names.begin (),
+                                              conf_names.end ())) +
 
            "ORDER BY" + query::timestamp + "DESC"))
     {
+      auto i (build_conf_map_->find (b.configuration.c_str ()));
+      assert (i != build_conf_map_->end ());
+
+      const build_config& cfg (*i->second);
+
+      if (exclude (cfg))
+        continue;
+
       string ts (butl::to_string (b.timestamp,
                                   "%Y-%m-%d %H:%M:%S %Z",
                                   true,
@@ -430,42 +452,12 @@ handle (request& rq, response& rs)
         << ~TABLE;
     }
 
-    // Print configurations that are excluded by the package.
+    // Print the package build exclusions that belong to the 'default' class.
     //
-    auto excluded = [&pkg] (const bbot::build_config& c, string& reason)
-    {
-      for (const auto& bc: pkg->build_constraints)
-      {
-        if (match (bc.config, bc.target, c))
-        {
-          if (!bc.exclusion)
-            return false;
-
-          // Save the first sentence of the exclusion comment, lower-case the
-          // first letter if the beginning looks like a word (the second
-          // character is the lower-case letter or space).
-          //
-          reason = bc.comment.substr (0, bc.comment.find ('.'));
-
-          char c;
-          size_t n (reason.size ());
-          if (n > 0 && alpha (c = reason[0]) && c == ucase (c) &&
-              (n == 1 ||
-               (alpha (c = reason[1]) && c == lcase (c)) ||
-               c == ' '))
-            reason[0] = lcase (reason[0]);
-
-          return true;
-        }
-      }
-
-      return false;
-    };
-
     for (const auto& c: *build_conf_)
     {
       string reason;
-      if (excluded (c, reason))
+      if (belongs (c, "default") && exclude (c, &reason))
       {
         s << TABLE(CLASS="proplist build")
           <<   TBODY

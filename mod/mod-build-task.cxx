@@ -328,6 +328,8 @@ handle (request& rq, response& rs)
     using pkg_query = query<buildable_package>;
     using prep_pkg_query = prepared_query<buildable_package>;
 
+    // Exclude archived tenants.
+    //
     pkg_query pq (!pkg_query::build_tenant::archived);
 
     // Filter by repositories canonical names (if requested).

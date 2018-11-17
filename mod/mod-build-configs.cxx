@@ -89,9 +89,10 @@ handle (request& rq, response& rs)
 
   for (const build_config& c: *build_conf_)
   {
-    s << TR(CLASS="config")
-      <<   TD << SPAN(CLASS="value") << c.name << ~SPAN << ~TD
-      << ~TR;
+    if (belongs (c, "all"))
+      s << TR(CLASS="config")
+        <<   TD << SPAN(CLASS="value") << c.name << ~SPAN << ~TD
+        << ~TR;
   }
 
   s <<         ~TBODY

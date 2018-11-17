@@ -69,17 +69,6 @@ namespace brep
     build_repository (): canonical_name (id.canonical_name) {}
   };
 
-  // "Foreign" value type that is mapped to a subset of the build_constraint
-  // value type (see libbpkg/manifest.hxx for details).
-  //
-  #pragma db value
-  struct build_constraint_subset
-  {
-    bool exclusion;
-    string config;
-    optional<string> target;
-  };
-
   // Foreign object that is mapped to a subset of the package object.
   //
   #pragma db object table("build_package") pointer(shared_ptr) readonly
@@ -90,15 +79,21 @@ namespace brep
     upstream_version version;
     lazy_shared_ptr<build_repository> internal_repository;
 
-    // Mapped to a subset of the package object build_constraints member
-    // using the PostgreSQL foreign table mechanism.
+    // Mapped to the package object builds member using the PostgreSQL foreign
+    // table mechanism.
     //
-    vector<build_constraint_subset> constraints;
+    build_class_exprs builds;
+
+    // Mapped to the package object build_constraints member using the
+    // PostgreSQL foreign table mechanism.
+    //
+    build_constraints constraints;
 
     // Database mapping.
     //
     #pragma db member(id) id column("")
     #pragma db member(version) set(this.version.init (this.id.version, (?)))
+    #pragma db member(builds) id_column("") value_column("")
     #pragma db member(constraints) id_column("") value_column("")
 
   private:
@@ -148,29 +143,6 @@ namespace brep
     // Database mapping.
     //
     #pragma db member(result) column("count(" + build_package::id.name + ")")
-  };
-
-  // Packages that have the build constraints. Note that only buildable
-  // (internal and non-stub) packages can have such constraints, so there is
-  // no need for additional checks.
-  //
-  #pragma db view                                                           \
-    table("build_package_constraints" = "c")                                \
-    object(build_package inner:                                             \
-           "c.exclusion AND "                                               \
-           "c.tenant = " + build_package::id.tenant + "AND" +               \
-           "c.name = " + build_package::id.name + "AND" +                   \
-           "c.version_epoch = " + build_package::id.version.epoch + "AND" + \
-           "c.version_canonical_upstream = " +                              \
-             build_package::id.version.canonical_upstream + "AND" +         \
-           "c.version_canonical_release = " +                               \
-             build_package::id.version.canonical_release + "AND" +          \
-           "c.version_revision = " + build_package::id.version.revision)    \
-    object(build_tenant: build_package::id.tenant == build_tenant::id)      \
-    query(distinct)
-  struct build_constrained_package
-  {
-    shared_ptr<build_package> package;
   };
 }
 

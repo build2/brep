@@ -6,6 +6,7 @@
 #define MOD_BUILD_CONFIG_HXX
 
 #include <map>
+#include <algorithm> // find()
 
 #include <libbbot/build-config.hxx>
 
@@ -21,6 +22,8 @@
 //
 namespace brep
 {
+  using bbot::build_config;
+
   // Return pointer to the shared build configurations instance, creating one
   // on the first call. Throw tab_parsing on parsing error, io_error on the
   // underlying OS error. Is not thread-safe.
@@ -52,17 +55,31 @@ namespace brep
   string
   force_rebuild_url (const string& host, const dir_path& root, const build&);
 
-  // Match a build configuration against the name and target patterns.
+  // Check if the configuration belongs to the specified class.
   //
-  bool
-  match (const string& config_pattern,
-         const optional<string>& target_pattern,
-         const bbot::build_config&);
+  inline bool
+  belongs (const build_config& cfg, const char* cls)
+  {
+    const strings& cs (cfg.classes);
+    return find (cs.begin (), cs.end (), cls) != cs.end ();
+  }
 
-  // Return true if a package excludes the specified build configuration.
+  // Return true if the specified build configuration is excluded by a package
+  // based on its underlying build class set, build class expressions, and
+  // build constraints, potentially extending the underlying set with the
+  // special classes. Set the exclusion reason if requested.
   //
   bool
-  exclude (const build_package&, const bbot::build_config&);
+  exclude (const build_class_exprs&,
+           const build_constraints&,
+           const build_config&,
+           string* reason = nullptr);
+
+  inline bool
+  exclude (const build_package& p, const build_config& c, string* r = nullptr)
+  {
+    return exclude (p.builds, p.constraints, c, r);
+  }
 }
 
 #endif // MOD_BUILD_CONFIG_HXX

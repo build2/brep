@@ -225,11 +225,17 @@ handle (request& rq, response&)
 
   // Make sure the build configuration still exists.
   //
-  if (build_conf_map_->find (id.configuration.c_str ()) ==
-      build_conf_map_->end ())
+  const bbot::build_config* cfg;
   {
-    warn_expired ("no build configuration");
-    return true;
+    auto i (build_conf_map_->find (id.configuration.c_str ()));
+
+    if (i == build_conf_map_->end ())
+    {
+      warn_expired ("no build configuration");
+      return true;
+    }
+
+    cfg = i->second;
   }
 
   // Load the built package (if present).
@@ -261,7 +267,8 @@ handle (request& rq, response&)
   // Load and update the package build configuration (if present).
   //
   // NULL if the package build doesn't exist or is not updated for any reason
-  // (authentication failed, etc).
+  // (authentication failed, etc) or the configuration is excluded by the
+  // package.
   //
   shared_ptr<build> bld;
 
@@ -390,7 +397,11 @@ handle (request& rq, response&)
 
         build_db_->update (b);
 
-        bld = move (b);
+        shared_ptr<build_package> p (
+          build_db_->load<build_package> (b->id.package));
+
+        if (belongs (*cfg, "all") && !exclude (*p, *cfg))
+          bld = move (b);
       }
     }
 
