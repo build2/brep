@@ -93,7 +93,7 @@ transform (const string& s)
 
 template <typename T>
 static inline query<T>
-build_query (const brep::cstrings& configs,
+build_query (const brep::cstrings* configs,
              const brep::params::builds& params,
              const brep::optional<brep::string>& tenant,
              const brep::optional<bool>& archived)
@@ -102,8 +102,8 @@ build_query (const brep::cstrings& configs,
   using query = query<T>;
   using qb = typename query::build;
 
-  query q (!configs.empty ()
-           ? qb::id.configuration.in_range (configs.begin (), configs.end ())
+  query q (configs != nullptr
+           ? qb::id.configuration.in_range (configs->begin (), configs->end ())
            : query (true));
 
   const auto& pid (qb::id.package);
@@ -445,10 +445,13 @@ handle (request& rq, response& rs)
   // We will not display hidden configurations, unless the configuration is
   // specified explicitly.
   //
+  bool exclude_hidden (
+    params.configuration ().empty () ||
+    params.configuration ().find_first_of ("*?") != string::npos);
+
   cstrings conf_names;
 
-  if (params.configuration ().empty () ||
-      params.configuration ().find_first_of ("*?") != string::npos)
+  if (exclude_hidden)
   {
     for (const auto& c: *build_conf_map_)
     {
@@ -482,7 +485,7 @@ handle (request& rq, response& rs)
     using prep_query = prepared_query<package_build>;
 
     query q (build_query<package_build> (
-               conf_names, params, tn, nullopt /* archived */));
+               &conf_names, params, tn, nullopt /* archived */));
 
     // Specify the portion. Note that we will be querying builds in chunks,
     // not to hold locks for too long.
@@ -715,7 +718,9 @@ handle (request& rq, response& rs)
 
             // Filter by target.
             //
-            (tg.empty () || path_match (tg, c.target.string ())))
+            (tg.empty () || path_match (tg, c.target.string ())) &&
+
+            (!exclude_hidden || belongs (c, "all"))) // Filter hidden.
         {
           configs.push_back (&c);
 
@@ -750,7 +755,7 @@ handle (request& rq, response& rs)
 
       size_t ncur = build_db_->query_value<package_build_count> (
         build_query<package_build_count> (
-          conf_names, bld_params, tn, false /* archived */));
+          &conf_names, bld_params, tn, false /* archived */));
 
       // From now we will be using specific package name and version for each
       // build database query.
@@ -777,10 +782,10 @@ handle (request& rq, response& rs)
           package_id_eq<package_build_count> (bid.package, id) &&
           bid.configuration == bld_query::_ref (config)        &&
 
-          // Note that the query already constrains the tenant via the build
-          // package id.
+          // Note that the query already constrains configurations via the
+          // configuration name and the tenant via the build package id.
           //
-          build_query<package_build_count> (cstrings () /* configs */,
+          build_query<package_build_count> (nullptr /* configs */,
                                             bld_params,
                                             nullopt /* tenant */,
                                             false /* archived */));
@@ -892,7 +897,7 @@ handle (request& rq, response& rs)
       // package id.
       //
       build_query<package_build> (
-        conf_names, bld_params, nullopt /* tenant */, false /* archived */));
+        &conf_names, bld_params, nullopt /* tenant */, false /* archived */));
 
     prep_bld_query bld_prep_query (
       conn->prepare_query<package_build> ("mod-builds-build-query", bq));
