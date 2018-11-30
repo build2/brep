@@ -245,27 +245,27 @@ namespace brep
 
     // Now check if the configuration is excluded/included via the patterns.
     //
-    // To implement matching of absent name components with wildcard-only name
-    // components we are going to convert names into paths (see
-    // from_build_config_name() for details).
+    // To implement matching of absent name components with wildcard-only
+    // pattern components we are going to convert names to paths (see
+    // dash_components_to_path() for details).
     //
     // And if any of the build-{include,exclude} values (which is legal) or
-    // the build configuration name/target (illegal) are invalid paths,
-    // then we assume no match.
+    // the build configuration name/target (illegal) are invalid paths, then
+    // we assume no match.
     //
     try
     {
-      path cn (from_build_config_name (cfg.name));
-      path tg (from_build_config_name (cfg.target.string ()));
+      path cn (dash_components_to_path (cfg.name));
+      path tg (dash_components_to_path (cfg.target.string ()));
 
       for (const build_constraint& c: constrs)
       {
-        if (path_match (from_build_config_name (c.config),
+        if (path_match (dash_components_to_path (c.config),
                         cn,
                         dir_path () /* start */,
                         path_match_flags::match_absent) &&
             (!c.target ||
-             path_match (from_build_config_name (*c.target),
+             path_match (dash_components_to_path (*c.target),
                          tg,
                          dir_path () /* start */,
                          path_match_flags::match_absent)))
@@ -286,7 +286,7 @@ namespace brep
   }
 
   path
-  from_build_config_name (const string& s)
+  dash_components_to_path (const string& s)
   {
     string r;
     for (size_t i (0); i != s.size (); ++i)

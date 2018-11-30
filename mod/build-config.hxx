@@ -81,16 +81,18 @@ namespace brep
     return exclude (p.builds, p.constraints, c, r);
   }
 
-  // Convert the build configuration name, target, machine name or their
-  // pattern into path, replacing dashes with slashes and double stars with
-  // the `*/**/*` substring for a subsequent match using our path_match()
-  // functionality. Throw invalid_path if the resulting path is invalid.
+  // Convert dash-separated components (target, build configuration name,
+  // machine name) or a pattern thereof into a path, replacing dashes with
+  // slashes (directory separators) and `**` with `*/**/*`, for a subsequent
+  // match using the path_match() functionality (the idea here is for
+  // `linux**` to match `linux-gcc` which is quite natural to expect). Throw
+  // invalid_path if the resulting path is invalid.
   //
-  // Note that it is assumed that the match_absent path match flag will be
-  // used for matching for the double star replacement to make sense.
+  // Note that the match_absent path match flag must be used for the above
+  // `**` transformation to work.
   //
   path
-  from_build_config_name (const string&);
+  dash_components_to_path (const string&);
 }
 
 #endif // MOD_BUILD_CONFIG_HXX
