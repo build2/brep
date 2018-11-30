@@ -154,10 +154,19 @@ handle (request& rq, response& rs)
   {
     for (auto& m: tqm.machines)
     {
-      if (path_match (c.machine_pattern, m.name) &&
-          cfg_machines.insert (
-            make_pair (c.name.c_str (), config_machine ({&c, &m}))).second)
-        cfg_names.push_back (c.name.c_str ());
+      // The same story as in exclude() from build-config.cxx.
+      //
+      try
+      {
+        if (path_match (from_build_config_name (c.machine_pattern),
+                        from_build_config_name (m.name),
+                        dir_path () /* start */,
+                        path_match_flags::match_absent) &&
+            cfg_machines.insert (
+              make_pair (c.name.c_str (), config_machine ({&c, &m}))).second)
+          cfg_names.push_back (c.name.c_str ());
+      }
+      catch (const invalid_path&) {}
     }
   }
 

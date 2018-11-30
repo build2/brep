@@ -6,7 +6,7 @@
 
 #include <map>
 #include <sstream>
-#include <algorithm> // find()
+#include <algorithm> // replace()
 
 #include <libbutl/sha256.mxx>
 #include <libbutl/utility.mxx>    // throw_generic_error(), alpha(), etc.
@@ -245,24 +245,78 @@ namespace brep
 
     // Now check if the configuration is excluded/included via the patterns.
     //
-    const string& cn (cfg.name);
-    string tg (cfg.target.string ());
-
-    for (const build_constraint& c: constrs)
+    // To implement matching of absent name components with wildcard-only name
+    // components we are going to convert names into paths (see
+    // from_build_config_name() for details).
+    //
+    // And if any of the build-{include,exclude} values (which is legal) or
+    // the build configuration name/target (illegal) are invalid paths,
+    // then we assume no match.
+    //
+    try
     {
-      if (path_match (c.config, cn) &&
-          (!c.target || path_match (*c.target, tg)))
+      path cn (from_build_config_name (cfg.name));
+      path tg (from_build_config_name (cfg.target.string ()));
+
+      for (const build_constraint& c: constrs)
       {
-        if (!c.exclusion)
-          return false;
+        if (path_match (from_build_config_name (c.config),
+                        cn,
+                        dir_path () /* start */,
+                        path_match_flags::match_absent) &&
+            (!c.target ||
+             path_match (from_build_config_name (*c.target),
+                         tg,
+                         dir_path () /* start */,
+                         path_match_flags::match_absent)))
+        {
+          if (!c.exclusion)
+            return false;
 
-        if (reason != nullptr)
-          *reason = sanitize (c.comment);
+          if (reason != nullptr)
+            *reason = sanitize (c.comment);
 
-        return true;
+          return true;
+        }
+      }
+    }
+    catch (const invalid_path&) {}
+
+    return false;
+  }
+
+  path
+  from_build_config_name (const string& s)
+  {
+    string r;
+    for (size_t i (0); i != s.size (); ++i)
+    {
+      char c (s[i]);
+
+      switch (c)
+      {
+      case '-':
+        {
+          r += '/';
+          break;
+        }
+      case '*':
+        {
+          if (s[i + 1] == '*') // Can be '\0'.
+          {
+            r += "*/**/*";
+            ++i;
+            break;
+          }
+        }
+      default:
+        {
+          r += c;
+          break;
+        }
       }
     }
 
-    return false;
+    return path (move (r));
   }
 }

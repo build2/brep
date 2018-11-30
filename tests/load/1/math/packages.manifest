@@ -13,10 +13,10 @@ email: users@exp.example.com
 build-email: builds@exp.example.com
 depends: libmisc
 depends: libpq >= 9.0.0
-build-exclude: *; Only supported on Linux.
-build-include: linux*
+build-include: windows**d/x86_64**
+build-exclude: **; Only supported on Windows.
 location: libexp-+2-1.2+1.tar.gz
-sha256sum: 9449cb008ca8cc3b91fbe5c44ae87f0e10fd24ff453bb88cf4504dabe2068eb3
+sha256sum: 6dc3ef269d7f50af2c234c51407eb5622e7395af8bf50a5f75880688c064b79b
 :
 name: libfoo
 version: +0-X.Y

@@ -829,12 +829,12 @@ test_pkg_repos (const cstrings& loader_args,
     assert (
       epv->build_constraints ==
       build_constraints ({
-          build_constraint (true, "*", nullopt, "Only supported on Linux."),
-            build_constraint (false, "linux*", nullopt, "")}));
+        build_constraint (false, "windows**d", "x86_64**", ""),
+        build_constraint (true, "**", nullopt, "Only supported on Windows.")}));
 
     assert (check_location (epv));
     assert (epv->sha256sum && *epv->sha256sum ==
-            "9449cb008ca8cc3b91fbe5c44ae87f0e10fd24ff453bb88cf4504dabe2068eb3");
+            "6dc3ef269d7f50af2c234c51407eb5622e7395af8bf50a5f75880688c064b79b");
 
     // Verify libpq package version.
     //
