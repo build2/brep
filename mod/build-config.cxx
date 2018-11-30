@@ -309,6 +309,7 @@ namespace brep
             break;
           }
         }
+        // Fall through.
       default:
         {
           r += c;
