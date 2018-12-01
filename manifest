@@ -12,12 +12,14 @@ doc-url: https://build2.org/doc.xhtml
 src-url: https://git.build2.org/cgit/brep/tree/
 email: users@build2.org
 build-email: builds@build2.org
-build-exclude: *linux*   ; Requires system packages.
-build-exclude: *freebsd* ; Requires system packages.
-build-exclude: *         ; Only supports Linux and FreeBSD.
+#builds: linux freebsd   ; Only supports Linux and FreeBSD.
+#builds: -linux -freebsd ; Requires system packages.
+build-exclude: linux**   ; Requires system packages.
+build-exclude: freebsd** ; Requires system packages.
+build-exclude: **        ; Only supports Linux and FreeBSD.
 requires: c++14
 requires: postgresql >= 9.0
-requires: apache2; Including development files (httpd.h header, etc).
+requires: apache2 ; Including development files (httpd.h header, etc).
 depends: * build2 >= 0.8.0-
 depends: * bpkg >= 0.8.0-
 # @@ Should probably become conditional dependency.
