@@ -83,10 +83,11 @@ namespace brep
 
   // Convert dash-separated components (target, build configuration name,
   // machine name) or a pattern thereof into a path, replacing dashes with
-  // slashes (directory separators) and `**` with `*/**/*`, for a subsequent
-  // match using the path_match() functionality (the idea here is for
-  // `linux**` to match `linux-gcc` which is quite natural to expect). Throw
-  // invalid_path if the resulting path is invalid.
+  // slashes (directory separators), `**` with `*/**/*`, and appending the
+  // trailing slash for a subsequent match using the path_match()
+  // functionality (the idea here is for `linux**` to match `linux-gcc` which
+  // is quite natural to expect). Throw invalid_path if the resulting path is
+  // invalid.
   //
   // Note that the match_absent path match flag must be used for the above
   // `**` transformation to work.

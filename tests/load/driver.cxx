@@ -830,11 +830,12 @@ test_pkg_repos (const cstrings& loader_args,
       epv->build_constraints ==
       build_constraints ({
         build_constraint (false, "windows**d", "x86_64**", ""),
+        build_constraint (false, "windows-vc_13**", nullopt, ""),
         build_constraint (true, "**", nullopt, "Only supported on Windows.")}));
 
     assert (check_location (epv));
     assert (epv->sha256sum && *epv->sha256sum ==
-            "6dc3ef269d7f50af2c234c51407eb5622e7395af8bf50a5f75880688c064b79b");
+            "4f476dab0cd13d4c7a4676b50180e66a9a10a65f92a3d335b8227a9a8ca58e21");
 
     // Verify libpq package version.
     //

@@ -318,6 +318,17 @@ namespace brep
       }
     }
 
+    // Append the trailing slash to match the resulting paths as directories.
+    // This is required for the trailing /* we could append to match absent
+    // directory path components (see path_match_flags::match_absent for
+    // details).
+    //
+    // Note that valid dash components may not contain a trailing dash.
+    // Anyway, any extra trailing slashes will be ignored by the path
+    // constructor.
+    //
+    r += '/';
+
     return path (move (r));
   }
 }

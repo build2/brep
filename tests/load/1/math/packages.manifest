@@ -13,10 +13,12 @@ email: users@exp.example.com
 build-email: builds@exp.example.com
 depends: libmisc
 depends: libpq >= 9.0.0
+builds: default legacy
 build-include: windows**d/x86_64**
+build-include: windows-vc_13**
 build-exclude: **; Only supported on Windows.
 location: libexp-+2-1.2+1.tar.gz
-sha256sum: 6dc3ef269d7f50af2c234c51407eb5622e7395af8bf50a5f75880688c064b79b
+sha256sum: 4f476dab0cd13d4c7a4676b50180e66a9a10a65f92a3d335b8227a9a8ca58e21
 :
 name: libfoo
 version: +0-X.Y
