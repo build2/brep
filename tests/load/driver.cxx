@@ -829,7 +829,8 @@ test_pkg_repos (const cstrings& loader_args,
     assert (
       epv->build_constraints ==
       build_constraints ({
-        build_constraint (false, "windows**d", "x86_64**", ""),
+          build_constraint (
+            false, "windows**d", optional<string> ("x86_64**"), ""),
         build_constraint (false, "windows-vc_13**", nullopt, ""),
         build_constraint (true, "**", nullopt, "Only supported on Windows.")}));
 
