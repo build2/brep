@@ -286,10 +286,10 @@ namespace brep
 
     class search
     {
-      uint16_t search-results = 20
+      uint16_t search-page-entries = 20
       {
         "<num>",
-        "Number of package search results per page. The default is 20."
+        "Number of packages per page. The default is 20."
       }
 
       uint16_t search-pages = 5
@@ -385,10 +385,10 @@ namespace brep
 
     class builds: build, package_db, build_db, page, handler
     {
-      uint16_t build-configurations = 20
+      uint16_t build-page-entries = 20
       {
         "<num>",
-        "Number of package build configurations per page. The default is 20."
+        "Number of builds per page. The default is 20."
       }
 
       uint16_t build-pages = 5
@@ -400,6 +400,17 @@ namespace brep
 
     class build_configs: build, page, handler
     {
+      uint16_t build-config-page-entries = 20
+      {
+        "<num>",
+        "Number of build configurations per page. The default is 20."
+      }
+
+      uint16_t build-config-pages = 5
+      {
+        "<num>",
+        "Number of pages in navigation (pager). The default is 5."
+      }
     };
 
     class submit: page, handler
@@ -727,8 +738,9 @@ namespace brep
 
     class build_configs
     {
-      // No parameters so far.
+      // Display build configurations list starting from this page.
       //
+      uint16_t page | p;
     };
 
     // Parameters, except simulate, must either be all present (actual

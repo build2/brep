@@ -59,21 +59,24 @@ handle (request& rq, response& rs)
   if (build_conf_ == nullptr)
     throw invalid_request (501, "not implemented");
 
+  const size_t page_configs (options_->build_config_page_entries ());
   const dir_path& root (options_->root ());
 
-  // Make sure no parameters passed.
-  //
+  params::build_configs params;
+
   try
   {
     name_value_scanner s (rq.parameters (1024));
-    params::build_configs (s, unknown_mode::fail, unknown_mode::fail);
+    params = params::build_configs (s, unknown_mode::fail, unknown_mode::fail);
   }
   catch (const cli::exception& e)
   {
     throw invalid_request (400, e.what ());
   }
 
-  static const string title ("Build Configurations");
+  size_t page (params.page ());
+
+  const char* title ("Build Configurations");
   xml::serializer s (rs.content (), title);
 
   s << HTML
@@ -83,20 +86,71 @@ handle (request& rq, response& rs)
     <<   ~HEAD
     <<   BODY
     <<     DIV_HEADER (options_->logo (), options_->menu (), root, tenant)
-    <<     DIV(ID="content")
-    <<       TABLE(CLASS="proplist")
-    <<         TBODY;
+    <<     DIV(ID="content");
 
+  // Print build configurations that belong to the 'all' class.
+  //
+  // We will calculate the total configuration count and cache configurations
+  // for printing (skipping an appropriate number of them for page number
+  // greater than one) on the same pass. Note that we need to print the count
+  // before printing the configurations.
+  //
+  size_t count (0);
+  vector<const build_config*> configs;
+  configs.reserve (page_configs);
+
+  size_t skip (page * page_configs);
+  size_t print (page_configs);
   for (const build_config& c: *build_conf_)
   {
     if (belongs (c, "all"))
-      s << TR(CLASS="config")
-        <<   TD << SPAN(CLASS="value") << c.name << ~SPAN << ~TD
-        << ~TR;
+    {
+      if (skip != 0)
+        --skip;
+      else if (print != 0)
+      {
+        configs.emplace_back (&c);
+        --print;
+      }
+
+      ++count;
+    }
   }
 
-  s <<         ~TBODY
-    <<       ~TABLE
+  // Print configuration count.
+  //
+  s << DIV_COUNTER (count, "Build Configuration", title);
+
+  // Finally, print the cached build configurations.
+  //
+  // Enclose the subsequent tables to be able to use nth-child CSS selector.
+  //
+  s << DIV;
+  for (const build_config* c: configs)
+  {
+    string classes;
+    for (const string& cls: c->classes)
+    {
+      if (!classes.empty ())
+        classes += ' ';
+      classes += cls;
+    }
+
+    s << TABLE(CLASS="proplist config")
+      <<   TBODY
+      <<     TR_VALUE ("name", c->name)
+      <<     TR_VALUE ("target", c->target.string ())
+      <<     TR_VALUE ("classes", classes)
+      <<   ~TBODY
+      << ~TABLE;
+  }
+  s << ~DIV;
+
+  s <<       DIV_PAGER (page,
+                        count,
+                        page_configs,
+                        options_->build_config_pages (),
+                        root.string () + "?build-configs")
     <<     ~DIV
     <<   ~BODY
     << ~HTML;

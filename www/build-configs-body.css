@@ -1,6 +1,56 @@
-tr.config td .value
+/*
+ * Config count.
+ */
+#count
+{
+  font-size: 1.32em;
+  line-height: 1.4em;
+  color: #555;
+
+  margin: 1.2em 0 0 0;
+}
+
+/*
+ * Config table.
+ */
+.config
+{
+  margin-top: .8em;
+  margin-bottom: .8em;
+
+  padding-top: .4em;
+  padding-bottom: .4em;
+}
+.config:nth-child(even) {background-color: rgba(0, 0, 0, 0.07);}
+
+.config th
+{
+  width: 5.7em;
+}
+
+.config tr.name td .value,
+.config tr.target td .value,
+.config tr.classes td .value
 {
   /* <code> style. */
   font-family: monospace;
   font-size: 0.94em;
+}
+
+/* Re-styling of the classes row not to truncate the class list. */
+
+.classes th
+{
+  vertical-align: top;
+}
+
+.classes td
+{
+  flex-wrap: wrap;
+  -webkit-flex-wrap: wrap;
+}
+
+.classes td .value
+{
+  white-space: normal;
 }

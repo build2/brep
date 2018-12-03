@@ -86,7 +86,7 @@ handle (request& rq, response& rs)
 
   HANDLER_DIAG;
 
-  const size_t res_page (options_->search_results ());
+  const size_t res_page (options_->search_page_entries ());
   const dir_path& root (options_->root ());
   const string& title (options_->search_title ());
   const string& tenant_name (options_->tenant_name ());

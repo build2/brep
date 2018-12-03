@@ -292,7 +292,7 @@ handle (request& rq, response& rs)
   if (build_db_ == nullptr)
     throw invalid_request (501, "not implemented");
 
-  const size_t page_configs (options_->build_configurations ());
+  const size_t page_configs (options_->build_page_entries ());
   const string& host (options_->host ());
   const dir_path& root (options_->root ());
   const string& tenant_name (options_->tenant_name ());
@@ -478,6 +478,7 @@ handle (request& rq, response& rs)
     //
     count = 0;
     vector<shared_ptr<build>> builds;
+    builds.reserve (page_configs);
 
     // Prepare the package build prepared query.
     //

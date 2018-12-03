@@ -75,7 +75,7 @@ handle (request& rq, response& rs)
 
   HANDLER_DIAG;
 
-  const size_t res_page (options_->search_results ());
+  const size_t res_page (options_->search_page_entries ());
   const dir_path& root (options_->root ());
 
   params::package_details params;
