@@ -157,21 +157,34 @@ namespace brep
            string* reason)
   {
     // Save the first sentence of the reason, lower-case the first letter if
-    // the beginning looks like a word (the second character is the
-    // lower-case letter or space).
+    // the beginning looks like a word (all subsequent characters until a
+    // whitespace are lower-case letters).
     //
     auto sanitize = [] (const string& reason)
     {
       string r (reason.substr (0, reason.find ('.')));
 
-      char c;
-      size_t n (r.size ());
+      char c (r[0]); // Can be '\0'.
+      if (alpha (c) && c == ucase (c))
+      {
+        bool word (true);
 
-      if (n > 0            &&
-          alpha (c = r[0]) &&
-          c == ucase (c)   &&
-          (n == 1 || (alpha (c = r[1]) && c == lcase (c)) || c == ' '))
-        r[0] = lcase (r[0]);
+        for (size_t i (1);
+             i != r.size () && (c = r[i]) != ' ' && c != '\t' && c != '\n';
+             ++i)
+        {
+          // Is not a word if contains a non-letter or an upper-case letter.
+          //
+          if (!alpha (c) || c == ucase (c))
+          {
+            word = false;
+            break;
+          }
+        }
+
+        if (word)
+          r[0] = lcase (r[0]);
+      }
 
       return r;
     };
