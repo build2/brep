@@ -6,9 +6,11 @@ version: 1.0
 summary: The Foo Library
 license: MIT
 build-email: foo-builds@example.com
-builds: default legacy : -32; 64-bit targets only
+builds: default legacy; Stable configurations only.
+builds: -32; 64-bit targets only
+builds: &msvc_13_up; Not too old MSVC.
 location: libfoo-1.0.tar.gz
-sha256sum: 3d32793e7b800837682ffa1dad794df7c9e2bb7a54504552a5bd261b5ec064e5
+sha256sum: e89c6d746f8b1ea3ec58d294946d2f683d133438d2ac8c88549ba24c19627e76
 :
 name: libfoo
 version: 1.2.2-alpha.1

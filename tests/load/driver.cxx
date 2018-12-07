@@ -405,7 +405,7 @@ test_pkg_repos (const cstrings& loader_args,
     assert (check_location (fpv1));
 
     assert (fpv1->sha256sum && *fpv1->sha256sum ==
-            "3d32793e7b800837682ffa1dad794df7c9e2bb7a54504552a5bd261b5ec064e5");
+            "e89c6d746f8b1ea3ec58d294946d2f683d133438d2ac8c88549ba24c19627e76");
 
     // libfoo-1.2.2
     //

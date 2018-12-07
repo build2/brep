@@ -10,10 +10,12 @@
 
 #include <mod/options.hxx>
 #include <mod/database-module.hxx>
+#include <mod/build-config-module.hxx>
 
 namespace brep
 {
-  class package_version_details: public database_module
+  class package_version_details: public database_module,
+                                 private build_config_module
   {
   public:
     package_version_details () = default;

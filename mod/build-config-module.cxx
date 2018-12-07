@@ -1,30 +1,31 @@
-// file      : mod/build-config.cxx -*- C++ -*-
+// file      : mod/build-config-module.cxx -*- C++ -*-
 // copyright : Copyright (c) 2014-2018 Code Synthesis Ltd
 // license   : MIT; see accompanying LICENSE file
 
-#include <mod/build-config.hxx>
+#include <mod/build-config-module.hxx>
+
+#include <errno.h> // EIO
 
 #include <map>
 #include <sstream>
-#include <algorithm> // replace()
 
 #include <libbutl/sha256.mxx>
 #include <libbutl/utility.mxx>    // throw_generic_error(), alpha(), etc.
 #include <libbutl/openssl.mxx>
 #include <libbutl/filesystem.mxx>
 
-#include <web/mime-url-encoding.hxx>
-
-#include <mod/utility.hxx>
-
 namespace brep
 {
   using namespace std;
-  using namespace web;
   using namespace butl;
+  using namespace bpkg;
   using namespace bbot;
 
-  shared_ptr<const build_configs>
+  // Return pointer to the shared build configurations instance, creating one
+  // on the first call. Throw tab_parsing on parsing error, io_error on the
+  // underlying OS error. Note: not thread-safe.
+  //
+  static shared_ptr<const build_configs>
   shared_build_config (const path& p)
   {
     static map<path, weak_ptr<build_configs>> configs;
@@ -43,19 +44,25 @@ namespace brep
     return c;
   }
 
-  shared_ptr<const bot_agent_keys>
+  // Return pointer to the shared build bot agent public keys map, creating
+  // one on the first call. Throw system_error on the underlying openssl or OS
+  // error. Note: not thread-safe.
+  //
+  using bot_agent_key_map = map<string, path>;
+
+  static shared_ptr<const bot_agent_key_map>
   shared_bot_agent_keys (const options::openssl_options& o, const dir_path& d)
   {
-    static map<dir_path, weak_ptr<bot_agent_keys>> keys;
+    static map<dir_path, weak_ptr<bot_agent_key_map>> keys;
 
     auto i (keys.find (d));
     if (i != keys.end ())
     {
-      if (shared_ptr<bot_agent_keys> k = i->second.lock ())
+      if (shared_ptr<bot_agent_key_map> k = i->second.lock ())
         return k;
     }
 
-    shared_ptr<bot_agent_keys> ak (make_shared<bot_agent_keys> ());
+    shared_ptr<bot_agent_key_map> ak (make_shared<bot_agent_key_map> ());
 
     // Intercept exception handling to make error descriptions more
     // informative.
@@ -111,50 +118,55 @@ namespace brep
     return ak;
   }
 
-  string
-  build_log_url (const string& host, const dir_path& root,
-                 const build& b,
-                 const string* op)
+  void build_config_module::
+  init (const options::build& bo)
   {
-    // Note that '+' is the only package version character that potentially
-    // needs to be url-encoded, and only in the query part of the URL. We embed
-    // the package version into the URL path part and so don't encode it.
-    //
-    string url (host + tenant_dir (root, b.tenant).representation () +
-                mime_url_encode (b.package_name.string (), false) + '/' +
-                b.package_version.string () + "/log/" +
-                mime_url_encode (b.configuration, false) + '/' +
-                b.toolchain_version.string ());
-
-    if (op != nullptr)
+    try
     {
-      url += '/';
-      url += *op;
+      build_conf_ = shared_build_config (bo.build_config ());
+    }
+    catch (const io_error& e)
+    {
+      ostringstream os;
+      os << "unable to read build configuration '" << bo.build_config ()
+         << "': " << e;
+
+      throw_generic_error (EIO, os.str ().c_str ());
     }
 
-    return url;
+    if (bo.build_bot_agent_keys_specified ())
+      bot_agent_key_map_ =
+        shared_bot_agent_keys (bo, bo.build_bot_agent_keys ());
+
+    cstrings conf_names;
+
+    using conf_map_type = map<const char*,
+                              const build_config*,
+                              compare_c_string>;
+
+    conf_map_type conf_map;
+
+    for (const auto& c: *build_conf_)
+    {
+      const char* cn (c.name.c_str ());
+      conf_map[cn] = &c;
+      conf_names.push_back (cn);
+    }
+
+    build_conf_names_ = make_shared<cstrings> (move (conf_names));
+    build_conf_map_ = make_shared<conf_map_type> (move (conf_map));
   }
 
-  string
-  force_rebuild_url (const string& host, const dir_path& root, const build& b)
-  {
-    // Note that '+' is the only package version character that potentially
-    // needs to be url-encoded, and only in the query part of the URL. However
-    // we embed the package version into the URL query part, where it is not
-    // encoded by design.
-    //
-    return host + tenant_dir (root, b.tenant).string () +
-      "?build-force&pn=" + mime_url_encode (b.package_name.string ()) +
-      "&pv=" + b.package_version.string () +
-      "&cf=" + mime_url_encode (b.configuration) +
-      "&tc=" + b.toolchain_version.string () + "&reason=";
-  }
+  // The default underlying class set expression (see below).
+  //
+  static const build_class_expr default_ucs_expr (
+    {"default"}, '+', "Default.");
 
-  bool
-  exclude (const build_class_exprs& exprs,
-           const build_constraints& constrs,
+  bool build_config_module::
+  exclude (const vector<build_class_expr>& exprs,
+           const vector<build_constraint>& constrs,
            const build_config& cfg,
-           string* reason)
+           string* reason) const
   {
     // Save the first sentence of the reason, lower-case the first letter if
     // the beginning looks like a word (all subsequent characters until a
@@ -189,50 +201,29 @@ namespace brep
       return r;
     };
 
-    bool r (false);
-
     // First, match the configuration against the package underlying build
     // class set and expressions.
     //
-    // Determine the underlying class set. Note that in the future we can
-    // potentially extend the underlying set with the special classes.
-    //
-    build_class_expr ucs (
-      !exprs.empty () && !exprs.front ().underlying_classes.empty ()
-      ? exprs.front ()
-      : build_class_expr ("default", "Default"));
+    bool m (false);
 
-    // Transform the combined package build configuration class expression,
-    // making the underlying class set a starting set for the original
-    // expression and a restricting set, simultaneously. For example, for the
-    // expression:
+    // Match the configuration against an expression, updating the match
+    // result.
     //
-    // default legacy : -msvc
-    //
-    // the resulting expression will be:
-    //
-    // +default +legacy -msvc &( +default +legacy )
-    //
-    //
-    build_class_exprs es;
-    es.emplace_back (ucs.underlying_classes, '+', ucs.comment);
-    es.insert       (es.end (), exprs.begin (), exprs.end ());
-    es.emplace_back (ucs.underlying_classes, '&', ucs.comment);
-
     // We will use a comment of the first encountered excluding expression
     // (changing the result from true to false) or non-including one (leaving
     // the false result) as an exclusion reason.
     //
-    for (const build_class_expr& e: es)
+    auto match = [&cfg, &m, reason, &sanitize, this]
+                 (const build_class_expr& e)
     {
-      bool pr (r);
-      e.match (cfg.classes, r);
+      bool pm (m);
+      e.match (cfg.classes, build_conf_->class_inheritance_map, m);
 
       if (reason != nullptr)
       {
         // Reset the reason which, if saved, makes no sense anymore.
         //
-        if (r)
+        if (m)
         {
           reason->clear ();
         }
@@ -240,7 +231,7 @@ namespace brep
                  //
                  // Exclusion.
                  //
-                 (pr              ||
+                 (pm              ||
                   //
                   // Non-inclusion. Make sure that the build class expression
                   // is empty or starts with an addition (+...).
@@ -251,9 +242,54 @@ namespace brep
           *reason = sanitize (e.comment);
         }
       }
+    };
+
+    // Determine the underlying class set. Note that in the future we can
+    // potentially extend the underlying set with special classes.
+    //
+    const build_class_expr* ucs (
+      !exprs.empty () && !exprs.front ().underlying_classes.empty ()
+      ? &exprs.front ()
+      : nullptr);
+
+    // Note that the combined package build configuration class expression can
+    // be represented as the underlying class set used as a starting set for
+    // the original expressions and a restricting set, simultaneously. For
+    // example, for the expression:
+    //
+    // default legacy : -msvc
+    //
+    // the resulting expression will be:
+    //
+    // +( +default +legacy ) -msvc &( +default +legacy )
+    //
+    // Let's, however, optimize it a bit based on the following facts:
+    //
+    // - If the underlying class set expression (+default +legacy in the above
+    //   example) evaluates to false, then the resulting expression also
+    //   evaluates to false due to the trailing '&' operation. Thus, we don't
+    //   need to evaluate further if that's the case.
+    //
+    // - On the other hand, if the underlying class set expression evaluates
+    //   to true, then we don't need to apply the trailing '&' operation as it
+    //   cannot affect the result.
+    //
+    const build_class_expr& ucs_expr (
+      ucs != nullptr
+      ? build_class_expr (ucs->underlying_classes, '+', ucs->comment)
+      : default_ucs_expr);
+
+    match (ucs_expr);
+
+    if (m)
+    {
+      for (const build_class_expr& e: exprs)
+        match (e);
     }
 
-    if (!r)
+    // Exclude the configuration if it doesn't match the compound expression.
+    //
+    if (!m)
       return true;
 
     // Now check if the configuration is excluded/included via the patterns.
@@ -266,6 +302,7 @@ namespace brep
     // the build configuration name/target (illegal) are invalid paths, then
     // we assume no match.
     //
+    if (!constrs.empty ())
     try
     {
       path cn (dash_components_to_path (cfg.name));
@@ -298,7 +335,7 @@ namespace brep
     return false;
   }
 
-  path
+  path build_config_module::
   dash_components_to_path (const string& s)
   {
     string r;

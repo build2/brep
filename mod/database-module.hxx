@@ -5,20 +5,13 @@
 #ifndef MOD_DATABASE_MODULE_HXX
 #define MOD_DATABASE_MODULE_HXX
 
-#include <map>
-
 #include <odb/forward.hxx> // database
-
-#include <libbutl/utility.mxx> // compare_c_string
 
 #include <libbrep/types.hxx>
 #include <libbrep/utility.hxx>
 
-#include <libbbot/build-config.hxx>
-
 #include <mod/module.hxx>
 #include <mod/options.hxx>
-#include <mod/build-config.hxx>
 
 namespace brep
 {
@@ -49,12 +42,11 @@ namespace brep
     void
     init (const options::package_db&, size_t retry);
 
-    // Initialize the build database instance and parse build configuration
-    // file. Throw odb::exception on database failure, tab_parsing on parsing
-    // error, system_error on the underlying OS error.
+    // Initialize the build database instance. Throw odb::exception on
+    // database failure.
     //
     void
-    init (const options::build&, const options::build_db&, size_t retry);
+    init (const options::build_db&, size_t retry);
 
     virtual bool
     handle (request&, response&) = 0;
@@ -63,19 +55,7 @@ namespace brep
     size_t retry_ = 0; // Max of all retries.
 
     shared_ptr<odb::core::database> package_db_;
-
-    // These are NULL if not building.
-    //
-    shared_ptr<odb::core::database>       build_db_;
-    shared_ptr<const bbot::build_configs> build_conf_;
-    shared_ptr<const cstrings>            build_conf_names_;
-
-    shared_ptr<const std::map<const char*,
-                              const bbot::build_config*,
-                              butl::compare_c_string>>
-    build_conf_map_;
-
-    shared_ptr<const bot_agent_keys> bot_agent_keys_;
+    shared_ptr<odb::core::database> build_db_;   // NULL if not building.
 
   private:
     virtual bool

@@ -30,6 +30,7 @@ using namespace odb::core;
 brep::build_log::
 build_log (const build_log& r)
     : database_module (r),
+      build_config_module (r),
       options_ (r.initialized_ ? r.options_ : nullptr)
 {
 }
@@ -43,9 +44,12 @@ init (scanner& s)
     s, unknown_mode::fail, unknown_mode::fail);
 
   if (options_->build_config_specified ())
-    database_module::init (static_cast<options::build>    (*options_),
-                           static_cast<options::build_db> (*options_),
+  {
+    database_module::init (static_cast<options::build_db> (*options_),
                            options_->build_db_retry ());
+
+    build_config_module::init (*options_);
+  }
 
   if (options_->root ().empty ())
     options_->root (dir_path ("/"));

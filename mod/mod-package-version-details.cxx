@@ -34,6 +34,7 @@ using namespace brep::cli;
 brep::package_version_details::
 package_version_details (const package_version_details& r)
     : database_module (r),
+      build_config_module (r),
       options_ (r.initialized_ ? r.options_ : nullptr)
 {
 }
@@ -46,12 +47,16 @@ init (scanner& s)
   options_ = make_shared<options::package_version_details> (
     s, unknown_mode::fail, unknown_mode::fail);
 
-  database_module::init (*options_, options_->package_db_retry ());
+  database_module::init (static_cast<options::package_db> (*options_),
+                         options_->package_db_retry ());
 
   if (options_->build_config_specified ())
-    database_module::init (static_cast<options::build>    (*options_),
-                           static_cast<options::build_db> (*options_),
+  {
+    database_module::init (static_cast<options::build_db> (*options_),
                            options_->build_db_retry ());
+
+    build_config_module::init (static_cast<options::build> (*options_));
+  }
 
   if (options_->root ().empty ())
     options_->root (dir_path ("/"));
@@ -393,9 +398,10 @@ handle (request& rq, response& rs)
     s << H3 << "Builds" << ~H3
       << DIV(ID="builds");
 
-    auto exclude = [&pkg] (const build_config& cfg, string* reason = nullptr)
+    auto exclude = [&pkg, this] (const build_config& cfg,
+                                 string* reason = nullptr)
     {
-      return brep::exclude (pkg->builds, pkg->build_constraints, cfg, reason);
+      return this->exclude (pkg->builds, pkg->build_constraints, cfg, reason);
     };
 
     timestamp now (system_clock::now ());

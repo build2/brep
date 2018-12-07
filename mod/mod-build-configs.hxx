@@ -8,14 +8,13 @@
 #include <libbrep/types.hxx>
 #include <libbrep/utility.hxx>
 
-#include <libbbot/build-config.hxx>
-
 #include <mod/module.hxx>
 #include <mod/options.hxx>
+#include <mod/build-config-module.hxx>
 
 namespace brep
 {
-  class build_configs: public handler
+  class build_configs: public handler, private build_config_module
   {
   public:
     build_configs () = default;
@@ -41,7 +40,6 @@ namespace brep
 
   private:
     shared_ptr<options::build_configs> options_;
-    shared_ptr<const bbot::build_configs> build_conf_;
   };
 }
 

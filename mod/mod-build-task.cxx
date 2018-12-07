@@ -45,6 +45,7 @@ using namespace odb::core;
 brep::build_task::
 build_task (const build_task& r)
     : database_module (r),
+      build_config_module (r),
       options_ (r.initialized_ ? r.options_ : nullptr)
 {
 }
@@ -59,8 +60,7 @@ init (scanner& s)
 
   if (options_->build_config_specified ())
   {
-    database_module::init (static_cast<options::build>    (*options_),
-                           static_cast<options::build_db> (*options_),
+    database_module::init (static_cast<options::build_db> (*options_),
                            options_->build_db_retry ());
 
     // Check that the database 'build' schema matches the current one. It's
@@ -72,6 +72,8 @@ init (scanner& s)
         build_db_->schema_version (ds))
       fail << "database 'build' schema differs from the current one (module "
            << BREP_VERSION_ID << ")";
+
+    build_config_module::init (static_cast<options::build> (*options_));
   }
 
   if (options_->root ().empty ())
@@ -124,10 +126,11 @@ handle (request& rq, response& rs)
   //
   optional<string> agent_fp;
 
-  if (bot_agent_keys_ != nullptr)
+  if (bot_agent_key_map_ != nullptr)
   {
     if (!tqm.fingerprint ||
-        bot_agent_keys_->find (*tqm.fingerprint) == bot_agent_keys_->end ())
+        bot_agent_key_map_->find (*tqm.fingerprint) ==
+        bot_agent_key_map_->end ())
       throw invalid_request (401, "unauthorized");
 
     agent_fp = move (tqm.fingerprint);
@@ -220,7 +223,7 @@ handle (request& rq, response& rs)
                           move (fp),
                           cm.machine->name,
                           cm.config->target,
-                          cm.config->vars,
+                          cm.config->args,
                           cm.config->warning_regexes);
 
       return task_response_manifest (move (session),
@@ -476,7 +479,11 @@ handle (request& rq, response& rs)
 
           auto i (configs.begin ());
           auto e (configs.end ());
-          for (; i != e && exclude (*p, *i->second.config); ++i) ;
+
+          for (;
+               i != e &&
+               exclude (p->builds, p->constraints, *i->second.config);
+               ++i) ;
 
           if (i != e)
           {
@@ -632,7 +639,7 @@ handle (request& rq, response& rs)
 
             if (p != nullptr                      &&
                 p->internal_repository != nullptr &&
-                !exclude (*p, *cm.config))
+                !exclude (p->builds, p->constraints, *cm.config))
             {
               assert (b->status);
 

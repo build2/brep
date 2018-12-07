@@ -28,7 +28,6 @@
 
 #include <mod/page.hxx>
 #include <mod/options.hxx>
-#include <mod/build-config.hxx> // *_url()
 
 using namespace std;
 using namespace butl;
@@ -44,6 +43,7 @@ using namespace brep::cli;
 brep::builds::
 builds (const builds& r)
     : database_module (r),
+      build_config_module (r),
       options_ (r.initialized_ ? r.options_ : nullptr)
 {
 }
@@ -57,9 +57,12 @@ init (scanner& s)
     s, unknown_mode::fail, unknown_mode::fail);
 
   if (options_->build_config_specified ())
-    database_module::init (static_cast<options::build>    (*options_),
-                           static_cast<options::build_db> (*options_),
+  {
+    database_module::init (static_cast<options::build_db> (*options_),
                            options_->build_db_retry ());
+
+    build_config_module::init (static_cast<options::build> (*options_));
+  }
 
   if (options_->root ().empty ())
     options_->root (dir_path ("/"));
@@ -550,7 +553,7 @@ handle (request& rq, response& rs)
           // Match the configuration against the package build
           // expressions/constraints.
           //
-          if (!exclude (*p, *i->second))
+          if (!exclude (p->builds, p->constraints, *i->second))
           {
             if (skip != 0)
               --skip;
@@ -813,7 +816,7 @@ handle (request& rq, response& rs)
 
           for (const auto& c: configs)
           {
-            if (exclude (*p, *c))
+            if (exclude (p->builds, p->constraints, *c))
             {
               nmax -= nt;
 
@@ -942,7 +945,7 @@ handle (request& rq, response& rs)
               auto i (build_conf_map_->find (ct.configuration.c_str ()));
               assert (i != build_conf_map_->end ());
 
-              if (!exclude (*p, *i->second))
+              if (!exclude (p->builds, p->constraints, *i->second))
                 unbuilt_configs.insert (ct);
             }
           }

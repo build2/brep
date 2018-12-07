@@ -11,7 +11,6 @@
 
 #include <mod/page.hxx>
 #include <mod/options.hxx>
-#include <mod/build-config.hxx>
 
 using namespace std;
 using namespace bbot;
@@ -24,8 +23,8 @@ using namespace brep::cli;
 brep::build_configs::
 build_configs (const build_configs& r)
     : handler (r),
-      options_ (r.initialized_ ? r.options_ : nullptr),
-      build_conf_ (r.initialized_ ? r.build_conf_ : nullptr)
+      build_config_module (r),
+      options_ (r.initialized_ ? r.options_ : nullptr)
 {
 }
 
@@ -38,15 +37,7 @@ init (scanner& s)
     s, unknown_mode::fail, unknown_mode::fail);
 
   if (options_->build_config_specified ())
-  try
-  {
-    build_conf_ = shared_build_config (options_->build_config ());
-  }
-  catch (const io_error& e)
-  {
-    fail << "unable to read build configuration '"
-         << options_->build_config () << "': " << e;
-  }
+    build_config_module::init (static_cast<options::build> (*options_));
 }
 
 bool brep::build_configs::
@@ -133,7 +124,17 @@ handle (request& rq, response& rs)
     {
       if (!classes.empty ())
         classes += ' ';
+
       classes += cls;
+
+      // Append the base class, if present.
+      //
+      auto i (build_conf_->class_inheritance_map.find (cls));
+      if (i != build_conf_->class_inheritance_map.end ())
+      {
+        classes += ':';
+        classes += i->second;
+      }
     }
 
     s << TABLE(CLASS="proplist config")

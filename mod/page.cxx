@@ -18,8 +18,8 @@
 #include <libbrep/package.hxx>
 #include <libbrep/package-odb.hxx>
 
+#include <mod/build.hxx>   // build_log_url()
 #include <mod/utility.hxx>
-#include <mod/build-config.hxx> // build_log_url()
 
 using namespace std;
 using namespace xml;
@@ -718,7 +718,7 @@ namespace brep
       s << SPAN(CLASS="pending") << "pending" << ~SPAN;
     else
       s << A
-        <<   HREF << force_rebuild_url (host_, root_, build_) << ~HREF
+        <<   HREF << build_force_url (host_, root_, build_) << ~HREF
         <<   "rebuild"
         << ~A;
 

@@ -23,8 +23,8 @@
 #include <libbrep/package.hxx>
 #include <libbrep/package-odb.hxx>
 
+#include <mod/build.hxx>   // *_url()
 #include <mod/options.hxx>
-#include <mod/build-config.hxx> // *_url()
 
 using namespace std;
 using namespace butl;
@@ -39,6 +39,7 @@ using namespace odb::core;
 brep::build_result::
 build_result (const build_result& r)
     : database_module (r),
+      build_config_module (r),
       options_ (r.initialized_ ? r.options_ : nullptr)
 {
 }
@@ -55,9 +56,12 @@ init (scanner& s)
                          options_->package_db_retry ());
 
   if (options_->build_config_specified ())
-    database_module::init (static_cast<options::build>    (*options_),
-                           static_cast<options::build_db> (*options_),
+  {
+    database_module::init (static_cast<options::build_db> (*options_),
                            options_->build_db_retry ());
+
+    build_config_module::init (static_cast<options::build> (*options_));
+  }
 
   if (options_->root ().empty ())
     options_->root (dir_path ("/"));
@@ -312,18 +316,18 @@ handle (request& rq, response&)
         warn_auth (rqm.challenge
                    ? "unexpected challenge"
                    : "challenge is expected");
-      else if (bot_agent_keys_ == nullptr) // Authentication is disabled.
+      else if (bot_agent_key_map_ == nullptr) // Authentication is disabled.
         auth = true;
       else if (!b->agent_challenge) // Authentication is recently enabled.
         warn_auth ("challenge is required now");
       else
       {
         assert (b->agent_fingerprint && rqm.challenge);
-        auto i (bot_agent_keys_->find (*b->agent_fingerprint));
+        auto i (bot_agent_key_map_->find (*b->agent_fingerprint));
 
         // The agent's key is recently replaced.
         //
-        if (i == bot_agent_keys_->end ())
+        if (i == bot_agent_key_map_->end ())
           warn_auth ("agent's public key not found");
         else
         {
@@ -400,7 +404,8 @@ handle (request& rq, response&)
         shared_ptr<build_package> p (
           build_db_->load<build_package> (b->id.package));
 
-        if (belongs (*cfg, "all") && !exclude (*p, *cfg))
+        if (belongs (*cfg, "all") &&
+            !exclude (p->builds, p->constraints, *cfg))
           bld = move (b);
       }
     }
@@ -458,7 +463,7 @@ handle (request& rq, response&)
 
         os << "Force rebuild (enter the reason, use '+' instead of spaces):"
            << endl << endl
-           << "  " << force_rebuild_url (host, root, *bld) << endl;
+           << "  " << build_force_url (host, root, *bld) << endl;
       }
 
       sm.out.close ();
