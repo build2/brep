@@ -484,9 +484,11 @@ handle (request& rq, response& rs)
 
     auto add = [&rvs] (string n, string v)
     {
-      manifest_name_value nv {move (n), move (v),
-                              0 /* name_line */,  0 /* name_column */,
-                              0 /* value_line */, 0 /* value_column */};
+      manifest_name_value nv {
+        move (n), move (v),
+        0 /* name_line */,  0 /* name_column */,
+        0 /* value_line */, 0 /* value_column */,
+        0 /* start_pos */, 0 /* colon_pos */, 0 /* end_pos */};
 
       rvs.emplace_back (move (nv));
     };
