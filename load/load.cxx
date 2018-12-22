@@ -369,15 +369,18 @@ load_packages (const shared_ptr<repository>& rp, database& db)
     //
     if (cl.type () != repository_type::pkg)
     {
-      // We put no restrictions on the manifest values present since it's not
+      // We put no restrictions on the manifest values presence since it's not
       // critical for displaying and building if the packages omit some
-      // manifest values (see libbpkg/manifest.hxx for details).
+      // manifest values (see libbpkg/manifest.hxx for details). Note, though,
+      // that we expect package dependency constraints to be complete.
       //
       for (manifest_name_value nv (mp.next ()); !nv.empty (); nv = mp.next ())
-        pms.emplace_back (mp,
-                          move (nv),
-                          false /* ignore_unknown */,
-                          package_manifest_flags::none);
+        pms.emplace_back (
+          mp,
+          move (nv),
+          false /* ignore_unknown */,
+          false /* complete_depends */,
+          package_manifest_flags::forbid_incomplete_depends);
     }
     else
       pms = pkg_package_manifests (mp);
@@ -796,6 +799,9 @@ resolve_dependencies (package& p, database& db)
       if (d.constraint)
       {
         auto c (*d.constraint);
+
+        assert (c.complete ());
+
         query qs (compare_version_eq (vm, wildcard_version, false));
 
         if (c.min_version && c.max_version &&
