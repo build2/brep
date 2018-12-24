@@ -4,6 +4,8 @@
 
 #include <mod/mod-build-configs.hxx>
 
+#include <algorithm> // replace()
+
 #include <libstudxml/serializer.hxx>
 
 #include <web/xhtml.hxx>
@@ -59,6 +61,14 @@ handle (request& rq, response& rs)
   {
     name_value_scanner s (rq.parameters (1024));
     params = params::build_configs (s, unknown_mode::fail, unknown_mode::fail);
+
+    // We accept the non-url-encoded class name. Note that the parameter is
+    // already url-decoded by the web server, so we just restore the space
+    // character (that is otherwise forbidden in a class name) to the plus
+    // character.
+    //
+    string& cn (params.class_name ());
+    replace (cn.begin (), cn.end (), ' ', '+');
   }
   catch (const cli::exception& e)
   {
@@ -79,7 +89,65 @@ handle (request& rq, response& rs)
     <<     DIV_HEADER (options_->logo (), options_->menu (), root, tenant)
     <<     DIV(ID="content");
 
-  // Print build configurations that belong to the 'all' class.
+  auto url = [&root] (const string& cls)
+  {
+    string r (root.string () + "?build-configs");
+
+    if (cls != "all")
+    {
+      r += '=';
+
+      // Note that '+' is the only class name character that potentially needs
+      // to be url-encoded, and only in the query part of the URL. However, we
+      // embed the class name into the URL query part, where it is not encoded
+      // by design (see above).
+      //
+      r += cls;
+    }
+
+    return r;
+  };
+
+  auto print_class_name = [&s, &url] (const string& c, bool sel = false)
+  {
+    if (sel)
+      s << SPAN(ID="selected-class", CLASS="class-name") << c << ~SPAN;
+    else
+      s << A(CLASS="class-name") << HREF << url (c) << ~HREF << c << ~A;
+  };
+
+  // Print the configuration filter on the first page only.
+  //
+  if (params.page () == 0)
+  {
+    const strings& cls (build_conf_->classes);
+    const map<string, string>& im (build_conf_->class_inheritance_map);
+
+    s << DIV(ID="filter-heading") << "Build Configuration Classes" << ~DIV
+      << P(ID="filter");
+
+    for (auto b (cls.begin ()), i (b), e (cls.end ()); i != e; ++i)
+    {
+      if (i != b)
+        s << ' ';
+
+      const string& c (*i);
+      print_class_name (c, c == params.class_name ());
+
+      // Append the base class, if present.
+      //
+      auto j (im.find (c));
+      if (j != im.end ())
+      {
+        s << ':';
+        print_class_name (j->second);
+      }
+    }
+
+    s << ~P;
+  }
+
+  // Print build configurations that belong to the selected class.
   //
   // We will calculate the total configuration count and cache configurations
   // for printing (skipping an appropriate number of them for page number
@@ -94,7 +162,7 @@ handle (request& rq, response& rs)
   size_t print (page_configs);
   for (const build_config& c: *build_conf_)
   {
-    if (belongs (c, "all"))
+    if (belongs (c, params.class_name ()))
     {
       if (skip != 0)
         --skip;
@@ -119,29 +187,27 @@ handle (request& rq, response& rs)
   s << DIV;
   for (const build_config* c: configs)
   {
-    string classes;
-    for (const string& cls: c->classes)
-    {
-      if (!classes.empty ())
-        classes += ' ';
-
-      classes += cls;
-
-      // Append the base class, if present.
-      //
-      auto i (build_conf_->class_inheritance_map.find (cls));
-      if (i != build_conf_->class_inheritance_map.end ())
-      {
-        classes += ':';
-        classes += i->second;
-      }
-    }
-
     s << TABLE(CLASS="proplist config")
       <<   TBODY
       <<     TR_VALUE ("name", c->name)
       <<     TR_VALUE ("target", c->target.string ())
-      <<     TR_VALUE ("classes", classes)
+      <<     TR(CLASS="classes")
+      <<       TH << "classes" << ~TH
+      <<       TD
+      <<         SPAN(CLASS="value");
+
+    const strings& cls (c->classes);
+    for (auto b (cls.begin ()), i (b), e (cls.end ()); i != e; ++i)
+    {
+      if (i != b)
+        s << ' ';
+
+      print_class_name (*i);
+    }
+
+    s <<         ~SPAN
+      <<       ~TD
+      <<     ~TR
       <<   ~TBODY
       << ~TABLE;
   }
@@ -151,7 +217,7 @@ handle (request& rq, response& rs)
                         count,
                         page_configs,
                         options_->build_config_pages (),
-                        root.string () + "?build-configs")
+                        url (params.class_name ()))
     <<     ~DIV
     <<   ~BODY
     << ~HTML;

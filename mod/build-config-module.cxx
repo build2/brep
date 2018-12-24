@@ -335,6 +335,32 @@ namespace brep
     return false;
   }
 
+  bool build_config_module::
+  belongs (const bbot::build_config& cfg, const char* cls) const
+  {
+    const map<string, string>& im (build_conf_->class_inheritance_map);
+
+    for (const string& c: cfg.classes)
+    {
+      if (c == cls)
+        return true;
+
+      // Go through base classes.
+      //
+      for (auto i (im.find (c)); i != im.end (); )
+      {
+        const string& base (i->second);
+
+        if (base == cls)
+          return true;
+
+        i = im.find (base);
+      }
+    }
+
+    return false;
+  }
+
   path build_config_module::
   dash_components_to_path (const string& s)
   {

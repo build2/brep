@@ -54,13 +54,13 @@ namespace brep
 
     // Check if the configuration belongs to the specified class.
     //
-    // Note that the configuration base classes are not checked.
-    //
-    static bool
-    belongs (const bbot::build_config& cfg, const char* cls)
+    bool
+    belongs (const bbot::build_config&, const char*) const;
+
+    bool
+    belongs (const bbot::build_config& cfg, const string& cls) const
     {
-      const strings& cs (cfg.classes);
-      return std::find (cs.begin (), cs.end (), cls) != cs.end ();
+      return belongs (cfg, cls.c_str ());
     }
 
     // Convert dash-separated components (target, build configuration name,

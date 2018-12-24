@@ -738,6 +738,11 @@ namespace brep
 
     class build_configs
     {
+      // Note that the build-configs parameter is renamed to '_' by the root
+      // handler (see the request_proxy class for details).
+      //
+      string class_name | _ = "all";
+
       // Display build configurations list starting from this page.
       //
       uint16_t page | p;

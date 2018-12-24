@@ -1,7 +1,12 @@
 /*
- * Config count.
+ * Class name.
  */
-#count
+.class-name {white-space: nowrap;}
+
+/*
+ * Config filter and count.
+ */
+#filter-heading, #count
 {
   font-size: 1.32em;
   line-height: 1.4em;
@@ -9,6 +14,16 @@
 
   margin: 1.2em 0 0 0;
 }
+
+#filter
+{
+  font-family: monospace;
+  font-size: 0.94em;
+
+  text-align: left;
+}
+
+#selected-class {font-weight: bold;}
 
 /*
  * Config table.
