@@ -1,5 +1,5 @@
 # file      : brep/handler/ci/ci.bash.in
-# copyright : Copyright (c) 2014-2018 Code Synthesis Ltd
+# copyright : Copyright (c) 2014-2019 Code Synthesis Ltd
 # license   : MIT; see accompanying LICENSE file
 
 # Utility functions useful for implementing CI request handlers.
