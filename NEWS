@@ -1,3 +1,14 @@
+Version 0.9.0
+
+  * Support for build configuration classes.
+
+    See the 'builds' package manifest value documentation for details.
+
+  * Support for "packages" and "builds" global views in the multi-tenant mode.
+
+  * Display the package description as a pre-formatted text rather than trying
+    to be clever about it.
+
 Version 0.8.0
 
   * Package CI service (?ci). See the repository interface manual for details.
