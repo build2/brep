@@ -66,13 +66,12 @@ handle (request& rq, response& rs)
     throw invalid_request (501, "not implemented");
 
   // Parse the HTTP request URL path (without the root directory) to obtain
-  // the build package name/version, the configuration name and the optional
-  // operation name. If the operation is not specified then print logs for all
-  // the operations.
+  // the build id and optional operation name. If the operation is not
+  // specified then print logs for all the operations.
   //
   // Note that the URL path must be in the following form:
   //
-  // <pkg-name>/<pkg-version>/log/<cfg-name>/<toolchain-version>[/<operation>]
+  // <pkg-name>/<pkg-version>/log/<cfg-name>/<toolchain-name>/<toolchain-version>[/<operation>]
   //
   // Also note that the presence of the first 3 components is guaranteed by
   // the repository_root module.
@@ -136,12 +135,21 @@ handle (request& rq, response& rs)
       throw invalid_argument ("empty configuration name");
 
     if (i == lpath.end ())
+      throw invalid_argument ("no toolchain name");
+
+    string toolchain_name (*i++);
+
+    if (toolchain_name.empty ())
+      throw invalid_argument ("empty toolchain name");
+
+    if (i == lpath.end ())
       throw invalid_argument ("no toolchain version");
 
     version toolchain_version (parse_version (*i++, "toolchain version"));
 
     id = build_id (package_id (tenant, move (name), package_version),
                    move (config),
+                   move (toolchain_name),
                    toolchain_version);
 
     if (i != lpath.end ())

@@ -109,9 +109,9 @@ handle (request& rq, response&)
     throw invalid_request (400, e.what ());
   }
 
-  // Parse the task response session to obtain the build configuration name and
-  // the timestamp, and to make sure the session matches tenant and the result
-  // manifest's package name, and version.
+  // Parse the task response session to obtain the build id and the timestamp,
+  // and to make sure the session matches tenant and the result manifest's
+  // package name, and version.
   //
   build_id id;
   timestamp session_timestamp;
@@ -173,9 +173,23 @@ handle (request& rq, response&)
     p = s.find ('/', b); // End of configuration name.
 
     if (p == string::npos)
-      throw invalid_argument ("no toolchain version");
+      throw invalid_argument ("no toolchain name");
 
     string config (s, b, p - b);
+
+    if (config.empty ())
+      throw invalid_argument ("empty configuration name");
+
+    b = p + 1;           // Start of toolchain name.
+    p = s.find ('/', b); // End of toolchain name.
+
+    if (p == string::npos)
+      throw invalid_argument ("no toolchain version");
+
+    string toolchain_name (s, b, p - b);
+
+    if (toolchain_name.empty ())
+      throw invalid_argument ("empty toolchain name");
 
     b = p + 1;           // Start of toolchain version.
     p = s.find ('/', b); // End of toolchain version.
@@ -187,10 +201,8 @@ handle (request& rq, response&)
 
     id = build_id (package_id (move (tenant), move (name), package_version),
                    move (config),
+                   move (toolchain_name),
                    toolchain_version);
-
-    if (id.configuration.empty ())
-      throw invalid_argument ("empty configuration name");
 
     try
     {

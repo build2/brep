@@ -207,6 +207,7 @@ create (database& db, bool extra_only) const
 
 // Register the data migration functions for the package database schema.
 //
+#if 0
 template <schema_version v>
 using package_migration_entry_base =
   data_migration_entry<v, LIBBREP_PACKAGE_SCHEMA_VERSION_BASE>;
@@ -218,17 +219,11 @@ struct package_migration_entry: package_migration_entry_base<v>
       : package_migration_entry_base<v> (f, "package") {}
 };
 
-// Don't forget to drop the repository_tenant view when stop supporting data
-// migration for this schema version.
-//
-static const package_migration_entry<9>
-package_migrate_v9 ([] (database& db)
+static const package_migration_entry<12>
+package_migrate_v12 ([] (database&)
 {
-  // Add tenant objects.
-  //
-  for (const auto& t: db.query<repository_tenant> ())
-    db.persist (tenant (t.id));
 });
+#endif
 
 // main() function
 //

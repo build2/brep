@@ -24,9 +24,9 @@
 
 // Used by the data migration entries.
 //
-#define LIBBREP_BUILD_SCHEMA_VERSION_BASE 4
+#define LIBBREP_BUILD_SCHEMA_VERSION_BASE 7
 
-#pragma db model version(LIBBREP_BUILD_SCHEMA_VERSION_BASE, 6, closed)
+#pragma db model version(LIBBREP_BUILD_SCHEMA_VERSION_BASE, 7, closed)
 
 // We have to keep these mappings at the global scope instead of inside
 // the brep namespace because they need to be also effective in the
@@ -44,12 +44,14 @@ namespace brep
   {
     package_id package;
     string configuration;
+    string toolchain_name;
     canonical_version toolchain_version;
 
     build_id () = default;
-    build_id (package_id p, string c, const brep::version& v)
+    build_id (package_id p, string c, string n, const brep::version& v)
         : package (move (p)),
           configuration (move (c)),
+          toolchain_name (move (n)),
           toolchain_version {
             v.epoch, v.canonical_upstream, v.canonical_release, v.revision} {}
   };
@@ -63,35 +65,42 @@ namespace brep
     if (int r = x.configuration.compare (y.configuration))
       return r < 0;
 
+    if (int r = x.toolchain_name.compare (y.toolchain_name))
+      return r < 0;
+
     return compare_version_lt (x.toolchain_version, y.toolchain_version, true);
   }
 
-  // These allow comparing objects that have package, configuration and
-  // toolchain_version data members to build_id values. The idea is that this
-  // works for both query members of build id types as well as for values of
-  // the build_id type.
+  // These allow comparing objects that have package, configuration,
+  // toolchain_name, and toolchain_version data members to build_id values.
+  // The idea is that this works for both query members of build id types as
+  // well as for values of the build_id type.
   //
   template <typename T>
   inline auto
   operator== (const T& x, const build_id& y)
-    -> decltype (x.package == y.package             &&
-                 x.configuration == y.configuration &&
+    -> decltype (x.package == y.package               &&
+                 x.configuration == y.configuration   &&
+                 x.toolchain_name == y.toolchain_name &&
                  x.toolchain_version.epoch == y.toolchain_version.epoch)
   {
-    return x.package == y.package             &&
-           x.configuration == y.configuration &&
+    return x.package == y.package               &&
+           x.configuration == y.configuration   &&
+           x.toolchain_name == y.toolchain_name &&
            compare_version_eq (x.toolchain_version, y.toolchain_version, true);
   }
 
   template <typename T>
   inline auto
   operator!= (const T& x, const build_id& y)
-    -> decltype (x.package == y.package             &&
-                 x.configuration == y.configuration &&
+    -> decltype (x.package == y.package               &&
+                 x.configuration == y.configuration   &&
+                 x.toolchain_name == y.toolchain_name &&
                  x.toolchain_version.epoch == y.toolchain_version.epoch)
   {
-    return x.package != y.package             ||
-           x.configuration != y.configuration ||
+    return x.package != y.package               ||
+           x.configuration != y.configuration   ||
+           x.toolchain_name != y.toolchain_name ||
            compare_version_ne (x.toolchain_version, y.toolchain_version, true);
   }
 
@@ -189,7 +198,7 @@ namespace brep
     package_name_type& package_name;    // Tracks id.package.name.
     upstream_version package_version;   // Original of id.package.version.
     string& configuration;              // Tracks id.configuration.
-    string toolchain_name;
+    string& toolchain_name;             // Tracks id.toolchain_name.
     upstream_version toolchain_version; // Original of id.toolchain_version.
 
     build_state state;
@@ -229,6 +238,7 @@ namespace brep
     #pragma db member(package_version) \
       set(this.package_version.init (this.id.package.version, (?)))
     #pragma db member(configuration) transient
+    #pragma db member(toolchain_name) transient
     #pragma db member(toolchain_version) \
       set(this.toolchain_version.init (this.id.toolchain_version, (?)))
 
@@ -246,7 +256,8 @@ namespace brep
     build ()
         : tenant (id.package.tenant),
           package_name (id.package.name),
-          configuration (id.configuration)
+          configuration (id.configuration),
+          toolchain_name (id.toolchain_name)
     {
     }
   };
@@ -264,7 +275,7 @@ namespace brep
     // Database mapping. Note that the version member must be loaded after
     // the virtual members since the version_ member must filled by that time.
     //
-    #pragma db member(name) column(build::toolchain_name)
+    #pragma db member(name) column(build::id.toolchain_name)
 
     #pragma db member(version) column(build::toolchain_version) \
       set(this.version.init (this.version_, (?)))

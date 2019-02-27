@@ -1,208 +1,13 @@
 <changelog xmlns="http://www.codesynthesis.com/xmlns/odb/changelog" database="pgsql" schema-name="package" version="1">
-  <changeset version="11">
-    <add-table name="package_builds" kind="container">
-      <column name="tenant" type="TEXT" null="false"/>
-      <column name="name" type="CITEXT" null="false"/>
-      <column name="version_epoch" type="INTEGER" null="false"/>
-      <column name="version_canonical_upstream" type="TEXT" null="false"/>
-      <column name="version_canonical_release" type="TEXT" null="false" options="COLLATE &quot;C&quot;"/>
-      <column name="version_revision" type="INTEGER" null="false"/>
-      <column name="index" type="BIGINT" null="false"/>
-      <column name="expression" type="TEXT" null="false"/>
-      <column name="comment" type="TEXT" null="false"/>
-      <foreign-key name="tenant_fk" deferrable="DEFERRED">
-        <column name="tenant"/>
-        <references table="tenant">
-          <column name="id"/>
-        </references>
-      </foreign-key>
-      <foreign-key name="object_id_fk" on-delete="CASCADE">
-        <column name="tenant"/>
-        <column name="name"/>
-        <column name="version_epoch"/>
-        <column name="version_canonical_upstream"/>
-        <column name="version_canonical_release"/>
-        <column name="version_revision"/>
-        <references table="package">
-          <column name="tenant"/>
-          <column name="name"/>
-          <column name="version_epoch"/>
-          <column name="version_canonical_upstream"/>
-          <column name="version_canonical_release"/>
-          <column name="version_revision"/>
-        </references>
-      </foreign-key>
-      <index name="package_builds_object_id_i">
-        <column name="tenant"/>
-        <column name="name"/>
-        <column name="version_epoch"/>
-        <column name="version_canonical_upstream"/>
-        <column name="version_canonical_release"/>
-        <column name="version_revision"/>
-      </index>
-      <index name="package_builds_index_i">
-        <column name="index"/>
-      </index>
-    </add-table>
-  </changeset>
-
-  <changeset version="10">
-    <alter-table name="package">
-      <add-column name="build_warning_email" type="TEXT" null="true"/>
-      <add-column name="build_warning_email_comment" type="TEXT" null="true"/>
-      <add-column name="build_error_email" type="TEXT" null="true"/>
-      <add-column name="build_error_email_comment" type="TEXT" null="true"/>
-    </alter-table>
-  </changeset>
-
-  <changeset version="9">
-    <add-table name="tenant" kind="object">
+  <model version="11">
+    <table name="tenant" kind="object">
       <column name="id" type="TEXT" null="false"/>
       <column name="creation_timestamp" type="BIGINT" null="false"/>
       <column name="archived" type="BOOLEAN" null="false"/>
       <primary-key>
         <column name="id"/>
       </primary-key>
-    </add-table>
-    <alter-table name="repository">
-      <add-foreign-key name="tenant_fk" deferrable="DEFERRED">
-        <column name="tenant"/>
-        <references table="tenant">
-          <column name="id"/>
-        </references>
-      </add-foreign-key>
-    </alter-table>
-    <alter-table name="repository_complements">
-      <add-foreign-key name="repository_tenant_fk" deferrable="DEFERRED">
-        <column name="repository_tenant"/>
-        <references table="tenant">
-          <column name="id"/>
-        </references>
-      </add-foreign-key>
-      <add-foreign-key name="complement_tenant_fk" deferrable="DEFERRED">
-        <column name="complement_tenant"/>
-        <references table="tenant">
-          <column name="id"/>
-        </references>
-      </add-foreign-key>
-    </alter-table>
-    <alter-table name="repository_prerequisites">
-      <add-foreign-key name="repository_tenant_fk" deferrable="DEFERRED">
-        <column name="repository_tenant"/>
-        <references table="tenant">
-          <column name="id"/>
-        </references>
-      </add-foreign-key>
-      <add-foreign-key name="prerequisite_tenant_fk" deferrable="DEFERRED">
-        <column name="prerequisite_tenant"/>
-        <references table="tenant">
-          <column name="id"/>
-        </references>
-      </add-foreign-key>
-    </alter-table>
-    <alter-table name="package">
-      <add-foreign-key name="tenant_fk" deferrable="DEFERRED">
-        <column name="tenant"/>
-        <references table="tenant">
-          <column name="id"/>
-        </references>
-      </add-foreign-key>
-      <add-foreign-key name="internal_repository_tenant_fk" deferrable="DEFERRED">
-        <column name="internal_repository_tenant"/>
-        <references table="tenant">
-          <column name="id"/>
-        </references>
-      </add-foreign-key>
-    </alter-table>
-    <alter-table name="package_license_alternatives">
-      <add-foreign-key name="tenant_fk" deferrable="DEFERRED">
-        <column name="tenant"/>
-        <references table="tenant">
-          <column name="id"/>
-        </references>
-      </add-foreign-key>
-    </alter-table>
-    <alter-table name="package_licenses">
-      <add-foreign-key name="tenant_fk" deferrable="DEFERRED">
-        <column name="tenant"/>
-        <references table="tenant">
-          <column name="id"/>
-        </references>
-      </add-foreign-key>
-    </alter-table>
-    <alter-table name="package_tags">
-      <add-foreign-key name="tenant_fk" deferrable="DEFERRED">
-        <column name="tenant"/>
-        <references table="tenant">
-          <column name="id"/>
-        </references>
-      </add-foreign-key>
-    </alter-table>
-    <alter-table name="package_dependencies">
-      <add-foreign-key name="tenant_fk" deferrable="DEFERRED">
-        <column name="tenant"/>
-        <references table="tenant">
-          <column name="id"/>
-        </references>
-      </add-foreign-key>
-    </alter-table>
-    <alter-table name="package_dependency_alternatives">
-      <add-foreign-key name="tenant_fk" deferrable="DEFERRED">
-        <column name="tenant"/>
-        <references table="tenant">
-          <column name="id"/>
-        </references>
-      </add-foreign-key>
-      <add-foreign-key name="dep_package_tenant_fk" deferrable="DEFERRED">
-        <column name="dep_package_tenant"/>
-        <references table="tenant">
-          <column name="id"/>
-        </references>
-      </add-foreign-key>
-    </alter-table>
-    <alter-table name="package_requirements">
-      <add-foreign-key name="tenant_fk" deferrable="DEFERRED">
-        <column name="tenant"/>
-        <references table="tenant">
-          <column name="id"/>
-        </references>
-      </add-foreign-key>
-    </alter-table>
-    <alter-table name="package_requirement_alternatives">
-      <add-foreign-key name="tenant_fk" deferrable="DEFERRED">
-        <column name="tenant"/>
-        <references table="tenant">
-          <column name="id"/>
-        </references>
-      </add-foreign-key>
-    </alter-table>
-    <alter-table name="package_build_constraints">
-      <add-foreign-key name="tenant_fk" deferrable="DEFERRED">
-        <column name="tenant"/>
-        <references table="tenant">
-          <column name="id"/>
-        </references>
-      </add-foreign-key>
-    </alter-table>
-    <alter-table name="package_other_repositories">
-      <add-foreign-key name="tenant_fk" deferrable="DEFERRED">
-        <column name="tenant"/>
-        <references table="tenant">
-          <column name="id"/>
-        </references>
-      </add-foreign-key>
-      <add-foreign-key name="repository_tenant_fk" deferrable="DEFERRED">
-        <column name="repository_tenant"/>
-        <references table="tenant">
-          <column name="id"/>
-        </references>
-      </add-foreign-key>
-    </alter-table>
-  </changeset>
-
-  <changeset version="8"/>
-
-  <model version="7">
+    </table>
     <table name="repository" kind="object">
       <column name="tenant" type="TEXT" null="false"/>
       <column name="canonical_name" type="TEXT" null="false"/>
@@ -229,6 +34,12 @@
         <column name="tenant"/>
         <column name="canonical_name"/>
       </primary-key>
+      <foreign-key name="tenant_fk" deferrable="DEFERRED">
+        <column name="tenant"/>
+        <references table="tenant">
+          <column name="id"/>
+        </references>
+      </foreign-key>
     </table>
     <table name="repository_complements" kind="container">
       <column name="repository_tenant" type="TEXT" null="false"/>
@@ -236,6 +47,12 @@
       <column name="index" type="BIGINT" null="false"/>
       <column name="complement_tenant" type="TEXT" null="false"/>
       <column name="complement_canonical_name" type="TEXT" null="false"/>
+      <foreign-key name="repository_tenant_fk" deferrable="DEFERRED">
+        <column name="repository_tenant"/>
+        <references table="tenant">
+          <column name="id"/>
+        </references>
+      </foreign-key>
       <foreign-key name="repository_fk" on-delete="CASCADE">
         <column name="repository_tenant"/>
         <column name="repository_canonical_name"/>
@@ -251,6 +68,12 @@
       <index name="repository_complements_index_i">
         <column name="index"/>
       </index>
+      <foreign-key name="complement_tenant_fk" deferrable="DEFERRED">
+        <column name="complement_tenant"/>
+        <references table="tenant">
+          <column name="id"/>
+        </references>
+      </foreign-key>
       <foreign-key name="complement_fk" deferrable="DEFERRED">
         <column name="complement_tenant"/>
         <column name="complement_canonical_name"/>
@@ -266,6 +89,12 @@
       <column name="index" type="BIGINT" null="false"/>
       <column name="prerequisite_tenant" type="TEXT" null="false"/>
       <column name="prerequisite_canonical_name" type="TEXT" null="false"/>
+      <foreign-key name="repository_tenant_fk" deferrable="DEFERRED">
+        <column name="repository_tenant"/>
+        <references table="tenant">
+          <column name="id"/>
+        </references>
+      </foreign-key>
       <foreign-key name="repository_fk" on-delete="CASCADE">
         <column name="repository_tenant"/>
         <column name="repository_canonical_name"/>
@@ -281,6 +110,12 @@
       <index name="repository_prerequisites_index_i">
         <column name="index"/>
       </index>
+      <foreign-key name="prerequisite_tenant_fk" deferrable="DEFERRED">
+        <column name="prerequisite_tenant"/>
+        <references table="tenant">
+          <column name="id"/>
+        </references>
+      </foreign-key>
       <foreign-key name="prerequisite_fk" deferrable="DEFERRED">
         <column name="prerequisite_tenant"/>
         <column name="prerequisite_canonical_name"/>
@@ -319,6 +154,10 @@
       <column name="package_email_comment" type="TEXT" null="true"/>
       <column name="build_email" type="TEXT" null="true"/>
       <column name="build_email_comment" type="TEXT" null="true"/>
+      <column name="build_warning_email" type="TEXT" null="true"/>
+      <column name="build_warning_email_comment" type="TEXT" null="true"/>
+      <column name="build_error_email" type="TEXT" null="true"/>
+      <column name="build_error_email_comment" type="TEXT" null="true"/>
       <column name="internal_repository_tenant" type="TEXT" null="true"/>
       <column name="internal_repository_canonical_name" type="TEXT" null="true"/>
       <column name="location" type="TEXT" null="true"/>
@@ -333,6 +172,18 @@
         <column name="version_canonical_release"/>
         <column name="version_revision"/>
       </primary-key>
+      <foreign-key name="tenant_fk" deferrable="DEFERRED">
+        <column name="tenant"/>
+        <references table="tenant">
+          <column name="id"/>
+        </references>
+      </foreign-key>
+      <foreign-key name="internal_repository_tenant_fk" deferrable="DEFERRED">
+        <column name="internal_repository_tenant"/>
+        <references table="tenant">
+          <column name="id"/>
+        </references>
+      </foreign-key>
       <foreign-key name="internal_repository_fk" deferrable="DEFERRED">
         <column name="internal_repository_tenant"/>
         <column name="internal_repository_canonical_name"/>
@@ -354,6 +205,12 @@
       <column name="version_revision" type="INTEGER" null="false"/>
       <column name="index" type="BIGINT" null="false"/>
       <column name="comment" type="TEXT" null="false"/>
+      <foreign-key name="tenant_fk" deferrable="DEFERRED">
+        <column name="tenant"/>
+        <references table="tenant">
+          <column name="id"/>
+        </references>
+      </foreign-key>
       <foreign-key name="object_id_fk" on-delete="CASCADE">
         <column name="tenant"/>
         <column name="name"/>
@@ -392,6 +249,12 @@
       <column name="alternative_index" type="BIGINT" null="false"/>
       <column name="index" type="BIGINT" null="false"/>
       <column name="license" type="TEXT" null="false"/>
+      <foreign-key name="tenant_fk" deferrable="DEFERRED">
+        <column name="tenant"/>
+        <references table="tenant">
+          <column name="id"/>
+        </references>
+      </foreign-key>
       <foreign-key name="object_id_fk" on-delete="CASCADE">
         <column name="tenant"/>
         <column name="name"/>
@@ -426,6 +289,12 @@
       <column name="version_revision" type="INTEGER" null="false"/>
       <column name="index" type="BIGINT" null="false"/>
       <column name="tag" type="TEXT" null="false"/>
+      <foreign-key name="tenant_fk" deferrable="DEFERRED">
+        <column name="tenant"/>
+        <references table="tenant">
+          <column name="id"/>
+        </references>
+      </foreign-key>
       <foreign-key name="object_id_fk" on-delete="CASCADE">
         <column name="tenant"/>
         <column name="name"/>
@@ -465,6 +334,12 @@
       <column name="conditional" type="BOOLEAN" null="false"/>
       <column name="buildtime" type="BOOLEAN" null="false"/>
       <column name="comment" type="TEXT" null="false"/>
+      <foreign-key name="tenant_fk" deferrable="DEFERRED">
+        <column name="tenant"/>
+        <references table="tenant">
+          <column name="id"/>
+        </references>
+      </foreign-key>
       <foreign-key name="object_id_fk" on-delete="CASCADE">
         <column name="tenant"/>
         <column name="name"/>
@@ -523,6 +398,12 @@
       <column name="dep_package_version_canonical_upstream" type="TEXT" null="true"/>
       <column name="dep_package_version_canonical_release" type="TEXT" null="true" options="COLLATE &quot;C&quot;"/>
       <column name="dep_package_version_revision" type="INTEGER" null="true"/>
+      <foreign-key name="tenant_fk" deferrable="DEFERRED">
+        <column name="tenant"/>
+        <references table="tenant">
+          <column name="id"/>
+        </references>
+      </foreign-key>
       <foreign-key name="object_id_fk" on-delete="CASCADE">
         <column name="tenant"/>
         <column name="name"/>
@@ -547,6 +428,12 @@
         <column name="version_canonical_release"/>
         <column name="version_revision"/>
       </index>
+      <foreign-key name="dep_package_tenant_fk" deferrable="DEFERRED">
+        <column name="dep_package_tenant"/>
+        <references table="tenant">
+          <column name="id"/>
+        </references>
+      </foreign-key>
       <foreign-key name="dep_package_fk" deferrable="DEFERRED">
         <column name="dep_package_tenant"/>
         <column name="dep_package_name"/>
@@ -575,6 +462,12 @@
       <column name="conditional" type="BOOLEAN" null="false"/>
       <column name="buildtime" type="BOOLEAN" null="false"/>
       <column name="comment" type="TEXT" null="false"/>
+      <foreign-key name="tenant_fk" deferrable="DEFERRED">
+        <column name="tenant"/>
+        <references table="tenant">
+          <column name="id"/>
+        </references>
+      </foreign-key>
       <foreign-key name="object_id_fk" on-delete="CASCADE">
         <column name="tenant"/>
         <column name="name"/>
@@ -613,6 +506,12 @@
       <column name="requirement_index" type="BIGINT" null="false"/>
       <column name="index" type="BIGINT" null="false"/>
       <column name="id" type="TEXT" null="false"/>
+      <foreign-key name="tenant_fk" deferrable="DEFERRED">
+        <column name="tenant"/>
+        <references table="tenant">
+          <column name="id"/>
+        </references>
+      </foreign-key>
       <foreign-key name="object_id_fk" on-delete="CASCADE">
         <column name="tenant"/>
         <column name="name"/>
@@ -638,6 +537,50 @@
         <column name="version_revision"/>
       </index>
     </table>
+    <table name="package_builds" kind="container">
+      <column name="tenant" type="TEXT" null="false"/>
+      <column name="name" type="CITEXT" null="false"/>
+      <column name="version_epoch" type="INTEGER" null="false"/>
+      <column name="version_canonical_upstream" type="TEXT" null="false"/>
+      <column name="version_canonical_release" type="TEXT" null="false" options="COLLATE &quot;C&quot;"/>
+      <column name="version_revision" type="INTEGER" null="false"/>
+      <column name="index" type="BIGINT" null="false"/>
+      <column name="expression" type="TEXT" null="false"/>
+      <column name="comment" type="TEXT" null="false"/>
+      <foreign-key name="tenant_fk" deferrable="DEFERRED">
+        <column name="tenant"/>
+        <references table="tenant">
+          <column name="id"/>
+        </references>
+      </foreign-key>
+      <foreign-key name="object_id_fk" on-delete="CASCADE">
+        <column name="tenant"/>
+        <column name="name"/>
+        <column name="version_epoch"/>
+        <column name="version_canonical_upstream"/>
+        <column name="version_canonical_release"/>
+        <column name="version_revision"/>
+        <references table="package">
+          <column name="tenant"/>
+          <column name="name"/>
+          <column name="version_epoch"/>
+          <column name="version_canonical_upstream"/>
+          <column name="version_canonical_release"/>
+          <column name="version_revision"/>
+        </references>
+      </foreign-key>
+      <index name="package_builds_object_id_i">
+        <column name="tenant"/>
+        <column name="name"/>
+        <column name="version_epoch"/>
+        <column name="version_canonical_upstream"/>
+        <column name="version_canonical_release"/>
+        <column name="version_revision"/>
+      </index>
+      <index name="package_builds_index_i">
+        <column name="index"/>
+      </index>
+    </table>
     <table name="package_build_constraints" kind="container">
       <column name="tenant" type="TEXT" null="false"/>
       <column name="name" type="CITEXT" null="false"/>
@@ -650,6 +593,12 @@
       <column name="config" type="TEXT" null="false"/>
       <column name="target" type="TEXT" null="true"/>
       <column name="comment" type="TEXT" null="false"/>
+      <foreign-key name="tenant_fk" deferrable="DEFERRED">
+        <column name="tenant"/>
+        <references table="tenant">
+          <column name="id"/>
+        </references>
+      </foreign-key>
       <foreign-key name="object_id_fk" on-delete="CASCADE">
         <column name="tenant"/>
         <column name="name"/>
@@ -688,6 +637,12 @@
       <column name="index" type="BIGINT" null="false"/>
       <column name="repository_tenant" type="TEXT" null="false"/>
       <column name="repository_canonical_name" type="TEXT" null="false"/>
+      <foreign-key name="tenant_fk" deferrable="DEFERRED">
+        <column name="tenant"/>
+        <references table="tenant">
+          <column name="id"/>
+        </references>
+      </foreign-key>
       <foreign-key name="object_id_fk" on-delete="CASCADE">
         <column name="tenant"/>
         <column name="name"/>
@@ -715,6 +670,12 @@
       <index name="package_other_repositories_index_i">
         <column name="index"/>
       </index>
+      <foreign-key name="repository_tenant_fk" deferrable="DEFERRED">
+        <column name="repository_tenant"/>
+        <references table="tenant">
+          <column name="id"/>
+        </references>
+      </foreign-key>
       <foreign-key name="repository_fk" deferrable="DEFERRED">
         <column name="repository_tenant"/>
         <column name="repository_canonical_name"/>

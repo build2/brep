@@ -149,8 +149,9 @@ build_query (const brep::cstrings* configs,
       string  tn (tc, 0, p);
       version tv (string (tc, p + 1)); // May throw invalid_argument.
 
-      q = q && qb::toolchain_name == tn &&
-        compare_version_eq (qb::id.toolchain_version, tv, true);
+      q = q                           &&
+          qb::id.toolchain_name == tn &&
+          compare_version_eq (qb::id.toolchain_version, tv, true);
     }
 
     // Build configuration name.
@@ -358,7 +359,7 @@ handle (request& rq, response& rs)
     toolchains r;
     for (auto& t: build_db_->query<toolchain> (
            (tn ? query::build::id.package.tenant == *tn : query (true)) +
-           "ORDER BY" + query::build::toolchain_name +
+           "ORDER BY" + query::build::id.toolchain_name +
            order_by_version_desc (query::build::id.toolchain_version, false)))
       r.emplace_back (move (t.name), move (t.version));
 

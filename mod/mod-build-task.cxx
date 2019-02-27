@@ -204,6 +204,7 @@ handle (request& rq, response& rs)
                       b->package_name.string () + '/' +
                       b->package_version.string () + '/' +
                       b->configuration + '/' +
+                      b->toolchain_name + '/' +
                       b->toolchain_version.string () + '/' +
                       to_string (ts));
 
@@ -401,9 +402,11 @@ handle (request& rq, response& rs)
       bld_query::id.configuration.in_range (cfg_names.begin (),
                                             cfg_names.end ())     &&
 
+      bld_query::id.toolchain_name == tqm.toolchain_name          &&
+
       compare_version_eq (bld_query::id.toolchain_version,
                           toolchain_version,
-                          true)                                   &&
+                          true /* revision */)                    &&
 
       (bld_query::state == "built" ||
        ((bld_query::force == "forcing" &&
@@ -489,7 +492,12 @@ handle (request& rq, response& rs)
           {
             config_machine& cm (i->second);
             machine_header_manifest& mh (*cm.machine);
-            build_id bid (move (id), cm.config->name, toolchain_version);
+
+            build_id bid (move (id),
+                          cm.config->name,
+                          move (tqm.toolchain_name),
+                          toolchain_version);
+
             shared_ptr<build> b (build_db_->find<build> (bid));
             optional<string> cl (challenge ());
 
@@ -503,7 +511,7 @@ handle (request& rq, response& rs)
                                       move (bid.package.name),
                                       move (bp.version),
                                       move (bid.configuration),
-                                      move (tqm.toolchain_name),
+                                      move (bid.toolchain_name),
                                       move (toolchain_version),
                                       move (agent_fp),
                                       move (cl),
@@ -540,7 +548,6 @@ handle (request& rq, response& rs)
               if (b->force == force_state::forcing)
                 b->force = force_state::forced;
 
-              b->toolchain_name = move (tqm.toolchain_name);
               b->agent_fingerprint = move (agent_fp);
               b->agent_challenge = move (cl);
               b->machine = mh.name;
@@ -649,7 +656,6 @@ handle (request& rq, response& rs)
               //
               b->agent_fingerprint = agent_fp;
               b->agent_challenge = cl;
-              b->toolchain_name = tqm.toolchain_name;
 
               const machine_header_manifest& mh (*cm.machine);
               b->machine = mh.name;

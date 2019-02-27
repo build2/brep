@@ -118,16 +118,22 @@ handle (request& rq, response& rs)
     version package_version (parse_version (params.version (),
                                             "package version"));
 
+    string& config (params.configuration ());
+
+    if (config.empty ())
+      throw invalid_argument ("no configuration name");
+
+    string& toolchain_name (params.toolchain_name ());
+
+    if (toolchain_name.empty ())
+      throw invalid_argument ("no toolchain name");
+
     version toolchain_version (parse_version (params.toolchain_version (),
                                               "toolchain version"));
 
-    string& c (params.configuration ());
-
-    if (c.empty ())
-      throw invalid_argument ("no configuration name");
-
     id = build_id (package_id (move (tenant), move (p), package_version),
-                   move (c),
+                   move (config),
+                   move (toolchain_name),
                    toolchain_version);
   }
   catch (const invalid_argument& e)

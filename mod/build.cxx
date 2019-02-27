@@ -24,7 +24,8 @@ namespace brep
     string url (host + tenant_dir (root, b.tenant).representation () +
                 mime_url_encode (b.package_name.string (), false) + '/' +
                 b.package_version.string () + "/log/" +
-                mime_url_encode (b.configuration, false) + '/' +
+                mime_url_encode (b.configuration, false /* query */) + '/' +
+                mime_url_encode (b.toolchain_name, false /* query */) + '/' +
                 b.toolchain_version.string ());
 
     if (op != nullptr)
@@ -48,6 +49,8 @@ namespace brep
       "?build-force&pn=" + mime_url_encode (b.package_name.string ()) +
       "&pv=" + b.package_version.string () +
       "&cf=" + mime_url_encode (b.configuration) +
-      "&tc=" + b.toolchain_version.string () + "&reason=";
+      "&tn=" + mime_url_encode (b.toolchain_name) +
+      "&tv=" + b.toolchain_version.string () +
+      "&reason=";
   }
 }

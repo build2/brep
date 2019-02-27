@@ -665,9 +665,13 @@ namespace brep
       //
       string configuration | cf;
 
+      // Toolchain name.
+      //
+      string toolchain_name | tn;
+
       // Toolchain version. May not be url-encoded (see above).
       //
-      string toolchain_version | tc;
+      string toolchain_version | tv;
 
       // Package rebuild reason. Must not be empty.
       //

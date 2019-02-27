@@ -19,7 +19,7 @@
 
 // Used by the data migration entries.
 //
-#define LIBBREP_PACKAGE_SCHEMA_VERSION_BASE 7
+#define LIBBREP_PACKAGE_SCHEMA_VERSION_BASE 11
 
 #pragma db model version(LIBBREP_PACKAGE_SCHEMA_VERSION_BASE, 11, closed)
 
@@ -296,15 +296,6 @@ namespace brep
   private:
     friend class odb::access;
     repository (): tenant (id.tenant), canonical_name (id.canonical_name) {}
-  };
-
-  // Used for data migration (see migrate/migrate.cxx for details).
-  //
-  #pragma db view object(repository) query(distinct)
-  struct repository_tenant
-  {
-    #pragma db column("tenant")
-    string id;
   };
 
   // The 'to' expression calls the PostgreSQL to_tsvector(weighted_text)
