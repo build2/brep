@@ -26,6 +26,9 @@ if $cli.configured
   # them when cleaning in src (so that clean results in a state identical to
   # distributed).
   #
-  cli.cxx{*}: dist  = true
-  cli.cxx{*}: clean = ($src_root != $out_root)
+  cli.cxx{*}:
+  {
+    dist  = true
+    clean = ($src_root != $out_root)
+  }
 }

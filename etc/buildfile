@@ -4,5 +4,11 @@
 
 ./: file{** -buildfile}
 
-*: install = data/etc/
-*: install.subdirs = true # Recreate subdirectories.
+# Install into the etc/ subdirectory of, say, /usr/share/
+# recreating subdirectories.
+#
+*:
+{
+  install         = data/etc/
+  install.subdirs = true
+}

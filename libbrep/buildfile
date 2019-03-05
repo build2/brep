@@ -30,20 +30,34 @@ lib{brep}:                                                              \
 # clean results in a state identical to distributed).
 #
 hxx{version}: in{version} $src_root/manifest
-hxx{version}: dist  = true
-hxx{version}: clean = ($src_root != $out_root)
+hxx{version}:
+{
+  dist  = true
+  clean = ($src_root != $out_root)
+}
+
+# Export options.
+#
+lib{brep}:
+{
+  cxx.export.poptions = "-I$out_root" "-I$src_root"
+  cxx.export.libs = $int_libs
+}
 
 # For pre-releases use the complete version to make sure they cannot be used
-# in place of another pre-release or the final version.
+# in place of another pre-release or the final version. See the version module
+# for details on the version.* variable values.
 #
 if $version.pre_release
   lib{brep}: bin.lib.version = @"-$version.project_id"
 else
   lib{brep}: bin.lib.version = @"-$version.major.$version.minor"
 
-lib{brep}: cxx.export.poptions = "-I$out_root" "-I$src_root"
-lib{brep}: cxx.export.libs = $int_libs
-
-# Install into the libbrep/ subdirectory of, say, /usr/include/.
+# Install into the libbrep/ subdirectory of, say, /usr/include/
+# recreating subdirectories.
 #
-{hxx ixx txx}{*}: install = include/libbrep/
+{hxx ixx txx}{*}:
+{
+  install         = include/libbrep/
+  install.subdirs = true
+}
