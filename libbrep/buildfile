@@ -3,8 +3,12 @@
 # license   : MIT; see accompanying LICENSE file
 
 define sql: file
-sql{*}: extension = sql
-sql{*}: install = data/
+
+sql{*}:
+{
+  extension = sql
+  install = data/
+}
 
 # @@ ODB: these are ODB changelogs that are both generated and stored in the
 #         repository (what if src != out?). Will need to think how to handle

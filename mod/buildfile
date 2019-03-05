@@ -3,9 +3,13 @@
 # license   : MIT; see accompanying LICENSE file
 
 define mod: libs
-mod{*}: bin.lib.prefix = mod_
-mod{*}: backlink = true        # Backlink in forwarded configurations.
-mod{*}: install = libexec/
+
+mod{*}:
+{
+  bin.lib.prefix = mod_
+  backlink = true        # Backlink in forwarded configurations.
+  install = libexec/
+}
 
 import libs  = libodb%lib{odb}
 import libs += libodb-pgsql%lib{odb-pgsql}
