@@ -26,7 +26,7 @@
 --
 DROP FUNCTION IF EXISTS search_packages(IN query tsquery,
                                         IN tenant TEXT,
-					IN name CITEXT);
+                                        IN name CITEXT);
 
 DROP FUNCTION IF EXISTS search_latest_packages(IN query tsquery,
                                                IN tenant TEXT);
@@ -98,10 +98,10 @@ RETURNS SETOF record AS $$
   SELECT tenant, name, version_epoch, version_canonical_upstream,
          version_canonical_release, version_revision,
          CASE
-	   WHEN query IS NULL THEN 0
+           WHEN query IS NULL THEN 0
 -- Weight mapping:           D     C    B    A
-	   ELSE ts_rank_cd('{0.05, 0.2, 0.9, 1.0}', search_index, query)
-	 END AS rank
+           ELSE ts_rank_cd('{0.05, 0.2, 0.9, 1.0}', search_index, query)
+         END AS rank
   FROM latest_packages(search_latest_packages.tenant)
   WHERE query IS NULL OR search_index @@ query;
 $$ LANGUAGE SQL STABLE;
@@ -124,10 +124,10 @@ RETURNS SETOF record AS $$
   SELECT tenant, name, version_epoch, version_canonical_upstream,
          version_canonical_release, version_revision,
          CASE
-	   WHEN query IS NULL THEN 0
+           WHEN query IS NULL THEN 0
 -- Weight mapping:           D     C    B    A
-	   ELSE ts_rank_cd('{0.05, 0.2, 0.9, 1.0}', search_index, query)
-	 END AS rank
+           ELSE ts_rank_cd('{0.05, 0.2, 0.9, 1.0}', search_index, query)
+         END AS rank
   FROM package
   WHERE
   (search_packages.tenant IS NULL OR tenant = search_packages.tenant) AND
@@ -146,8 +146,8 @@ RETURNS tsvector AS $$
       WHEN document IS NULL THEN NULL
       ELSE
         setweight(to_tsvector(document.a), 'A') ||
-	setweight(to_tsvector(document.b), 'B') ||
-	setweight(to_tsvector(document.c), 'C') ||
-	setweight(to_tsvector(document.d), 'D')
+        setweight(to_tsvector(document.b), 'B') ||
+        setweight(to_tsvector(document.c), 'C') ||
+        setweight(to_tsvector(document.d), 'D')
     END
 $$ LANGUAGE SQL IMMUTABLE;

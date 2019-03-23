@@ -85,7 +85,7 @@ function check_package_duplicate () # <name> <version> <repo-dir>
       f="$(run find "$d" -name "$nam-$ver.*")"
 
       if [ -n "$f" ]; then
-	trace "found: $f"
+        trace "found: $f"
         exit_with_manifest 422 "duplicate submission"
       fi
     fi

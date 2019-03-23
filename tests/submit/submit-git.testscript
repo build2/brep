@@ -893,7 +893,7 @@ pkg_ctl="$prj_ctl/hello.git"
     $clone_root_data_clean;
 
     sed -i -e 's%^(sha256sum:) .+$%\1 59941e842667%' \
-	$data_dir/request.manifest;
+        $data_dir/request.manifest;
 
     $clone_root_tgt;
     $g clone tgt.git &tgt/***;
@@ -927,7 +927,7 @@ pkg_ctl="$prj_ctl/hello.git"
   {
     $clone_root_data_clean;
     sed -i -e 's%^(control:) .+$%\1 http://non-existent-host/path/rep.git%' \
-	$data_dir/request.manifest;
+        $data_dir/request.manifest;
 
     $clone_root_tgt;
 
@@ -944,7 +944,7 @@ pkg_ctl="$prj_ctl/hello.git"
   {
     $clone_root_data_clean;
     sed -i -e 's%^(control:) .+$%\1 http://example.com/path/rep.git%' \
-	$data_dir/request.manifest;
+        $data_dir/request.manifest;
 
     $clone_root_tgt;
 

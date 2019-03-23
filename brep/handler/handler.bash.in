@@ -68,9 +68,9 @@ function trace_cmd () # <cmd> <arg>...
     local s="+"
     while [ $# -gt 0 ]; do
       if [ -z "$1" -o -z "${1##* *}" ]; then
-	s="$s '$1'"
+        s="$s '$1'"
       else
-	s="$s $1"
+        s="$s $1"
       fi
 
       shift

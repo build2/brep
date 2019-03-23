@@ -294,7 +294,7 @@ fi
 # connectivity with the remote repository.
 #
 git_http_timeout=("-c" "http.lowSpeedLimit=1" \
-		  "-c" "http.lowSpeedTime=$git_timeout")
+                  "-c" "http.lowSpeedTime=$git_timeout")
 
 # Parse the submission request manifest and obtain the required values.
 #
@@ -466,7 +466,7 @@ for i in {1..11}; do
       # 'project' auth state.
       #
       if [ "$a" != "unknown" ]; then
-	auth="$a"
+        auth="$a"
       fi
     fi
 
@@ -562,7 +562,7 @@ for i in {1..11}; do
       ctl="$(repository_base "$control")"
 
       create_owner_manifest \
-	"$project" "$author_name" "$author_email" "$ctl" "$prj_man"
+        "$project" "$author_name" "$author_email" "$ctl" "$prj_man"
 
       # Add the project owners manifest file to git repository using the path
       # relative to the repository directory.

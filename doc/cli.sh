@@ -14,8 +14,8 @@ while [ $# -gt 0 ]; do
     --clean)
       rm -f brep*.xhtml brep*.1
       rm -f build2-repository-interface-manual*.ps \
-	 build2-repository-interface-manual*.pdf   \
-	 build2-repository-interface-manual.xhtml
+         build2-repository-interface-manual*.pdf   \
+         build2-repository-interface-manual.xhtml
       exit 0
       ;;
     *)

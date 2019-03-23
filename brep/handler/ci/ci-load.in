@@ -202,10 +202,10 @@ while [ "$more" ]; do
   while IFS=: read -ru "$manifest_parser_ofd" -d '' n v; do
     case "$n" in
       "") # Start of (next) manifest.
-	more=true
-	manifest_version="$v"
-	break
-	;;
+        more=true
+        manifest_version="$v"
+        break
+        ;;
 
       name)    name="$v"    ;;
       version) version="$v" ;;
@@ -278,7 +278,7 @@ manifest_serializer_start "$cache_dir/packages.manifest"
 
 for ((i=0; i <= ${#packages_manifest_names[@]}; ++i)); do
   manifest_serialize "${packages_manifest_names[$i]}" \
-		     "${packages_manifest_values[$i]}"
+                     "${packages_manifest_values[$i]}"
 done
 
 manifest_serializer_finish

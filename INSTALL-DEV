@@ -176,8 +176,8 @@ replacing <user> with your login.
         # Brep module configuration.
         #
         brep-conf <BREP-SRC-ROOT>/etc/brep-module.conf
-	brep-package-db-role <user>
-	brep-build-db-role <user>
+        brep-package-db-role <user>
+        brep-build-db-role <user>
 
         # Static brep content (CSS files).
         #
