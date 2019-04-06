@@ -399,11 +399,11 @@ handle (request& rq, response& rs)
   timestamp ts (system_clock::now ());
 
   auto rqm = [&a, &sha256sum, &ts, &simulate, &rq, &rps, &respond_manifest]
-             (ostream& os) -> bool
+    (ostream& os, bool long_lines = false) -> bool
   {
     try
     {
-      serializer s (os, "request");
+      serializer s (os, "request", long_lines);
 
       // Serialize the submission manifest header.
       //
@@ -614,11 +614,12 @@ handle (request& rq, response& rs)
   // serialization error log the error description and return false, on the
   // stream error pass through the io_error exception, otherwise return true.
   //
-  auto rsm = [&rvs, &error, &ref] (ostream& os) -> bool
+  auto rsm = [&rvs, &error, &ref] (ostream& os,
+                                   bool long_lines = false) -> bool
   {
     try
     {
-      serializer s (os, "result");
+      serializer s (os, "result", long_lines);
       for (const manifest_name_value& nv: rvs)
         s.next (nv.name, nv.value);
 
@@ -672,7 +673,9 @@ handle (request& rq, response& rs)
     }
   }
 
-  // Send email, if configured, and the submission is not simulated.
+  // Send email, if configured, and the submission is not simulated. Use the
+  // long lines manifest serialization mode for the convenience of
+  // copying/clicking URLs they contain.
   //
   // Note that we don't consider the email sending failure to be a submission
   // failure as the submission data is successfully persisted and the handler
@@ -695,14 +698,16 @@ handle (request& rq, response& rs)
 
     // Write the submission request manifest.
     //
-    bool r (rqm (sm.out));
+    bool r (rqm (sm.out, true /* long_lines */));
     assert (r); // The serialization succeeded once, so can't fail now.
 
     // Write the submission result manifest.
     //
     sm.out << "\n\n";
 
-    rsm (sm.out); // We don't care about the result (see above).
+    // We don't care about the result (see above).
+    //
+    rsm (sm.out, true /* long_lines */);
 
     sm.out.close ();
 
