@@ -34,8 +34,11 @@ namespace brep
     struct result_manifest
     {
       uint16_t status;
-      vector<butl::manifest_name_value> values; // Note: all values, including
-                                                // status.
+
+      // All values, including status but excluding format version and
+      // end-of-manifest.
+      //
+      vector<butl::manifest_name_value> values;
     };
 
     optional<result_manifest>

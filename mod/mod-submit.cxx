@@ -12,7 +12,7 @@
 #include <libbutl/timestamp.mxx>
 #include <libbutl/filesystem.mxx>
 #include <libbutl/process-io.mxx>          // operator<<(ostream, process_args)
-#include <libbutl/manifest-parser.mxx>
+#include <libbutl/manifest-types.mxx>
 #include <libbutl/manifest-serializer.mxx>
 
 #include <web/xhtml.hxx>
@@ -295,8 +295,9 @@ handle (request& rq, response& rs)
   try
   {
     // Note that providing a meaningful prefix for temp_name() is not really
-    // required as the temporary directory is used by brep exclusively. However,
-    // using the abbreviated checksum can be helpful for troubleshooting.
+    // required as the temporary directory is used by brep exclusively.
+    // However, using the abbreviated checksum can be helpful for
+    // troubleshooting.
     //
     td = dir_path (options_->submit_temp () /
                    dir_path (path::traits::temp_name (ref)));
@@ -601,11 +602,9 @@ handle (request& rq, response& rs)
       rvs.emplace_back (move (nv));
     };
 
-    add ("", "1");                           // Start of manifest.
     add ("status", "200");
     add ("message", "package submission is queued");
     add ("reference", ref);
-    add ("", "");                            // End of manifest.
   }
 
   assert (!rvs.empty ()); // Produced by the handler or is implied.
@@ -620,9 +619,7 @@ handle (request& rq, response& rs)
     try
     {
       serializer s (os, "result", long_lines);
-      for (const manifest_name_value& nv: rvs)
-        s.next (nv.name, nv.value);
-
+      serialize_manifest (s, rvs);
       return true;
     }
     catch (const serialization& e)

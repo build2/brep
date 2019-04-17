@@ -39,12 +39,14 @@ function compile ()
   cli -I .. -v project="brep" -v version="$version" -v date="$date" \
 --include-base-last "${o[@]}" --generate-html --html-prologue-file \
 man-prologue.xhtml --html-epilogue-file man-epilogue.xhtml --html-suffix .xhtml \
+--link-regex '%bpkg([-.].+)%../../bpkg/doc/bpkg$1%' \
 --link-regex '%brep(#.+)?%build2-repository-interface-manual.xhtml$1%' \
 ../$n.cli
 
   cli -I .. -v project="brep" -v version="$version" -v date="$date" \
 --include-base-last "${o[@]}" --generate-man --man-prologue-file \
 man-prologue.1 --man-epilogue-file man-epilogue.1 --man-suffix .1 \
+--link-regex '%bpkg(#.+)?%$1%' \
 --link-regex '%brep(#.+)?%$1%' \
 ../$n.cli
 }
@@ -71,6 +73,7 @@ cli -I .. \
 --html-epilogue-file doc-epilogue.xhtml \
 --link-regex '%b([-.].+)%../../build2/doc/b$1%' \
 --link-regex '%bpkg([-.].+)%../../bpkg/doc/bpkg$1%' \
+--link-regex '%bpkg(#.+)?%../../bpkg/doc/build2-package-manager-manual.xhtml$1%' \
 --output-prefix build2-repository-interface- manual.cli
 
 html2ps -f doc.html2ps:a4.html2ps -o build2-repository-interface-manual-a4.ps build2-repository-interface-manual.xhtml

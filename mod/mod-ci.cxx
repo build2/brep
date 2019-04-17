@@ -103,6 +103,8 @@ handle (request& rq, response& rs)
   using namespace bpkg;
   using namespace xhtml;
 
+  using parser        = manifest_parser;
+  using parsing       = manifest_parsing;
   using serializer    = manifest_serializer;
   using serialization = manifest_serialization;
 
@@ -162,7 +164,10 @@ handle (request& rq, response& rs)
   if (!options_->ci_data_specified ())
     return respond_manifest (404, "CI request submission disabled");
 
-  // Parse the request form data.
+  // Parse the request form data and verify the submission size limit.
+  //
+  // Note that the submission may include the overrides upload that we don't
+  // expect to be large.
   //
   const name_values& rps (rq.parameters (64 * 1024));
 
@@ -280,6 +285,38 @@ handle (request& rq, response& rs)
       return respond_manifest (400, "invalid parameter " + nv.name);
   }
 
+  // Parse and validate overrides, if present.
+  //
+  vector<manifest_name_value> overrides;
+
+  if (params.overrides_specified ())
+  try
+  {
+    istream& is (rq.open_upload ("overrides"));
+    parser mp (is, "overrides");
+    overrides = parse_manifest (mp);
+
+    package_manifest::validate_overrides (overrides, mp.name ());
+  }
+  // Note that invalid_argument (thrown by open_upload() function call) can
+  // mean both no overrides upload or multiple overrides uploads.
+  //
+  catch (const invalid_argument&)
+  {
+    return respond_manifest (400, "overrides upload expected");
+  }
+  catch (const parsing& e)
+  {
+    return respond_manifest (400,
+                             string ("unable to parse overrides: ") +
+                             e.what ());
+  }
+  catch (const io_error& e)
+  {
+    error << "unable to read overrides: " << e;
+    return respond_error ();
+  }
+
   try
   {
     // Note that from now on the result manifest we respond with will contain
@@ -340,7 +377,7 @@ handle (request& rq, response& rs)
       s.next ("id", request_id);
       s.next ("repository", rl.string ());
 
-      for (const string& p: params.package())
+      for (const string& p: params.package ())
       {
         if (!p.empty ()) // Skip empty package names (see above for details).
           s.next ("package", p);
@@ -385,6 +422,7 @@ handle (request& rq, response& rs)
         if (n != "repository" &&
             n != "_"          &&
             n != "package"    &&
+            n != "overrides"  &&
             n != "simulate")
           s.next (n, nv.value ? *nv.value : "");
       }
@@ -415,6 +453,39 @@ handle (request& rq, response& rs)
   catch (const io_error& e)
   {
     error << "unable to write to '" << rqf << "': " << e;
+    return respond_error ();
+  }
+
+  // Serialize the CI overrides manifest to a stream. On the stream error pass
+  // through the io_error exception.
+  //
+  // Note that it can't throw the serialization exception as the override
+  // manifest is parsed from the stream and so verified.
+  //
+  auto ovm = [&overrides] (ostream& os, bool long_lines = false)
+  {
+    try
+    {
+      serializer s (os, "overrides", long_lines);
+      serialize_manifest (s, overrides);
+    }
+    catch (const serialization&) {assert (false);} // See above.
+  };
+
+  // Serialize the CI overrides manifest to the submission directory.
+  //
+  path ovf (dd / "overrides.manifest");
+
+  if (!overrides.empty ())
+  try
+  {
+    ofdstream os (ovf);
+    ovm (os);
+    os.close ();
+  }
+  catch (const io_error& e)
+  {
+    error << "unable to write to '" << ovf << "': " << e;
     return respond_error ();
   }
 
@@ -493,11 +564,9 @@ handle (request& rq, response& rs)
       rvs.emplace_back (move (nv));
     };
 
-    add ("", "1");                           // Start of manifest.
     add ("status", "200");
     add ("message", "CI request is queued");
     add ("reference", request_id);
-    add ("", "");                            // End of manifest.
   }
 
   assert (!rvs.empty ()); // Produced by the handler or is implied.
@@ -512,9 +581,7 @@ handle (request& rq, response& rs)
     try
     {
       serializer s (os, "result", long_lines);
-      for (const manifest_name_value& nv: rvs)
-        s.next (nv.name, nv.value);
-
+      serialize_manifest (s, rvs);
       return true;
     }
     catch (const serialization& e)
@@ -592,12 +659,18 @@ handle (request& rq, response& rs)
                  "CI request submission (" + request_id + ")",
                  {options_->ci_email ()});
 
-    // Write the submission request manifest.
+    // Write the CI request manifest.
     //
     bool r (rqm (sm.out, true /* long_lines */));
     assert (r); // The serialization succeeded once, so can't fail now.
 
-    // Write the submission result manifest.
+    // Write the CI overrides manifest.
+    //
+    sm.out << "\n\n";
+
+    ovm (sm.out, true /* long_lines */);
+
+    // Write the CI result manifest.
     //
     sm.out << "\n\n";
 

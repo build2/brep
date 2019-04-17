@@ -288,11 +288,18 @@ manifest_serializer_finish
 loadtab="$data_dir/loadtab"
 run echo "$repository $display_name cache:cache" >"$loadtab"
 
+# Apply overrides, if uploaded.
+#
+if [ -f "$data_dir/overrides.manifest" ]; then
+  loader_options+=(--overrides-file "$data_dir/overrides.manifest")
+fi
+
 # Load the requested repository packages into the brep package database for
 # the tenant identified by the reference.
 #
-run "$loader" "${loader_options[@]}" --force --shallow --tenant "$reference" \
-"$loadtab"
+loader_options+=(--force --shallow --tenant "$reference")
+
+run "$loader" "${loader_options[@]}" "$loadtab"
 
 # Remove the no longer needed CI request data directory.
 #

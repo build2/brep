@@ -797,6 +797,13 @@ namespace brep
       //
       strings package;
 
+      // Overrides file name. Must be <input type="file"/>.
+      //
+      // Note that we don't really need this name and only check if this
+      // parameter is specified to detect presence of the upload.
+      //
+      string overrides;
+
       // Submission simulation outcome.
       //
       string simulate;

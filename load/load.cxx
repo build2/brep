@@ -42,6 +42,8 @@ using namespace butl;
 using namespace bpkg;
 using namespace brep;
 
+using manifest_name_values = vector<manifest_name_value>;
+
 // Operation failed, diagnostics has already been issued.
 //
 struct failed {};
@@ -339,7 +341,9 @@ repository_info (const options& lo, const string& rl, const cstrings& options)
 // the repository. Should be called once per repository.
 //
 static void
-load_packages (const shared_ptr<repository>& rp, database& db)
+load_packages (const shared_ptr<repository>& rp,
+               database& db,
+               const manifest_name_values& overrides)
 {
   // packages_timestamp other than timestamp_nonexistent signals the
   // repository packages are already loaded.
@@ -391,7 +395,7 @@ load_packages (const shared_ptr<repository>& rp, database& db)
     throw failed ();
   }
 
-  for (auto& pm: pms)
+  for (package_manifest& pm: pms)
   {
     shared_ptr<package> p (
       db.find<package> (package_id (rp->tenant, pm.name, pm.version)));
@@ -405,6 +409,17 @@ load_packages (const shared_ptr<repository>& rp, database& db)
     {
       if (rp->internal)
       {
+        try
+        {
+          pm.override (overrides, "" /* name */);
+        }
+        catch (const manifest_parsing&)
+        {
+          // Overrides are already validated (see below).
+          //
+          assert (false);
+        }
+
         // Create internal package object.
         //
         optional<string> dsc;
@@ -727,7 +742,9 @@ load_repositories (const shared_ptr<repository>& rp,
       }
     }
 
-    load_packages (pr, db);
+    // We don't apply overrides to the external packages.
+    //
+    load_packages (pr, db, manifest_name_values () /* overrides */);
     load_repositories (pr, db, false /* shallow */);
   }
 
@@ -1054,7 +1071,7 @@ try
   {
     cerr << "error: unable to ignore broken pipe (SIGPIPE) signal: "
          << system_error (errno, generic_category ()) << endl; // Sanitize.
-    return 1;
+    throw failed ();
   }
 
   cli::argv_scanner scan (argc, argv, true);
@@ -1095,14 +1112,14 @@ try
   {
     cerr << "error: configuration file expected" << endl
          << help_info << endl;
-    return 1;
+    throw failed ();
   }
 
   if (argc > 2)
   {
     cerr << "error: unexpected argument encountered" << endl
          << help_info << endl;
-    return 1;
+    throw failed ();
   }
 
   // By default the tenant is empty and assumes a single-tenant mode. Let's
@@ -1114,7 +1131,35 @@ try
   {
     cerr << "error: empty tenant" << endl
          << help_info << endl;
-    return 1;
+    throw failed ();
+  }
+
+  // Parse and validate overrides, if specified.
+  //
+  manifest_name_values overrides;
+
+  if (ops.overrides_file_specified ())
+  try
+  {
+    const string& name (ops.overrides_file ().string ());
+
+    ifdstream is (ops.overrides_file ());
+    manifest_parser mp (is, name);
+    overrides = parse_manifest (mp);
+    is.close ();
+
+    package_manifest::validate_overrides (overrides, name);
+  }
+  catch (const manifest_parsing& e)
+  {
+    cerr << "error: unable to parse overrides: " << e << endl;
+    throw failed ();
+  }
+  catch (const io_error& e)
+  {
+    cerr << "error: unable to read '" << ops.overrides_file () << "': " << e
+         << endl;
+    throw failed ();
   }
 
   odb::pgsql::database db (
@@ -1139,7 +1184,7 @@ try
   {
     cerr << "error: package database schema differs from the current one"
          << endl << "  info: use brep-migrate to migrate the database" << endl;
-    return 1;
+    throw failed ();
   }
 
   // Load the description of all the internal repositories from the
@@ -1203,7 +1248,7 @@ try
                                  move (cert),
                                  priority++));
 
-      load_packages (r, db);
+      load_packages (r, db, overrides);
     }
 
     // On the second pass over the internal repositories we load their

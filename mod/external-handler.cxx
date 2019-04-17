@@ -302,10 +302,6 @@ namespace brep
         //
         assert (n.empty () && v == "1");
 
-        // Save the format version pair.
-        //
-        r.values.push_back (move (nv));
-
         // Get and verify the HTTP status.
         //
         nv = p.next ();
@@ -329,10 +325,6 @@ namespace brep
         //
         for (nv = p.next (); !nv.empty (); nv = p.next ())
           r.values.push_back (move (nv));
-
-        // Save end of manifest.
-        //
-        r.values.push_back (move (nv));
       }
       catch (const parsing& e)
       {

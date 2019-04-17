@@ -221,6 +221,11 @@ case all the versions of this package present in the repository will be
 tested, or both the name and version in the \c{<name>/<version>} form (for
 example, \c{libhello/1.2.3}.|
 
+\li|Verify the optional \c{overrides} parameter.
+
+The overrides parameter, if specified, must be the CI overrides manifest
+upload.|
+
 \li|Verify other parameters are valid manifest name/value pairs.
 
 The value can only contain printable ASCII characters as well as tab
@@ -236,6 +241,10 @@ is created in the \c{ci-data} directory with this id as its name.|
 The CI request manifest is saved as \c{request.manifest} into the request
 subdirectory created on the previous step.|
 
+\li|Save the CI overrides manifest into the request directory.
+
+If the CI overrides manifest is uploaded, then it is saved as
+\c{overrides.manifest} into the request subdirectory.|
 
 \li|Invoke the CI handler program.
 
@@ -283,7 +292,8 @@ reference: <request-id>
 \li|Send the CI request email.
 
 If \c{ci-email} is configured, send an email to this address containing the CI
-request manifest and the CI result manifest.|
+request manifest, the potentially empty CI overrides manifest, and the CI
+result manifest.|
 
 \li|Respond to the client.
 
@@ -327,6 +337,21 @@ timestamp: <date-time>
 The \c{package} value can be repeated multiple times. The \c{timestamp} value
 is in the ISO-8601 \c{<YYYY>-<MM>-<DD>T<hh>:<mm>:<ss>Z} form (always
 UTC). Note also that \c{client-ip} can be IPv4 or IPv6.
+
+
+\h#ci-overrides-manifest|CI Overrides Manifest|
+
+The CI overrides manifest is a package manifest fragment that should be
+applied to all the packages being tested. The contained values override the
+whole value groups they belong to, resetting all the group values prior to
+being applied. Currently, only the following value groups can be overridden:
+
+\
+build-email build-{warning,error}-email
+builds build-{include,exclude}
+\
+
+See \l{bpkg#manifest-package Package Manifest} for details on these values.
 
 
 \h#ci-result-manifest|CI Result Manifest|

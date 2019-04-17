@@ -59,6 +59,13 @@ class options
      specified, then the single-tenant mode is assumed."
   };
 
+  brep::path --overrides-file
+  {
+    "<file>",
+    "Read package manifest overrides from the specified manifest fragment
+     file and apply them to packages being loaded."
+  }
+
   std::string --db-user|-u
   {
     "<user>",
