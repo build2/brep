@@ -186,13 +186,17 @@ handle (request& rq, response& rs)
     if (const optional<string>& d = pkg->description)
     {
       const string id ("description");
+      const string what (name.string () + " description");
 
       s << (full
-            ? PRE_TEXT (*d, id)
-            : PRE_TEXT (*d,
+            ? DIV_TEXT (*d, *pkg->description_type, id, what, error)
+            : DIV_TEXT (*d,
+                        *pkg->description_type,
                         options_->package_description (),
                         url (!full, squery, page, id),
-                        id));
+                        id,
+                        what,
+                        error));
     }
 
     s << TABLE(CLASS="proplist", ID="package")
@@ -221,7 +225,11 @@ handle (request& rq, response& rs)
     package_db_->query_value<package_count> (
       search_params<package_count> (squery, tenant, name)));
 
-  s << FORM_SEARCH (squery, "q")
+  // Let's disable autofocus in the full page mode since clicking the full or
+  // more link the user most likely intends to read rather than search, while
+  // autofocus scrolls the page to the search field.
+  //
+  s << FORM_SEARCH (squery, "q", !full)
     << DIV_COUNTER (pkg_count, "Version", "Versions");
 
   // Enclose the subsequent tables to be able to use nth-child CSS selector.

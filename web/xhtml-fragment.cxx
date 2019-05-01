@@ -20,25 +20,38 @@ namespace web
   namespace xhtml
   {
     fragment::
-    fragment (const string& text, const string& name)
+    fragment (const string& text, const string& name, size_t length)
     {
       // To parse the fragment make it a valid xml document, wrapping with the
-      // root element.
+      // root element. If requested, truncate the fragment before the
+      // first-level element when the content length limit is exceeded.
       //
       string doc ("<d>" + text + "</d>");
 
-      parser p (
-        doc.c_str (),
-        doc.size (),
-        name,
-        parser::receive_elements | parser::receive_characters |
-        parser::receive_attributes_event);
+      parser p (doc.c_str (),
+                doc.size (),
+                name,
+                parser::receive_elements   |
+                parser::receive_characters |
+                parser::receive_attributes_event);
+
+      size_t len (0);
+      size_t level (0);
 
       for (parser::event_type e: p)
       {
         switch (e)
         {
         case parser::start_element:
+          {
+            truncated = length != 0 && level == 1 && len >= length;
+
+            if (truncated)
+              break;
+
+            ++level;
+          }
+          // Fall through.
         case parser::start_attribute:
           {
             const auto& n (p.qname ());
@@ -51,6 +64,10 @@ namespace web
             break;
           }
         case parser::end_element:
+          {
+            --level;
+          }
+          // Fall through.
         case parser::end_attribute:
           {
             events_.emplace_back (e, "");
@@ -58,11 +75,24 @@ namespace web
           }
         case parser::characters:
           {
-            events_.emplace_back (e, p.value ());
+            string& s (p.value ());
+
+            assert (!events_.empty ()); // Contains root element start.
+
+            if (events_.back ().first != parser::start_attribute)
+              len += s.size ();
+
+            events_.emplace_back (e, move (s));
             break;
           }
         default:
           assert (false);
+        }
+
+        if (truncated)
+        {
+          events_.emplace_back (parser::end_element, ""); // Close root.
+          break;
         }
       }
 
@@ -85,7 +115,6 @@ namespace web
             s.start_element (xmlns, e.second);
             break;
           }
-
         case parser::start_attribute:
           {
             s.start_attribute (e.second);

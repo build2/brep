@@ -73,16 +73,54 @@ h1, h2, h3
 }
 
 /*
- * Description.
+ * Description (plain text).
  *
  * This is a <pre> block that fits lines up to 80 characters long and
  * wraps longer ones.
  */
-#description
+#description.plain pre
 {
   font-size: 0.85em;
-  white-space: pre-wrap;
 }
+
+/*
+ * Description (Markdown).
+ *
+ * These are descendants of the <div> block containing the result of
+ * Markdown-to-HTML translation.
+ *
+ * Note that the Markdown code blocks are translated into the
+ * <pre><code>...<code/></pre> element construct.
+ */
+#description.markdown h1,
+#description.markdown h2
+{
+  white-space: normal;
+}
+
+/* code-box.css */
+#description.markdown :not(pre) > code
+{
+  background-color: rgba(0, 0, 0, 0.05);
+  border-radius: 0.2em;
+  padding: .2em .32em .18em .32em;
+}
+
+/* pre-box.css */
+#description.markdown pre
+{
+  background-color: rgba(0, 0, 0, 0.05);
+  border-radius: 0.2em;
+  padding: .8em .4em .8em .4em;
+  margin: 2em -.4em 2em -.4em; /* Use paddings of #content. */
+}
+
+#description.markdown pre > code
+{
+  font-size: inherit;
+}
+
+#description.markdown .error {color: #ff0000;}
 
 /*
  * Version details table.
@@ -218,6 +256,5 @@ h1, h2, h3
 #changes
 {
   font-size: 0.85em;
-  white-space: pre-wrap;
   margin: .5em 0 .5em 0;
 }

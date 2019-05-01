@@ -89,7 +89,7 @@ using internal_repositories = vector<internal_repository>;
 // Specifically, the packages.manifest is not a pkg package manifest list. It
 // contains a raw list of package manifests that may contain values forbidden
 // for the pkg package manifest list (description-file, changes-file) and may
-// omit the required ones (sha256sum).
+// omit the required ones (sha256sum, description-type).
 //
 // @@ Latter, we may also want to support loading bpkg repositories using
 //    manifest files produced by bpkg-rep-info command. This, in particular,
@@ -343,6 +343,7 @@ repository_info (const options& lo, const string& rl, const cstrings& options)
 static void
 load_packages (const shared_ptr<repository>& rp,
                database& db,
+               bool ignore_unknown,
                const manifest_name_values& overrides)
 {
   // packages_timestamp other than timestamp_nonexistent signals the
@@ -376,18 +377,17 @@ load_packages (const shared_ptr<repository>& rp,
       // We put no restrictions on the manifest values presence since it's not
       // critical for displaying and building if the packages omit some
       // manifest values (see libbpkg/manifest.hxx for details). Note, though,
-      // that we expect package dependency constraints to be complete.
+      // that we expect dependency constraints to be complete.
       //
       for (manifest_name_value nv (mp.next ()); !nv.empty (); nv = mp.next ())
-        pms.emplace_back (
-          mp,
-          move (nv),
-          false /* ignore_unknown */,
-          false /* complete_depends */,
-          package_manifest_flags::forbid_incomplete_depends);
+        pms.emplace_back (mp,
+                          move (nv),
+                          ignore_unknown,
+                          false /* complete_depends */,
+                          package_manifest_flags::forbid_incomplete_depends);
     }
     else
-      pms = pkg_package_manifests (mp);
+      pms = pkg_package_manifests (mp, ignore_unknown);
   }
   catch (const io_error& e)
   {
@@ -423,6 +423,8 @@ load_packages (const shared_ptr<repository>& rp,
         // Create internal package object.
         //
         optional<string> dsc;
+        optional<text_type> dst;
+
         if (pm.description)
         {
           // The description value should not be of the file type if the
@@ -431,7 +433,18 @@ load_packages (const shared_ptr<repository>& rp,
           assert (!pm.description->file || cl.type () != repository_type::pkg);
 
           if (!pm.description->file)
-            dsc = move (pm.description->text);
+          {
+            dst = pm.effective_description_type (ignore_unknown);
+
+            // If the description type is unknown (which may be the case for
+            // some "transitional" period and only if --ignore-unknown is
+            // specified) we just silently drop the description.
+            //
+            assert (dst || ignore_unknown);
+
+            if (dst)
+              dsc = move (pm.description->text);
+          }
         }
 
         string chn;
@@ -495,6 +508,7 @@ load_packages (const shared_ptr<repository>& rp,
           move (pm.license_alternatives),
           move (pm.tags),
           move (dsc),
+          move (dst),
           move (chn),
           move (pm.url),
           move (pm.doc_url),
@@ -563,6 +577,7 @@ load_packages (const shared_ptr<repository>& rp,
 static void
 load_repositories (const shared_ptr<repository>& rp,
                    database& db,
+                   bool ignore_unknown,
                    bool shallow)
 {
   // repositories_timestamp other than timestamp_nonexistent signals that
@@ -592,7 +607,7 @@ load_repositories (const shared_ptr<repository>& rp,
     rp->repositories_timestamp = file_mtime (p);
 
     manifest_parser mp (ifs, p.string ());
-    rpm = pkg_repository_manifests (mp);
+    rpm = pkg_repository_manifests (mp, ignore_unknown);
   }
   catch (const io_error& e)
   {
@@ -744,8 +759,12 @@ load_repositories (const shared_ptr<repository>& rp,
 
     // We don't apply overrides to the external packages.
     //
-    load_packages (pr, db, manifest_name_values () /* overrides */);
-    load_repositories (pr, db, false /* shallow */);
+    load_packages (pr,
+                   db,
+                   ignore_unknown,
+                   manifest_name_values () /* overrides */);
+
+    load_repositories (pr, db, ignore_unknown, false /* shallow */);
   }
 
   db.update (rp);
@@ -1248,7 +1267,7 @@ try
                                  move (cert),
                                  priority++));
 
-      load_packages (r, db, overrides);
+      load_packages (r, db, ops.ignore_unknown (), overrides);
     }
 
     // On the second pass over the internal repositories we load their
@@ -1261,7 +1280,7 @@ try
         db.load<repository> (
           repository_id (tnt, ir.location.canonical_name ())));
 
-      load_repositories (r, db, ops.shallow ());
+      load_repositories (r, db, ops.ignore_unknown (), ops.shallow ());
     }
 
     // Resolve internal packages dependencies unless this is a shallow load.

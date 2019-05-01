@@ -17,6 +17,7 @@
 #include <libbrep/build.hxx>
 #include <libbrep/package.hxx>
 
+#include <mod/diagnostics.hxx>
 #include <mod/options-types.hxx> // page_menu
 
 namespace brep
@@ -24,7 +25,7 @@ namespace brep
   // Page common building blocks.
   //
 
-  // Generates CSS link elements.
+  // Generate CSS link elements.
   //
   class CSS_LINKS
   {
@@ -39,7 +40,7 @@ namespace brep
     const dir_path& root_;
   };
 
-  // Generates page header element.
+  // Generate page header element.
   //
   class DIV_HEADER
   {
@@ -60,13 +61,16 @@ namespace brep
     const string& tenant_;
   };
 
-  // Generates package search form element with the specified query input
+  // Generate package search form element with the specified query input
   // element name.
   //
   class FORM_SEARCH
   {
   public:
-    FORM_SEARCH (const string& q, const string& n): query_ (q), name_ (n) {}
+    FORM_SEARCH (const string& q, const string& n, bool a = true)
+        : query_ (q), name_ (n), autofocus_ (a)
+    {
+    }
 
     void
     operator() (xml::serializer&) const;
@@ -74,9 +78,10 @@ namespace brep
   private:
     const string& query_;
     const string& name_;
+    bool autofocus_;
   };
 
-  // Generates counter element.
+  // Generate counter element.
   //
   // It could be redunant to distinguish between singular and plural word forms
   // if it wouldn't be so cheap in English, and phrase '1 Packages' wouldn't
@@ -97,7 +102,7 @@ namespace brep
     const char* plural_;
   };
 
-  // Generates table row element, that has the 'label: value' layout.
+  // Generate table row element, that has the 'label: value' layout.
   //
   class TR_VALUE
   {
@@ -113,7 +118,7 @@ namespace brep
     const string& value_;
   };
 
-  // Generates table row element, that has the 'label: <input type="text"/>'
+  // Generate table row element, that has the 'label: <input type="text"/>'
   // layout.
   //
   class TR_INPUT
@@ -139,7 +144,7 @@ namespace brep
     bool autofocus_;
   };
 
-  // Generates table row element, that has the 'label: <select></select>'
+  // Generate table row element, that has the 'label: <select></select>'
   // layout. Option elements are represented as a list of value/inner-text
   // pairs.
   //
@@ -162,7 +167,7 @@ namespace brep
     const vector<pair<string, string>>& options_;
   };
 
-  // Generates tenant id element.
+  // Generate tenant id element.
   //
   // Displays a link to the service page for the specified tenant.
   //
@@ -185,7 +190,7 @@ namespace brep
     const string& tenant_;
   };
 
-  // Generates package name element with an optional search criteria. The
+  // Generate package name element with an optional search criteria. The
   // search string should be url-encoded, if specified.
   //
   class TR_NAME
@@ -207,7 +212,7 @@ namespace brep
     const string& tenant_;
   };
 
-  // Generates package version element.
+  // Generate package version element.
   //
   class TR_VERSION
   {
@@ -248,7 +253,7 @@ namespace brep
     const string* tenant_;
   };
 
-  // Generates package project name element.
+  // Generate package project name element.
   //
   // Displays a link to the package search page with the project name
   // specified as a keyword.
@@ -268,7 +273,7 @@ namespace brep
     const string& tenant_;
   };
 
-  // Generates package summary element.
+  // Generate package summary element.
   //
   class TR_SUMMARY
   {
@@ -282,7 +287,7 @@ namespace brep
     const string& summary_;
   };
 
-  // Generates package license alternatives element.
+  // Generate package license alternatives element.
   //
   class TR_LICENSE
   {
@@ -296,7 +301,7 @@ namespace brep
     const license_alternatives& licenses_;
   };
 
-  // Generates package license alternatives elements. Differs from TR_LICENSE
+  // Generate package license alternatives elements. Differs from TR_LICENSE
   // by producing multiple rows instead of a single one.
   //
   class TR_LICENSES
@@ -311,7 +316,7 @@ namespace brep
     const license_alternatives& licenses_;
   };
 
-  // Generates package tags element.
+  // Generate package tags element.
   //
   class TR_TAGS
   {
@@ -340,7 +345,7 @@ namespace brep
     const string& tenant_;
   };
 
-  // Generates package dependencies element.
+  // Generate package dependencies element.
   //
   class TR_DEPENDS
   {
@@ -357,7 +362,7 @@ namespace brep
     const string& tenant_;
   };
 
-  // Generates package requirements element.
+  // Generate package requirements element.
   //
   class TR_REQUIRES
   {
@@ -371,7 +376,7 @@ namespace brep
     const requirements& requirements_;
   };
 
-  // Generates url element.
+  // Generate url element.
   //
   class TR_URL
   {
@@ -386,7 +391,7 @@ namespace brep
     const char* label_;
   };
 
-  // Generates email element.
+  // Generate email element.
   //
   class TR_EMAIL
   {
@@ -402,7 +407,7 @@ namespace brep
     const char* label_;
   };
 
-  // Generates package version priority element.
+  // Generate package version priority element.
   //
   class TR_PRIORITY
   {
@@ -416,7 +421,7 @@ namespace brep
     const priority& priority_;
   };
 
-  // Generates repository name element.
+  // Generate repository name element.
   //
   class TR_REPOSITORY
   {
@@ -433,7 +438,7 @@ namespace brep
     const string& tenant_;
   };
 
-  // Generates repository location element.
+  // Generate repository location element.
   //
   class TR_LOCATION
   {
@@ -447,7 +452,7 @@ namespace brep
     const repository_location& location_;
   };
 
-  // Generates package download URL element.
+  // Generate package download URL element.
   //
   class TR_DOWNLOAD
   {
@@ -461,7 +466,7 @@ namespace brep
     const string& url_;
   };
 
-  // Generates sha256sum element.
+  // Generate sha256sum element.
   //
   class TR_SHA256SUM
   {
@@ -475,7 +480,7 @@ namespace brep
     const string& sha256sum_;
   };
 
-  // Generates build results element.
+  // Generate build results element.
   //
   class TR_BUILD_RESULT
   {
@@ -492,7 +497,7 @@ namespace brep
     const dir_path& root_;
   };
 
-  // Generates comment element.
+  // Generate comment element.
   //
   class SPAN_COMMENT
   {
@@ -506,7 +511,7 @@ namespace brep
     const string& comment_;
   };
 
-  // Generates package build result status element.
+  // Generate package build result status element.
   //
   class SPAN_BUILD_RESULT_STATUS
   {
@@ -520,7 +525,7 @@ namespace brep
     const bbot::result_status& status_;
   };
 
-  // Generates paragraph elements converting a plain text into XHTML5 applying
+  // Generate paragraph elements converting a plain text into XHTML5 applying
   // some heuristics (see implementation for details). Truncate the text if
   // requested.
   //
@@ -551,7 +556,7 @@ namespace brep
     string id_;
   };
 
-  // Generates pre-formatted text element. Truncate the text if requested.
+  // Generate pre-formatted text element. Truncate the text if requested.
   //
   class PRE_TEXT
   {
@@ -579,7 +584,64 @@ namespace brep
     string id_;
   };
 
-  // Generates paging element.
+  // Generate a typed text element truncating it if requested. On the
+  // underlying parsing/rendering error, log it and generate the error
+  // description element instead. Note that such an error indicates an issue
+  // with the implementation, rather than with the specified text.
+  //
+  class DIV_TEXT
+  {
+  public:
+    // Generate a full text element.
+    //
+    DIV_TEXT (const string& t,
+              text_type tp,
+              const string& id,
+              const string& what,
+              const basic_mark& diag)
+        : text_ (t),
+          type_ (tp),
+          length_ (t.size ()),
+          url_ (nullptr),
+          id_ (id),
+          what_ (what),
+          diag_ (diag)
+    {
+    }
+
+    // Generate a brief text element.
+    //
+    DIV_TEXT (const string& t,
+              text_type tp,
+              size_t l,
+              const string& u,
+              const string& id,
+              const string& what,
+              const basic_mark& diag)
+        : text_ (t),
+          type_ (tp),
+          length_ (l),
+          url_ (&u),
+          id_ (id),
+          what_ (what),
+          diag_ (diag)
+    {
+    }
+
+    void
+    operator() (xml::serializer&) const;
+
+  private:
+    const string& text_;
+    text_type type_;
+    size_t length_;
+    const string* url_; // Full page url.
+    string id_;
+    const string& what_;
+    const basic_mark& diag_;
+  };
+
+  // Generate paging element.
   //
   class DIV_PAGER
   {

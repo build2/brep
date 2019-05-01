@@ -8,6 +8,7 @@ summary: The exponent
 license: MIT
 tags: mathlab, c++, exponent
 description: The exponent math function.
+description-type: text/plain
 url: http://exp.example.com
 email: users@exp.example.com
 build-email: builds@exp.example.com
@@ -50,10 +51,11 @@ A modern C++ library with easy to use linear algebra and lot of optimization
 tools.
 
 There are over 100 functions in total with an extensive test suite. The API is
-similar to MATLAB.
+similar to ~~mathlab~~ **MATLAB**.
 
 Useful for conversion of research code into production environments.
 \
+description-type: text/markdown
 changes: \
 1.2.4+1
  * applied patch for critical bug-219
@@ -76,7 +78,7 @@ requires: c++11
 requires: ? ; libc++ standard library if using Clang on Mac OS X.
 requires: ? vc++ >= 12.0; Only if using VC++ on Windows.
 location: libfoo-1.2.4+1.tar.gz
-sha256sum: c5e593d8efdc34a258f8c0b8cc352dc7193ea4a1d666bcf8d48708c7dd82d0d6
+sha256sum: 92eb89770be390cbac9e0113763e0c10c43a4530667f5572571895617368369a
 :
 name: libpq
 version: 0
@@ -105,6 +107,7 @@ The packaging of PostgreSQL for build2 is tracked in a Git repository at:
 https://git.build2.org/cgit/packaging/postgresql/
 
 \
+description-type: text/plain
 url: https://www.postgresql.org/
 package-url: https://git.build2.org/cgit/packaging/postgresql/
 email: pgsql-general@postgresql.org; Mailing list.

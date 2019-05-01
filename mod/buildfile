@@ -11,7 +11,9 @@ mod{*}:
   install = libexec/
 }
 
-import libs  = libodb%lib{odb}
+import libs  = libcmark-gfm%lib{cmark-gfm}
+import libs += libcmark-gfm-extensions%lib{cmark-gfm-extensions}
+import libs += libodb%lib{odb}
 import libs += libodb-pgsql%lib{odb-pgsql}
 import libs += libbutl%lib{butl}
 import libs += libbpkg%lib{bpkg}

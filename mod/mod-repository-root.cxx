@@ -6,6 +6,8 @@
 
 #include <time.h> // tzset()
 
+#include <cmark-gfm-core-extensions.h>
+
 #include <sstream>
 #include <algorithm> // find()
 
@@ -285,6 +287,10 @@ namespace brep
     // sub-handlers, while handling requests).
     //
     tzset ();
+
+    // To recognize cmark-gfm extensions while parsing Markdown later on.
+    //
+    cmark_gfm_core_extensions_ensure_registered ();
   }
 
   bool repository_root::

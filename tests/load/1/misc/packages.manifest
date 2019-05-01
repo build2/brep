@@ -6,6 +6,7 @@ version: 2.4.0+3
 priority: security; Very important to install.
 summary: The Bar library
 description: very very good library.
+description-type: text/plain
 license: GPLv2
 tags: c++, bar
 url: http://www.example.com/bar/

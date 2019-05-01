@@ -207,7 +207,6 @@ create (database& db, bool extra_only) const
 
 // Register the data migration functions for the package database schema.
 //
-#if 0
 template <schema_version v>
 using package_migration_entry_base =
   data_migration_entry<v, LIBBREP_PACKAGE_SCHEMA_VERSION_BASE>;
@@ -220,10 +219,13 @@ struct package_migration_entry: package_migration_entry_base<v>
 };
 
 static const package_migration_entry<12>
-package_migrate_v12 ([] (database&)
+package_migrate_v12 ([] (database& db)
 {
+  // Set the text_type::plain type for the present package descriptions.
+  //
+  db.execute ("UPDATE package SET description_type = 'text/plain' "
+              "WHERE description IS NOT NULL");
 });
-#endif
 
 // main() function
 //

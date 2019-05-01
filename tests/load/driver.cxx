@@ -683,8 +683,8 @@ test_pkg_repos (const cstrings& loader_args,
             "A modern C++ library with easy to use linear algebra and lot "
             "of optimization\ntools.\n\nThere are over 100 functions in "
             "total with an extensive test suite. The API is\nsimilar to "
-            "MATLAB.\n\nUseful for conversion of research code into "
-            "production environments.");
+            "~~mathlab~~ **MATLAB**.\n\nUseful for conversion of research "
+            "code into production environments.");
 
     assert (fpv5->url && *fpv5->url == "http://www.example.com/foo/");
 
@@ -782,7 +782,7 @@ test_pkg_repos (const cstrings& loader_args,
     assert (check_location (fpv5));
 
     assert (fpv5->sha256sum && *fpv5->sha256sum ==
-            "c5e593d8efdc34a258f8c0b8cc352dc7193ea4a1d666bcf8d48708c7dd82d0d6");
+            "92eb89770be390cbac9e0113763e0c10c43a4530667f5572571895617368369a");
 
     // Verify libexp package version.
     //

@@ -54,6 +54,7 @@ summary: The Foo Library
 license: MIT; Permissive free software license.
 tags: c++, foo
 description: Very good foo library.
+description-type: text/plain
 changes: some changes 1
 changes: some changes 2
 url: http://www.example.com/foo/

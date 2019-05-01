@@ -21,7 +21,7 @@
 //
 #define LIBBREP_PACKAGE_SCHEMA_VERSION_BASE 11
 
-#pragma db model version(LIBBREP_PACKAGE_SCHEMA_VERSION_BASE, 11, closed)
+#pragma db model version(LIBBREP_PACKAGE_SCHEMA_VERSION_BASE, 12, closed)
 
 namespace brep
 {
@@ -44,6 +44,21 @@ namespace brep
 
   #pragma db value(priority) definition
   #pragma db member(priority::value) column("")
+
+  // text_type
+  //
+  using bpkg::text_type;
+  using bpkg::to_text_type;
+
+  #pragma db map type(text_type) as(string) \
+    to(to_string (?))                       \
+    from(brep::to_text_type (?))
+
+  using optional_text_type = optional<text_type>;
+
+  #pragma db map type(optional_text_type) as(brep::optional_string)     \
+    to((?) ? to_string (*(?)) : brep::optional_string ())               \
+    from((?) ? brep::to_text_type (*(?)) : brep::optional_text_type ())
 
   // url
   //
@@ -348,6 +363,7 @@ namespace brep
              license_alternatives_type,
              strings tags,
              optional<string> description,
+             optional<text_type> description_type,
              string changes,
              optional<url_type>,
              optional<url_type> doc_url,
@@ -396,7 +412,8 @@ namespace brep
     string summary;
     license_alternatives_type license_alternatives;
     strings tags;
-    optional<string> description;
+    optional<string> description;         // Absent if type is unknown.
+    optional<text_type> description_type; // Present if description is present.
     string changes;
     optional<url_type> url;
     optional<url_type> doc_url;

@@ -4,6 +4,9 @@
 
 #include <mod/page.hxx>
 
+#include <cmark-gfm.h>
+#include <cmark-gfm-extension_api.h>
+
 #include <set>
 #include <ios>       // hex, uppercase, right
 #include <sstream>
@@ -13,6 +16,7 @@
 #include <libstudxml/serializer.hxx>
 
 #include <web/xhtml.hxx>
+#include <web/xhtml-fragment.hxx>
 #include <web/mime-url-encoding.hxx>
 
 #include <libbrep/package.hxx>
@@ -98,8 +102,12 @@ namespace brep
       <<     TBODY
       <<       TR
       <<         TD(ID="search-txt")
-      <<           *INPUT(TYPE="search", NAME=name_, VALUE=query_,
-                          AUTOFOCUS="")
+      <<           INPUT(TYPE="search", NAME=name_, VALUE=query_);
+
+    if (autofocus_)
+      s << AUTOFOCUS("");
+
+    s <<           ~INPUT
       <<         ~TD
       <<         TD(ID="search-btn")
       <<           *INPUT(TYPE="submit", VALUE="Search")
@@ -805,32 +813,181 @@ namespace brep
 
   // PRE_TEXT
   //
-  void PRE_TEXT::
-  operator() (serializer& s) const
+  static void
+  serialize_pre_text (serializer& s,
+                      const string& text,
+                      size_t length,
+                      const string* url,
+                      const string& id)
   {
-    if (text_.empty ())
+    if (text.empty ())
       return;
 
-    size_t n (text_.find_first_of (" \t\n", length_));
+    size_t n (text.find_first_of (" \t\n", length));
     bool full (n == string::npos); // Text length is below the limit.
 
     // Truncate the text if length exceeds the limit.
     //
-    const string& t (full ? text_ : string (text_, 0, n));
+    const string& t (full ? text : string (text, 0, n));
     s << PRE;
 
-    if (!id_.empty ())
-      s << ID(id_);
+    if (!id.empty ())
+      s << ID(id);
 
     s << t;
 
     if (!full)
     {
-      assert (url_ != nullptr);
-      s << "... " << A(HREF=*url_) << "More" << ~A;
+      assert (url != nullptr);
+      s << "... " << A(HREF=*url) << "More" << ~A;
     }
 
     s << ~PRE;
+  }
+
+  void PRE_TEXT::
+  operator() (serializer& s) const
+  {
+    serialize_pre_text (s, text_, length_, url_, id_);
+  }
+
+  // DIV_TEXT
+  //
+  void DIV_TEXT::
+  operator() (serializer& s) const
+  {
+    switch (type_)
+    {
+    case text_type::plain:
+      {
+        // To keep things regular we wrap the preformatted text into <div>.
+        //
+        s << DIV(ID=id_, CLASS="plain");
+        serialize_pre_text (s, text_, length_, url_, "" /* id */);
+        s << ~DIV;
+        break;
+      }
+    case text_type::common_mark:
+    case text_type::github_mark:
+      {
+        // Convert Markdown into XHTML wrapping it into the <div> element.
+        //
+        auto print_error = [&s, this] (const string& e)
+        {
+          s << DIV(ID=id_, CLASS="markdown")
+          <<   SPAN(CLASS="error") << e << ~SPAN
+          << ~DIV;
+        };
+
+        // Note that the only possible reason for the following cmark API
+        // calls to fail is the inability to allocate memory. Unfortunately,
+        // instead of reporting the failure to the caller, the API issues
+        // diagnostics to stderr and aborts the process. Let's decrease the
+        // probability of such an event by limiting the text size to 64K.
+        //
+        if (text_.size () > 64 * 1024)
+        {
+          print_error (what_ + " is too long");
+          return;
+        }
+
+        string html;
+        {
+          char* r;
+          {
+            // Parse Markdown into the AST.
+            //
+            unique_ptr<cmark_parser, void (*)(cmark_parser*)> parser (
+              cmark_parser_new (CMARK_OPT_DEFAULT | CMARK_OPT_VALIDATE_UTF8),
+              [] (cmark_parser* p) {cmark_parser_free (p);});
+
+            // Enable GitHub extensions in the parser, if requested.
+            //
+            if (type_ == text_type::github_mark)
+            {
+              auto add = [&parser] (const char* ext)
+                {
+                  cmark_syntax_extension* e (
+                    cmark_find_syntax_extension (ext));
+
+                  // Built-in extension is only expected.
+                  //
+                  assert (e != nullptr);
+
+                  cmark_parser_attach_syntax_extension (parser.get (), e);
+                };
+
+              add ("table");
+              add ("strikethrough");
+              add ("autolink");
+
+              // Somehow feels unsafe (there are some nasty warnings when
+              // upstream's tasklist.c is compiled), so let's disable for now.
+              //
+              // add ("tasklist");
+            }
+
+            cmark_parser_feed (parser.get (), text_.c_str (), text_.size ());
+
+            unique_ptr<cmark_node, void (*)(cmark_node*)> doc (
+              cmark_parser_finish (parser.get ()),
+              [] (cmark_node* n) {cmark_node_free (n);});
+
+            // Render the AST into an XHTML fragment.
+            //
+            // Note that unlike GitHub we follow the default API behavior and
+            // don't allow the raw HTML in Markdown (omitting the
+            // CMARK_OPT_UNSAFE flag). This way we can assume the rendered
+            // HTML is a well-formed XHTML fragment, which we rely upon for
+            // truncation (see below). Note that by default the renderer
+            // suppresses any HTML-alike markup and unsafe URLs (javascript:,
+            // etc).
+            //
+            r = cmark_render_html (doc.get (),
+                                   CMARK_OPT_DEFAULT,
+                                   nullptr /* extensions */);
+          }
+
+          unique_ptr<char, void (*)(char*)> deleter (
+            r,
+            [] (char* s) {cmark_get_default_mem_allocator ()->free (s);});
+
+          html = r;
+        }
+
+        // From the CommonMark Spec it follows that the resulting HTML can be
+        // assumed a well-formed XHTML fragment with all the elements having
+        // closing tags. But let's not assume this being the case (due to some
+        // library bug or similar) and handle the xml::parsing exception.
+        //
+        try
+        {
+          fragment f (html, "gfm-html", url_ == nullptr ? 0 : length_);
+
+          s << DIV(ID=id_, CLASS="markdown");
+
+          // Disable indentation not to introduce unwanted spaces.
+          //
+          s.suspend_indentation ();
+          s << f;
+          s.resume_indentation ();
+
+          if (f.truncated)
+            s << DIV(CLASS="more") << A(HREF=*url_) << "More" << ~A << ~DIV;
+
+          s << ~DIV;
+        }
+        catch (const xml::parsing& e)
+        {
+          string error ("unable to parse " + what_ + " XHTML fragment: " +
+                        e.what ());
+          diag_ << error;
+          print_error (error);
+        }
+
+        break;
+      }
+    }
   }
 
   // DIV_PAGER

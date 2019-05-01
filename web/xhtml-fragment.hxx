@@ -22,16 +22,21 @@ namespace web
     class fragment
     {
     public:
+      bool truncated = false;
+
+    public:
       fragment () = default;
 
-      // Parse string as XHTML document fragment. The fragment should be
-      // complete, in the sense that all elements should have closing tags.
-      // Elements and attributes are considered to be in the namespace of the
-      // entire XHTML document, so no namespace should be specified for them.
-      // Do not validate against XHTML vocabulary. Can throw xml::parsing
-      // exception.
+      // Parse string as an XHTML document fragment, truncating it if
+      // requested. The fragment should be complete, in the sense that all
+      // elements should have closing tags. Elements and attributes are
+      // considered to be in the namespace of the entire XHTML document, so no
+      // namespace should be specified for them. Do not validate against XHTML
+      // vocabulary. Can throw xml::parsing exception.
       //
-      fragment (const std::string& xhtml, const std::string& input_name);
+      fragment (const std::string& xhtml,
+                const std::string& input_name,
+                size_t length = 0);
 
       void
       operator() (xml::serializer&) const;

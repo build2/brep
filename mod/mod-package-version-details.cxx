@@ -184,13 +184,17 @@ handle (request& rq, response& rs)
   if (const optional<string>& d = pkg->description)
   {
     const string id ("description");
+    const string what (title + " description");
 
     s << (full
-          ? PRE_TEXT (*d, id)
-          : PRE_TEXT (*d,
+          ? DIV_TEXT (*d, *pkg->description_type, id, what, error)
+          : DIV_TEXT (*d,
+                      *pkg->description_type,
                       options_->package_description (),
                       url (!full, id),
-                      id));
+                      id,
+                      what,
+                      error));
   }
 
   const repository_location& rl (pkg->internal_repository.load ()->location);

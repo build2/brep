@@ -40,6 +40,11 @@ class options
 {
   "\h|OPTIONS|"
 
+  bool --ignore-unknown
+  {
+    "Ignore unknown manifest entries."
+  }
+
   bool --force
   {
     "Reload package information regardless of the repository manifest file

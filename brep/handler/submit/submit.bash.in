@@ -50,6 +50,8 @@ function extract_package_manifest () # <archive> <manifest>
 
   # Pass the --deep option to make sure that the *-file manifest values are
   # resolvable, so rep-create will not fail due to this package down the road.
+  # Note that we also make sure that all the manifest values are known (see
+  # bpkg-pkg-verify for details).
   #
   if ! run_silent bpkg pkg-verify --deep --manifest "$arc" >"$man"; then
 
