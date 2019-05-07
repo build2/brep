@@ -65,6 +65,17 @@ done
 
 # Manual.
 #
+function xhtml_to_ps () # <from> <to> [<html2ps-options>]
+{
+  local from="$1"
+  shift
+  local to="$1"
+  shift
+
+  sed -e 's/├/|/g' -e 's/│/|/g' -e 's/─/-/g' -e 's/└/`/g' "$from" | \
+  html2ps "${@}" -o "$to"
+}
+
 cli -I .. \
 -v version="$(echo "$version" | sed -e 's/^\([^.]*\.[^.]*\).*/\1/')" \
 -v date="$date" \
@@ -76,8 +87,8 @@ cli -I .. \
 --link-regex '%bpkg(#.+)?%../../bpkg/doc/build2-package-manager-manual.xhtml$1%' \
 --output-prefix build2-repository-interface- manual.cli
 
-html2ps -f doc.html2ps:a4.html2ps -o build2-repository-interface-manual-a4.ps build2-repository-interface-manual.xhtml
+xhtml_to_ps build2-repository-interface-manual.xhtml build2-repository-interface-manual-a4.ps -f doc.html2ps:a4.html2ps
 ps2pdf14 -sPAPERSIZE=a4 -dOptimize=true -dEmbedAllFonts=true build2-repository-interface-manual-a4.ps build2-repository-interface-manual-a4.pdf
 
-html2ps -f doc.html2ps:letter.html2ps -o build2-repository-interface-manual-letter.ps build2-repository-interface-manual.xhtml
+xhtml_to_ps build2-repository-interface-manual.xhtml build2-repository-interface-manual-letter.ps -f doc.html2ps:letter.html2ps
 ps2pdf14 -sPAPERSIZE=letter -dOptimize=true -dEmbedAllFonts=true build2-repository-interface-manual-letter.ps build2-repository-interface-manual-letter.pdf
