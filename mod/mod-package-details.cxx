@@ -189,9 +189,15 @@ handle (request& rq, response& rs)
       const string what (name.string () + " description");
 
       s << (full
-            ? DIV_TEXT (*d, *pkg->description_type, id, what, error)
+            ? DIV_TEXT (*d,
+                        *pkg->description_type,
+                        true /* strip_title */,
+                        id,
+                        what,
+                        error)
             : DIV_TEXT (*d,
                         *pkg->description_type,
+                        true /* strip_title */,
                         options_->package_description (),
                         url (!full, squery, page, id),
                         id,

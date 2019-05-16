@@ -589,6 +589,10 @@ namespace brep
   // description element instead. Note that such an error indicates an issue
   // with the implementation, rather than with the specified text.
   //
+  // Optionally strip the heuristically detected document "title". Currently,
+  // this only applies to Markdown where a leading level-one heading is
+  // assumed to be the title.
+  //
   class DIV_TEXT
   {
   public:
@@ -596,11 +600,13 @@ namespace brep
     //
     DIV_TEXT (const string& t,
               text_type tp,
+              bool st,
               const string& id,
               const string& what,
               const basic_mark& diag)
         : text_ (t),
           type_ (tp),
+          strip_title_ (st),
           length_ (t.size ()),
           url_ (nullptr),
           id_ (id),
@@ -613,6 +619,7 @@ namespace brep
     //
     DIV_TEXT (const string& t,
               text_type tp,
+              bool st,
               size_t l,
               const string& u,
               const string& id,
@@ -620,6 +627,7 @@ namespace brep
               const basic_mark& diag)
         : text_ (t),
           type_ (tp),
+          strip_title_ (st),
           length_ (l),
           url_ (&u),
           id_ (id),
@@ -634,6 +642,7 @@ namespace brep
   private:
     const string& text_;
     text_type type_;
+    bool strip_title_;
     size_t length_;
     const string* url_; // Full page url.
     string id_;

@@ -933,6 +933,21 @@ namespace brep
               cmark_parser_finish (parser.get ()),
               [] (cmark_node* n) {cmark_node_free (n);});
 
+            // Strip the document "title".
+            //
+            if (strip_title_)
+            {
+              cmark_node* child (cmark_node_first_child (doc.get ()));
+
+              if (child != nullptr                                  &&
+                  cmark_node_get_type (child) == CMARK_NODE_HEADING &&
+                  cmark_node_get_heading_level (child) == 1)
+              {
+                cmark_node_unlink (child);
+                cmark_node_free (child);
+              }
+            }
+
             // Render the AST into an XHTML fragment.
             //
             // Note that unlike GitHub we follow the default API behavior and
@@ -973,7 +988,9 @@ namespace brep
           s.resume_indentation ();
 
           if (f.truncated)
-            s << DIV(CLASS="more") << A(HREF=*url_) << "More" << ~A << ~DIV;
+            s << DIV(CLASS="more")
+              <<   "... " << A(HREF=*url_) << "More" << ~A
+              << ~DIV;
 
           s << ~DIV;
         }
