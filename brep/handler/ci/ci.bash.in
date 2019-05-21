@@ -53,7 +53,7 @@ function dump_repository_manifests () # <repo-url> <dir> <timeout>
   # Note that due to the --manifest option only known manifest values are
   # allowed.
   #
-  if ! run_silent bpkg rep-info --fetch-timeout "$tmo" --manifest \
+  if ! run_silent bpkg rep-info --fetch-timeout "$tmo" --deep --manifest \
 --repositories --repositories-file "$dir/repositories.manifest" \
 --packages --packages-file "$dir/packages.manifest" "$url"; then
 
