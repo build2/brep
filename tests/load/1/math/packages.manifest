@@ -3,6 +3,7 @@ sha256sum: b85ba3a0ba45b98e1fbb2507f199bc4b218a4a413ec6ba4094e214a7507490a2
 :
 name: libexp
 version: +2-1.2+1
+upstream-version: 1.2.abc.15-x
 project: mathLab
 summary: The exponent
 license: MIT
@@ -19,7 +20,7 @@ build-include: windows**d/x86_64**
 build-include: windows-vc_13**
 build-exclude: **; Only supported on Windows.
 location: libexp-+2-1.2+1.tar.gz
-sha256sum: 4f476dab0cd13d4c7a4676b50180e66a9a10a65f92a3d335b8227a9a8ca58e21
+sha256sum: 317c8c6f45d9dfdfdef3a823411920cecd51729c7c4f58f9a0b0bbd681c07bd6
 :
 name: libfoo
 version: +0-X.Y

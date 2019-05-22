@@ -21,7 +21,7 @@
 //
 #define LIBBREP_PACKAGE_SCHEMA_VERSION_BASE 11
 
-#pragma db model version(LIBBREP_PACKAGE_SCHEMA_VERSION_BASE, 12, closed)
+#pragma db model version(LIBBREP_PACKAGE_SCHEMA_VERSION_BASE, 13, closed)
 
 namespace brep
 {
@@ -344,6 +344,7 @@ namespace brep
   public:
     using repository_type = brep::repository;
     using version_type = brep::version;
+    using upstream_version_type = brep::upstream_version;
     using priority_type = brep::priority;
     using license_alternatives_type = brep::license_alternatives;
     using url_type = brep::url;
@@ -357,6 +358,7 @@ namespace brep
     //
     package (package_name,
              version_type,
+             optional<string> upstream_version,
              package_name project,
              priority_type,
              string summary,
@@ -399,9 +401,11 @@ namespace brep
     //
     package_id id;
 
-    const string& tenant;     // Tracks id.tenant.
-    const package_name& name; // Tracks id.name.
-    upstream_version version;
+    const string& tenant;          // Tracks id.tenant.
+    const package_name& name;      // Tracks id.name.
+    upstream_version_type version;
+
+    optional<string> upstream_version;
 
     // Matches the package name if the project name is not specified in
     // the manifest.

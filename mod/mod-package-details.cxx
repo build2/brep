@@ -254,7 +254,7 @@ handle (request& rq, response& rs)
 
     s << TABLE(CLASS="proplist version")
       <<   TBODY
-      <<     TR_VERSION (name, p->version, root, tenant)
+      <<     TR_VERSION (name, p->version, root, tenant, p->upstream_version)
 
       // @@ Shouldn't we skip low priority row ? Don't think so, why?
       //

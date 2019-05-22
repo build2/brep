@@ -502,6 +502,7 @@ load_packages (const shared_ptr<repository>& rp,
         p = make_shared<package> (
           move (pm.name),
           move (pm.version),
+          move (pm.upstream_version),
           move (project),
           pm.priority ? move (*pm.priority) : priority (),
           move (pm.summary),

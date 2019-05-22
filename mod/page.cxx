@@ -153,8 +153,8 @@ namespace brep
     if (!value_.empty ())
       s << VALUE(value_);
 
-    if (!placeholder_.empty ())
-      s << PLACEHOLDER(placeholder_);
+    if (placeholder_ != nullptr)
+      s << PLACEHOLDER(*placeholder_);
 
     if (autofocus_)
       s << AUTOFOCUS("");
@@ -249,7 +249,9 @@ namespace brep
     {
       s << version_;
 
-      if (stub_)
+      if (upstream_version_ != nullptr)
+        s << " (" << *upstream_version_ << ')';
+      else if (stub_)
         s << " (stub)";
     }
     else
@@ -259,12 +261,13 @@ namespace brep
       s << A(HREF=tenant_dir (*root_, *tenant_) /
              dir_path (mime_url_encode (package_->string (), false)) /
              path (version_))
-        <<   version_;
+        <<   version_
+        << ~A;
 
-      if (stub_)
+      if (upstream_version_ != nullptr)
+        s << " (" << *upstream_version_ << ')';
+      else if (stub_)
         s << " (stub)";
-
-      s << ~A;
     }
 
     s <<     ~SPAN

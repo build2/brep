@@ -129,7 +129,11 @@ namespace brep
               const string& v,
               const string& p = string (),
               bool a = false)
-        : label_ (l), name_ (n), value_ (v), placeholder_ (p), autofocus_ (a)
+        : label_ (l),
+          name_ (n),
+          value_ (v),
+          placeholder_ (!p.empty () ? &p : nullptr),
+          autofocus_ (a)
     {
     }
 
@@ -140,7 +144,7 @@ namespace brep
     const string& label_;
     const string& name_;
     const string& value_;
-    const string& placeholder_;
+    const string* placeholder_;
     bool autofocus_;
   };
 
@@ -222,9 +226,11 @@ namespace brep
     TR_VERSION (const package_name& p,
                 const version& v,
                 const dir_path& r,
-                const string& t)
+                const string& t,
+                const optional<string>& u = nullopt)
         : package_ (&p),
           version_ (v.string ()),
+          upstream_version_ (u ? &*u : nullptr),
           stub_ (v.compare (wildcard_version, true) == 0),
           root_ (&r),
           tenant_ (&t)
@@ -233,9 +239,10 @@ namespace brep
 
     // Display the version as a regular text.
     //
-    TR_VERSION (const version& v)
+    TR_VERSION (const version& v, const optional<string>& u = nullopt)
         : package_ (nullptr),
           version_ (v.string ()),
+          upstream_version_ (u ? &*u : nullptr),
           stub_ (v.compare (wildcard_version, true) == 0),
           root_ (nullptr),
           tenant_ (nullptr)
@@ -248,6 +255,7 @@ namespace brep
   private:
     const package_name* package_;
     string version_;
+    const string* upstream_version_;
     bool stub_;
     const dir_path* root_;
     const string* tenant_;

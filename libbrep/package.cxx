@@ -52,6 +52,7 @@ namespace brep
   package::
   package (package_name nm,
            version_type vr,
+           optional<string> uv,
            package_name pn,
            priority_type pr,
            string sm,
@@ -81,6 +82,7 @@ namespace brep
         tenant (id.tenant),
         name (id.name),
         version (move (vr)),
+        upstream_version (move (uv)),
         project (move (pn)),
         priority (move (pr)),
         summary (move (sm)),
@@ -143,6 +145,9 @@ namespace brep
     //
     string k (project.string () + " " + name.string () + " " +
               version.string () + " " + version.string (true));
+
+    if (upstream_version)
+      k += " " + *upstream_version;
 
     // Add tags to keywords.
     //

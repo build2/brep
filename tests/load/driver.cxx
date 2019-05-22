@@ -792,6 +792,7 @@ test_pkg_repos (const cstrings& loader_args,
       db.load<package> (
         package_id (tenant, package_name ("libexp"), version ("+2-1.2+1"))));
 
+    assert (epv->upstream_version && *epv->upstream_version == "1.2.abc.15-x");
     assert (epv->project == "mathLab");
     assert (epv->summary == "The exponent");
     assert (epv->tags == strings ({"mathlab", "c++", "exponent"}));
@@ -836,7 +837,7 @@ test_pkg_repos (const cstrings& loader_args,
 
     assert (check_location (epv));
     assert (epv->sha256sum && *epv->sha256sum ==
-            "4f476dab0cd13d4c7a4676b50180e66a9a10a65f92a3d335b8227a9a8ca58e21");
+            "317c8c6f45d9dfdfdef3a823411920cecd51729c7c4f58f9a0b0bbd681c07bd6");
 
     // Verify libpq package version.
     //
