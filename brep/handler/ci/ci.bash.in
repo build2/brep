@@ -63,6 +63,6 @@ function dump_repository_manifests () # <repo-url> <dir> <timeout>
       error "unable to run bpkg"
     fi
 
-    exit_with_manifest 422 "unable to fetch repository information (run 'bpkg rep-info $url' for details)"
+    exit_with_manifest 422 "unable to fetch repository information (run 'bpkg rep-info --deep --manifest $url' for details)"
   fi
 }
