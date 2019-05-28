@@ -255,9 +255,6 @@ handle (request& rq, response& rs)
     s << TABLE(CLASS="proplist version")
       <<   TBODY
       <<     TR_VERSION (name, p->version, root, tenant, p->upstream_version)
-
-      // @@ Shouldn't we skip low priority row ? Don't think so, why?
-      //
       <<     TR_PRIORITY (p->priority);
 
     // Comparing objects of the license_alternatives class as being of the

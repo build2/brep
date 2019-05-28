@@ -152,6 +152,10 @@ h1, h2, h3
   font-size: 0.94em;
 }
 
+#version tr.priority td .security {color: #ff0000; font-weight: bold;}
+#version tr.priority td .high     {color: #ff0000;}
+#version tr.priority td .medium   {color: #fe7c04;}
+
 #version tr.sha256 td .value
 {
   /* Increase the chances of 64-char value not to be truncated. */
@@ -167,6 +171,22 @@ h1, h2, h3
   margin-bottom: 1em;
 }
 #package th {width: 9.5em;}
+
+#package tr.tags td a,
+#package tr.project td a
+{
+  background-color: #f1f8ff;
+  border-radius: 0.2em;
+  padding: .2em .6em .18em .6em;
+  margin: 0 0.15em 0 0;
+}
+
+#package tr.tags td a:hover,
+#package tr.project td a:hover
+{
+  text-decoration: none;
+  background-color: #def;
+}
 
 /*
  * Dependencies and requirements tables.

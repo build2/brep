@@ -14,6 +14,7 @@ sha256sum: e89c6d746f8b1ea3ec58d294946d2f683d133438d2ac8c88549ba24c19627e76
 :
 name: libfoo
 version: 1.2.2-alpha.1
+priority: security
 summary: The Foo library
 license: MIT
 tags: c++, foo
@@ -23,7 +24,7 @@ depends: libmisc [0.1 2.0-) | libmisc [2.0 5.0]
 depends: libgenx (0.2 3.0)
 depends: libexpat < 5.2 | libexpat (1 5.1]
 location: libfoo-1.2.2-alpha.1.tar.gz
-sha256sum: 34fc224087bfd9212de4acfbbf5275513ebc57678b5f029546918a62c57d15cb
+sha256sum: e769cc99fd58a433beb817882cbf9dc04ce0872fbe3f2d9b43d9f627e67a85ea
 :
 name: libfoo
 version: 1.2.2
@@ -39,6 +40,7 @@ sha256sum: 088068ea3d69542a153f829cf836013374763148fba0a43d8047974f58b5efd7
 :
 name: libfoo
 version: 1.2.3+4
+priority: medium
 summary: The Foo library
 license: MIT
 tags: c++, foo
@@ -46,7 +48,7 @@ url: http://www.example.com/foo/
 email: foo-users@example.com
 depends: libmisc >= 2.0.0
 location: libfoo-1.2.3+4.tar.gz
-sha256sum: 204fb25edf2404e9e88e1bef8b2a444281a807d9087093147a2cc80a1ffba79a
+sha256sum: f2ebecac6cac8addd7c623bc1becf055e76b13a0d2dd385832b92c38c58956d8
 :
 name: libfoo
 version: 1.2.4

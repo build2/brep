@@ -467,7 +467,7 @@ test_pkg_repos (const cstrings& loader_args,
 
     assert (fpv2a->internal_repository.load () == sr);
     assert (fpv2a->other_repositories.empty ());
-    assert (fpv2a->priority == priority::low);
+    assert (fpv2a->priority == priority::security);
     assert (fpv2a->changes.empty ());
 
     assert (fpv2a->license_alternatives.size () == 1);
@@ -509,7 +509,7 @@ test_pkg_repos (const cstrings& loader_args,
     assert (check_location (fpv2a));
 
     assert (fpv2a->sha256sum && *fpv2a->sha256sum ==
-            "34fc224087bfd9212de4acfbbf5275513ebc57678b5f029546918a62c57d15cb");
+            "e769cc99fd58a433beb817882cbf9dc04ce0872fbe3f2d9b43d9f627e67a85ea");
 
     // libfoo-1.2.3-4
     //
@@ -527,7 +527,7 @@ test_pkg_repos (const cstrings& loader_args,
 
     assert (fpv3->internal_repository.load () == sr);
     assert (fpv3->other_repositories.empty ());
-    assert (fpv3->priority == priority::low);
+    assert (fpv3->priority == priority::medium);
 
     assert (fpv3->changes.empty ());
 
@@ -545,7 +545,7 @@ test_pkg_repos (const cstrings& loader_args,
     assert (check_location (fpv3));
 
     assert (fpv3->sha256sum && *fpv3->sha256sum ==
-            "204fb25edf2404e9e88e1bef8b2a444281a807d9087093147a2cc80a1ffba79a");
+            "f2ebecac6cac8addd7c623bc1becf055e76b13a0d2dd385832b92c38c58956d8");
 
     // libfoo-1.2.4
     //

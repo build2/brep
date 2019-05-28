@@ -15,6 +15,8 @@
 
 #include <libstudxml/serializer.hxx>
 
+#include <libbutl/url.mxx>
+
 #include <web/xhtml.hxx>
 #include <web/xhtml-fragment.hxx>
 #include <web/mime-url-encoding.hxx>
@@ -575,10 +577,32 @@ namespace brep
   void TR_URL::
   operator() (serializer& s) const
   {
+    // Strip the URL prefix for the link text.
+    //
+    // Note that it may not be a valid URL (see bpkg::url).
+    //
+    // @@ We should probably inherit bpkg::url from butl::url and make sure
+    //    that it is "rootfull" and the authority is present. Should we also
+    //    white-list the schema for security reasons? Then the offset will
+    //    always be: url_.string ().find ("://") + 3.
+    //
+    size_t p (string::npos);
+
+    if (butl::url::traits::find (url_) == 0) // Is it a "rootfull" URL ?
+    {
+      size_t n (url_.find (":/") + 2);
+      if (url_[n] == '/' && url_[n + 1] != '\0') // Has authority?
+        p = n + 1;
+    }
+
     s << TR(CLASS=label_)
       <<   TH << label_ << ~TH
       <<   TD
-      <<     SPAN(CLASS="value") << A(HREF=url_) << url_ << ~A << ~SPAN
+      <<     SPAN(CLASS="value")
+      <<       A(HREF=url_)
+      <<         (p != string::npos ? url_.c_str () + p : url_.c_str ())
+      <<       ~A
+      <<     ~SPAN
       <<     SPAN_COMMENT (url_.comment)
       <<   ~TD
       << ~TR;
@@ -602,16 +626,26 @@ namespace brep
 
   // TR_PRIORITY
   //
+  static const strings priority_names ({"medium", "high", "security"});
+
   void TR_PRIORITY::
   operator() (serializer& s) const
   {
-    static const strings priority_names ({"low", "medium", "high", "security"});
-    assert (priority_ < priority_names.size ());
+    // Omit the element for low priority.
+    //
+    if (priority_ == priority::low)
+      return;
+
+    size_t p (priority_ - 1);
+
+    assert (p < priority_names.size ());
+
+    const string& pn (priority_names[p]);
 
     s << TR(CLASS="priority")
       <<   TH << "priority" << ~TH
       <<   TD
-      <<     SPAN(CLASS="value") << priority_names[priority_] << ~SPAN
+      <<     SPAN(CLASS="value " + pn) << pn << ~SPAN
       <<     SPAN_COMMENT (priority_.comment)
       <<   ~TD
       << ~TR;
@@ -649,15 +683,15 @@ namespace brep
       << ~TR;
   }
 
-  // TR_DOWNLOAD
+  // TR_LINK
   //
-  void TR_DOWNLOAD::
+  void TR_LINK::
   operator() (serializer& s) const
   {
-    s << TR(CLASS="download")
-      <<   TH << "download" << ~TH
+    s << TR(CLASS=label_)
+      <<   TH << label_ << ~TH
       <<   TD
-      <<     SPAN(CLASS="value") << A(HREF=url_) << url_ << ~A << ~SPAN
+      <<     SPAN(CLASS="value") << A(HREF=url_) << text_ << ~A << ~SPAN
       <<   ~TD
       << ~TR;
   }

@@ -384,7 +384,7 @@ namespace brep
     const requirements& requirements_;
   };
 
-  // Generate url element.
+  // Generate url element. Strip the `<scheme>://` prefix from the link text.
   //
   class TR_URL
   {
@@ -460,18 +460,21 @@ namespace brep
     const repository_location& location_;
   };
 
-  // Generate package download URL element.
+  // Generate link element.
   //
-  class TR_DOWNLOAD
+  class TR_LINK
   {
   public:
-    TR_DOWNLOAD (const string& u): url_ (u) {}
+    TR_LINK (const string& u, const string& t, const char* l)
+        : url_ (u), text_ (t), label_ (l) {}
 
     void
     operator() (xml::serializer&) const;
 
   private:
     const string& url_;
+    const string& text_;
+    const char* label_;
   };
 
   // Generate sha256sum element.

@@ -118,6 +118,22 @@ h1, h2
 }
 #package th {width: 7.6em;}
 
+#package tr.tags td a,
+#package tr.project td a
+{
+  background-color: #f1f8ff;
+  border-radius: 0.2em;
+  padding: .2em .6em .18em .6em;
+  margin: 0 0.15em 0 0;
+}
+
+#package tr.tags td a:hover,
+#package tr.project td a:hover
+{
+  text-decoration: none;
+  background-color: #def;
+}
+
 /*
  * Search form (based on form-table)
  */
@@ -162,3 +178,7 @@ table.version tr.requires td .value
   font-family: monospace;
   font-size: 0.94em;
 }
+
+table.version tr.priority td .security {color: #ff0000; font-weight: bold;}
+table.version tr.priority td .high     {color: #ff0000;}
+table.version tr.priority td .medium   {color: #fe7c04;}

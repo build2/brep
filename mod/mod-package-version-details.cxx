@@ -221,7 +221,9 @@ handle (request& rq, response& rs)
   {
     assert (pkg->location);
 
-    s << TR_DOWNLOAD (rl.url ().string () + "/" + pkg->location->string ());
+    s << TR_LINK (rl.url ().string () + "/" + pkg->location->string (),
+                  pkg->location->leaf ().string (),
+                  "download");
   }
 
   if (pkg->fragment)
@@ -268,7 +270,7 @@ handle (request& rq, response& rs)
   const auto& ds (pkg->dependencies);
   if (!ds.empty ())
   {
-    s << H3 << "Depends" << ~H3
+    s << H3 << "Depends (" << ds.size () << ")" << ~H3
       << TABLE(CLASS="proplist", ID="depends")
       <<   TBODY;
 
@@ -361,7 +363,7 @@ handle (request& rq, response& rs)
   const auto& rm (pkg->requirements);
   if (!rm.empty ())
   {
-    s << H3 << "Requires" << ~H3
+    s << H3 << "Requires (" << rm.size () << ")" << ~H3
       << TABLE(CLASS="proplist", ID="requires")
       <<   TBODY;
 
