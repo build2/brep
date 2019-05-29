@@ -416,7 +416,7 @@ test_pkg_repos (const cstrings& loader_args,
     assert (fpv2->summary == "The Foo library");
     assert (fpv2->tags == strings ({"c++", "foo"}));
     assert (!fpv2->description);
-    assert (fpv2->url && *fpv2->url == "http://www.example.com/foo/");
+    assert (fpv2->url && fpv2->url->string () == "http://www.example.com/foo/");
     assert (!fpv2->package_url);
     assert (fpv2->email && *fpv2->email == "foo-users@example.com");
     assert (!fpv2->package_email);
@@ -460,7 +460,7 @@ test_pkg_repos (const cstrings& loader_args,
     assert (fpv2a->summary == "The Foo library");
     assert (fpv2a->tags == strings ({"c++", "foo"}));
     assert (!fpv2a->description);
-    assert (fpv2a->url && *fpv2a->url == "http://www.example.com/foo/");
+    assert (fpv2a->url && fpv2a->url->string () == "ftp://www.example.com/foo/");
     assert (!fpv2a->package_url);
     assert (fpv2a->email && *fpv2a->email == "foo-users@example.com");
     assert (!fpv2a->package_email);
@@ -509,7 +509,7 @@ test_pkg_repos (const cstrings& loader_args,
     assert (check_location (fpv2a));
 
     assert (fpv2a->sha256sum && *fpv2a->sha256sum ==
-            "e769cc99fd58a433beb817882cbf9dc04ce0872fbe3f2d9b43d9f627e67a85ea");
+            "f5d3e9e6e8f9621a638b1375d31f0eb50e6279d8066170b25da21e84198cfd82");
 
     // libfoo-1.2.3-4
     //
@@ -520,7 +520,7 @@ test_pkg_repos (const cstrings& loader_args,
     assert (fpv3->summary == "The Foo library");
     assert (fpv3->tags == strings ({"c++", "foo"}));
     assert (!fpv3->description);
-    assert (fpv3->url && *fpv3->url == "http://www.example.com/foo/");
+    assert (fpv3->url && fpv3->url->string () == "http://www.example.com/foo/");
     assert (!fpv3->package_url);
     assert (fpv3->email && *fpv3->email == "foo-users@example.com");
     assert (!fpv3->package_email);
@@ -556,7 +556,7 @@ test_pkg_repos (const cstrings& loader_args,
     assert (fpv4->summary == "The Foo Library");
     assert (fpv4->tags == strings ({"c++", "foo"}));
     assert (*fpv4->description == "Very good foo library.");
-    assert (fpv4->url && *fpv4->url == "http://www.example.com/foo/");
+    assert (fpv4->url && fpv4->url->string () == "http://www.example.com/foo/");
     assert (!fpv4->package_url);
     assert (fpv4->email && *fpv4->email == "foo-users@example.com");
     assert (!fpv4->package_email);
@@ -626,7 +626,7 @@ test_pkg_repos (const cstrings& loader_args,
             "pull", "streaming", "modern"}));
     assert (!xpv->description);
     assert (xpv->url &&
-            *xpv->url == "http://www.codesynthesis.com/projects/libstudxml/");
+            xpv->url->string () == "http://www.codesynthesis.com/projects/libstudxml/");
     assert (!xpv->package_url);
     assert (xpv->email && *xpv->email == email ("studxml-users@example.com",
                    "Public mailing list, posts by  non-members "
@@ -686,18 +686,18 @@ test_pkg_repos (const cstrings& loader_args,
             "~~mathlab~~ **MATLAB**.\n\nUseful for conversion of research "
             "code into production environments.");
 
-    assert (fpv5->url && *fpv5->url == "http://www.example.com/foo/");
+    assert (fpv5->url && fpv5->url->string () == "http://www.example.com/foo/");
 
-    assert (fpv5->doc_url && *fpv5->doc_url ==
+    assert (fpv5->doc_url && fpv5->doc_url->string () ==
             "http://www.example.org/projects/libfoo/man.xhtml" &&
             fpv5->doc_url->comment == "Documentation page.");
 
-    assert (fpv5->src_url && *fpv5->src_url ==
+    assert (fpv5->src_url && fpv5->src_url->string () ==
             "http://scm.example.com/?p=odb/libodb.git;a=tree" &&
             fpv5->src_url->comment == "Source tree url.");
 
     assert (fpv5->package_url &&
-            *fpv5->package_url == "http://www.example.com/foo/pack");
+            fpv5->package_url->string () == "http://www.example.com/foo/pack");
     assert (fpv5->email && *fpv5->email == "foo-users@example.com");
     assert (fpv5->package_email &&
             *fpv5->package_email == "pack@example.com");
@@ -798,7 +798,7 @@ test_pkg_repos (const cstrings& loader_args,
     assert (epv->tags == strings ({"mathlab", "c++", "exponent"}));
     assert (epv->description && *epv->description ==
             "The exponent math function.");
-    assert (epv->url && *epv->url == "http://exp.example.com");
+    assert (epv->url && epv->url->string () == "http://exp.example.com");
     assert (!epv->package_url);
     assert (epv->email && *epv->email == email ("users@exp.example.com"));
     assert (!epv->package_email);

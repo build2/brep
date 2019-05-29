@@ -577,32 +577,26 @@ namespace brep
   void TR_URL::
   operator() (serializer& s) const
   {
-    // Strip the URL prefix for the link text.
-    //
-    // Note that it may not be a valid URL (see bpkg::url).
-    //
-    // @@ We should probably inherit bpkg::url from butl::url and make sure
-    //    that it is "rootfull" and the authority is present. Should we also
-    //    white-list the schema for security reasons? Then the offset will
-    //    always be: url_.string ().find ("://") + 3.
-    //
-    size_t p (string::npos);
-
-    if (butl::url::traits::find (url_) == 0) // Is it a "rootfull" URL ?
-    {
-      size_t n (url_.find (":/") + 2);
-      if (url_[n] == '/' && url_[n + 1] != '\0') // Has authority?
-        p = n + 1;
-    }
-
     s << TR(CLASS=label_)
       <<   TH << label_ << ~TH
       <<   TD
-      <<     SPAN(CLASS="value")
-      <<       A(HREF=url_)
-      <<         (p != string::npos ? url_.c_str () + p : url_.c_str ())
-      <<       ~A
-      <<     ~SPAN
+      <<     SPAN(CLASS="value");
+
+    // Display HTTP(S) URL as link, striping the scheme prefix for the link
+    // text. Display URL with a different scheme as plain text.
+    //
+    if (casecmp (url_.scheme, "https") == 0 ||
+        casecmp (url_.scheme, "http") == 0)
+    {
+      butl::url u (url_);
+      u.scheme.clear ();
+
+      s << A(HREF=url_) << u << ~A;
+    }
+    else
+      s << url_;
+
+    s <<     ~SPAN
       <<     SPAN_COMMENT (url_.comment)
       <<   ~TD
       << ~TR;

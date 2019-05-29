@@ -65,7 +65,10 @@ namespace brep
   using bpkg::url;
 
   #pragma db value(url) definition
-  #pragma db member(url::value) virtual(string) before access(this) column("")
+  #pragma db member(url::value) virtual(string) before \
+    get(this.string ())                                \
+    set(this = brep::url ((?), "" /* comment */))      \
+    column("")
 
   // email
   //

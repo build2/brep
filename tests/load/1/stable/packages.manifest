@@ -18,13 +18,13 @@ priority: security
 summary: The Foo library
 license: MIT
 tags: c++, foo
-url: http://www.example.com/foo/
+url: ftp://www.example.com/foo/
 email: foo-users@example.com
 depends: libmisc [0.1 2.0-) | libmisc [2.0 5.0]
 depends: libgenx (0.2 3.0)
 depends: libexpat < 5.2 | libexpat (1 5.1]
 location: libfoo-1.2.2-alpha.1.tar.gz
-sha256sum: e769cc99fd58a433beb817882cbf9dc04ce0872fbe3f2d9b43d9f627e67a85ea
+sha256sum: f5d3e9e6e8f9621a638b1375d31f0eb50e6279d8066170b25da21e84198cfd82
 :
 name: libfoo
 version: 1.2.2
