@@ -121,10 +121,12 @@ h1, h2
 #package tr.tags td a,
 #package tr.project td a
 {
+  display: inline-block;
+
   background-color: #f1f8ff;
   border-radius: 0.2em;
-  padding: .2em .6em .18em .6em;
-  margin: 0 0.15em 0 0;
+  padding: 0 .5em .06em .5em;
+  margin: 0 0.06em 0.1em 0;
 }
 
 #package tr.tags td a:hover,
@@ -132,6 +134,13 @@ h1, h2
 {
   text-decoration: none;
   background-color: #def;
+}
+
+#package tr.tags td,
+#package tr.project td
+{
+  padding: 0;
+  margin: 0 0 0 -0.5em;
 }
 
 /*
@@ -162,7 +171,6 @@ table.version
 
   padding-top: .4em;
   padding-bottom: .4em;
-
 }
 table.version:nth-child(even) {background-color: rgba(0, 0, 0, 0.07);}
 
