@@ -300,7 +300,7 @@ handle (request& rq, response& rs)
     // troubleshooting.
     //
     td = dir_path (options_->submit_temp () /
-                   dir_path (path::traits::temp_name (ref)));
+                   dir_path (path::traits_type::temp_name (ref)));
 
     // It's highly unlikely but still possible that the temporary directory
     // already exists. This can only happen due to the unclean web server
