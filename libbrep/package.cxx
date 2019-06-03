@@ -57,7 +57,8 @@ namespace brep
            priority_type pr,
            string sm,
            license_alternatives_type la,
-           strings tg,
+           strings tp,
+           strings kw,
            optional<string> ds,
            optional<text_type> dt,
            string ch,
@@ -87,7 +88,8 @@ namespace brep
         priority (move (pr)),
         summary (move (sm)),
         license_alternatives (move (la)),
-        tags (move (tg)),
+        topics (move (tp)),
+        keywords (move (kw)),
         description (move (ds)),
         description_type (move (dt)),
         changes (move (ch)),
@@ -133,8 +135,8 @@ namespace brep
     if (!internal ())
       return weighted_text ();
 
-    // Derive keywords from the basic package information: name,
-    // version.
+    // Derive search keywords from the basic package information: project,
+    // name, and version.
     //
     //@@ What about 'stable' from cppget.org/stable? Add path of
     //   the repository to keywords? Or is it too "polluting" and
@@ -149,12 +151,7 @@ namespace brep
     if (upstream_version)
       k += " " + *upstream_version;
 
-    // Add tags to keywords.
-    //
-    for (const auto& t: tags)
-      k += " " + t;
-
-    // Add licenses to keywords.
+    // Add licenses to search keywords.
     //
     for (const auto& la: license_alternatives)
     {
@@ -162,7 +159,7 @@ namespace brep
       {
         k += " " + l;
 
-        // If license is say LGPLv2 then LGPL is also a keyword.
+        // If license is say LGPLv2 then LGPL is also a search keyword.
         //
         size_t n (l.size ());
         if (n > 2 && l[n - 2] == 'v' && l[n - 1] >= '0' && l[n - 1] <= '9')
@@ -170,7 +167,21 @@ namespace brep
       }
     }
 
-    return {move (k), summary, description ? *description : "", changes};
+    // Derive second-strongest search keywords from the package summary.
+    //
+    string k2 (summary);
+
+    // Add topics to the second-strongest search keywords.
+    //
+    for (const auto& t: topics)
+      k2 += " " + t;
+
+    // Add keywords to the second-strongest search keywords.
+    //
+    for (const auto& k: keywords)
+      k2 += " " + k;
+
+    return {move (k), move (k2), description ? *description : "", changes};
   }
 
   // repository

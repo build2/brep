@@ -7,7 +7,7 @@ upstream-version: 1.2.abc.15-x
 project: mathLab
 summary: The exponent
 license: MIT
-tags: mathlab, c++, exponent
+keywords: mathlab c++ exponent
 description: The exponent math function.
 description-type: text/plain
 url: http://exp.example.com
@@ -46,7 +46,8 @@ priority: high; Critical bug fixes, performance improvement.
 summary: The Foo Math Library
 license: LGPLv2, MIT; If using with GNU TLS.
 license: BSD; If using with OpenSSL.
-tags: c++, foo, math
+topics: math library, math API, libbaz fork
+keywords: c++ foo math best
 description: \
 A modern C++ library with easy to use linear algebra and lot of optimization
 tools.
@@ -79,13 +80,13 @@ requires: c++11
 requires: ? ; libc++ standard library if using Clang on Mac OS X.
 requires: ? vc++ >= 12.0; Only if using VC++ on Windows.
 location: libfoo-1.2.4+1.tar.gz
-sha256sum: 92eb89770be390cbac9e0113763e0c10c43a4530667f5572571895617368369a
+sha256sum: 0a206d2b5e575549914ed43b87470b33512e975fffa4fc8f3eb92b3dea66979e
 :
 name: libpq
 version: 0
 summary: PostgreSQL C API client library
 license: PostgreSQL License; Permissive free software license.
-tags: postgresql, database, client, library, c, api, interface
+keywords: postgresql database client library c
 description: \
 PostgreSQL is an object-relational SQL database management system with libpq
 being its C client library. Applications can use this library to pass queries
@@ -121,7 +122,7 @@ name: libstudxml
 version: 1.0.0+1
 summary: Modern C++ XML API
 license: MIT
-tags: c++, xml, parser, serializer, pull, streaming, modern
+keywords: c++ xml parser serializer pull
 url: http://www.codesynthesis.com/projects/libstudxml/
 email: studxml-users@example.com; Public mailing list, posts by non-members\
  are allowed but moderated.

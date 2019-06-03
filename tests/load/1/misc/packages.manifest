@@ -8,7 +8,7 @@ summary: The Bar library
 description: very very good library.
 description-type: text/plain
 license: GPLv2
-tags: c++, bar
+keywords: c++, bar
 url: http://www.example.com/bar/
 email: bar-users@example.com
 depends: libfoo

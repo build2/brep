@@ -17,7 +17,7 @@ version: 1.2.2-alpha.1
 priority: security
 summary: The Foo library
 license: MIT
-tags: c++, foo
+keywords: c++ foo
 url: ftp://www.example.com/foo/
 email: foo-users@example.com
 depends: libmisc [0.1 2.0-) | libmisc [2.0 5.0]
@@ -30,7 +30,7 @@ name: libfoo
 version: 1.2.2
 summary: The Foo library
 license: MIT
-tags: c++, foo
+keywords: c++ foo
 url: http://www.example.com/foo/
 email: foo-users@example.com
 depends: libbar <= 2.4.0
@@ -43,7 +43,7 @@ version: 1.2.3+4
 priority: medium
 summary: The Foo library
 license: MIT
-tags: c++, foo
+keywords: c++ foo
 url: http://www.example.com/foo/
 email: foo-users@example.com
 depends: libmisc >= 2.0.0
@@ -54,7 +54,7 @@ name: libfoo
 version: 1.2.4
 summary: The Foo Library
 license: MIT; Permissive free software license.
-tags: c++, foo
+keywords: c++ foo
 description: Very good foo library.
 description-type: text/plain
 changes: some changes 1

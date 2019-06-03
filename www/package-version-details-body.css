@@ -172,7 +172,7 @@ h1, h2, h3
 }
 #package th {width: 9.5em;}
 
-#package tr.tags td a,
+#package tr.topics td a,
 #package tr.project td a
 {
   display: inline-block;
@@ -180,17 +180,17 @@ h1, h2, h3
   background-color: #f1f8ff;
   border-radius: 0.2em;
   padding: 0 .5em .06em .5em;
-  margin: 0 0.06em 0.1em 0;
+  margin: 0 0.35em 0.1em 0;
 }
 
-#package tr.tags td a:hover,
+#package tr.topics td a:hover,
 #package tr.project td a:hover
 {
   text-decoration: none;
   background-color: #def;
 }
 
-#package tr.tags td,
+#package tr.topics td,
 #package tr.project td
 {
   padding: 0;

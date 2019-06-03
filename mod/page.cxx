@@ -373,47 +373,35 @@ namespace brep
     }
   }
 
-  // TR_TAGS
+  // TR_TOPICS
   //
-  void TR_TAGS::
+  void TR_TOPICS::
   operator() (serializer& s) const
   {
-    if (!tags_.empty () || project_)
+    // Omit the element if there are no topics.
+    //
+    if (topics_.empty ())
+      return;
+
+    s << TR(CLASS="topics")
+      <<   TH << "topics" << ~TH
+      <<   TD
+      <<     SPAN(CLASS="value");
+
+    for (const string& t: topics_)
     {
-      s << TR(CLASS="tags")
-        <<   TH << "tags" << ~TH
-        <<   TD
-        <<     SPAN(CLASS="value");
-
-      auto print = [&s, this] (const string& t)
-      {
-        s << A
-          <<   HREF
-          <<     tenant_dir (root_, tenant_) << "?packages="
-          <<     mime_url_encode (t)
-          <<   ~HREF
-          <<   t
-          << ~A;
-      };
-
-      bool pt (project_ != nullptr &&
-               find (tags_.begin (), tags_.end (), *project_) == tags_.end ());
-
-      if (pt)
-        print (project_->string ());
-
-      for (const string& t: tags_)
-      {
-        if (&t != &tags_[0] || pt)
-          s << " ";
-
-        print (t);
-      }
-
-      s <<     ~SPAN
-        <<   ~TD
-        << ~TR;
+      s << A
+      <<   HREF
+      <<     tenant_dir (root_, tenant_) << "?packages="
+      <<     mime_url_encode (t)
+      <<   ~HREF
+      <<   t
+      << ~A;
     }
+
+    s <<     ~SPAN
+      <<   ~TD
+      << ~TR;
   }
 
   // TR_DEPENDS

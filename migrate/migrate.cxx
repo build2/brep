@@ -227,6 +227,39 @@ package_migrate_v12 ([] (database& db)
               "WHERE description IS NOT NULL");
 });
 
+static const package_migration_entry<14>
+package_migrate_v14 ([] (database& db)
+{
+  // Save the package tags as the package keywords.
+  //
+  db.execute ("INSERT INTO package_keywords ("
+              "tenant, "
+              "name, "
+              "version_epoch, "
+              "version_canonical_upstream, "
+              "version_canonical_release, "
+              "version_revision, "
+              "index, "
+              "keyword) "
+              "SELECT "
+              "tenant, "
+              "name, "
+              "version_epoch, "
+              "version_canonical_upstream, "
+              "version_canonical_release, "
+              "version_revision, "
+              "index, "
+              "tag "
+              "FROM package_tags");
+
+  // Note that the package keywords are the second-strongest search keywords
+  // and the package tags where the first-strongest search keywords. So,
+  // strictly speaking, we should update the package table search_index column
+  // to reflect the new ordering rules for the package search. But it feels
+  // like it isn't really worth the trouble.
+  //
+});
+
 // main() function
 //
 int

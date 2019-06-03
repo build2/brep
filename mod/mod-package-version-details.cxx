@@ -263,7 +263,7 @@ handle (request& rq, response& rs)
   if (pe && pe != em)
     s << TR_EMAIL (*pe, "package-email");
 
-  s <<     TR_TAGS (pkg->tags, root, tenant)
+  s <<     TR_TOPICS (pkg->topics, root, tenant)
     <<   ~TBODY
     << ~TABLE;
 

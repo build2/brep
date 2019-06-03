@@ -222,7 +222,7 @@ handle (request& rq, response& rs)
     if (pkg->email)
       s <<   TR_EMAIL (*pkg->email);
 
-    s <<     TR_TAGS (pkg->tags, root, tenant)
+    s <<     TR_TOPICS (pkg->topics, root, tenant)
       <<   ~TBODY
       << ~TABLE;
   }

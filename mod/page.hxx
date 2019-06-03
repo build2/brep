@@ -324,31 +324,19 @@ namespace brep
     const license_alternatives& licenses_;
   };
 
-  // Generate package tags element.
+  // Generate package topics element.
   //
-  class TR_TAGS
+  class TR_TOPICS
   {
   public:
-    // Display the tag link list.
-    //
-    TR_TAGS (const strings& ts, const dir_path& r, const string& t)
-        : project_ (nullptr), tags_ (ts), root_ (r), tenant_ (t) {}
-
-    // As above but prepend the list with a tag link produced from the project
-    // name, if it differs from other tags.
-    //
-    TR_TAGS (const package_name& pr,
-             const strings& ts,
-             const dir_path& r,
-             const string& t)
-        : project_ (&pr), tags_ (ts), root_ (r), tenant_ (t) {}
+    TR_TOPICS (const strings& ts, const dir_path& r, const string& t)
+        : topics_ (ts), root_ (r), tenant_ (t) {}
 
     void
     operator() (xml::serializer&) const;
 
   private:
-    const package_name* project_;
-    const strings& tags_;
+    const strings& topics_;
     const dir_path& root_;
     const string& tenant_;
   };

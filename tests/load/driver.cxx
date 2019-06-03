@@ -43,11 +43,22 @@ check_location (shared_ptr<package>& p)
 static bool
 check_external (const package& p)
 {
-  return p.summary.empty () && p.tags.empty () && !p.description && !p.url &&
-    !p.package_url && !p.email && !p.package_email && !p.internal () &&
-    p.other_repositories.size () > 0 && p.priority == priority () &&
-    p.changes.empty () && p.license_alternatives.empty () &&
-    p.dependencies.empty () && p.requirements.empty () && !p.sha256sum;
+  return p.summary.empty ()               &&
+         p.topics.empty ()                &&
+         p.keywords.empty ()              &&
+         !p.description                   &&
+         !p.url                           &&
+         !p.package_url                   &&
+         !p.email                         &&
+         !p.package_email                 &&
+         !p.internal ()                   &&
+         p.other_repositories.size () > 0 &&
+         p.priority == priority ()        &&
+         p.changes.empty ()               &&
+         p.license_alternatives.empty ()  &&
+         p.dependencies.empty ()          &&
+         p.requirements.empty ()          &&
+         !p.sha256sum;
 }
 
 namespace bpkg
@@ -348,7 +359,7 @@ test_pkg_repos (const cstrings& loader_args,
 
     assert (fpvxy->project == package_name ("libfoo"));
     assert (fpvxy->summary == "The Foo Library");
-    assert (fpvxy->tags.empty ());
+    assert (fpvxy->keywords.empty ());
     assert (!fpvxy->description);
     assert (!fpvxy->url);
     assert (!fpvxy->package_url);
@@ -380,7 +391,7 @@ test_pkg_repos (const cstrings& loader_args,
         package_id (tenant, package_name ("libfoo"), version ("1.0"))));
 
     assert (fpv1->summary == "The Foo Library");
-    assert (fpv1->tags.empty ());
+    assert (fpv1->keywords.empty ());
     assert (!fpv1->description);
     assert (!fpv1->url);
     assert (!fpv1->package_url);
@@ -414,7 +425,7 @@ test_pkg_repos (const cstrings& loader_args,
         package_id (tenant, package_name ("libfoo"), version ("1.2.2"))));
 
     assert (fpv2->summary == "The Foo library");
-    assert (fpv2->tags == strings ({"c++", "foo"}));
+    assert (fpv2->keywords == strings ({"c++", "foo"}));
     assert (!fpv2->description);
     assert (fpv2->url && fpv2->url->string () == "http://www.example.com/foo/");
     assert (!fpv2->package_url);
@@ -458,7 +469,7 @@ test_pkg_repos (const cstrings& loader_args,
                     version ("1.2.2-alpha.1"))));
 
     assert (fpv2a->summary == "The Foo library");
-    assert (fpv2a->tags == strings ({"c++", "foo"}));
+    assert (fpv2a->keywords == strings ({"c++", "foo"}));
     assert (!fpv2a->description);
     assert (fpv2a->url && fpv2a->url->string () == "ftp://www.example.com/foo/");
     assert (!fpv2a->package_url);
@@ -518,7 +529,7 @@ test_pkg_repos (const cstrings& loader_args,
         package_id (tenant, package_name ("libfoo"), version ("1.2.3+4"))));
 
     assert (fpv3->summary == "The Foo library");
-    assert (fpv3->tags == strings ({"c++", "foo"}));
+    assert (fpv3->keywords == strings ({"c++", "foo"}));
     assert (!fpv3->description);
     assert (fpv3->url && fpv3->url->string () == "http://www.example.com/foo/");
     assert (!fpv3->package_url);
@@ -554,7 +565,7 @@ test_pkg_repos (const cstrings& loader_args,
         package_id (tenant, package_name ("libfoo"), version ("1.2.4"))));
 
     assert (fpv4->summary == "The Foo Library");
-    assert (fpv4->tags == strings ({"c++", "foo"}));
+    assert (fpv4->keywords == strings ({"c++", "foo"}));
     assert (*fpv4->description == "Very good foo library.");
     assert (fpv4->url && fpv4->url->string () == "http://www.example.com/foo/");
     assert (!fpv4->package_url);
@@ -622,8 +633,8 @@ test_pkg_repos (const cstrings& loader_args,
                     version ("1.0.0+1"))));
 
     assert (xpv->summary == "Modern C++ XML API");
-    assert (xpv->tags == strings ({"c++", "xml", "parser", "serializer",
-            "pull", "streaming", "modern"}));
+    assert (xpv->keywords ==
+            strings ({"c++", "xml", "parser", "serializer", "pull"}));
     assert (!xpv->description);
     assert (xpv->url &&
             xpv->url->string () == "http://www.codesynthesis.com/projects/libstudxml/");
@@ -678,7 +689,9 @@ test_pkg_repos (const cstrings& loader_args,
         package_id (tenant, package_name ("libfoo"), version ("1.2.4+1"))));
 
     assert (fpv5->summary == "The Foo Math Library");
-    assert (fpv5->tags == strings ({"c++", "foo", "math"}));
+    assert (fpv5->topics ==
+            strings ({"math library", "math API", "libbaz fork"}));
+    assert (fpv5->keywords == strings ({"c++", "foo", "math", "best"}));
     assert (*fpv5->description ==
             "A modern C++ library with easy to use linear algebra and lot "
             "of optimization\ntools.\n\nThere are over 100 functions in "
@@ -782,7 +795,7 @@ test_pkg_repos (const cstrings& loader_args,
     assert (check_location (fpv5));
 
     assert (fpv5->sha256sum && *fpv5->sha256sum ==
-            "92eb89770be390cbac9e0113763e0c10c43a4530667f5572571895617368369a");
+            "0a206d2b5e575549914ed43b87470b33512e975fffa4fc8f3eb92b3dea66979e");
 
     // Verify libexp package version.
     //
@@ -795,7 +808,7 @@ test_pkg_repos (const cstrings& loader_args,
     assert (epv->upstream_version && *epv->upstream_version == "1.2.abc.15-x");
     assert (epv->project == "mathLab");
     assert (epv->summary == "The exponent");
-    assert (epv->tags == strings ({"mathlab", "c++", "exponent"}));
+    assert (epv->keywords == strings ({"mathlab", "c++", "exponent"}));
     assert (epv->description && *epv->description ==
             "The exponent math function.");
     assert (epv->url && epv->url->string () == "http://exp.example.com");

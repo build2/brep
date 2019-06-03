@@ -21,16 +21,16 @@
 //
 #define LIBBREP_PACKAGE_SCHEMA_VERSION_BASE 11
 
-#pragma db model version(LIBBREP_PACKAGE_SCHEMA_VERSION_BASE, 13, closed)
+#pragma db model version(LIBBREP_PACKAGE_SCHEMA_VERSION_BASE, 14, closed)
 
 namespace brep
 {
   // @@ Might make sense to put some heavy members (e.g., description,
   //    containers) into a separate section.
   //
-  // @@ Not sure there is a benefit in making tags a full-blown container
-  //    (i.e., a separate table). Maybe provide a mapping of vector<string>
-  //    to TEXT as a comma-separated list.
+  // @@ Not sure there is a benefit in making topics/keywords full-blown
+  //    containers (i.e., a separate table). Maybe provide a mapping of
+  //    vector<string> to TEXT as a comma/space-separated list.
   //
 
   // Forward declarations.
@@ -366,7 +366,8 @@ namespace brep
              priority_type,
              string summary,
              license_alternatives_type,
-             strings tags,
+             strings topics,
+             strings keywords,
              optional<string> description,
              optional<text_type> description_type,
              string changes,
@@ -418,7 +419,8 @@ namespace brep
     priority_type priority;
     string summary;
     license_alternatives_type license_alternatives;
-    strings tags;
+    strings topics;
+    strings keywords;
     optional<string> description;         // Absent if type is unknown.
     optional<text_type> description_type; // Present if description is present.
     string changes;
@@ -481,9 +483,13 @@ namespace brep
       set(odb::nested_set (this.license_alternatives, std::move (?))) \
       id_column("") key_column("") value_column("license")
 
-    // tags
+    // topics
     //
-    #pragma db member(tags) id_column("") value_column("tag")
+    #pragma db member(topics) id_column("") value_column("topic")
+
+    // keywords
+    //
+    #pragma db member(keywords) id_column("") value_column("keyword")
 
     // dependencies
     //
