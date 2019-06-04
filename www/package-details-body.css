@@ -129,6 +129,12 @@ h1, h2
   margin: 0 0.35em 0.1em 0;
 }
 
+#package tr.topics td a:visited,
+#package tr.project td a:visited
+{
+  color: #3870c0;
+}
+
 #package tr.topics td a:hover,
 #package tr.project td a:hover
 {
