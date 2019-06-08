@@ -2,7 +2,7 @@ Version 0.11.0
 
   * Support for displaying Markdown package descriptions.
 
-  * Support for display new package manifest values: 'upstream-version',
+  * Support for displaying new package manifest values: 'upstream-version',
     'topics', and 'keywords.
 
   * Various page style cleanups and improvements.
