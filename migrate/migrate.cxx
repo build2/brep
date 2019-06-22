@@ -207,6 +207,7 @@ create (database& db, bool extra_only) const
 
 // Register the data migration functions for the package database schema.
 //
+#if 0
 template <schema_version v>
 using package_migration_entry_base =
   data_migration_entry<v, LIBBREP_PACKAGE_SCHEMA_VERSION_BASE>;
@@ -219,46 +220,10 @@ struct package_migration_entry: package_migration_entry_base<v>
 };
 
 static const package_migration_entry<12>
-package_migrate_v12 ([] (database& db)
+package_migrate_v15 ([] (database& db)
 {
-  // Set the text_type::plain type for the present package descriptions.
-  //
-  db.execute ("UPDATE package SET description_type = 'text/plain' "
-              "WHERE description IS NOT NULL");
 });
-
-static const package_migration_entry<14>
-package_migrate_v14 ([] (database& db)
-{
-  // Save the package tags as the package keywords.
-  //
-  db.execute ("INSERT INTO package_keywords ("
-              "tenant, "
-              "name, "
-              "version_epoch, "
-              "version_canonical_upstream, "
-              "version_canonical_release, "
-              "version_revision, "
-              "index, "
-              "keyword) "
-              "SELECT "
-              "tenant, "
-              "name, "
-              "version_epoch, "
-              "version_canonical_upstream, "
-              "version_canonical_release, "
-              "version_revision, "
-              "index, "
-              "tag "
-              "FROM package_tags");
-
-  // Note that the package keywords are the second-strongest search keywords
-  // and the package tags where the first-strongest search keywords. So,
-  // strictly speaking, we should update the package table search_index column
-  // to reflect the new ordering rules for the package search. But it feels
-  // like it isn't really worth the trouble.
-  //
-});
+#endif
 
 // main() function
 //
