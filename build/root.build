@@ -35,7 +35,7 @@ brep/bash{*}: install.subdirs = true
 # by default there.
 #
 tests/exe{*}: test = true
-tests/libu{*}: bin.whole = false
+tests/{libue libul}{*}: bin.whole = false
 
 # Specify the test target for cross-testing.
 #
