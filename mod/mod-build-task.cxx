@@ -60,8 +60,7 @@ init (scanner& s)
 
   if (options_->build_config_specified ())
   {
-    database_module::init (static_cast<options::build_db> (*options_),
-                           options_->build_db_retry ());
+    database_module::init (*options_, options_->build_db_retry ());
 
     // Check that the database 'build' schema matches the current one. It's
     // enough to perform the check in just a single module implementation
@@ -73,7 +72,7 @@ init (scanner& s)
       fail << "database 'build' schema differs from the current one (module "
            << BREP_VERSION_ID << ")";
 
-    build_config_module::init (static_cast<options::build> (*options_));
+    build_config_module::init (*options_);
   }
 
   if (options_->root ().empty ())

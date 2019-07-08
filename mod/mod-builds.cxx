@@ -58,10 +58,8 @@ init (scanner& s)
 
   if (options_->build_config_specified ())
   {
-    database_module::init (static_cast<options::build_db> (*options_),
-                           options_->build_db_retry ());
-
-    build_config_module::init (static_cast<options::build> (*options_));
+    database_module::init (*options_, options_->build_db_retry ());
+    build_config_module::init (*options_);
   }
 
   if (options_->root ().empty ())

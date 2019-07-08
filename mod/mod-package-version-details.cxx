@@ -47,15 +47,15 @@ init (scanner& s)
   options_ = make_shared<options::package_version_details> (
     s, unknown_mode::fail, unknown_mode::fail);
 
-  database_module::init (static_cast<options::package_db> (*options_),
+  database_module::init (static_cast<const options::package_db&> (*options_),
                          options_->package_db_retry ());
 
   if (options_->build_config_specified ())
   {
-    database_module::init (static_cast<options::build_db> (*options_),
+    database_module::init (static_cast<const options::build_db&> (*options_),
                            options_->build_db_retry ());
 
-    build_config_module::init (static_cast<options::build> (*options_));
+    build_config_module::init (*options_);
   }
 
   if (options_->root ().empty ())

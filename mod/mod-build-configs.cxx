@@ -39,7 +39,7 @@ init (scanner& s)
     s, unknown_mode::fail, unknown_mode::fail);
 
   if (options_->build_config_specified ())
-    build_config_module::init (static_cast<options::build> (*options_));
+    build_config_module::init (*options_);
 }
 
 bool brep::build_configs::
