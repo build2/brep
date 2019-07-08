@@ -207,7 +207,6 @@ create (database& db, bool extra_only) const
 
 // Register the data migration functions for the package database schema.
 //
-#if 0
 template <schema_version v>
 using package_migration_entry_base =
   data_migration_entry<v, LIBBREP_PACKAGE_SCHEMA_VERSION_BASE>;
@@ -219,11 +218,21 @@ struct package_migration_entry: package_migration_entry_base<v>
       : package_migration_entry_base<v> (f, "package") {}
 };
 
-static const package_migration_entry<12>
+static const package_migration_entry<15>
 package_migrate_v15 ([] (database& db)
 {
+  // Set the buildable flag for the internal repositories.
+  //
+  db.execute ("UPDATE repository SET buildable = internal");
+
+  // Set the buildable flag for the internal non-stub packages.
+  //
+  db.execute ("UPDATE package SET buildable = "
+              "internal_repository_tenant IS NOT NULL AND "
+              "NOT (version_epoch = 0 AND "
+                   "version_canonical_upstream = '' AND "
+                   "version_canonical_release = '~')");
 });
-#endif
 
 // main() function
 //

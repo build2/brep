@@ -243,6 +243,7 @@ test_git_repos (const cstrings& loader_args,
 
     assert (r->location.string () == "https://git.example.com/foo.git#master");
     assert (r->summary && *r->summary == "foo project repository");
+    assert (r->buildable);
 
     // Verify libfoo package version.
     //
@@ -262,6 +263,8 @@ test_git_repos (const cstrings& loader_args,
             dep ("libmisc",
                  dependency_constraint (
                    version ("1.0"), false, version ("1.0"), false)));
+
+    assert (p->buildable);
 
     t.commit ();
   }
@@ -339,6 +342,8 @@ test_pkg_repos (const cstrings& loader_args,
     dir_path srp (loadtab.directory () / dir_path ("1/stable"));
     assert (sr->cache_location.path () == srp.normalize ());
 
+    assert (!sr->buildable);
+
     assert (sr->packages_timestamp == srt);
     assert (sr->repositories_timestamp ==
             file_mtime (sr->cache_location.path () / repositories));
@@ -384,6 +389,8 @@ test_pkg_repos (const cstrings& loader_args,
     assert (fpvxy->sha256sum && *fpvxy->sha256sum ==
             "c994fd49f051ab7fb25f3a4e68ca878e484c5d3c2cb132b37d41224b0621b618");
 
+    assert (fpvxy->buildable);
+
     // libfoo-1.0
     //
     shared_ptr<package> fpv1 (
@@ -417,6 +424,8 @@ test_pkg_repos (const cstrings& loader_args,
 
     assert (fpv1->sha256sum && *fpv1->sha256sum ==
             "e89c6d746f8b1ea3ec58d294946d2f683d133438d2ac8c88549ba24c19627e76");
+
+    assert (fpv1->buildable);
 
     // libfoo-1.2.2
     //
@@ -459,6 +468,8 @@ test_pkg_repos (const cstrings& loader_args,
 
     assert (fpv2->sha256sum && *fpv2->sha256sum ==
             "088068ea3d69542a153f829cf836013374763148fba0a43d8047974f58b5efd7");
+
+    assert (!fpv2->buildable);
 
     // libfoo-1.2.2-alpha.1
     //
@@ -522,6 +533,8 @@ test_pkg_repos (const cstrings& loader_args,
     assert (fpv2a->sha256sum && *fpv2a->sha256sum ==
             "f5d3e9e6e8f9621a638b1375d31f0eb50e6279d8066170b25da21e84198cfd82");
 
+    assert (!fpv2a->buildable);
+
     // libfoo-1.2.3-4
     //
     shared_ptr<package> fpv3 (
@@ -557,6 +570,8 @@ test_pkg_repos (const cstrings& loader_args,
 
     assert (fpv3->sha256sum && *fpv3->sha256sum ==
             "f2ebecac6cac8addd7c623bc1becf055e76b13a0d2dd385832b92c38c58956d8");
+
+    assert (!fpv3->buildable);
 
     // libfoo-1.2.4
     //
@@ -595,6 +610,8 @@ test_pkg_repos (const cstrings& loader_args,
     assert (fpv4->sha256sum && *fpv4->sha256sum ==
             "aa1606323bfc59b70de642629dc5d8318cc5348e3646f90ed89406d975db1e1d");
 
+    assert (!fpv4->buildable);
+
     // Verify 'math' repository.
     //
     assert (mr->location.canonical_name () == "pkg:dev.cppget.org/math");
@@ -611,6 +628,8 @@ test_pkg_repos (const cstrings& loader_args,
 
     dir_path mrp (loadtab.directory () / dir_path ("1/math"));
     assert (mr->cache_location.path () == mrp.normalize ());
+
+    assert (mr->buildable);
 
     assert (mr->packages_timestamp ==
             file_mtime (mr->cache_location.path () / packages));
@@ -680,9 +699,11 @@ test_pkg_repos (const cstrings& loader_args,
     assert (xpv->sha256sum && *xpv->sha256sum ==
             "1833906dd93ccc0cda832d6a1b3ef9ed7877bb9958b46d9b2666033d4a7919c9");
 
+    assert (xpv->buildable);
+
     // Verify libfoo package versions.
     //
-    // libfoo-1.2.4-1
+    // libfoo-1.2.4+1
     //
     shared_ptr<package> fpv5 (
       db.load<package> (
@@ -797,6 +818,8 @@ test_pkg_repos (const cstrings& loader_args,
     assert (fpv5->sha256sum && *fpv5->sha256sum ==
             "0a206d2b5e575549914ed43b87470b33512e975fffa4fc8f3eb92b3dea66979e");
 
+    assert (fpv5->buildable);
+
     // Verify libexp package version.
     //
     // libexp-+2-1.2
@@ -838,6 +861,8 @@ test_pkg_repos (const cstrings& loader_args,
 
     assert (epv->requirements.empty ());
 
+    assert (epv->buildable);
+
     db.load (*epv, epv->build_section);
 
     assert (
@@ -862,6 +887,7 @@ test_pkg_repos (const cstrings& loader_args,
                                     version ("0"))));
 
     assert (qpv->summary == "PostgreSQL C API client library");
+    assert (!qpv->buildable);
 
     // Verify 'misc' repository.
     //
@@ -878,6 +904,8 @@ test_pkg_repos (const cstrings& loader_args,
 
     dir_path crp (loadtab.directory () / dir_path ("1/misc"));
     assert (cr->cache_location.path () == crp.normalize ());
+
+    assert (!cr->buildable);
 
     assert (cr->packages_timestamp ==
             file_mtime (cr->cache_location.path () / packages));
@@ -903,6 +931,8 @@ test_pkg_repos (const cstrings& loader_args,
     assert (bpv->other_repositories[0].load () == cr);
     assert (check_location (bpv));
 
+    assert (!bpv->buildable);
+
     // Verify libfoo package versions.
     //
     // libfoo-0.1
@@ -916,7 +946,9 @@ test_pkg_repos (const cstrings& loader_args,
     assert (fpv0->other_repositories[0].load () == cr);
     assert (check_location (fpv0));
 
-    // libfoo-1.2.4-2
+    assert (!fpv0->buildable);
+
+    // libfoo-1.2.4+2
     //
     shared_ptr<package> fpv6 (
       db.load<package> (
@@ -926,6 +958,8 @@ test_pkg_repos (const cstrings& loader_args,
     assert (fpv6->other_repositories.size () == 1);
     assert (fpv6->other_repositories[0].load () == cr);
     assert (check_location (fpv6));
+
+    assert (!fpv6->buildable);
 
     // Verify 'testing' repository.
     //
@@ -942,6 +976,8 @@ test_pkg_repos (const cstrings& loader_args,
 
     dir_path trp (loadtab.directory () / dir_path ("1/testing"));
     assert (tr->cache_location.path () == trp.normalize ());
+
+    assert (!tr->buildable);
 
     assert (tr->packages_timestamp ==
             file_mtime (tr->cache_location.path () / packages));
@@ -966,6 +1002,7 @@ test_pkg_repos (const cstrings& loader_args,
     assert (mpv0->other_repositories.size () == 1);
     assert (mpv0->other_repositories[0].load () == tr);
     assert (check_location (mpv0));
+    assert (!mpv0->buildable);
 
     // libmisc-2.3.0+1
     //
@@ -977,6 +1014,7 @@ test_pkg_repos (const cstrings& loader_args,
     assert (mpv1->other_repositories.size () == 1);
     assert (mpv1->other_repositories[0].load () == tr);
     assert (check_location (mpv1));
+    assert (!mpv1->buildable);
 
     // Verify 'staging' repository.
     //
@@ -993,6 +1031,7 @@ test_pkg_repos (const cstrings& loader_args,
 
     dir_path grp (loadtab.directory () / dir_path ("1/staging"));
     assert (gr->cache_location.path () == grp.normalize ());
+    assert (!gr->buildable);
 
     assert (gr->packages_timestamp ==
             file_mtime (gr->cache_location.path () / packages));
@@ -1016,6 +1055,7 @@ test_pkg_repos (const cstrings& loader_args,
     assert (tpv->other_repositories.size () == 1);
     assert (tpv->other_repositories[0].load () == gr);
     assert (check_location (tpv));
+    assert (!tpv->buildable);
 
     // Verify libgenx package version.
     //
@@ -1029,6 +1069,7 @@ test_pkg_repos (const cstrings& loader_args,
     assert (gpv->other_repositories.size () == 1);
     assert (gpv->other_repositories[0].load () == gr);
     assert (check_location (gpv));
+    assert (!gpv->buildable);
 
     // Verify libmisc package version.
     //
@@ -1042,6 +1083,7 @@ test_pkg_repos (const cstrings& loader_args,
     assert (mpv2->other_repositories.size () == 1);
     assert (mpv2->other_repositories[0].load () == gr);
     assert (check_location (mpv2));
+    assert (!mpv2->buildable);
 
     // Change package summary, update the object persistent state, rerun
     // the loader and make sure the model were not rebuilt.

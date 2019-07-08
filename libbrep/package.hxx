@@ -21,7 +21,7 @@
 //
 #define LIBBREP_PACKAGE_SCHEMA_VERSION_BASE 14
 
-#pragma db model version(LIBBREP_PACKAGE_SCHEMA_VERSION_BASE, 14, closed)
+#pragma db model version(LIBBREP_PACKAGE_SCHEMA_VERSION_BASE, 15, closed)
 
 namespace brep
 {
@@ -245,6 +245,7 @@ namespace brep
                 string display_name,
                 repository_location cache_location,
                 optional<certificate_type>,
+                bool buildable,
                 uint16_t priority);
 
     // Create external repository.
@@ -259,8 +260,8 @@ namespace brep
     repository_location location; // Note: foreign-mapped in build.
     string display_name;
 
-    // The order in the internal repositories configuration file, starting from
-    // 1. 0 for external repositories.
+    // The order in the internal repositories configuration file, starting
+    // from 1. 0 for external repositories.
     //
     uint16_t priority;
 
@@ -291,6 +292,12 @@ namespace brep
     timestamp repositories_timestamp;
 
     bool internal;
+
+    // Whether repository packages are buildable by the build bot controller
+    // service. Can only be true for internal repositories.
+    //
+    bool buildable;
+
     vector<lazy_weak_ptr<repository>> complements;
     vector<lazy_weak_ptr<repository>> prerequisites;
 
@@ -401,6 +408,13 @@ namespace brep
     bool
     internal () const noexcept {return internal_repository != nullptr;}
 
+    bool
+    stub () const noexcept
+    {
+      return version.compare (wildcard_version,
+                              true /* ignore_revision */) == 0;
+    }
+
     // Manifest data.
     //
     package_id id;
@@ -458,6 +472,17 @@ namespace brep
     optional<string> sha256sum;
 
     vector<lazy_shared_ptr<repository_type>> other_repositories;
+
+    // Whether the package is buildable by the build bot controller service.
+    // Can only be true for non-stubs that belong to at least one buildable
+    // (internal) repository.
+    //
+    // While we could potentially calculate this flag on the fly, that would
+    // complicate the database queries significantly.
+    //
+    // Note: foreign-mapped in build.
+    //
+    bool buildable;
 
     // Database mapping.
     //

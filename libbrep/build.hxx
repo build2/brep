@@ -26,7 +26,7 @@
 //
 #define LIBBREP_BUILD_SCHEMA_VERSION_BASE 7
 
-#pragma db model version(LIBBREP_BUILD_SCHEMA_VERSION_BASE, 7, closed)
+#pragma db model version(LIBBREP_BUILD_SCHEMA_VERSION_BASE, 8, closed)
 
 // We have to keep these mappings at the global scope instead of inside
 // the brep namespace because they need to be also effective in the
@@ -262,10 +262,16 @@ namespace brep
     }
   };
 
-  #pragma db view object(build)                                              \
-    object(build_package inner:                                              \
-           brep::operator== (build::id.package, build_package::id) &&        \
-           build_package::internal_repository.canonical_name.is_not_null ()) \
+  // Note that ADL can't find the equal operator in join conditions, so we use
+  // the function call notation for them.
+  //
+
+  // Toolchains of existing buildable package builds.
+  //
+  #pragma db view object(build)                                       \
+    object(build_package inner:                                       \
+           brep::operator== (build::id.package, build_package::id) && \
+           build_package::buildable)                                  \
     query(distinct)
   struct toolchain
   {
@@ -303,27 +309,24 @@ namespace brep
     canonical_version version_;
   };
 
-  // Build of an existing internal package.
+  // Build of an existing buildable package.
   //
-  // Note that ADL can't find the equal operator, so we use the function call
-  // notation.
-  //
-  #pragma db view                                                            \
-    object(build)                                                            \
-    object(build_package inner:                                              \
-           brep::operator== (build::id.package, build_package::id) &&        \
-           build_package::internal_repository.canonical_name.is_not_null ()) \
+  #pragma db view                                                      \
+    object(build)                                                      \
+    object(build_package inner:                                        \
+           brep::operator== (build::id.package, build_package::id) &&  \
+           build_package::buildable)                                   \
     object(build_tenant: build_package::id.tenant == build_tenant::id)
   struct package_build
   {
     shared_ptr<brep::build> build;
   };
 
-  #pragma db view                                                            \
-    object(build)                                                            \
-    object(build_package inner:                                              \
-           brep::operator== (build::id.package, build_package::id) &&        \
-           build_package::internal_repository.canonical_name.is_not_null ()) \
+  #pragma db view                                                      \
+    object(build)                                                      \
+    object(build_package inner:                                        \
+           brep::operator== (build::id.package, build_package::id) &&  \
+           build_package::buildable)                                   \
     object(build_tenant: build_package::id.tenant == build_tenant::id)
   struct package_build_count
   {

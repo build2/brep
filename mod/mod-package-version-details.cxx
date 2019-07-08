@@ -350,10 +350,7 @@ handle (request& rq, response& rs)
       << ~TABLE;
   }
 
-  // Don't display the page builds section for stub packages.
-  //
-  bool builds (build_db_ != nullptr &&
-               ver.compare (wildcard_version, true) != 0);
+  bool builds (build_db_ != nullptr && pkg->buildable);
 
   if (builds)
     package_db_->load (*pkg, pkg->build_section);

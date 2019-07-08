@@ -105,13 +105,12 @@ namespace brep
         dependencies (move (dp)),
         requirements (move (rq)),
         builds (move (bs)),
-        build_constraints (version.compare (wildcard_version, true) != 0
-                           ? move (bc)
-                           : build_constraints_type ()),
+        build_constraints (!stub () ? move (bc) : build_constraints_type ()),
         internal_repository (move (rp)),
         location (move (lc)),
         fragment (move (fr)),
-        sha256sum (move (sh))
+        sha256sum (move (sh)),
+        buildable (!stub () && internal_repository->buildable)
   {
     assert (internal_repository->internal);
   }
@@ -123,7 +122,8 @@ namespace brep
       : id (rp->tenant, move (nm), vr),
         tenant (id.tenant),
         name (id.name),
-        version (move (vr))
+        version (move (vr)),
+        buildable (false)
   {
     assert (!rp->internal);
     other_repositories.emplace_back (move (rp));
@@ -192,6 +192,7 @@ namespace brep
               string d,
               repository_location h,
               optional<certificate_type> c,
+              bool b,
               uint16_t r)
       : id (move (t), l.canonical_name ()),
         tenant (id.tenant),
@@ -201,7 +202,8 @@ namespace brep
         priority (r),
         cache_location (move (h)),
         certificate (move (c)),
-        internal (true)
+        internal (true),
+        buildable (b)
   {
   }
 
@@ -212,7 +214,8 @@ namespace brep
         canonical_name (id.canonical_name),
         location (move (l)),
         priority (0),
-        internal (false)
+        internal (false),
+        buildable (false)
   {
   }
 }

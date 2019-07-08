@@ -60,6 +60,7 @@ struct internal_repository
   string display_name;
   repository_location cache_location;
   optional<string> fingerprint;
+  bool buildable = true;
 
   path
   packages_path () const {return cache_location.path () / packages;}
@@ -74,7 +75,7 @@ using internal_repositories = vector<internal_repository>;
 //
 // loadtab consists of lines in the following format:
 //
-// <remote-repository-location> <display-name> cache:<local-repository-location> [fingerprint:<fingerprint>]
+// <remote-repository-location> <display-name> cache:<local-repository-location> [fingerprint:<fingerprint>] [buildable:(yes|no)]
 //
 // Note that if the remote repository location is a pkg repository, then the
 // repository cache should be its local copy. Otherwise, the cache directory
@@ -162,7 +163,7 @@ load_repositories (path p)
       r.display_name = move (tl[i++].value);
 
       // Parse options, that have <name>:<value> form. Currently defined
-      // options are cache (mandatory for now) and fingerprint.
+      // options are cache (mandatory for now), fingerprint, and buildable.
       //
       for (; i < n; ++i)
       {
@@ -238,6 +239,15 @@ load_repositories (path p)
             }
           }
         }
+        else if (strncmp (nv.c_str (), "buildable:", vp = 10) == 0)
+        {
+          string v (nv, vp);
+
+          r.buildable = (v == "yes");
+
+          if (!r.buildable && v != "no")
+            bad_line ("invalid buildable option value");
+        }
         else
           bad_line ("invalid option '" + nv + "'");
       }
@@ -286,6 +296,7 @@ changed (const string& tenant,
         r.location.string () != pr->location.string ()                    ||
         r.display_name != pr->display_name                                ||
         r.cache_location.path () != pr->cache_location.path ()            ||
+        r.buildable != pr->buildable                                      ||
         file_mtime (r.packages_path ()) != pr->packages_timestamp         ||
         file_mtime (r.repositories_path ()) != pr->repositories_timestamp ||
         !pr->internal)
@@ -544,23 +555,32 @@ load_packages (const shared_ptr<repository>& rp,
       //
       assert (!rp->internal || p->internal ());
 
-      // Note that the sha256sum manifest value can only be present if the
-      // package comes from the pkg repository.
-      //
-      if (rp->internal && pm.sha256sum)
+      if (rp->internal)
       {
-        // Save the package sha256sum if it is not present yet, match
-        // otherwise.
+        // Note that the sha256sum manifest value can only be present if the
+        // package comes from the pkg repository.
         //
-        if (!p->sha256sum)
-          p->sha256sum = move (pm.sha256sum);
-        else if (*pm.sha256sum != *p->sha256sum)
-          cerr << "warning: sha256sum mismatch for package " << p->name
-               << " " << p->version << endl
-               << "  info: " << p->internal_repository.load ()->location
-               << " has " << *p->sha256sum << endl
-               << "  info: " << rp->location << " has " << *pm.sha256sum
-               << endl;
+        if (pm.sha256sum)
+        {
+          // Save the package sha256sum if it is not present yet, match
+          // otherwise.
+          //
+          if (!p->sha256sum)
+            p->sha256sum = move (pm.sha256sum);
+          else if (*pm.sha256sum != *p->sha256sum)
+            cerr << "warning: sha256sum mismatch for package " << p->name
+                 << " " << p->version << endl
+                 << "  info: " << p->internal_repository.load ()->location
+                 << " has " << *p->sha256sum << endl
+                 << "  info: " << rp->location << " has " << *pm.sha256sum
+                 << endl;
+        }
+
+        // A non-stub package is buildable if belongs to at least one
+        // buildable repository (see libbrep/package.hxx for details).
+        //
+        if (!p->stub () && !p->buildable)
+          p->buildable = rp->buildable;
       }
 
       p->other_repositories.push_back (rp);
@@ -1267,6 +1287,7 @@ try
                                  move (ir.display_name),
                                  move (ir.cache_location),
                                  move (cert),
+                                 ir.buildable,
                                  priority++));
 
       load_packages (r, db, ops.ignore_unknown (), overrides);

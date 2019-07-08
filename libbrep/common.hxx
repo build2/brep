@@ -151,7 +151,7 @@ namespace brep
     //
     // The default collation for UTF8-encoded TEXT columns in PostgreSQL is
     // UCA-compliant. This makes the statement 'a' < '~' to be false, which
-    // in turn makes the statement 2.1.alpha < 2.1 to be false as well.
+    // in turn makes the statement 2.1-alpha < 2.1 to be false as well.
     //
     // Unicode Collation Algorithm (UCA): http://unicode.org/reports/tr10/
     //

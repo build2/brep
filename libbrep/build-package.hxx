@@ -78,6 +78,7 @@ namespace brep
     package_id id;
     upstream_version version;
     lazy_shared_ptr<build_repository> internal_repository;
+    bool buildable;
 
     // Mapped to the package object builds member using the PostgreSQL foreign
     // table mechanism.
@@ -101,7 +102,7 @@ namespace brep
     build_package () = default;
   };
 
-  // Packages that can potentially be built (internal non-stub).
+  // Packages that can potentially be built.
   //
   // Note that ADL can't find the equal operator, so we use the function call
   // notation.
@@ -109,11 +110,9 @@ namespace brep
   #pragma db view                                                      \
     object(build_package)                                              \
     object(build_repository inner:                                     \
+           build_package::buildable &&                                 \
            brep::operator== (build_package::internal_repository,       \
-                             build_repository::id) &&                  \
-           brep::compare_version_ne (build_package::id.version,        \
-                                     brep::wildcard_version,           \
-                                     false))                           \
+                             build_repository::id))                    \
     object(build_tenant: build_package::id.tenant == build_tenant::id)
   struct buildable_package
   {
@@ -128,11 +127,9 @@ namespace brep
   #pragma db view                                                      \
     object(build_package)                                              \
     object(build_repository inner:                                     \
+           build_package::buildable &&                                 \
            brep::operator== (build_package::internal_repository,       \
-                             build_repository::id) &&                  \
-           brep::compare_version_ne (build_package::id.version,        \
-                                     brep::wildcard_version,           \
-                                     false))                           \
+                             build_repository::id))                    \
     object(build_tenant: build_package::id.tenant == build_tenant::id)
   struct buildable_package_count
   {
