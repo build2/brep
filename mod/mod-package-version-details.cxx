@@ -419,17 +419,49 @@ handle (request& rq, response& rs)
     timestamp now (system_clock::now ());
     transaction t (build_db_->begin ());
 
-    // Print built package configurations, except those that are hidden or
-    // excluded by the package.
+    // Print built and unbuilt package configurations, except those that are
+    // hidden or excluded by the package.
+    //
+    // Query toolchains seen for the package tenant.
+    //
+    vector<pair<string, version>> toolchains;
+    {
+      using query = query<toolchain>;
+
+      for (auto& t: build_db_->query<toolchain> (
+             (!tenant.empty ()
+              ? query::build::id.package.tenant == tenant
+              : query (true)) +
+             "ORDER BY" + query::build::id.toolchain_name +
+             order_by_version_desc (query::build::id.toolchain_version,
+                                    false /* first */)))
+        toolchains.emplace_back (move (t.name), move (t.version));
+    }
+
+    // Collect configuration names and unbuilt configurations, skipping those
+    // that are hidden or excluded by the package.
     //
     cstrings conf_names;
+    set<config_toolchain> unbuilt_configs;
 
     for (const auto& c: *build_conf_map_)
     {
-      if (belongs (*c.second, "all"))
+      const build_config& cfg (*c.second);
+
+      if (belongs (cfg, "all") && !exclude (cfg))
+      {
         conf_names.push_back (c.first);
+
+        // Note: we will erase built configurations from the unbuilt
+        // configurations set later (see below).
+        //
+        for (const auto& t: toolchains)
+          unbuilt_configs.insert ({cfg.name, t.first, t.second});
+      }
     }
 
+    // Print the package built configurations in the time-descending order.
+    //
     using query = query<build>;
 
     for (auto& b: build_db_->query<build> (
@@ -440,18 +472,10 @@ handle (request& rq, response& rs)
 
            "ORDER BY" + query::timestamp + "DESC"))
     {
-      auto i (build_conf_map_->find (b.configuration.c_str ()));
-      assert (i != build_conf_map_->end ());
-
-      const build_config& cfg (*i->second);
-
-      if (exclude (cfg))
-        continue;
-
       string ts (butl::to_string (b.timestamp,
                                   "%Y-%m-%d %H:%M:%S %Z",
-                                  true,
-                                  true) +
+                                  true /* special */,
+                                  true /* local */) +
                  " (" + butl::to_string (now - b.timestamp, false) + " ago)");
 
       if (b.state == build_state::built)
@@ -466,6 +490,38 @@ handle (request& rq, response& rs)
                          b.configuration + " / " + b.target.string ())
         <<     TR_VALUE ("timestamp", ts)
         <<     TR_BUILD_RESULT (b, host, root)
+        <<   ~TBODY
+        << ~TABLE;
+
+      // While at it, erase the built configuration from the unbuilt
+      // configurations set.
+      //
+      unbuilt_configs.erase ({b.id.configuration,
+                              b.toolchain_name,
+                              b.toolchain_version});
+    }
+
+    // Print the package unbuilt configurations with the following sort
+    // priority:
+    //
+    // 1: toolchain name
+    // 2: toolchain version (descending)
+    // 3: configuration name
+    //
+    for (const auto& ct: unbuilt_configs)
+    {
+      auto i (build_conf_map_->find (ct.configuration.c_str ()));
+      assert (i != build_conf_map_->end ());
+
+      s << TABLE(CLASS="proplist build")
+        <<   TBODY
+        <<     TR_VALUE ("toolchain",
+                         ct.toolchain_name + '-' +
+                         ct.toolchain_version.string ())
+        <<     TR_VALUE ("config",
+                         ct.configuration + " / " +
+                         i->second->target.string ())
+        <<     TR_VALUE ("result", "unbuilt")
         <<   ~TBODY
         << ~TABLE;
     }

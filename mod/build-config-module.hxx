@@ -77,6 +77,31 @@ namespace brep
     static path
     dash_components_to_path (const string&);
 
+    // Configuration/toolchain combination that, in particular, can be used as
+    // a set value.
+    //
+    // Note: contains shallow references to the configuration, toolchain name,
+    // and version.
+    //
+    struct config_toolchain
+    {
+      const string& configuration;
+      const string& toolchain_name;
+      const bpkg::version& toolchain_version;
+
+      bool
+      operator< (const config_toolchain& ct) const
+      {
+        if (int r = toolchain_name.compare (ct.toolchain_name))
+          return r < 0;
+
+        if (toolchain_version != ct.toolchain_version)
+          return toolchain_version > ct.toolchain_version;
+
+        return configuration.compare (ct.configuration) < 0;
+      }
+    };
+
   protected:
     // Build configurations.
     //

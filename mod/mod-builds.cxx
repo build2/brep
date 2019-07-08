@@ -358,7 +358,8 @@ handle (request& rq, response& rs)
     for (auto& t: build_db_->query<toolchain> (
            (tn ? query::build::id.package.tenant == *tn : query (true)) +
            "ORDER BY" + query::build::id.toolchain_name +
-           order_by_version_desc (query::build::id.toolchain_version, false)))
+           order_by_version_desc (query::build::id.toolchain_version,
+                                  false /* first */)))
       r.emplace_back (move (t.name), move (t.version));
 
     return r;
@@ -612,8 +613,8 @@ handle (request& rq, response& rs)
 
       string ts (butl::to_string (b.timestamp,
                                   "%Y-%m-%d %H:%M:%S %Z",
-                                  true,
-                                  true) +
+                                  true /* special */,
+                                  true /* local */) +
                  " (" + butl::to_string (now - b.timestamp, false) + " ago)");
 
       s << TABLE(CLASS="proplist build")
@@ -656,27 +657,6 @@ handle (request& rq, response& rs)
     // configurations.
     //
     toolchains toolchains;
-
-    struct config_toolchain
-    {
-      const string& configuration;
-      const string& toolchain_name;
-      const version& toolchain_version;
-
-      bool
-      operator< (const config_toolchain& ct) const
-      {
-        int r (configuration.compare (ct.configuration));
-        if (r != 0)
-          return r < 0;
-
-        r = toolchain_name.compare (ct.toolchain_name);
-        if (r != 0)
-          return r < 0;
-
-        return toolchain_version > ct.toolchain_version;
-      }
-    };
 
     // Note that config_toolchains contains shallow references to the
     // toolchain names and versions.
@@ -841,9 +821,9 @@ handle (request& rq, response& rs)
     // 1: package name
     // 2: package version (descending)
     // 3: package tenant
-    // 4: configuration name
-    // 5: toolchain name
-    // 6: toolchain version (descending)
+    // 4: toolchain name
+    // 5: toolchain version (descending)
+    // 6: configuration name
     //
     // Prepare the build package prepared query.
     //
@@ -872,8 +852,9 @@ handle (request& rq, response& rs)
 
     pq += "ORDER BY" +
       pkg_query::build_package::id.name +
-      order_by_version_desc (pkg_query::build_package::id.version, false) +
-      "," + pkg_query::build_package::id.tenant +
+      order_by_version_desc (pkg_query::build_package::id.version,
+                             false /* first */) + "," +
+      pkg_query::build_package::id.tenant +
       "OFFSET" + pkg_query::_ref (offset) + "LIMIT 50";
 
     connection_ptr conn (build_db_->connection ());
