@@ -71,7 +71,7 @@ namespace brep
 
   // Foreign object that is mapped to a subset of the package object.
   //
-  #pragma db object table("build_package") pointer(shared_ptr) readonly
+  #pragma db object table("build_package") pointer(shared_ptr) readonly session
   class build_package
   {
   public:

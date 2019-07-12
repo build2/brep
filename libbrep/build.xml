@@ -1,4 +1,12 @@
 <changelog xmlns="http://www.codesynthesis.com/xmlns/odb/changelog" database="pgsql" schema-name="build" version="1">
+  <changeset version="9">
+    <alter-table name="build">
+      <add-index name="build_timestamp_i">
+        <column name="timestamp"/>
+      </add-index>
+    </alter-table>
+  </changeset>
+
   <changeset version="8"/>
 
   <model version="7">

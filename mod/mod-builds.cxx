@@ -494,13 +494,17 @@ handle (request& rq, response& rs)
     // Specify the portion. Note that we will be querying builds in chunks,
     // not to hold locks for too long.
     //
+    // Also note that for each build we also load the corresponding
+    // package. Nevertheless, we use a fairly large portion to speed-up the
+    // builds traversal but also cache the package objects (see below).
+    //
     size_t offset (0);
 
     // Print package build configurations ordered by the timestamp (later goes
     // first).
     //
     q += "ORDER BY" + query::build::timestamp + "DESC" +
-      "OFFSET" + query::_ref (offset) + "LIMIT 50";
+      "OFFSET" + query::_ref (offset) + "LIMIT 500";
 
     connection_ptr conn (build_db_->connection ());
 
@@ -515,11 +519,12 @@ handle (request& rq, response& rs)
     size_t skip (page * page_configs);
     size_t print (page_configs);
 
-    // Note that adjacent builds may well relate to the same package. We will
-    // use this fact for a cheap optimization, loading the build package only
-    // if it differs from the previous one.
+    // Cache the build package objects that would otherwise be loaded multiple
+    // times for different configuration/toolchain combinations. Note that the
+    // build package is a subset of the package object and normally has a
+    // small memory footprint.
     //
-    shared_ptr<build_package> p;
+    session sn;
 
     for (bool ne (true); ne; )
     {
@@ -541,18 +546,15 @@ handle (request& rq, response& rs)
         {
           shared_ptr<build>& b (pb.build);
 
-          // Prior to loading the package object check if it is already
-          // loaded.
-          //
-          if (p == nullptr || p->id != b->id.package)
-            p = build_db_->load<build_package> (b->id.package);
-
           auto i (build_conf_map_->find (b->configuration.c_str ()));
           assert (i != build_conf_map_->end ());
 
           // Match the configuration against the package build
           // expressions/constraints.
           //
+          shared_ptr<build_package> p (
+            build_db_->load<build_package> (b->id.package));
+
           if (!exclude (p->builds, p->constraints, *i->second))
           {
             if (skip != 0)
@@ -846,7 +848,8 @@ handle (request& rq, response& rs)
       package_query<buildable_package> (params, tn, false /* archived */));
 
     // Specify the portion. Note that we will still be querying packages in
-    // chunks, not to hold locks for too long.
+    // chunks, not to hold locks for too long. For each package we will query
+    // its builds, so let's keep the portion small.
     //
     size_t offset (0);
 

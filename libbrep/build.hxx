@@ -26,7 +26,7 @@
 //
 #define LIBBREP_BUILD_SCHEMA_VERSION_BASE 7
 
-#pragma db model version(LIBBREP_BUILD_SCHEMA_VERSION_BASE, 8, closed)
+#pragma db model version(LIBBREP_BUILD_SCHEMA_VERSION_BASE, 9, closed)
 
 // We have to keep these mappings at the global scope instead of inside
 // the brep namespace because they need to be also effective in the
@@ -241,6 +241,10 @@ namespace brep
     #pragma db member(toolchain_name) transient
     #pragma db member(toolchain_version) \
       set(this.toolchain_version.init (this.id.toolchain_version, (?)))
+
+    // Speed-up queries with ordering the result by the timestamp.
+    //
+    #pragma db member(timestamp) index
 
     #pragma db member(results) id_column("") value_column("") \
       section(results_section)
