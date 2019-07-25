@@ -270,7 +270,7 @@ namespace brep
   // build_class_expr
   //
   using bpkg::build_class_expr;
-  using build_class_exprs = vector<build_class_expr>;
+  using build_class_exprs = small_vector<build_class_expr, 1>;
 
   #pragma db value(build_class_expr) definition
 

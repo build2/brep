@@ -27,6 +27,9 @@ using namespace odb::core;
 using namespace butl;
 using namespace brep;
 
+using labels = small_vector<string, 5>;
+using req_alts = small_vector<string, 1>;
+
 static const path packages     ("packages.manifest");
 static const path repositories ("repositories.manifest");
 
@@ -434,7 +437,8 @@ test_pkg_repos (const cstrings& loader_args,
         package_id (tenant, package_name ("libfoo"), version ("1.2.2"))));
 
     assert (fpv2->summary == "The Foo library");
-    assert (fpv2->keywords == strings ({"c++", "foo"}));
+
+    assert (fpv2->keywords == labels ({"c++", "foo"}));
     assert (!fpv2->description);
     assert (fpv2->url && fpv2->url->string () == "http://www.example.com/foo/");
     assert (!fpv2->package_url);
@@ -480,7 +484,7 @@ test_pkg_repos (const cstrings& loader_args,
                     version ("1.2.2-alpha.1"))));
 
     assert (fpv2a->summary == "The Foo library");
-    assert (fpv2a->keywords == strings ({"c++", "foo"}));
+    assert (fpv2a->keywords == labels ({"c++", "foo"}));
     assert (!fpv2a->description);
     assert (fpv2a->url && fpv2a->url->string () == "ftp://www.example.com/foo/");
     assert (!fpv2a->package_url);
@@ -542,7 +546,7 @@ test_pkg_repos (const cstrings& loader_args,
         package_id (tenant, package_name ("libfoo"), version ("1.2.3+4"))));
 
     assert (fpv3->summary == "The Foo library");
-    assert (fpv3->keywords == strings ({"c++", "foo"}));
+    assert (fpv3->keywords == labels ({"c++", "foo"}));
     assert (!fpv3->description);
     assert (fpv3->url && fpv3->url->string () == "http://www.example.com/foo/");
     assert (!fpv3->package_url);
@@ -580,7 +584,7 @@ test_pkg_repos (const cstrings& loader_args,
         package_id (tenant, package_name ("libfoo"), version ("1.2.4"))));
 
     assert (fpv4->summary == "The Foo Library");
-    assert (fpv4->keywords == strings ({"c++", "foo"}));
+    assert (fpv4->keywords == labels ({"c++", "foo"}));
     assert (*fpv4->description == "Very good foo library.");
     assert (fpv4->url && fpv4->url->string () == "http://www.example.com/foo/");
     assert (!fpv4->package_url);
@@ -653,7 +657,7 @@ test_pkg_repos (const cstrings& loader_args,
 
     assert (xpv->summary == "Modern C++ XML API");
     assert (xpv->keywords ==
-            strings ({"c++", "xml", "parser", "serializer", "pull"}));
+            labels ({"c++", "xml", "parser", "serializer", "pull"}));
     assert (!xpv->description);
     assert (xpv->url &&
             xpv->url->string () == "http://www.codesynthesis.com/projects/libstudxml/");
@@ -711,8 +715,8 @@ test_pkg_repos (const cstrings& loader_args,
 
     assert (fpv5->summary == "The Foo Math Library");
     assert (fpv5->topics ==
-            strings ({"math library", "math API", "libbaz fork"}));
-    assert (fpv5->keywords == strings ({"c++", "foo", "math", "best"}));
+            labels ({"math library", "math API", "libbaz fork"}));
+    assert (fpv5->keywords == labels ({"c++", "foo", "math", "best"}));
     assert (*fpv5->description ==
             "A modern C++ library with easy to use linear algebra and lot "
             "of optimization\ntools.\n\nThere are over 100 functions in "
@@ -796,11 +800,11 @@ test_pkg_repos (const cstrings& loader_args,
     requirements& fpvr5 (fpv5->requirements);
     assert (fpvr5.size () == 4);
 
-    assert (fpvr5[0] == strings ({"linux", "windows", "macosx"}));
+    assert (fpvr5[0] == req_alts ({"linux", "windows", "macosx"}));
     assert (!fpvr5[0].conditional);
     assert (fpvr5[0].comment == "Symbian support is coming.");
 
-    assert (fpvr5[1] == strings ({"c++11"}));
+    assert (fpvr5[1] == req_alts ({"c++11"}));
     assert (!fpvr5[1].conditional);
     assert (fpvr5[1].comment.empty ());
 
@@ -809,7 +813,7 @@ test_pkg_repos (const cstrings& loader_args,
     assert (fpvr5[2].comment ==
             "libc++ standard library if using Clang on Mac OS X.");
 
-    assert (fpvr5[3] == strings ({"vc++ >= 12.0"}));
+    assert (fpvr5[3] == req_alts ({"vc++ >= 12.0"}));
     assert (fpvr5[3].conditional);
     assert (fpvr5[3].comment == "Only if using VC++ on Windows.");
 
@@ -831,7 +835,7 @@ test_pkg_repos (const cstrings& loader_args,
     assert (epv->upstream_version && *epv->upstream_version == "1.2.abc.15-x");
     assert (epv->project == "mathLab");
     assert (epv->summary == "The exponent");
-    assert (epv->keywords == strings ({"mathlab", "c++", "exponent"}));
+    assert (epv->keywords == labels ({"mathlab", "c++", "exponent"}));
     assert (epv->description && *epv->description ==
             "The exponent math function.");
     assert (epv->url && epv->url->string () == "http://exp.example.com");

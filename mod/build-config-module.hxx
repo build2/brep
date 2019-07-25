@@ -47,7 +47,7 @@ namespace brep
     // requested.
     //
     bool
-    exclude (const vector<bpkg::build_class_expr>&,
+    exclude (const small_vector<bpkg::build_class_expr, 1>&,
              const vector<bpkg::build_constraint>&,
              const bbot::build_config&,
              string* reason = nullptr) const;

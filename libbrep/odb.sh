@@ -44,7 +44,9 @@ else
 fi
 
 $odb "${inc[@]}" -d pgsql --std c++14 --generate-query       \
+    --odb-epilogue '#include <libbutl/small-vector-odb.hxx>' \
     --odb-epilogue '#include <libbrep/wrapper-traits.hxx>'   \
+    --hxx-prologue '#include <libbutl/small-vector-odb.hxx>' \
     --hxx-prologue '#include <libbrep/wrapper-traits.hxx>'   \
     --hxx-prologue '#include <libbrep/common-traits.hxx>'    \
     -DLIBODB_BUILD2 -DLIBODB_PGSQL_BUILD2                    \
@@ -54,6 +56,7 @@ $odb "${inc[@]}" -d pgsql --std c++14 --generate-query       \
 
 $odb "${inc[@]}" -d pgsql --std c++14 --generate-query --generate-schema \
     --schema-format sql --schema-format embedded --schema-name package   \
+    --odb-epilogue '#include <libbutl/small-vector-odb.hxx>'             \
     --odb-epilogue '#include <libbrep/wrapper-traits.hxx>'               \
     --hxx-prologue '#include <libbrep/package-traits.hxx>'               \
     --generate-prepared -DLIBODB_BUILD2 -DLIBODB_PGSQL_BUILD2            \
@@ -65,6 +68,7 @@ xxd -i <package-extra.sql >package-extra.hxx
 
 $odb "${inc[@]}" -d pgsql --std c++14 --generate-query --generate-schema \
     --schema-format sql --schema-format embedded --schema-name build     \
+    --odb-epilogue '#include <libbutl/small-vector-odb.hxx>'             \
     --odb-epilogue '#include <libbrep/wrapper-traits.hxx>'               \
     --generate-prepared -DLIBODB_BUILD2 -DLIBODB_PGSQL_BUILD2            \
     --include-with-brackets --include-prefix libbrep                     \
@@ -72,6 +76,7 @@ $odb "${inc[@]}" -d pgsql --std c++14 --generate-query --generate-schema \
     build.hxx
 
 $odb "${inc[@]}" -d pgsql --std c++14 --generate-query        \
+    --odb-epilogue '#include <libbutl/small-vector-odb.hxx>'  \
     --odb-epilogue '#include <libbrep/wrapper-traits.hxx>'    \
     --generate-prepared -DLIBODB_BUILD2 -DLIBODB_PGSQL_BUILD2 \
     --include-with-brackets --include-prefix libbrep          \

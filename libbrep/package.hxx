@@ -373,8 +373,8 @@ namespace brep
              priority_type,
              string summary,
              license_alternatives_type,
-             strings topics,
-             strings keywords,
+             small_vector<string, 5> topics,
+             small_vector<string, 5> keywords,
              optional<string> description,
              optional<text_type> description_type,
              string changes,
@@ -433,8 +433,8 @@ namespace brep
     priority_type priority;
     string summary;
     license_alternatives_type license_alternatives;
-    strings topics;
-    strings keywords;
+    small_vector<string, 5> topics;
+    small_vector<string, 5> keywords;
     optional<string> description;         // Absent if type is unknown.
     optional<text_type> description_type; // Present if description is present.
     string changes;

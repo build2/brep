@@ -163,7 +163,7 @@ namespace brep
     {"default"}, '+', "Default.");
 
   bool build_config_module::
-  exclude (const vector<build_class_expr>& exprs,
+  exclude (const small_vector<build_class_expr, 1>& exprs,
            const vector<build_constraint>& constrs,
            const build_config& cfg,
            string* reason) const

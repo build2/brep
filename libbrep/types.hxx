@@ -26,6 +26,7 @@
 #include <libbutl/path-io.mxx>
 #include <libbutl/optional.mxx>
 #include <libbutl/timestamp.mxx>
+#include <libbutl/small-vector.mxx>
 
 namespace brep
 {
@@ -49,6 +50,7 @@ namespace brep
   using std::weak_ptr;
 
   using std::vector;
+  using butl::small_vector; // <libbutl/small-vector.mxx>
 
   using strings = vector<string>;
   using cstrings = vector<const char*>;

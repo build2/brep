@@ -329,14 +329,16 @@ namespace brep
   class TR_TOPICS
   {
   public:
-    TR_TOPICS (const strings& ts, const dir_path& r, const string& t)
+    TR_TOPICS (const small_vector<string, 5>& ts,
+               const dir_path& r,
+               const string& t)
         : topics_ (ts), root_ (r), tenant_ (t) {}
 
     void
     operator() (xml::serializer&) const;
 
   private:
-    const strings& topics_;
+    const small_vector<string, 5>& topics_;
     const dir_path& root_;
     const string& tenant_;
   };
