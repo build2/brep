@@ -211,7 +211,7 @@ function auth_package () # <project> <package> <control> <repo-dir>
 
   local prj="$1"
   local pkg="$2"
-  local ctl="$3"
+  local ctl="${3%.git}" # Strip the potential .git extension.
   local rep="$4"
 
   local d
@@ -238,9 +238,11 @@ function auth_package () # <project> <package> <control> <repo-dir>
     #
     manifest_parser_start "$m"
 
+    # Match the control URL without regards to the potential .git extension.
+    #
     local n v
     while IFS=: read -ru "$manifest_parser_ofd" -d '' n v; do
-      if [ "$n" == "control" -a "$v" == "$ctl" ]; then
+      if [ "$n" == "control" -a "${v%.git}" == "$ctl" ]; then
         r="package"
         break
       fi

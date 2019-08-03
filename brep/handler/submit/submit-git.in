@@ -109,7 +109,8 @@
 #
 # If the submission package is already known, then the handler script loads
 # its package-owner.manifest and verifies that at least one of the 'control'
-# values matches the submitted control repository URL.
+# values matches the submitted control repository URL. Note that the URL is
+# matched without regards to the potential .git extension.
 #
 # If all these ownership authentication tests pass, the handler script clones
 # (shallow) the build2-control branch of the control repository and verifies
