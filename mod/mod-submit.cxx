@@ -358,7 +358,7 @@ handle (request& rq, response& rs)
 
     sha256 sha;
     char buf[8192];
-    ofdstream os (af, ios::binary);
+    ofdstream os (af, fdopen_mode::binary);
 
     while (!eof (is))
     {
