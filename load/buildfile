@@ -18,10 +18,10 @@ if $cli.configured
 {
   cli.cxx{load-options}: cli{load}
 
-  cli.options += -I $src_root --include-with-brackets --include-prefix load \
---guard-prefix LOAD --generate-specifier --page-usage print_ --ansi-color   \
---cxx-prologue "#include <load/types-parsers.hxx>"                          \
---long-usage
+  cli.options += --std c++11 -I $src_root --include-with-brackets \
+--include-prefix load --guard-prefix LOAD --generate-specifier \
+--cxx-prologue "#include <load/types-parsers.hxx>" --page-usage print_ \
+--ansi-color --long-usage
 
   # Include the generated cli files into the distribution and don't remove
   # them when cleaning in src (so that clean results in a state identical to

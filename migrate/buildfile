@@ -18,7 +18,7 @@ if $cli.configured
 {
   cli.cxx{migrate-options}: cli{migrate}
 
-  cli.options += -I $src_root --include-with-brackets                \
+  cli.options += --std c++11 -I $src_root --include-with-brackets \
 --include-prefix migrate --guard-prefix MIGRATE --generate-specifier \
 --page-usage print_ --ansi-color --long-usage
 
