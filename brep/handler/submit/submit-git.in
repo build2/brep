@@ -188,6 +188,7 @@ ref_lock_timeout=30
 
 trap "{ exit 1; }" ERR
 set -o errtrace # Trap ERR in functions.
+set -o pipefail # Return the rightmost non-zero exit status in a pipeline.
 
 @import brep/handler/handler@
 @import brep/handler/submit/submit@
@@ -622,7 +623,12 @@ for i in {1..11}; do
     fi
   fi
 
-  # Add the package archive to the target repository.
+  # Remove the package version revision archives that may exist in the section
+  # directory of the target repository.
+  #
+  # Note that it could be desirable to keep multiple revisions in different
+  # sections. However, we need to remove a package revision that may
+  # potentially exist in a different project.
   #
   s="$(section_dir "$section" "$tgt_dir")"
 
@@ -630,9 +636,32 @@ for i in {1..11}; do
     exit_with_manifest 400 "unrecognized section '$section'"
   fi
 
+  # Strips the version revision part, if present.
+  #
+  v="$(sed -n -re 's%^(\+?[^+]+)(\+[0-9]+)?$%\1%p' <<<"$version")"
+
+  # Make sure the section directory exists before we run find in it.
+  #
   d="$tgt_dir/$s/$project"
   run mkdir -p "$d" # Create all the parent directories as well.
 
+  # Go through the potentially matching archives (for example, for
+  # foo-1.2.3+2: foo-1.2.3.tar.gz, foo-1.2.3+1.tar.gz, foo-1.2.30.tar.gz, etc)
+  # and remove those that match exactly.
+  #
+  # Change CWD to the section directory to make sure that the found archive
+  # paths doesn't contain spaces.
+  #
+  fs=($(run cd "$tgt_dir/$s" && run find -name "$name-$v*"))
+
+  for f in "${fs[@]}"; do
+    if [[ "$f" =~ ^\./[^/]+/"$name-$v"(\+[0-9]+)?\.[^/]+$ ]]; then
+      run git -C "$tgt_dir" rm $gqo "$s/$f" >&2
+    fi
+  done
+
+  # Finally, add the package archive to the target repository.
+  #
   # We copy the archive rather than move it since we may need it for a re-try.
   #
   a="$d/$archive"
