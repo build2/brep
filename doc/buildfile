@@ -7,12 +7,6 @@ brep-clean         \
 brep-load          \
 brep-migrate
 
-define css: file
-css{*}: extension = css
-
-define xhtml: doc
-xhtml{*}: extension = xhtml
-
 ./: {man1 xhtml}{$cmds}     \
     css{common pre-box man} \
     file{man-*}

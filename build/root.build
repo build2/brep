@@ -31,6 +31,17 @@ using bash
 
 brep/bash{*}: install.subdirs = true
 
+# Define commonly used target types.
+#
+define css: file
+css{*}: extension = css
+
+define xhtml: doc
+xhtml{*}: extension = xhtml
+
+define common_testscript: file
+common_testscript{*}: extension = testscript
+
 # All exe{} in tests/ are, well, tests. Also don't link whole archives
 # by default there.
 #

@@ -2,17 +2,14 @@
 # copyright : Copyright (c) 2014-2019 Code Synthesis Ltd
 # license   : MIT; see accompanying LICENSE file
 
-define common: file
-common{*}: extension = testscript
-
 dir = ../../brep/handler/ci/
 
 include $dir
 
 commons = data
 
-./: testscript{* -{$commons}} common{$commons} {*/ -test/}{**} \
-    $dir/exe{brep-ci-dir} $dir/exe{brep-ci-load}               \
+./: testscript{* -{$commons}} common_testscript{$commons} {*/ -test/}{**} \
+    $dir/exe{brep-ci-dir} $dir/exe{brep-ci-load}                          \
     doc{README} file{hello.tar.gz}
 
 testscript{ci-dir}@./:  test = $out_base/$dir/brep-ci-dir

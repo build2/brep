@@ -2,16 +2,13 @@
 # copyright : Copyright (c) 2014-2019 Code Synthesis Ltd
 # license   : MIT; see accompanying LICENSE file
 
-define common: file
-common{*}: extension = testscript
-
 dir = ../../brep/handler/submit/
 
 include $dir
 
 commons = data
 
-./: testscript{* -{$commons}} common{$commons} {*/ -test/}{**}             \
+./: testscript{* -{$commons}} common_testscript{$commons} {*/ -test/}{**}  \
     $dir/exe{brep-submit-dir} $dir/exe{brep-submit-git} file{hello.tar.gz} \
     doc{README}
 

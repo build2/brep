@@ -2,27 +2,13 @@
 # copyright : Copyright (c) 2014-2019 Code Synthesis Ltd
 # license   : MIT; see accompanying LICENSE file
 
-define css: file
-
-css{*}:
-{
-  extension = css
-  install = data/www/
-}
+css{*} xhtml{*}: install = data/www/
 
 define scss: file
 
 scss{*}:
 {
   extension = scss
-  install = data/www/
-}
-
-define xhtml: file
-
-xhtml{*}:
-{
-  extension = xhtml
   install = data/www/
 }
 
