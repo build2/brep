@@ -650,7 +650,7 @@ for i in {1..11}; do
   # and remove those that match exactly.
   #
   # Change CWD to the section directory to make sure that the found archive
-  # paths doesn't contain spaces.
+  # paths don't contain spaces.
   #
   fs=($(run cd "$tgt_dir/$s" && run find -name "$name-$v*"))
 
