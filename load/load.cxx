@@ -860,13 +860,19 @@ resolve_dependencies (package& p, database& db)
 
         assert (c.complete ());
 
-        query qs (compare_version_eq (vm, wildcard_version, false));
+        query qs (compare_version_eq (vm,
+                                      canonical_version (wildcard_version),
+                                      false /* revision */));
 
         if (c.min_version && c.max_version &&
             *c.min_version == *c.max_version)
         {
           const version& v (*c.min_version);
-          q = q && (compare_version_eq (vm, v, v.revision != 0) || qs);
+          q = q &&
+              (compare_version_eq (vm,
+                                   canonical_version (v),
+                                   v.revision.has_value ()) ||
+               qs);
         }
         else
         {
@@ -875,21 +881,25 @@ resolve_dependencies (package& p, database& db)
           if (c.min_version)
           {
             const version& v (*c.min_version);
+            canonical_version cv (v);
+            bool rv (v.revision);
 
             if (c.min_open)
-              qr = compare_version_gt (vm, v, v.revision != 0);
+              qr = compare_version_gt (vm, cv, rv);
             else
-              qr = compare_version_ge (vm, v, v.revision != 0);
+              qr = compare_version_ge (vm, cv, rv);
           }
 
           if (c.max_version)
           {
             const version& v (*c.max_version);
+            canonical_version cv (v);
+            bool rv (v.revision);
 
             if (c.max_open)
-              qr = qr && compare_version_lt (vm, v, v.revision != 0);
+              qr = qr && compare_version_lt (vm, cv, rv);
             else
-              qr = qr && compare_version_le (vm, v, v.revision != 0);
+              qr = qr && compare_version_le (vm, cv, rv);
           }
 
           q = q && (qr || qs);

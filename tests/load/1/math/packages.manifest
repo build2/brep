@@ -72,7 +72,7 @@ src-url: http://scm.example.com/?p=odb/libodb.git\;a=tree; Source tree url.
 package-url: http://www.example.com/foo/pack; Package details.
 email: foo-users@example.com; Public mailing list. Read FAQ before posting.
 package-email: pack@example.com; Current packager.
-depends: libmisc < 1.1 | libmisc > 2.3.0; Crashes with 1.1.0-2.3.0.
+depends: libmisc < 1.1 | libmisc > 2.3.0+0; Crashes with 1.1.0-2.3.0.
 depends: libexp >= 1.0
 depends: ? libstudxml | libexpat; The newer the better.
 requires: linux | windows | macosx; Symbian support is coming.
@@ -80,7 +80,7 @@ requires: c++11
 requires: ? ; libc++ standard library if using Clang on Mac OS X.
 requires: ? vc++ >= 12.0; Only if using VC++ on Windows.
 location: libfoo-1.2.4+1.tar.gz
-sha256sum: 0a206d2b5e575549914ed43b87470b33512e975fffa4fc8f3eb92b3dea66979e
+sha256sum: 533108c89724a80ba739168ec92540dff0b7d3660fa0771de780d8595ccff425
 :
 name: libpq
 version: 0

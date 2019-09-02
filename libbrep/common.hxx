@@ -30,7 +30,7 @@ namespace brep
     uint16_t epoch;
     string canonical_upstream;
     string canonical_release;
-    uint16_t revision;
+    optional<uint16_t> revision;
     string upstream;
     optional<string> release;
   };
@@ -126,6 +126,22 @@ namespace brep
   //
   using bpkg::version;
 
+  // Sometimes we need to split the version into two parts: the part
+  // that goes into the object id (epoch, canonical upstream, canonical
+  // release, revision) and the original upstream and release. This is what
+  // the canonical_version and upstream_version value types are for. Note that
+  // upstream_version derives from version and uses it as storage. The idea
+  // here is this: when we split the version, we often still want to have the
+  // "whole" version object readily accessible and that's exactly what this
+  // strange contraption is for. See package for an example on how everything
+  // fits together.
+  //
+  // Note that the object id cannot contain an optional member which is why we
+  // make the revision type uint16_t and represent nullopt as zero. This
+  // should be ok for package object ids referencing the package manifest
+  // version values because an absent revision and zero revision mean the
+  // same thing.
+  //
   #pragma db value
   struct canonical_version
   {
@@ -133,6 +149,15 @@ namespace brep
     string   canonical_upstream;
     string   canonical_release;
     uint16_t revision;
+
+    canonical_version () = default;
+
+    explicit
+    canonical_version (const version& v)
+        : epoch (v.epoch),
+          canonical_upstream (v.canonical_upstream),
+          canonical_release (v.canonical_release),
+          revision (v.effective_revision ()) {}
 
     bool
     empty () const noexcept
@@ -142,8 +167,10 @@ namespace brep
       // rightmost digit-only zero components? So non-empty version("0") has
       // an empty canonical_upstream.
       //
-      return epoch == 0 && canonical_upstream.empty () &&
-        canonical_release.empty () && revision == 0;
+      return epoch == 0                  &&
+             canonical_upstream.empty () &&
+             canonical_release.empty ()  &&
+             revision == 0;
     }
 
     // Change collation to ensure the proper comparison of the "absent" release
@@ -161,14 +188,15 @@ namespace brep
   #pragma db value transient
   struct upstream_version: version
   {
-    #pragma db member(upstream_) virtual(string)                         \
-      get(this.upstream)                                                 \
-      set(this = brep::version (0, std::move (?), std::string (), 0, 0))
+    #pragma db member(upstream_) virtual(string)                 \
+      get(this.upstream)                                         \
+      set(this = brep::version (                                 \
+            0, std::move (?), std::string (), brep::nullopt, 0))
 
-    #pragma db member(release_) virtual(optional_string)                 \
-      get(this.release)                                                  \
-      set(this = brep::version (                                         \
-            0, std::move (this.upstream), std::move (?), 0, 0))
+    #pragma db member(release_) virtual(optional_string)                    \
+      get(this.release)                                                     \
+      set(this = brep::version (                                            \
+            0, std::move (this.upstream), std::move (?), brep::nullopt, 0))
 
     upstream_version () = default;
     upstream_version (version v): version (move (v)) {}
@@ -178,7 +206,16 @@ namespace brep
     void
     init (const canonical_version& cv, const upstream_version& uv)
     {
-      *this = version (cv.epoch, uv.upstream, uv.release, cv.revision, 0);
+      // Note: revert the zero revision mapping (see above).
+      //
+      *this = version (cv.epoch,
+                       uv.upstream,
+                       uv.release,
+                       (cv.revision != 0
+                        ? optional<uint16_t> (cv.revision)
+                        : nullopt),
+                       0);
+
       assert (cv.canonical_upstream == canonical_upstream &&
               cv.canonical_release == canonical_release);
     }
@@ -211,10 +248,7 @@ namespace brep
     package_id (string t, package_name n, const brep::version& v)
         : tenant (move (t)),
           name (move (n)),
-          version {
-            v.epoch, v.canonical_upstream, v.canonical_release, v.revision}
-    {
-    }
+          version (v) {}
   };
 
   // repository_type
@@ -292,13 +326,16 @@ namespace brep
   //
   // They allow comparing objects that have epoch, canonical_upstream,
   // canonical_release, and revision data members. The idea is that this
-  // works for both query members of types version and canonical_version
-  // as well as for comparing canonical_version to version.
+  // works for both query members of types version and canonical_version.
+  // Note, though, that the object revisions should be comparable (both
+  // optional, numeric, etc), so to compare version to query member or
+  // canonical_version you may need to explicitly convert the version object
+  // to canonical_version.
   //
   template <typename T1, typename T2>
   inline auto
   compare_version_eq (const T1& x, const T2& y, bool revision)
-    -> decltype (x.epoch == y.epoch)
+    -> decltype (x.revision == y.revision)
   {
     // Since we don't quite know what T1 and T2 are (and where the resulting
     // expression will run), let's not push our luck with something like
@@ -316,7 +353,7 @@ namespace brep
   template <typename T1, typename T2>
   inline auto
   compare_version_ne (const T1& x, const T2& y, bool revision)
-    -> decltype (x.epoch == y.epoch)
+    -> decltype (x.revision == y.revision)
   {
     auto r (x.epoch != y.epoch ||
             x.canonical_upstream != y.canonical_upstream ||
@@ -330,7 +367,7 @@ namespace brep
   template <typename T1, typename T2>
   inline auto
   compare_version_lt (const T1& x, const T2& y, bool revision)
-    -> decltype (x.epoch == y.epoch)
+    -> decltype (x.revision == y.revision)
   {
     auto r (
       x.epoch < y.epoch ||
@@ -348,7 +385,7 @@ namespace brep
   template <typename T1, typename T2>
   inline auto
   compare_version_le (const T1& x, const T2& y, bool revision)
-    -> decltype (x.epoch == y.epoch)
+    -> decltype (x.revision == y.revision)
   {
     auto r (
       x.epoch < y.epoch ||
@@ -368,7 +405,7 @@ namespace brep
   template <typename T1, typename T2>
   inline auto
   compare_version_gt (const T1& x, const T2& y, bool revision)
-    -> decltype (x.epoch == y.epoch)
+    -> decltype (x.revision == y.revision)
   {
     auto r (
       x.epoch > y.epoch ||
@@ -386,7 +423,7 @@ namespace brep
   template <typename T1, typename T2>
   inline auto
   compare_version_ge (const T1& x, const T2& y, bool revision)
-    -> decltype (x.epoch == y.epoch)
+    -> decltype (x.revision == y.revision)
   {
     auto r (
       x.epoch > y.epoch ||

@@ -1,4 +1,6 @@
 <changelog xmlns="http://www.codesynthesis.com/xmlns/odb/changelog" database="pgsql" schema-name="package" version="1">
+  <changeset version="16"/>
+
   <changeset version="15">
     <alter-table name="repository">
       <add-column name="buildable" type="BOOLEAN" null="false"/>

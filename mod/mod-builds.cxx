@@ -130,9 +130,15 @@ build_query (const brep::cstrings* configs,
     // Package version.
     //
     if (!params.version ().empty () && params.version () != "*")
+    {
+      // May throw invalid_argument.
+      //
+      version v (params.version (), false /* fold_zero_revision */);
+
       q = q && compare_version_eq (pid.version,
-                                   version (params.version ()), // May throw.
-                                   true);
+                                   canonical_version (v),
+                                   v.revision.has_value ());
+    }
 
     // Build toolchain name/version.
     //
@@ -144,12 +150,18 @@ build_query (const brep::cstrings* configs,
       if (p == string::npos) // Invalid format.
         throw invalid_argument ("");
 
+      // Note that the toolchain version is selected from the list and denotes
+      // the exact version revision, so an absent and zero revisions have the
+      // same semantics and the zero revision is folded.
+      //
       string  tn (tc, 0, p);
       version tv (string (tc, p + 1)); // May throw invalid_argument.
 
       q = q                           &&
           qb::id.toolchain_name == tn &&
-          compare_version_eq (qb::id.toolchain_version, tv, true);
+          compare_version_eq (qb::id.toolchain_version,
+                              canonical_version (tv),
+                              true /* revision */);
     }
 
     // Build configuration name.
@@ -244,9 +256,15 @@ package_query (const brep::params::builds& params,
     // Package version.
     //
     if (!params.version ().empty () && params.version () != "*")
+    {
+      // May throw invalid_argument.
+      //
+      version v (params.version (), false /* fold_zero_revision */);
+
       q = q && compare_version_eq (qp::id.version,
-                                   version (params.version ()), // May throw.
-                                   true);
+                                   canonical_version (v),
+                                   v.revision.has_value ());
+    }
   }
   catch (const invalid_argument&)
   {
@@ -682,6 +700,9 @@ handle (request& rq, response& rs)
         tc_name.assign (tc, 0, p);
 
         // May throw invalid_argument.
+        //
+        // Note that an absent and zero revisions have the same semantics,
+        // so the zero revision is folded (see above for details).
         //
         tc_version = version (string (tc, p + 1));
       }

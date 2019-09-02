@@ -404,7 +404,7 @@ handle (request& rq, response& rs)
       bld_query::id.toolchain_name == tqm.toolchain_name          &&
 
       compare_version_eq (bld_query::id.toolchain_version,
-                          toolchain_version,
+                          canonical_version (toolchain_version),
                           true /* revision */)                    &&
 
       (bld_query::state == "built" ||

@@ -234,6 +234,27 @@ package_migrate_v15 ([] (database& db)
                    "version_canonical_release = '~')");
 });
 
+static const package_migration_entry<16>
+package_migrate_v16 ([] (database& db)
+{
+  // Set the zero version revision to NULL.
+  //
+  auto migrate_rev = [&db] (const char* table, const char* column)
+  {
+    db.execute (string ("UPDATE ") + table + " SET " + column + " = NULL " +
+                        "WHERE " + column + " = 0");
+  };
+
+  // The depends package manifest value endpoint versions.
+  //
+  // Note that previously the zero and absent revisions had the same
+  // semantics. Now the semantics differs and the zero revision is preserved
+  // (see libbpkg/manifest.hxx for details).
+  //
+  migrate_rev ("package_dependency_alternatives", "dep_min_version_revision");
+  migrate_rev ("package_dependency_alternatives", "dep_max_version_revision");
+});
+
 // main() function
 //
 int

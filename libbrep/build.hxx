@@ -52,8 +52,7 @@ namespace brep
         : package (move (p)),
           configuration (move (c)),
           toolchain_name (move (n)),
-          toolchain_version {
-            v.epoch, v.canonical_upstream, v.canonical_release, v.revision} {}
+          toolchain_version (v) {}
   };
 
   inline bool
