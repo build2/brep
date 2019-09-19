@@ -361,6 +361,9 @@ namespace brep
     return false;
   }
 
+  // @@ Here we don't suppose the wildcard pattern to contain the bracket
+  //    expressions, while we probably should.
+  //
   path build_config_module::
   dash_components_to_path (const string& s)
   {
