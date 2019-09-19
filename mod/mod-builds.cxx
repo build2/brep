@@ -13,7 +13,8 @@
 #include <odb/transaction.hxx>
 
 #include <libbutl/timestamp.mxx>  // to_string()
-#include <libbutl/filesystem.mxx> // path_match()
+#include <libbutl/filesystem.mxx> // path_match(), path_pattern(), literal(),
+                                  // path_pattern_iterator
 
 #include <libbbot/manifest.hxx> // to_result_status(), to_string(result_status)
 
@@ -66,30 +67,67 @@ init (scanner& s)
     options_->root (dir_path ("/"));
 }
 
-// Transform the wildcard to the LIKE-pattern.
+// Transform the wildcard to the SIMILAR TO-pattern.
 //
 static string
-transform (const string& s)
+transform (const string& pattern)
 {
-  if (s.empty ())
+  if (pattern.empty ())
     return "%";
 
   string r;
-  for (char c: s)
+  for (const path_pattern_term& pt: path_pattern_iterator (pattern))
   {
-    switch (c)
+    switch (pt.type)
     {
-    case '*': c = '%'; break;
-    case '?': c = '_'; break;
-    case '\\':
-    case '%':
-    case '_': r += '\\'; break;
-    }
+    case path_pattern_term_type::question: r += '_'; break;
+    case path_pattern_term_type::star:     r += '%'; break;
+    case path_pattern_term_type::bracket:
+      {
+        // Copy the bracket expression translating the inverse character, if
+        // present.
+        //
+        size_t n (r.size ());
+        r.append (pt.begin, pt.end);
 
-    r += c;
+        if (r[n + 1] == '!') // ...[!... ?
+          r[n + 1] = '^';
+
+        break;
+      }
+    case path_pattern_term_type::literal:
+      {
+        char c (get_literal (pt));
+
+        // Escape the special characters.
+        //
+        // Note that '.' is not a special character for SIMILAR TO.
+        //
+        switch (c)
+        {
+        case '\\':
+        case '%':
+        case '_':
+        case '|':
+        case '+':
+        case '{':
+        case '(': r += '\\'; break;
+        }
+
+        r += c;
+        break;
+      }
+    }
   }
 
   return r;
+}
+
+template <typename T, typename C>
+static inline query<T>
+match (const C qc, const string& pattern)
+{
+  return qc + "SIMILAR TO" + query<T>::_val (transform (pattern));
 }
 
 template <typename T>
@@ -124,8 +162,7 @@ build_query (const brep::cstrings* configs,
     // Package name.
     //
     if (!params.name ().empty ())
-      q = q && pid.name.like (package_name (transform (params.name ()),
-                                            package_name::raw_string));
+      q = q && match<T> (pid.name, params.name ());
 
     // Package version.
     //
@@ -167,17 +204,17 @@ build_query (const brep::cstrings* configs,
     // Build configuration name.
     //
     if (!params.configuration ().empty ())
-      q = q && qb::id.configuration.like (transform (params.configuration ()));
+      q = q && match<T> (qb::id.configuration, params.configuration ());
 
     // Build machine name.
     //
     if (!params.machine ().empty ())
-      q = q && qb::machine.like (transform (params.machine ()));
+      q = q && match<T> (qb::machine, params.machine ());
 
     // Build target.
     //
     if (!params.target ().empty ())
-      q = q && qb::target.like (transform (params.target ()));
+      q = q && match<T> (qb::target, params.target ());
 
     // Build result.
     //
@@ -250,8 +287,7 @@ package_query (const brep::params::builds& params,
     // Package name.
     //
     if (!params.name ().empty ())
-      q = q && qp::id.name.like (
-        package_name (transform (params.name ()), package_name::raw_string));
+      q = q && match<T> (qp::id.name, params.name ());
 
     // Package version.
     //
@@ -466,9 +502,8 @@ handle (request& rq, response& rs)
   // We will not display hidden configurations, unless the configuration is
   // specified explicitly.
   //
-  bool exclude_hidden (
-    params.configuration ().empty () ||
-    params.configuration ().find_first_of ("*?") != string::npos);
+  bool exclude_hidden (params.configuration ().empty () ||
+                       path_pattern (params.configuration ()));
 
   cstrings conf_names;
 

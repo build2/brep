@@ -362,36 +362,44 @@ namespace brep
   }
 
   path build_config_module::
-  dash_components_to_path (const string& s)
+  dash_components_to_path (const string& pattern)
   {
     string r;
-    for (size_t i (0); i != s.size (); ++i)
+    size_t nstar (0);
+    for (const path_pattern_term& pt: path_pattern_iterator (pattern))
     {
-      char c (s[i]);
-
-      switch (c)
+      switch (pt.type)
       {
-      case '-':
+      case path_pattern_term_type::star:
         {
-          r += '/';
+          // Replace ** with */**/* and skip all the remaining stars that may
+          // follow in this sequence.
+          //
+          if (nstar == 0)
+            r += "*";
+          else if (nstar == 1)
+            r += "/**/*"; // The first star is already copied.
+
           break;
         }
-      case '*':
+      case path_pattern_term_type::literal:
         {
-          if (s[i + 1] == '*') // Can be '\0'.
+          // Replace '-' with '/' and fall through otherwise.
+          //
+          if (get_literal (pt) == '-')
           {
-            r += "*/**/*";
-            ++i;
+            r += '/';
             break;
           }
         }
         // Fall through.
       default:
         {
-          r += c;
-          break;
+          r.append (pt.begin, pt.end); // Copy the pattern term as is.
         }
       }
+
+      nstar = pt.star () ? nstar + 1 : 0;
     }
 
     // Append the trailing slash to match the resulting paths as directories.
