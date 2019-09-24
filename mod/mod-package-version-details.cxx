@@ -355,6 +355,8 @@ handle (request& rq, response& rs)
   if (builds)
     package_db_->load (*pkg, pkg->build_section);
 
+  bool archived (package_db_->load<brep::tenant> (tenant)->archived);
+
   t.commit ();
 
   const auto& rm (pkg->requirements);
@@ -419,9 +421,16 @@ handle (request& rq, response& rs)
     // Print built and unbuilt package configurations, except those that are
     // hidden or excluded by the package.
     //
-    // Query toolchains seen for the package tenant.
+    // Query toolchains seen for the package tenant to produce a list of the
+    // unbuilt configuration/toolchain combinations.
+    //
+    // Note that it only make sense to print those unbuilt configurations that
+    // may still be built. That's why we leave the toolchains list empty if
+    // the package tenant is achieved.
     //
     vector<pair<string, version>> toolchains;
+
+    if (!archived)
     {
       using query = query<toolchain>;
 
