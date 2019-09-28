@@ -35,7 +35,7 @@
 #include <streambuf>
 #include <algorithm> // min()
 
-#include <libbutl/utility.mxx>   // casecmp()
+#include <libbutl/utility.mxx>   // icasecmp()
 #include <libbutl/optional.mxx>
 #include <libbutl/timestamp.mxx>
 
@@ -589,10 +589,10 @@ namespace web
 
           if (ct != nullptr)
           {
-            form_multipart_ = casecmp ("multipart/form-data", ct, 19) == 0;
+            form_multipart_ = icasecmp ("multipart/form-data", ct, 19) == 0;
 
             if (form_multipart_ ||
-                casecmp ("application/x-www-form-urlencoded", ct, 33) == 0)
+                icasecmp ("application/x-www-form-urlencoded", ct, 33) == 0)
               *form_data_ = vector<char> (
                 istreambuf_iterator<char> (content (limit)),
                 istreambuf_iterator<char> ());
@@ -848,7 +848,7 @@ namespace web
         {
           assert (h->key != nullptr);
 
-          if (casecmp (h->key, "Cookie") == 0)
+          if (icasecmp (h->key, "Cookie") == 0)
           {
             for (const char* n (h->val); n != nullptr; )
             {
@@ -899,7 +899,7 @@ namespace web
 
           // Same content type.
           //
-          casecmp (type, rec_->content_type ? rec_->content_type : "") == 0)
+          icasecmp (type, rec_->content_type ? rec_->content_type : "") == 0)
       {
         // No change, return the existing stream.
         //

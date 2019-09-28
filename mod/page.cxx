@@ -573,8 +573,8 @@ namespace brep
     // Display HTTP(S) URL as link, striping the scheme prefix for the link
     // text. Display URL with a different scheme as plain text.
     //
-    if (casecmp (url_.scheme, "https") == 0 ||
-        casecmp (url_.scheme, "http") == 0)
+    if (icasecmp (url_.scheme, "https") == 0 ||
+        icasecmp (url_.scheme, "http") == 0)
     {
       butl::url u (url_);
       u.scheme.clear ();

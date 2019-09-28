@@ -427,9 +427,9 @@ handle (request& rq, response& rs)
       optional<string> ua;
       for (const name_value& h: rq.headers ())
       {
-        if (casecmp (h.name, ":Client-IP") == 0)
+        if (icasecmp (h.name, ":Client-IP") == 0)
           ip = h.value;
-        else if (casecmp (h.name, "User-Agent") == 0)
+        else if (icasecmp (h.name, "User-Agent") == 0)
           ua = h.value;
       }
 
