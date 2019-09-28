@@ -160,8 +160,8 @@ handle (request& rq, response& rs)
       //
       try
       {
-        if (path_match (dash_components_to_path (c.machine_pattern),
-                        dash_components_to_path (m.name),
+        if (path_match (dash_components_to_path (m.name),
+                        dash_components_to_path (c.machine_pattern),
                         dir_path () /* start */,
                         path_match_flags::match_absent) &&
             cfg_machines.insert (

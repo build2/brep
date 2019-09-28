@@ -755,11 +755,11 @@ handle (request& rq, response& rs)
 
       for (const auto& c: *build_conf_)
       {
-        if ((pc.empty () || path_match (pc, c.name)) && // Filter by name.
+        if ((pc.empty () || path_match (c.name, pc)) && // Filter by name.
 
             // Filter by target.
             //
-            (tg.empty () || path_match (tg, c.target.string ())) &&
+            (tg.empty () || path_match (c.target.string (), tg)) &&
 
             (!exclude_hidden || belongs (c, "all"))) // Filter hidden.
         {

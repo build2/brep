@@ -310,13 +310,13 @@ namespace brep
 
       for (const build_constraint& c: constrs)
       {
-        if (path_match (dash_components_to_path (c.config),
-                        cn,
+        if (path_match (cn,
+                        dash_components_to_path (c.config),
                         dir_path () /* start */,
                         path_match_flags::match_absent) &&
             (!c.target ||
-             path_match (dash_components_to_path (*c.target),
-                         tg,
+             path_match (tg,
+                         dash_components_to_path (*c.target),
                          dir_path () /* start */,
                          path_match_flags::match_absent)))
         {
