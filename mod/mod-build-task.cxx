@@ -15,8 +15,8 @@
 #include <libbutl/utility.mxx>             // compare_c_string
 #include <libbutl/openssl.mxx>
 #include <libbutl/fdstream.mxx>            // nullfd
-#include <libbutl/filesystem.mxx>          // path_match()
 #include <libbutl/process-io.mxx>
+#include <libbutl/path-pattern.mxx>
 #include <libbutl/manifest-parser.mxx>
 #include <libbutl/manifest-serializer.mxx>
 

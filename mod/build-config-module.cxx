@@ -10,9 +10,10 @@
 #include <sstream>
 
 #include <libbutl/sha256.mxx>
-#include <libbutl/utility.mxx>    // throw_generic_error(), alpha(), etc.
+#include <libbutl/utility.mxx>      // throw_generic_error(), alpha(), etc.
 #include <libbutl/openssl.mxx>
-#include <libbutl/filesystem.mxx>
+#include <libbutl/filesystem.mxx>   // dir_iterator, dir_entry
+#include <libbutl/path-pattern.mxx>
 
 namespace brep
 {

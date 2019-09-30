@@ -12,9 +12,8 @@
 #include <odb/database.hxx>
 #include <odb/transaction.hxx>
 
-#include <libbutl/timestamp.mxx>  // to_string()
-#include <libbutl/filesystem.mxx> // path_match(), path_pattern(), literal(),
-                                  // path_pattern_iterator
+#include <libbutl/timestamp.mxx>    // to_string()
+#include <libbutl/path-pattern.mxx>
 
 #include <libbbot/manifest.hxx> // to_result_status(), to_string(result_status)
 
