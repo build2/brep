@@ -79,8 +79,35 @@ requires: linux | windows | macosx; Symbian support is coming.
 requires: c++11
 requires: ? ; libc++ standard library if using Clang on Mac OS X.
 requires: ? vc++ >= 12.0; Only if using VC++ on Windows.
+tests: libfoo-tests == 1.2.4
+examples: libfoo-examples
+benchmarks: libfoo-benchmarks > 0.0.1
 location: libfoo-1.2.4+1.tar.gz
-sha256sum: 533108c89724a80ba739168ec92540dff0b7d3660fa0771de780d8595ccff425
+sha256sum: c02b6033107387e05f48aa62ee6498152c967deb0e91a62f1e618fe9fd1bc644
+:
+name: libfoo-benchmarks
+version: 1.2.4
+summary: The Foo Math Library benchmarks
+license: MIT
+builds: none; Is only build to benchmark libfoo.
+location: libfoo-benchmarks-1.2.4.tar.gz
+sha256sum: 2ec3985a540ca5bf74786d0792820cfa8a2790964a5aeaba443dfa91f2a54c04
+:
+name: libfoo-examples
+version: 1.2.4
+summary: The Foo Math Library examples
+license: MIT
+builds: none; Is only built to demo libfoo usage.
+location: libfoo-examples-1.2.4.tar.gz
+sha256sum: 99658b9a5a5b834047b692b93ded9f9af3d255eb5ea3b27594f600b902039995
+:
+name: libfoo-tests
+version: 1.2.4
+summary: The Foo Math Library tests
+license: MIT
+builds: none; Is only built to test libfoo.
+location: libfoo-tests-1.2.4.tar.gz
+sha256sum: 16712c90df5ba2ffb920d29c9c25a29564f8ae01f167359c4651572789e6cd6c
 :
 name: libpq
 version: 0

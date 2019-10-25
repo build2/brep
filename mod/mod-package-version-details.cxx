@@ -267,6 +267,53 @@ handle (request& rq, response& rs)
     <<   ~TBODY
     << ~TABLE;
 
+  auto print_dependency = [&s, &root, this] (const dependency& d)
+  {
+    const auto& dcon (d.constraint);
+    const package_name& dname (d.name);
+
+    // Try to display the dependency as a link if it is resolved.
+    // Otherwise display it as a plain text.
+    //
+    if (d.package != nullptr)
+    {
+      shared_ptr<package> p (d.package.load ());
+      assert (p->internal () || !p->other_repositories.empty ());
+
+      shared_ptr<repository> r (p->internal ()
+                                ? p->internal_repository.load ()
+                                : p->other_repositories[0].load ());
+
+      string ename (mime_url_encode (dname.string (), false));
+
+      if (r->interface_url)
+      {
+        string u (*r->interface_url + ename);
+        s << A(HREF=u) << dname << ~A;
+
+        if (dcon)
+          s << ' '
+            << A(HREF=u + "/" + p->version.string ()) << *dcon << ~A;
+      }
+      else if (p->internal ())
+      {
+        dir_path u (tenant_dir (root, tenant) / dir_path (ename));
+        s << A(HREF=u) << dname << ~A;
+
+        if (dcon)
+          s << ' '
+            << A(HREF=u / path (p->version.string ())) << *dcon << ~A;
+      }
+      else
+        // Display the dependency as a plain text if no repository URL
+        // available.
+        //
+        s << d;
+    }
+    else
+      s << d;
+  };
+
   const auto& ds (pkg->dependencies);
   if (!ds.empty ())
   {
@@ -294,50 +341,7 @@ handle (request& rq, response& rs)
         if (&d != &da[0])
           s << " | ";
 
-        const auto& dcon (d.constraint);
-        const package_name& dname (d.name);
-
-        // Try to display the dependency as a link if it is resolved.
-        // Otherwise display it as a plain text.
-        //
-        if (d.package != nullptr)
-        {
-          shared_ptr<package> p (d.package.load ());
-          assert (p->internal () || !p->other_repositories.empty ());
-
-          shared_ptr<repository> r (
-            p->internal ()
-            ? p->internal_repository.load ()
-            : p->other_repositories[0].load ());
-
-          string ename (mime_url_encode (dname.string (), false));
-
-          if (r->interface_url)
-          {
-            string u (*r->interface_url + ename);
-            s << A(HREF=u) << dname << ~A;
-
-            if (dcon)
-              s << ' '
-                << A(HREF=u + "/" + p->version.string ()) << *dcon << ~A;
-          }
-          else if (p->internal ())
-          {
-            dir_path u (tenant_dir (root, tenant) / dir_path (ename));
-            s << A(HREF=u) << dname << ~A;
-
-            if (dcon)
-              s << ' '
-                << A(HREF=u / path (p->version.string ())) << *dcon << ~A;
-          }
-          else
-            // Display the dependency as a plain text if no repository URL
-            // available.
-            //
-            s << d;
-        }
-        else
-          s << d;
+        print_dependency (d);
       }
 
       s <<     ~SPAN
@@ -349,15 +353,6 @@ handle (request& rq, response& rs)
     s <<   ~TBODY
       << ~TABLE;
   }
-
-  bool builds (build_db_ != nullptr && pkg->buildable);
-
-  if (builds)
-    package_db_->load (*pkg, pkg->build_section);
-
-  bool archived (package_db_->load<brep::tenant> (tenant)->archived);
-
-  t.commit ();
 
   const auto& rm (pkg->requirements);
   if (!rm.empty ())
@@ -401,6 +396,48 @@ handle (request& rq, response& rs)
     s <<   ~TBODY
       << ~TABLE;
   }
+
+  auto print_dependencies = [&s, &print_dependency]
+                            (const small_vector<dependency, 1>& deps,
+                             const char* heading,
+                             const char* id)
+  {
+    if (!deps.empty ())
+    {
+      s << H3 << heading << ~H3
+        << TABLE(CLASS="proplist", ID=id)
+        <<   TBODY;
+
+      for (const dependency& d: deps)
+      {
+        s << TR(CLASS=id)
+          <<   TD
+          <<     SPAN(CLASS="value");
+
+        print_dependency (d);
+
+        s <<     ~SPAN
+          <<   ~TD
+          << ~TR;
+      }
+
+      s <<   ~TBODY
+        << ~TABLE;
+    }
+  };
+
+  print_dependencies (pkg->tests,      "Tests",      "tests");
+  print_dependencies (pkg->examples,   "Examples",   "examples");
+  print_dependencies (pkg->benchmarks, "Benchmarks", "benchmarks");
+
+  bool builds (build_db_ != nullptr && pkg->buildable);
+
+  if (builds)
+    package_db_->load (*pkg, pkg->build_section);
+
+  bool archived (package_db_->load<brep::tenant> (tenant)->archived);
+
+  t.commit ();
 
   if (builds)
   {

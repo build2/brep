@@ -21,7 +21,7 @@
 //
 #define LIBBREP_PACKAGE_SCHEMA_VERSION_BASE 14
 
-#pragma db model version(LIBBREP_PACKAGE_SCHEMA_VERSION_BASE, 16, closed)
+#pragma db model version(LIBBREP_PACKAGE_SCHEMA_VERSION_BASE, 17, closed)
 
 namespace brep
 {
@@ -86,9 +86,9 @@ namespace brep
 
   // dependencies
   //
-  using bpkg::dependency_constraint;
+  using bpkg::version_constraint;
 
-  #pragma db value(dependency_constraint) definition
+  #pragma db value(version_constraint) definition
 
   // Notes:
   //
@@ -139,7 +139,7 @@ namespace brep
     using package_type = brep::package;
 
     package_name name;
-    optional<dependency_constraint> constraint;
+    optional<version_constraint> constraint;
 
     // Resolved dependency package. NULL if the repository load was shallow
     // and so the package dependencies are not resolved.
@@ -389,6 +389,9 @@ namespace brep
              optional<email_type> build_error_email,
              dependencies_type,
              requirements_type,
+             small_vector<dependency, 1> tests,
+             small_vector<dependency, 1> examples,
+             small_vector<dependency, 1> benchmarks,
              build_class_exprs,
              build_constraints_type,
              optional<path> location,
@@ -449,6 +452,9 @@ namespace brep
     optional<email_type> build_error_email;
     dependencies_type dependencies;
     requirements_type requirements;
+    small_vector<dependency, 1> tests;
+    small_vector<dependency, 1> examples;
+    small_vector<dependency, 1> benchmarks;
 
     build_class_exprs builds;                 // Note: foreign-mapped in build.
     build_constraints_type build_constraints; // Note: foreign-mapped in build.
@@ -551,6 +557,15 @@ namespace brep
       get(odb::nested_get (this.requirements))                \
       set(odb::nested_set (this.requirements, std::move (?))) \
       id_column("") key_column("") value_column("id")
+
+    // tests, examples, benchmarks
+    //
+    // Seeing that these reuse the dependency types, we are also going to
+    // have identical database mapping.
+    //
+    #pragma db member(tests) id_column("") value_column("dep_")
+    #pragma db member(examples) id_column("") value_column("dep_")
+    #pragma db member(benchmarks) id_column("") value_column("dep_")
 
     // builds
     //

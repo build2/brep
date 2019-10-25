@@ -203,7 +203,7 @@ main (int argc, char* argv[])
 }
 
 static inline dependency
-dep (const char* n, optional<dependency_constraint> c)
+dep (const char* n, optional<version_constraint> c)
 {
   return dependency {package_name (n), move (c), nullptr};
 }
@@ -270,7 +270,7 @@ test_git_repos (const cstrings& loader_args,
 
     assert (p->dependencies[0][0] ==
             dep ("libmisc",
-                 dependency_constraint (
+                 version_constraint (
                    dep_ver ("1.0"), false, dep_ver ("1.0"), false)));
 
     assert (p->buildable);
@@ -311,7 +311,7 @@ test_pkg_repos (const cstrings& loader_args,
               query<repository>::id.tenant == tenant).size () == 7);
 
     assert (db.query<package> (
-              query<package>::id.tenant == tenant).size () == 18);
+              query<package>::id.tenant == tenant).size () == 21);
 
     shared_ptr<repository> sr (
       db.load<repository> (repository_id (tenant,
@@ -466,12 +466,12 @@ test_pkg_repos (const cstrings& loader_args,
 
     assert (fpv2->dependencies[0][0] ==
             dep ("libbar",
-                 dependency_constraint (
+                 version_constraint (
                    nullopt, true, dep_ver ("2.4.0"), false)));
 
     assert (fpv2->dependencies[1][0] ==
             dep ("libexp",
-                 dependency_constraint (
+                 version_constraint (
                    dep_ver ("+2-1.2"), false, dep_ver ("+2-1.2"), false)));
 
     assert (check_location (fpv2));
@@ -513,27 +513,27 @@ test_pkg_repos (const cstrings& loader_args,
 
     assert (fpv2a->dependencies[0][0] ==
             dep ("libmisc",
-                 dependency_constraint (
+                 version_constraint (
                    dep_ver ("0.1"), false, dep_ver ("2.0.0-"), true)));
 
     assert (fpv2a->dependencies[0][1] ==
             dep ("libmisc",
-                 dependency_constraint (
+                 version_constraint (
                    dep_ver ("2.0"), false, dep_ver ("5.0"), false)));
 
     assert (fpv2a->dependencies[1][0] ==
             dep ("libgenx",
-                 dependency_constraint (
+                 version_constraint (
                    dep_ver ("0.2"), true, dep_ver ("3.0"), true)));
 
     assert (fpv2a->dependencies[2][0] ==
             dep ("libexpat",
-                 dependency_constraint (
+                 version_constraint (
                    nullopt, true, dep_ver ("5.2"), true)));
 
     assert (fpv2a->dependencies[2][1] ==
             dep ("libexpat",
-                 dependency_constraint (
+                 version_constraint (
                    dep_ver ("1"), true, dep_ver ("5.1"), false)));
 
     assert (fpv2a->requirements.empty ());
@@ -573,7 +573,7 @@ test_pkg_repos (const cstrings& loader_args,
     assert (fpv3->dependencies[0].size () == 1);
     assert (fpv3->dependencies[0][0] ==
             dep ("libmisc",
-                 dependency_constraint (
+                 version_constraint (
                    dep_ver ("2.0.0"), false, nullopt, true)));
 
     assert (check_location (fpv3));
@@ -612,7 +612,7 @@ test_pkg_repos (const cstrings& loader_args,
     assert (fpv4->dependencies[0].size () == 1);
     assert (fpv4->dependencies[0][0] ==
             dep ("libmisc",
-                 dependency_constraint (
+                 version_constraint (
                    dep_ver ("2.0.0"), false, nullopt, true)));
 
     assert (check_location (fpv4));
@@ -696,7 +696,7 @@ test_pkg_repos (const cstrings& loader_args,
     assert (xpv->dependencies[0].size () == 1);
     assert (xpv->dependencies[0][0] ==
             dep ("libexpat",
-                 dependency_constraint (
+                 version_constraint (
                    dep_ver ("2.0.0"), false, nullopt, true)));
 
     assert (xpv->dependencies[1].size () == 1);
@@ -781,12 +781,12 @@ test_pkg_repos (const cstrings& loader_args,
 
     assert (fpv5->dependencies[0][0] ==
             dep ("libmisc",
-                 dependency_constraint (
+                 version_constraint (
                    nullopt, true, dep_ver ("1.1"), true)));
 
     assert (fpv5->dependencies[0][1] ==
             dep ("libmisc",
-                 dependency_constraint (
+                 version_constraint (
                    dep_ver ("2.3.0+0"), true, nullopt, true)));
 
     assert (fpv5->dependencies[1].size () == 1);
@@ -794,7 +794,7 @@ test_pkg_repos (const cstrings& loader_args,
 
     assert (fpv5->dependencies[1][0] ==
             dep ("libexp",
-                 dependency_constraint (
+                 version_constraint (
                    dep_ver ("1.0"), false, nullopt, true)));
 
     assert (fpv5->dependencies[2].size () == 2);
@@ -826,7 +826,7 @@ test_pkg_repos (const cstrings& loader_args,
     assert (check_location (fpv5));
 
     assert (fpv5->sha256sum && *fpv5->sha256sum ==
-            "533108c89724a80ba739168ec92540dff0b7d3660fa0771de780d8595ccff425");
+            "c02b6033107387e05f48aa62ee6498152c967deb0e91a62f1e618fe9fd1bc644");
 
     assert (fpv5->buildable);
 
@@ -866,7 +866,7 @@ test_pkg_repos (const cstrings& loader_args,
     assert (epv->dependencies[1].size () == 1);
     assert (epv->dependencies[1][0] ==
             dep ("libpq",
-                 dependency_constraint (
+                 version_constraint (
                    dep_ver ("9.0.0"), false, nullopt, true)));
 
     assert (epv->requirements.empty ());

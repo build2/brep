@@ -244,6 +244,42 @@ h1, h2, h3
   font-size: 0.94em;
 }
 
+#tests {margin-top: .4em; margin-bottom: 1em;}
+
+#tests tr:nth-child(even) td {background-color: rgba(0, 0, 0, 0.07);}
+#tests td {margin-left: 2.8em; padding-left: .4em;}
+
+#tests tr.tests td .value
+{
+  /* <code> style. */
+  font-family: monospace;
+  font-size: 0.94em;
+}
+
+#examples {margin-top: .4em; margin-bottom: 1em;}
+
+#examples tr:nth-child(even) td {background-color: rgba(0, 0, 0, 0.07);}
+#examples td {margin-left: 2.8em; padding-left: .4em;}
+
+#examples tr.examples td .value
+{
+  /* <code> style. */
+  font-family: monospace;
+  font-size: 0.94em;
+}
+
+#benchmarks {margin-top: .4em; margin-bottom: 1em;}
+
+#benchmarks tr:nth-child(even) td {background-color: rgba(0, 0, 0, 0.07);}
+#benchmarks td {margin-left: 2.8em; padding-left: .4em;}
+
+#benchmarks tr.benchmarks td .value
+{
+  /* <code> style. */
+  font-family: monospace;
+  font-size: 0.94em;
+}
+
 /*
  * Builds.
  */

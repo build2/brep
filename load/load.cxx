@@ -391,11 +391,12 @@ load_packages (const shared_ptr<repository>& rp,
       // that we expect dependency constraints to be complete.
       //
       for (manifest_name_value nv (mp.next ()); !nv.empty (); nv = mp.next ())
-        pms.emplace_back (mp,
-                          move (nv),
-                          ignore_unknown,
-                          false /* complete_depends */,
-                          package_manifest_flags::forbid_incomplete_depends);
+        pms.emplace_back (
+          mp,
+          move (nv),
+          ignore_unknown,
+          false /* complete_depends */,
+          package_manifest_flags::forbid_incomplete_dependencies);
     }
     else
       pms = pkg_package_manifests (mp, ignore_unknown);
@@ -405,6 +406,8 @@ load_packages (const shared_ptr<repository>& rp,
     cerr << "error: unable to read " << p << ": " << e << endl;
     throw failed ();
   }
+
+  using brep::dependency;
 
   for (package_manifest& pm: pms)
   {
@@ -501,10 +504,27 @@ load_packages (const shared_ptr<repository>& rp,
             // The package member will be assigned during dependency
             // resolution procedure.
             //
-            ds.back ().push_back ({move (pd.name),
-                                   move (pd.constraint),
-                                   nullptr /* package */});
+            ds.back ().push_back (dependency {move (pd.name),
+                                              move (pd.constraint),
+                                              nullptr /* package */});
         }
+
+        auto deps = [] (small_vector<bpkg::dependency, 1>&& ds)
+        {
+          small_vector<dependency, 1> r;
+
+          if (!ds.empty ())
+          {
+            r.reserve (ds.size ());
+
+            for (bpkg::dependency& d: ds)
+              r.push_back (dependency {move (d.name),
+                                       move (d.constraint),
+                                       nullptr /* package */});
+          }
+
+          return r;
+        };
 
         // Cache before the package name is moved.
         //
@@ -534,6 +554,9 @@ load_packages (const shared_ptr<repository>& rp,
           move (pm.build_error_email),
           move (ds),
           move (pm.requirements),
+          deps (move (pm.tests)),
+          deps (move (pm.examples)),
+          deps (move (pm.benchmarks)),
           move (pm.builds),
           move (pm.build_constraints),
           move (pm.location),
@@ -827,110 +850,143 @@ find (const lazy_shared_ptr<repository>& r,
   return false;
 }
 
-// Resolve package dependencies. Make sure that the best matching dependency
-// belongs to the package repositories, their immediate prerequisite
-// repositories, or their complements, recursively. Should be called once per
-// internal package.
+// Resolve package run-time dependencies, tests, examples, and benchmarks.
+// Make sure that the best matching dependency belongs to the package
+// repositories, their complements, recursively, or their immediate
+// prerequisite repositories (only for run-time dependencies). Should be
+// called once per internal package.
 //
 static void
 resolve_dependencies (package& p, database& db)
 {
+  using brep::dependency;
+  using brep::dependency_alternatives;
+
   // Resolve dependencies for internal packages only.
   //
   assert (p.internal ());
 
-  if (p.dependencies.empty ())
+  if (p.dependencies.empty () &&
+      p.tests.empty ()        &&
+      p.examples.empty ()     &&
+      p.benchmarks.empty ())
     return;
 
-  for (auto& da: p.dependencies)
+  auto resolve = [&p, &db] (dependency& d, bool prereq)
   {
-    for (auto& d: da)
+    // Dependency should not be resolved yet.
+    //
+    assert (d.package == nullptr);
+
+    using query = query<package>;
+    query q (query::id.name == d.name);
+    const auto& vm (query::id.version);
+
+    if (d.constraint)
     {
-      // Dependency should not be resolved yet.
-      //
-      assert (d.package == nullptr);
+      const version_constraint& c (*d.constraint);
 
-      using query = query<package>;
-      query q (query::id.name == d.name);
-      const auto& vm (query::id.version);
+      assert (c.complete ());
 
-      if (d.constraint)
+      query qs (compare_version_eq (vm,
+                                    canonical_version (wildcard_version),
+                                    false /* revision */));
+
+      if (c.min_version && c.max_version && *c.min_version == *c.max_version)
       {
-        auto c (*d.constraint);
+        const version& v (*c.min_version);
+        q = q && (compare_version_eq (vm,
+                                      canonical_version (v),
+                                      v.revision.has_value ()) ||
+                  qs);
+      }
+      else
+      {
+        query qr (true);
 
-        assert (c.complete ());
-
-        query qs (compare_version_eq (vm,
-                                      canonical_version (wildcard_version),
-                                      false /* revision */));
-
-        if (c.min_version && c.max_version &&
-            *c.min_version == *c.max_version)
+        if (c.min_version)
         {
           const version& v (*c.min_version);
-          q = q &&
-              (compare_version_eq (vm,
-                                   canonical_version (v),
-                                   v.revision.has_value ()) ||
-               qs);
+          canonical_version cv (v);
+          bool rv (v.revision);
+
+          if (c.min_open)
+            qr = compare_version_gt (vm, cv, rv);
+          else
+            qr = compare_version_ge (vm, cv, rv);
         }
-        else
+
+        if (c.max_version)
         {
-          query qr (true);
+          const version& v (*c.max_version);
+          canonical_version cv (v);
+          bool rv (v.revision);
 
-          if (c.min_version)
-          {
-            const version& v (*c.min_version);
-            canonical_version cv (v);
-            bool rv (v.revision);
-
-            if (c.min_open)
-              qr = compare_version_gt (vm, cv, rv);
-            else
-              qr = compare_version_ge (vm, cv, rv);
-          }
-
-          if (c.max_version)
-          {
-            const version& v (*c.max_version);
-            canonical_version cv (v);
-            bool rv (v.revision);
-
-            if (c.max_open)
-              qr = qr && compare_version_lt (vm, cv, rv);
-            else
-              qr = qr && compare_version_le (vm, cv, rv);
-          }
-
-          q = q && (qr || qs);
+          if (c.max_open)
+            qr = qr && compare_version_lt (vm, cv, rv);
+          else
+            qr = qr && compare_version_le (vm, cv, rv);
         }
-      }
 
-      for (const auto& pp: db.query<package> (q + order_by_version_desc (vm)))
-      {
-        if (find (p.internal_repository, pp))
-        {
-          d.package.reset (db, pp.id);
-          break;
-        }
-      }
-
-      if (d.package == nullptr)
-      {
-        cerr << "error: can't resolve dependency " << d << " of the package "
-             << p.name << " " << p.version << endl
-             << "  info: repository "
-             << p.internal_repository.load ()->location
-             << " appears to be broken" << endl;
-
-        // Practically it is enough to resolve at least one dependency
-        // alternative to build a package. Meanwhile here we consider an error
-        // specifying in the manifest file an alternative which can't be
-        // resolved.
-        //
-        throw failed ();
+        q = q && (qr || qs);
       }
     }
+
+    for (const auto& pp: db.query<package> (q + order_by_version_desc (vm)))
+    {
+      if (find (p.internal_repository, pp, prereq))
+      {
+        d.package.reset (db, pp.id);
+        return true;
+      }
+    }
+
+    return false;
+  };
+
+  auto bail = [&p] (const dependency& d, const char* what)
+  {
+    cerr << "error: can't resolve " << what << " " << d << " for the package "
+         << p.name << " " << p.version << endl
+         << "  info: repository " << p.internal_repository.load ()->location
+         << " appears to be broken" << endl;
+
+    throw failed ();
+  };
+
+  for (dependency_alternatives& da: p.dependencies)
+  {
+    for (dependency& d: da)
+    {
+      // Practically it is enough to resolve at least one dependency
+      // alternative to build a package. Meanwhile here we consider an error
+      // specifying in the manifest file an alternative which can't be
+      // resolved.
+      //
+      if (!resolve (d, true /* prereq */))
+        bail (d, "dependency");
+    }
+  }
+
+  // Should we allow tests, examples, and benchmarks packages to be
+  // unresolvable? Let's forbid that until we see a use case for that.
+  //
+  for (dependency& d: p.tests)
+  {
+    if (!resolve (d, false /* prereq */))
+      bail (d, "tests");
+  }
+
+  for (dependency& d: p.examples)
+  {
+    if (!resolve (d, false /* prereq */))
+      bail (d, "examples");
+  }
+
+  for (dependency& d: p.benchmarks)
+  {
+    if (!resolve (d, false /* prereq */))
+      bail (d, "benchmarks");
   }
 
   db.update (p); // Update the package state.
