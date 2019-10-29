@@ -223,6 +223,7 @@ handle (request& rq, response& rs)
                           move (fp),
                           cm.machine->name,
                           cm.config->target,
+                          cm.config->environment,
                           cm.config->args,
                           cm.config->warning_regexes);
 
