@@ -433,7 +433,21 @@ handle (request& rq, response& rs)
   bool builds (build_db_ != nullptr && pkg->buildable);
 
   if (builds)
+  {
     package_db_->load (*pkg, pkg->build_section);
+
+    // If the package has a singe build configuration class expression with
+    // exactly one underlying class and the class is none, then we just drop
+    // the page builds section altogether.
+    //
+    if (pkg->builds.size () == 1)
+    {
+      const build_class_expr& be (pkg->builds[0]);
+
+      builds = be.underlying_classes.size () != 1 ||
+               be.underlying_classes[0] != "none";
+    }
+  }
 
   bool archived (package_db_->load<brep::tenant> (tenant)->archived);
 
