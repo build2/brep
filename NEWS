@@ -1,3 +1,19 @@
+Version 0.12.0
+
+  * Support for specifying explicit environment names in buildtabs.
+
+  * Support for tests, examples, and benchmarks as separate packages.
+
+  * The submit-git handler can now replace an existing package version
+    revision.
+
+  * Significant speedup to the builds page loading.
+
+  * Unbuilt configurations are now displayed on the package version details
+    page.
+
+  * Support for marking internal repositories as non-buildable.
+
 Version 0.11.0
 
   * Support for displaying Markdown package descriptions.
