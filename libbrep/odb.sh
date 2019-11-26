@@ -43,6 +43,8 @@ else
 
 fi
 
+rm -f {package,build}-???-{pre,post}.sql
+
 $odb "${inc[@]}" -d pgsql --std c++14 --generate-query       \
     --odb-epilogue '#include <libbutl/small-vector-odb.hxx>' \
     --odb-epilogue '#include <libbrep/wrapper-traits.hxx>'   \
