@@ -27,6 +27,7 @@ namespace brep
 
   // <libbutl/utility.mxx>
   //
+  using butl::utf8;
   using butl::icasecmp;
   using butl::reverse_iterate;
 }

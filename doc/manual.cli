@@ -51,8 +51,8 @@ binary mode.|
 
 \li|Verify other parameters are valid manifest name/value pairs.
 
-The value can only contain printable ASCII characters as well as tab
-(\c{\\t}), carriage return (\c{\\r}), and line feed (\c{\\n}).|
+The value can only contain UTF-8 encoded Unicode graphic characters as well as
+tab (\c{\\t}), carriage return (\c{\\r}), and line feed (\c{\\n}).|
 
 \li|Check for a duplicate submission.
 
@@ -228,8 +228,8 @@ upload.|
 
 \li|Verify other parameters are valid manifest name/value pairs.
 
-The value can only contain printable ASCII characters as well as tab
-(\c{\\t}), carriage return (\c{\\r}), and line feed (\c{\\n}).|
+The value can only contain UTF-8 encoded Unicode graphic characters as well as
+tab (\c{\\t}), carriage return (\c{\\r}), and line feed (\c{\\n}).|
 
 \li|Generate CI request id and create request directory.
 

@@ -65,7 +65,7 @@ c) Install PostgreSQL and Apache2 development files. Specifically, we need
    files. Below are the names of their packages for some distributions:
 
    Debian/Ubuntu: libpq-dev           libapr1-dev libapreq2-dev   apache2-dev
-   Fedora/RHEL:   posqtgresql-devel   apr-devel   libapreq2-devel httpd-devel
+   Fedora/RHEL:   postgresql-devel    apr-devel   libapreq2-devel httpd-devel
    FreeBSD:       postgresqlXY-client apr         libapreq2       apache24
 
 d) Unless you already have the build2 toolchain, install it by following

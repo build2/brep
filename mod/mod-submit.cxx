@@ -254,23 +254,13 @@ handle (request& rq, response& rs)
     return respond_manifest (400, "invalid package archive checksum");
 
   // Verify that unknown parameter values satisfy the requirements (contain
-  // only ASCII printable characters plus '\r', '\n', and '\t').
+  // only UTF-8 encoded graphic characters plus '\t', '\r', and '\n').
   //
   // Actually, the expected ones must satisfy too, so check them as well.
   //
-  auto printable = [] (const string& s) -> bool
-  {
-    for (char c: s)
-    {
-      if (!((c >= 0x20 && c <= 0x7E) || c == '\n' || c == '\r' || c == '\t'))
-        return false;
-    }
-    return true;
-  };
-
   for (const name_value& nv: rps)
   {
-    if (nv.value && !printable (*nv.value))
+    if (nv.value && !utf8 (*nv.value, codepoint_types::graphic, U"\r\n\t"))
       return respond_manifest (400, "invalid parameter " + nv.name);
   }
 
