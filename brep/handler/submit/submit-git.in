@@ -662,9 +662,12 @@ for i in {1..11}; do
 
   # Finally, add the package archive to the target repository.
   #
-  # We copy the archive rather than move it since we may need it for a re-try.
+  # Copy the archive rather than move it since we may need it for a re-try.
+  # Make sure the project directory exists before we copy the archive into it.
+  # Note that it was removed by git-rm if it became empty.
   #
   a="$d/$archive"
+  run mkdir -p "$d"                # Create all the parent directories as well.
   run cp "$data_dir/$archive" "$a"
 
   git_add "$tgt_dir" "${a#$tgt_dir/}"
