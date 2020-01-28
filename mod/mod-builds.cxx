@@ -110,7 +110,11 @@ transform (const string& pattern)
         case '|':
         case '+':
         case '{':
-        case '(': r += '\\'; break;
+        case '}':
+        case '(':
+        case ')':
+        case '[':
+        case ']': r += '\\'; break;
         }
 
         r += c;
