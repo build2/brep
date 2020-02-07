@@ -1,5 +1,4 @@
 // file      : libbrep/package.hxx -*- C++ -*-
-// copyright : Copyright (c) 2014-2019 Code Synthesis Ltd
 // license   : MIT; see accompanying LICENSE file
 
 #ifndef LIBBREP_PACKAGE_HXX

@@ -1,5 +1,4 @@
 // file      : mod/build-config-module.hxx -*- C++ -*-
-// copyright : Copyright (c) 2014-2019 Code Synthesis Ltd
 // license   : MIT; see accompanying LICENSE file
 
 #ifndef MOD_BUILD_CONFIG_MODULE_HXX

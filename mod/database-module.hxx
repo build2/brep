@@ -1,5 +1,4 @@
 // file      : mod/database-module.hxx -*- C++ -*-
-// copyright : Copyright (c) 2014-2019 Code Synthesis Ltd
 // license   : MIT; see accompanying LICENSE file
 
 #ifndef MOD_DATABASE_MODULE_HXX

@@ -1,5 +1,4 @@
 // file      : web/mime-url-encoding.hxx -*- C++ -*-
-// copyright : Copyright (c) 2014-2019 Code Synthesis Ltd
 // license   : MIT; see accompanying LICENSE file
 
 #ifndef WEB_MIME_URL_ENCODING_HXX

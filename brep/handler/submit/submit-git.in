@@ -1,7 +1,6 @@
 #!/usr/bin/env bash
 
 # file      : brep/handler/submit/submit-git.in
-# copyright : Copyright (c) 2014-2019 Code Synthesis Ltd
 # license   : MIT; see accompanying LICENSE file
 
 # Package submission handler with git repository storage.

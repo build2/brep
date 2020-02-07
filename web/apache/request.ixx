@@ -1,5 +1,4 @@
 // file      : web/apache/request.ixx -*- C++ -*-
-// copyright : Copyright (c) 2014-2019 Code Synthesis Ltd
 // license   : MIT; see accompanying LICENSE file
 
 #include <http_protocol.h> // ap_*()

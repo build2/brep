@@ -1,7 +1,6 @@
 #!/usr/bin/env bash
 
 # file      : brep/handler/ci/ci-load.in
-# copyright : Copyright (c) 2014-2019 Code Synthesis Ltd
 # license   : MIT; see accompanying LICENSE file
 
 # Package CI request handler that loads the packages into the brep database.

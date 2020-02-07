@@ -1,7 +1,6 @@
 #!/usr/bin/env bash
 
 # file      : brep/handler/ci/ci-dir.in
-# copyright : Copyright (c) 2014-2019 Code Synthesis Ltd
 # license   : MIT; see accompanying LICENSE file
 
 # Simple package CI request handler with directory storage.

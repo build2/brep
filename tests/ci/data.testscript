@@ -1,5 +1,4 @@
 # file      : tests/ci/data.testscript
-# copyright : Copyright (c) 2014-2019 Code Synthesis Ltd
 # license   : MIT; see accompanying LICENSE file
 
 # Pre-created CI request data directory that will be copied by subsequent

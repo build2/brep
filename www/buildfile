@@ -1,5 +1,4 @@
 # file      : www/buildfile
-# copyright : Copyright (c) 2014-2019 Code Synthesis Ltd
 # license   : MIT; see accompanying LICENSE file
 
 css{*} xhtml{*}: install = data/www/
