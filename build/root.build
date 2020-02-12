@@ -50,3 +50,9 @@ tests/{libue libul}{*}: bin.whole = false
 # Specify the test target for cross-testing.
 #
 test.target = $cxx.target
+
+# Extract the copyright notice from the COPYRIGHT file.
+#
+copyright = $process.run_regex(cat $src_root/COPYRIGHT,  \
+                               'Copyright \(c\) (.+)\.', \
+                               '\1')

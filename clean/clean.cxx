@@ -61,7 +61,7 @@ namespace brep
            << "libbbot " << LIBBBOT_VERSION_ID << endl
            << "libbpkg " << LIBBPKG_VERSION_ID << endl
            << "libbutl " << LIBBUTL_VERSION_ID << endl
-           << "Copyright (c) 2014-2019 Code Synthesis Ltd" << endl
+           << "Copyright (c) " << BREP_COPYRIGHT << "." << endl
            << "This is free software released under the MIT license." << endl;
 
       return 0;

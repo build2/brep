@@ -11,6 +11,10 @@ include ../libbrep/
 exe{brep-load}: {hxx ixx cxx}{* -load-options} {hxx ixx cxx}{load-options} \
                 ../libbrep/lib{brep} $libs
 
+# Build options.
+#
+obj{load}: cxx.poptions += -DBREP_COPYRIGHT=\"$copyright\"
+
 # Generated options parser.
 #
 if $cli.configured

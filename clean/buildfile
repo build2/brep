@@ -11,6 +11,10 @@ include ../libbrep/
 exe{brep-clean}: {hxx ixx cxx}{* -clean-options} {hxx ixx cxx}{clean-options} \
                  ../libbrep/lib{brep} $libs
 
+# Build options.
+#
+obj{clean}: cxx.poptions += -DBREP_COPYRIGHT=\"$copyright\"
+
 # Generated options parser.
 #
 if $cli.configured

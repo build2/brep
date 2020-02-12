@@ -11,6 +11,10 @@ exe{brep-migrate}: {hxx ixx cxx}{* -migrate-options} \
                    {hxx ixx cxx}{   migrate-options} \
                    ../libbrep/lib{brep} $libs
 
+# Build options.
+#
+obj{migrate}: cxx.poptions += -DBREP_COPYRIGHT=\"$copyright\"
+
 # Generated options parser.
 #
 if $cli.configured
