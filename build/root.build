@@ -51,8 +51,9 @@ tests/{libue libul}{*}: bin.whole = false
 #
 test.target = $cxx.target
 
-# Extract the copyright notice from the COPYRIGHT file.
+# Extract the copyright notice from the LICENSE file.
 #
-copyright = $process.run_regex(cat $src_root/COPYRIGHT,  \
-                               'Copyright \(c\) (.+)\.', \
-                               '\1')
+copyright = $process.run_regex(                      \
+  cat $src_root/LICENSE,                             \
+  'Copyright \(c\) (.+) \(see the AUTHORS file\)\.', \
+  '\1')
