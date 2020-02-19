@@ -53,7 +53,7 @@ test.target = $cxx.target
 
 # Extract the copyright notice from the LICENSE file.
 #
-copyright = $process.run_regex(                      \
-  cat $src_root/LICENSE,                             \
-  'Copyright \(c\) (.+) \(see the AUTHORS file\)\.', \
+copyright = $process.run_regex(                                 \
+  cat $src_root/LICENSE,                                        \
+  'Copyright \(c\) (.+) \(see the AUTHORS and LEGAL files\)\.', \
   '\1')
