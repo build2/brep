@@ -257,10 +257,13 @@ handle (request& rq, response& rs)
   //
   // Actually, the expected ones must satisfy too, so check them as well.
   //
+  string what;
   for (const name_value& nv: rps)
   {
-    if (nv.value && !utf8 (*nv.value, codepoint_types::graphic, U"\r\n\t"))
-      return respond_manifest (400, "invalid parameter " + nv.name);
+    if (nv.value &&
+        !utf8 (*nv.value, what, codepoint_types::graphic, U"\n\r\t"))
+      return respond_manifest (400,
+                               "invalid parameter " + nv.name + ": " + what);
   }
 
   // Note that from now on the result manifest we respond with will contain
