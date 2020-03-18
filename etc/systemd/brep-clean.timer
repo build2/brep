@@ -10,9 +10,9 @@ Unit=brep-clean.service
 #
 Persistent=false
 
-# Wait 20 seconds until the first run.
+# Wait 30 seconds until the first run.
 #
-OnBootSec=20
+OnBootSec=30
 
 # Then wait 5 minutes until the next run.
 #

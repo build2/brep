@@ -25,7 +25,7 @@
 //
 #define LIBBREP_BUILD_SCHEMA_VERSION_BASE 9
 
-#pragma db model version(LIBBREP_BUILD_SCHEMA_VERSION_BASE, 9, closed)
+#pragma db model version(LIBBREP_BUILD_SCHEMA_VERSION_BASE, 10, closed)
 
 // We have to keep these mappings at the global scope instead of inside
 // the brep namespace because they need to be also effective in the
@@ -212,6 +212,16 @@ namespace brep
     //
     optional<result_status> status;
 
+    // Time of setting the result status that can be considered as the build
+    // task completion (currently all the result_status values). Initialized
+    // with timestamp_nonexistent by default.
+    //
+    // Note that in the future we may not consider abort and abnormal as the
+    // task completion and, for example, proceed with automatic rebuild (the
+    // flake monitor idea).
+    //
+    timestamp_type completion_timestamp;
+
     // May be present only for the building state.
     //
     optional<string> agent_fingerprint;
@@ -244,6 +254,10 @@ namespace brep
     //
     #pragma db member(timestamp) index
 
+    // @@ TMP remove when 0.13.0 is released.
+    //
+    #pragma db member(completion_timestamp) default(0)
+
     #pragma db member(results) id_column("") value_column("") \
       section(results_section)
 
@@ -259,9 +273,7 @@ namespace brep
         : tenant (id.package.tenant),
           package_name (id.package.name),
           configuration (id.configuration),
-          toolchain_name (id.toolchain_name)
-    {
-    }
+          toolchain_name (id.toolchain_name) {}
   };
 
   // Note that ADL can't find the equal operator in join conditions, so we use
@@ -339,6 +351,68 @@ namespace brep
     // Database mapping.
     //
     #pragma db member(result) column("count(" + build::id.package.name + ")")
+  };
+
+  // Used to track the package build delays since the last build or, if not
+  // present, since the first opportunity to build the package.
+  //
+  #pragma db object pointer(shared_ptr) session
+  class build_delay
+  {
+  public:
+    using package_name_type = brep::package_name;
+
+    // If toolchain version is empty, then the object represents a minimum
+    // delay across all versions of the toolchain.
+    //
+    build_delay (string tenant,
+                 package_name_type, version,
+                 string configuration,
+                 string toolchain_name, version toolchain_version,
+                 timestamp package_timestamp);
+
+    build_id id;
+
+    string& tenant;                     // Tracks id.package.tenant.
+    package_name_type& package_name;    // Tracks id.package.name.
+    upstream_version package_version;   // Original of id.package.version.
+    string& configuration;              // Tracks id.configuration.
+    string& toolchain_name;             // Tracks id.toolchain_name.
+    upstream_version toolchain_version; // Original of id.toolchain_version.
+
+    // Time of the latest delay report. Initialized with timestamp_nonexistent
+    // by default.
+    //
+    timestamp report_timestamp;
+
+    // Time when the package is initially considered as buildable for this
+    // configuration and toolchain. It is used to track the build delay if the
+    // build object is absent (the first build task is not yet issued, the
+    // build is removed by brep-clean, etc).
+    //
+    timestamp package_timestamp;
+
+    // Database mapping.
+    //
+    #pragma db member(id) id column("")
+
+    #pragma db member(tenant) transient
+    #pragma db member(package_name) transient
+    #pragma db member(package_version) \
+      set(this.package_version.init (this.id.package.version, (?)))
+    #pragma db member(configuration) transient
+    #pragma db member(toolchain_name) transient
+    #pragma db member(toolchain_version) \
+      set(this.toolchain_version.init (this.id.toolchain_version, (?)))
+
+  private:
+    friend class odb::access;
+
+    build_delay ()
+        : tenant (id.package.tenant),
+          package_name (id.package.name),
+          configuration (id.configuration),
+          toolchain_name (id.toolchain_name) {}
   };
 }
 

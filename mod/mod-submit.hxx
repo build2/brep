@@ -4,13 +4,13 @@
 #ifndef MOD_MOD_SUBMIT_HXX
 #define MOD_MOD_SUBMIT_HXX
 
-#include <web/xhtml-fragment.hxx>
+#include <web/xhtml/fragment.hxx>
 
 #include <libbrep/types.hxx>
 #include <libbrep/utility.hxx>
 
 #include <mod/module.hxx>
-#include <mod/options.hxx>
+#include <mod/module-options.hxx>
 
 namespace brep
 {

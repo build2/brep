@@ -118,6 +118,8 @@ namespace brep
     package_id id;
     upstream_version version;
 
+    bool archived; // True if the tenant the package belongs to is archived.
+
     // Database mapping.
     //
     #pragma db member(version) set(this.version.init (this.id.version, (?)))

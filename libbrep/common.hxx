@@ -8,6 +8,8 @@
 #include <chrono>
 #include <type_traits> // static_assert
 
+#include <odb/query.hxx>
+
 #include <libbpkg/package-name.hxx>
 
 #include <libbrep/types.hxx>
@@ -508,6 +510,34 @@ namespace brep
     return x.tenant != y.tenant ||
            x.name != y.name     ||
            compare_version_ne (x.version, y.version, true);
+  }
+
+  // Allow comparing the query members with the query parameters bound by
+  // reference to variables of the package id type (in particular in the
+  // prepared queries).
+  //
+  // Note that it is not operator==() since the query template parameter type
+  // can not be deduced from the function parameter types and needs to be
+  // specified explicitly.
+  //
+  template <typename T, typename ID>
+  inline auto
+  equal (const ID& x, const package_id& y)
+    -> decltype (x.tenant == odb::query<T>::_ref (y.tenant) &&
+                 x.name == odb::query<T>::_ref (y.name)     &&
+                 x.version.epoch == odb::query<T>::_ref (y.version.epoch))
+  {
+    using query = odb::query<T>;
+
+    const auto& qv (x.version);
+    const canonical_version& v (y.version);
+
+    return x.tenant == query::_ref (y.tenant)                          &&
+           x.name == query::_ref (y.name)                              &&
+           qv.epoch == query::_ref (v.epoch)                           &&
+           qv.canonical_upstream == query::_ref (v.canonical_upstream) &&
+           qv.canonical_release == query::_ref (v.canonical_release)   &&
+           qv.revision == query::_ref (v.revision);
   }
 
   // Repository id comparison operators.

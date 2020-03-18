@@ -161,8 +161,8 @@ Fatal error.|
 
 \li|\cb{2}
 
-An instance of \cb{brep-load} or \l{brep-migrate(1)} is already running. Try
-again.|
+An instance of \cb{brep-load} or some other \cb{brep} utility is already
+running. Try again.|
 
 \li|\cb{3}
 

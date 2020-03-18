@@ -7,7 +7,7 @@
 #include <libbrep/types.hxx>
 #include <libbrep/utility.hxx>
 
-#include <mod/options.hxx>
+#include <mod/module-options.hxx>
 #include <mod/database-module.hxx>
 #include <mod/build-config-module.hxx>
 

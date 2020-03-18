@@ -3,7 +3,7 @@
 
 #include <ap_config.h> // AP_MODULE_DECLARE_DATA
 
-#include <web/apache/service.hxx>
+#include <web/server/apache/service.hxx>
 
 #include <libbrep/types.hxx>
 #include <libbrep/utility.hxx>

@@ -1,0 +1,23 @@
+[Unit]
+Description=brep infrastructure monitor timer
+RefuseManualStart=no
+RefuseManualStop=no
+
+[Timer]
+Unit=brep-monitor.service
+
+# Don't keep track of the timer across reboots.
+#
+Persistent=false
+
+# Wait 40 seconds until the first run.
+#
+OnBootSec=40
+
+# Then wait 1 hour until the next run.
+#
+OnUnitInactiveSec=1h
+
+
+[Install]
+WantedBy=timers.target

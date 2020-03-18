@@ -1,10 +1,11 @@
 # file      : doc/buildfile
 # license   : MIT; see accompanying LICENSE file
 
-cmds =             \
-brep-clean         \
-brep-load          \
-brep-migrate
+cmds =       \
+brep-clean   \
+brep-load    \
+brep-migrate \
+brep-monitor
 
 ./: {man1 xhtml}{$cmds}     \
     css{common pre-box man} \

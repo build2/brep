@@ -16,9 +16,10 @@
 
 #include <libbbot/manifest.hxx> // to_result_status(), to_string(result_status)
 
-#include <web/xhtml.hxx>
-#include <web/module.hxx>
-#include <web/mime-url-encoding.hxx>
+#include <web/server/module.hxx>
+#include <web/server/mime-url-encoding.hxx>
+
+#include <web/xhtml/serialization.hxx>
 
 #include <libbrep/build.hxx>
 #include <libbrep/build-odb.hxx>
@@ -26,7 +27,7 @@
 #include <libbrep/build-package-odb.hxx>
 
 #include <mod/page.hxx>
-#include <mod/options.hxx>
+#include <mod/module-options.hxx>
 
 using namespace std;
 using namespace butl;
@@ -231,7 +232,10 @@ build_query (const brep::cstrings* configs,
       else
       {
         query sq (qb::status == rs);
-        result_status st (to_result_status(rs)); // May throw invalid_argument.
+
+        // May throw invalid_argument.
+        //
+        result_status st (to_result_status (rs));
 
         if (st != result_status::success)
         {
@@ -310,22 +314,6 @@ package_query (const brep::params::builds& params,
   }
 
   return q;
-}
-
-template <typename T, typename ID>
-static inline query<T>
-package_id_eq (const ID& x, const brep::package_id& y)
-{
-  using query = query<T>;
-  const auto& qv (x.version);
-
-  return
-    x.tenant == query::_ref (y.tenant)                                  &&
-    x.name == query::_ref (y.name)                                      &&
-    qv.epoch == query::_ref (y.version.epoch)                           &&
-    qv.canonical_upstream == query::_ref (y.version.canonical_upstream) &&
-    qv.canonical_release == query::_ref (y.version.canonical_release)   &&
-    qv.revision == query::_ref (y.version.revision);
 }
 
 static const vector<pair<string, string>> build_results ({
@@ -821,9 +809,8 @@ handle (request& rq, response& rs)
 
         const auto& bid (bld_query::build::id);
 
-        bld_query bq (
-          package_id_eq<package_build_count> (bid.package, id) &&
-          bid.configuration == bld_query::_ref (config)        &&
+        bld_query bq (equal<package_build_count> (bid.package, id)  &&
+                      bid.configuration == bld_query::_ref (config) &&
 
           // Note that the query already constrains configurations via the
           // configuration name and the tenant via the build package id.
@@ -936,7 +923,7 @@ handle (request& rq, response& rs)
     package_id id;
 
     bld_query bq (
-      package_id_eq<package_build> (bld_query::build::id.package, id) &&
+      equal<package_build> (bld_query::build::id.package, id) &&
 
       // Note that the query already constrains the tenant via the build
       // package id.

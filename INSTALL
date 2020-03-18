@@ -11,8 +11,9 @@ can be omitted.
 1. Create 'brep' User
 
 This user will be used to run the brep package database loader, build database
-cleaner, and the database schemes migration utility. We will also use its home
-directory to build and install the brep module, store its configuration, etc.
+cleaner, monitor, and database schemas migration utility. We will also use its
+home directory to build and install the brep module, store its configuration,
+etc.
 
 Note: if the deployment machine employs SELinux, then this approach may
 require additional configuration steps (not shown) in order to allow Apache2
@@ -194,7 +195,7 @@ CREATE EXTENSION citext;
 Exit psql (^D)
 
 
-5. Create Database Schemes and Load Repositories
+5. Create Database Schemas and Load Repositories
 
 $ mkdir config
 $ edit config/loadtab # Loader configuration, see brep-load(1).
@@ -275,7 +276,7 @@ can also find this fragment in install/share/brep/etc/brep-apache2.conf):
         #
         brep-email admin@example.org
 
-        # Repository host. It specifies the scheme and the host address (but
+        # Repository host. It specifies the schema and the host address (but
         # not the root path; see brep-root below) that will be used whenever
         # brep needs to construct an absolute URL to one of its locations (for
         # example, a link to a build log that is being send via email).
@@ -384,15 +385,15 @@ $ cd install/share/brep/www/
 $ for i in *.scss; do sassc -s compressed $i `basename -s .scss $i`.css; done
 
 
-8. Setup Periodic Loader and Cleaner Execution
+8. Setup Periodic Loader, Cleaner, and Monitor Execution
 
 Initially this guide suggested using systemd user session support to run the
-loader and the cleaner. However, the current state of user sessions has one
-major drawback: they are not started/attached-to when logging in with su -l
-(see Debian bug #813789 for details). This limitation makes them unusable in
-our setup. If you still would like to use systemd to run the loader and the
-cleaner, then you can set it up as a system-wide service which runs the
-utilities as the brep user/group. Otherwise, a cron job is a natural choice.
+loader, cleaner, and monitor. However, the current state of user sessions has
+one major drawback: they are not started/attached-to when logging in with su
+-l (see Debian bug #813789 for details). This limitation makes them unusable
+in our setup. If you still would like to use systemd to run the utilities,
+then you can set it up as a system-wide service which runs them as the brep
+user/group. Otherwise, a cron job is a natural choice.
 
 Note that the builds cleaner execution is optional and is only required if the
 build2 build bot functionality is enabled (see the build bot documentation for
@@ -402,29 +403,37 @@ parts in the subsequent subsections.
 If the CI request functionality is enabled you most likely will want to
 additionally setup the tenants cleanup.
 
+The monitor execution is also optional and currently only makes sense if the
+build2 build bot functionality is enabled. Note that you may need to replace
+the public toolchain name argument in the monitor utility command with a real
+list of toolchain names (and optionally versions) used in the brep build
+infrastructure.
 
-8.a Setup Periodic Loader and Cleaner Execution with cron
 
-The following crontab entries will execute the loader every five minutes
-and the tenants and builds cleaners once a day at midnight:
+8.a Setup Periodic Loader, Cleaner, and Monitor Execution with cron
+
+The following crontab entries will execute the loader every five minutes, the
+tenants and builds cleaners once a day at midnight, and the monitor every hour
+(all shifted by a few minutes in order not to clash with other jobs):
 
 $ crontab -l
 MAILTO=<brep-admin-email>
 PATH=/usr/local/bin:/bin:/usr/bin
 */5 * * * * $HOME/install/bin/brep-load $HOME/config/loadtab
-0 0 * * * $HOME/install/bin/brep-clean tenants 240
-0 0 * * * $HOME/install/bin/brep-clean builds $HOME/config/buildtab
+1 0 * * * $HOME/install/bin/brep-clean tenants 240
+2 0 * * * $HOME/install/bin/brep-clean builds $HOME/config/buildtab
+3 * * * * $HOME/install/bin/brep-monitor --report-timeout 86400 --clean $HOME/config/brep-module.conf public
 ^D
 
 Note that here we assume that bpkg (which is executed by brep-load) is in one
 of the PATH's directories (usually /usr/local/bin).
 
 
-8.b Setup Periodic Loader and Cleaner Execution with systemd
+8.b Setup Periodic Loader, Cleaner, and Monitor Execution with systemd
 
 In this version we will use the systemd user session to periodically run the
-loader and the cleaner as the brep user. If your installation doesn't use
-systemd, then a cron job would be a natural alternative (see above).
+loader, cleaner, and monitor as the brep user. If your installation doesn't
+use systemd, then a cron job would be a natural alternative (see above).
 
 As the first step, make sure systemd user sessions support is working for the
 brep user:
@@ -443,6 +452,7 @@ $ sudo loginctl enable-linger brep
 $ mkdir -p .config/systemd/user
 $ cp install/share/brep/etc/systemd/brep-load.* .config/systemd/user/
 $ cp install/share/brep/etc/systemd/brep-clean.* .config/systemd/user/
+$ cp install/share/brep/etc/systemd/brep-monitor.* .config/systemd/user/
 
 Start the service to make sure there are no issues:
 
@@ -452,16 +462,21 @@ $ journalctl
 $ systemctl --user start brep-clean.service
 $ journalctl
 
+$ systemctl --user start brep-monitor.service
+$ journalctl
+
 Start the timers and monitor them to make sure they fire:
 
 $ systemctl --user start brep-load.timer
 $ systemctl --user start brep-clean.timer
+$ systemctl --user start brep-monitor.timer
 $ journalctl -f
 
 If everything looks good, enable the timer to be started at boot time:
 
 $ systemctl --user enable brep-load.timer
 $ systemctl --user enable brep-clean.timer
+$ systemctl --user enable brep-monitor.timer
 
 
 9. Upgrade Procedure
@@ -483,18 +498,20 @@ $ cd brep
 $ bpkg fetch
 $ bpkg build brep
 
-If you are using a systemd-based setup, then stop and disable the loader and
-the cleaner:
+If you are using a systemd-based setup, then stop and disable the loader,
+cleaner, and monitor:
 
 $ systemctl --user disable --now brep-load.timer
 $ systemctl --user disable --now brep-clean.timer
+$ systemctl --user disable --now brep-monitor.timer
 $ systemctl --user stop brep-load.service
 $ systemctl --user stop brep-clean.service
+$ systemctl --user stop brep-monitor.service
 
 If you are using a cron-based setup, then it is not worth it commenting out the
-job entries. If the new version of the loader or the cleaner gets executed
-before or during the migration, then it will fail and you will get an email
-with the diagnostics. Other than that, it should be harmless.
+job entries. If the new version of the brep utilities gets executed before or
+during the migration, then it will fail and you will get an email with the
+diagnostics. Other than that, it should be harmless.
 
 Stop apache:
 
@@ -510,7 +527,7 @@ Review brep-module.conf changes that may need to be merged:
 
 $ diff -u install/share/brep/etc/brep-module.conf config/brep-module.conf
 
-Migrate database schemes:
+Migrate database schemas:
 
 $ install/bin/brep-migrate package
 $ install/bin/brep-migrate build
@@ -521,17 +538,20 @@ is not possible), then one way to do it would be:
 $ psql -d brep_package -c 'DROP OWNED BY brep'
 $ psql -d brep_build -c 'DROP OWNED BY brep'
 
-If using systemd, then start and enable the loader and the cleaner:
+If using systemd, then start and enable the loader, cleaner, and monitor:
 
 $ systemctl --user start brep-load.service
 $ systemctl --user status brep-load.service
 $ systemctl --user start brep-clean.service
 $ systemctl --user status brep-clean.service
+$ systemctl --user start brep-monitor.service
+$ systemctl --user status brep-monitor.service
 
 If everything looks good, enable periodic execution:
 
 $ systemctl --user enable --now brep-load.timer
 $ systemctl --user enable --now brep-clean.timer
+$ systemctl --user enable --now brep-monitor.timer
 
 If using cron, then simply wait for the next run.
 

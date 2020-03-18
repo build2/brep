@@ -14,11 +14,12 @@
 #include <libbutl/manifest-types.mxx>
 #include <libbutl/manifest-serializer.mxx>
 
-#include <web/xhtml.hxx>
-#include <web/module.hxx>
+#include <web/server/module.hxx>
+
+#include <web/xhtml/serialization.hxx>
 
 #include <mod/page.hxx>
-#include <mod/options.hxx>
+#include <mod/module-options.hxx>
 #include <mod/external-handler.hxx>
 
 using namespace std;

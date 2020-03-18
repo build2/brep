@@ -1,0 +1,16 @@
+// file      : monitor/module.cli
+// license   : MIT; see accompanying LICENSE file
+
+include <mod/module.cli>;
+
+namespace brep
+{
+  namespace options
+  {
+    // brep web module configuration options we are interested in.
+    //
+    class module: build_task
+    {
+    };
+  }
+}

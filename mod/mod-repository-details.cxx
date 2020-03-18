@@ -12,15 +12,16 @@
 
 #include <libbutl/timestamp.mxx> // to_string()
 
-#include <web/xhtml.hxx>
-#include <web/module.hxx>
-#include <web/mime-url-encoding.hxx>
+#include <web/server/module.hxx>
+#include <web/server/mime-url-encoding.hxx>
+
+#include <web/xhtml/serialization.hxx>
 
 #include <libbrep/package.hxx>
 #include <libbrep/package-odb.hxx>
 
 #include <mod/page.hxx>
-#include <mod/options.hxx>
+#include <mod/module-options.hxx>
 
 using namespace std;
 using namespace odb::core;

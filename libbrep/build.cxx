@@ -80,4 +80,25 @@ namespace brep
         target (move (trg))
   {
   }
+
+  // build_delay
+  //
+  build_delay::
+  build_delay (string tnt,
+               package_name_type pnm, version pvr,
+               string cfg,
+               string tnm, version tvr,
+               timestamp ptm)
+      : id (package_id (move (tnt), move (pnm), pvr),
+            move (cfg),
+            move (tnm), tvr),
+        tenant (id.package.tenant),
+        package_name (id.package.name),
+        package_version (move (pvr)),
+        configuration (id.configuration),
+        toolchain_name (id.toolchain_name),
+        toolchain_version (move (tvr)),
+        package_timestamp (ptm)
+  {
+  }
 }

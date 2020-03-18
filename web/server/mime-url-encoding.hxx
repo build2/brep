@@ -1,8 +1,8 @@
-// file      : web/mime-url-encoding.hxx -*- C++ -*-
+// file      : web/server/mime-url-encoding.hxx -*- C++ -*-
 // license   : MIT; see accompanying LICENSE file
 
-#ifndef WEB_MIME_URL_ENCODING_HXX
-#define WEB_MIME_URL_ENCODING_HXX
+#ifndef WEB_SERVER_MIME_URL_ENCODING_HXX
+#define WEB_SERVER_MIME_URL_ENCODING_HXX
 
 #include <string>
 
@@ -29,4 +29,4 @@ namespace web
                    bool query = true);
 }
 
-#endif // WEB_MIME_URL_ENCODING_HXX
+#endif // WEB_SERVER_MIME_URL_ENCODING_HXX

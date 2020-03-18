@@ -22,14 +22,14 @@
 #include <libbbot/manifest.hxx>
 #include <libbbot/build-config.hxx>
 
-#include <web/module.hxx>
+#include <web/server/module.hxx>
 
 #include <libbrep/build.hxx>
 #include <libbrep/build-odb.hxx>
 #include <libbrep/build-package.hxx>
 #include <libbrep/build-package-odb.hxx>
 
-#include <mod/options.hxx>
+#include <mod/module-options.hxx>
 
 using namespace std;
 using namespace butl;
@@ -384,28 +384,18 @@ handle (request& rq, response& rs)
     using prep_bld_query = prepared_query<build>;
 
     package_id id;
-    const auto& qv (bld_query::id.package.version);
 
     bld_query bq (
-      bld_query::id.package.tenant == bld_query::_ref (id.tenant) &&
-
-      bld_query::id.package.name == bld_query::_ref (id.name)     &&
-
-      qv.epoch == bld_query::_ref (id.version.epoch)              &&
-      qv.canonical_upstream ==
-        bld_query::_ref (id.version.canonical_upstream)           &&
-      qv.canonical_release ==
-        bld_query::_ref (id.version.canonical_release) &&
-      qv.revision == bld_query::_ref (id.version.revision)        &&
+      equal<build> (bld_query::id.package, id)                   &&
 
       bld_query::id.configuration.in_range (cfg_names.begin (),
-                                            cfg_names.end ())     &&
+                                            cfg_names.end ())    &&
 
-      bld_query::id.toolchain_name == tqm.toolchain_name          &&
+      bld_query::id.toolchain_name == tqm.toolchain_name         &&
 
       compare_version_eq (bld_query::id.toolchain_version,
                           canonical_version (toolchain_version),
-                          true /* revision */)                    &&
+                          true /* revision */)                   &&
 
       (bld_query::state == "built" ||
        ((bld_query::force == "forcing" &&

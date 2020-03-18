@@ -6,7 +6,7 @@
 
 #include <libstudxml/serializer.hxx>
 
-#include <web/xhtml.hxx>
+#include <web/xhtml/serialization.hxx>
 
 using namespace std;
 using namespace xml;

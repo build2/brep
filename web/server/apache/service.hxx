@@ -1,8 +1,8 @@
-// file      : web/apache/service.hxx -*- C++ -*-
+// file      : web/server/apache/service.hxx -*- C++ -*-
 // license   : MIT; see accompanying LICENSE file
 
-#ifndef WEB_APACHE_SERVICE_HXX
-#define WEB_APACHE_SERVICE_HXX
+#ifndef WEB_SERVER_APACHE_SERVICE_HXX
+#define WEB_SERVER_APACHE_SERVICE_HXX
 
 #include <apr_pools.h>   // apr_pool_t
 #include <apr_hooks.h>   // APR_HOOK_*
@@ -15,9 +15,9 @@
 #include <string>
 #include <cassert>
 
-#include <web/module.hxx>
-#include <web/apache/log.hxx>
-#include <web/apache/request.hxx>
+#include <web/server/module.hxx>
+#include <web/server/apache/log.hxx>
+#include <web/server/apache/request.hxx>
 
 namespace web
 {
@@ -328,6 +328,6 @@ namespace web
   }
 }
 
-#include <web/apache/service.txx>
+#include <web/server/apache/service.txx>
 
-#endif // WEB_APACHE_SERVICE_HXX
+#endif // WEB_SERVER_APACHE_SERVICE_HXX

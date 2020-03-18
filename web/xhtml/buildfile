@@ -1,0 +1,10 @@
+# file      : web/xhtml/buildfile
+# license   : MIT; see accompanying LICENSE file
+
+import libs = libstudxml%lib{studxml}
+
+./: {libue libus}{xhtml}: {hxx ixx txx cxx}{** -version} {hxx}{version} $libs
+
+hxx{version}: in{version} $src_root/manifest
+
+{hxx ixx txx}{*}: install = false

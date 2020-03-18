@@ -1,0 +1,45 @@
+# file      : monitor/buildfile
+# license   : MIT; see accompanying LICENSE file
+
+import libs  = libodb%lib{odb}
+import libs += libodb-pgsql%lib{odb-pgsql}
+import libs += libbutl%lib{butl}
+import libs += libbbot%lib{bbot}
+
+include ../libbrep/
+include ../mod/
+
+exe{brep-monitor}: {hxx ixx cxx}{*                   -*-options} \
+                   {hxx ixx cxx}{monitor-options module-options} \
+                   ../mod/libue{mod} ../libbrep/lib{brep} $libs
+
+# Build options.
+#
+obj{monitor}: cxx.poptions += -DBREP_COPYRIGHT=\"$copyright\"
+
+# Generated options parser.
+#
+if $cli.configured
+{
+  cli.cxx{monitor-options}: cli{monitor}
+  cli.cxx{module-options}:  cli{module}
+
+  cli.options += --std c++11 -I $src_root --include-with-brackets \
+--include-prefix monitor --guard-prefix MONITOR --generate-specifier \
+--cli-namespace brep::cli
+
+  cli.cxx{monitor-options}: cli.options += \
+--page-usage print_ --ansi-color --long-usage
+
+  cli.cxx{module-options}: cli.options += --suppress-usage --generate-parse
+
+  # Include the generated cli files into the distribution and don't remove
+  # them when cleaning in src (so that clean results in a state identical to
+  # distributed).
+  #
+  cli.cxx{*}:
+  {
+    dist  = true
+    clean = ($src_root != $out_root)
+  }
+}

@@ -3,7 +3,7 @@
 
 #include <mod/types-parsers.hxx>
 
-#include <mod/options.hxx>
+#include <mod/module-options.hxx>
 
 using namespace std;
 using namespace bpkg;

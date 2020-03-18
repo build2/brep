@@ -3,7 +3,7 @@
 
 include <libbpkg/manifest.hxx>; // repository_location
 
-include <web/xhtml-fragment.hxx>;
+include <web/xhtml/fragment.hxx>;
 
 include <libbrep/types.hxx>;
 
@@ -37,7 +37,7 @@ namespace brep
 
       dir_path root = "/"
       {
-        "<path>"
+        "<path>",
         "Repository root. That is, this is the part of the URL between the
          host name and the start of the repository. For example, root value
          '\cb{/pkg}' means the repository URL is \cb{http://example.org/pkg/}.
@@ -214,7 +214,7 @@ namespace brep
       {
         "<user>",
         "Build database execution user name. If not empty then the login
-         user will be switched (with \c{SET ROLE}) to this user  prior to
+         user will be switched (with \c{SET ROLE}) to this user prior to
          executing any statements. If not specified, then \cb{brep} is used."
       }
 
@@ -565,7 +565,7 @@ namespace brep
 
       string root-tenant-view = "packages"
       {
-        "<service>"
+        "<service>",
         "The default view to display for the tenant repository root. The
          <service> argument is one of the supported services (\c{packages},
          \c{builds}, \c{submit}, \c{ci}, etc). The default service is

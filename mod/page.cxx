@@ -16,9 +16,10 @@
 
 #include <libbutl/url.mxx>
 
-#include <web/xhtml.hxx>
-#include <web/xhtml-fragment.hxx>
-#include <web/mime-url-encoding.hxx>
+#include <web/xhtml/fragment.hxx>
+#include <web/xhtml/serialization.hxx>
+
+#include <web/server/mime-url-encoding.hxx>
 
 #include <libbrep/package.hxx>
 #include <libbrep/package-odb.hxx>

@@ -1276,7 +1276,7 @@ try
     ops.db_port (),
     "options='-c default_transaction_isolation=serializable'");
 
-  // Prevent several brep-load/migrate instances from updating DB
+  // Prevent several brep utility instances from updating the package database
   // simultaneously.
   //
   database_lock l (db);

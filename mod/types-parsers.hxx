@@ -9,7 +9,7 @@
 
 #include <libbpkg/manifest.hxx> // repository_location
 
-#include <web/xhtml-fragment.hxx>
+#include <web/xhtml/fragment.hxx>
 
 #include <libbrep/types.hxx>
 #include <libbrep/utility.hxx>

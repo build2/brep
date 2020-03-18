@@ -1,7 +1,7 @@
 # file      : tests/web/xhtml/buildfile
 # license   : MIT; see accompanying LICENSE file
 
-include ../../../web/
+include ../../../web/xhtml/
 
-exe{driver}: {hxx cxx}{*} ../../../web/libus{web}
+exe{driver}: {hxx cxx}{*} ../../../web/xhtml/libue{xhtml}
 exe{driver}: file{test.out}: test.stdout = true

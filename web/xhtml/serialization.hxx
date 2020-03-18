@@ -1,12 +1,12 @@
-// file      : web/xhtml.hxx -*- C++ -*-
+// file      : web/xhtml/serialization.hxx -*- C++ -*-
 // license   : MIT; see accompanying LICENSE file
 
-#ifndef WEB_XHTML_HXX
-#define WEB_XHTML_HXX
+#ifndef WEB_XHTML_SERIALIZATION_HXX
+#define WEB_XHTML_SERIALIZATION_HXX
 
 #include <libstudxml/serializer.hxx>
 
-#include <web/version.hxx>
+#include <web/xhtml/version.hxx>
 
 namespace web
 {
@@ -355,4 +355,4 @@ namespace web
   }
 }
 
-#endif // WEB_XHTML_HXX
+#endif // WEB_XHTML_SERIALIZATION_HXX

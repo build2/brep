@@ -3,7 +3,7 @@
 
 #include <mod/build.hxx>
 
-#include <web/mime-url-encoding.hxx>
+#include <web/server/mime-url-encoding.hxx>
 
 #include <mod/utility.hxx>
 

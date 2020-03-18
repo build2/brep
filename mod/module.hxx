@@ -4,14 +4,14 @@
 #ifndef MOD_MODULE_HXX
 #define MOD_MODULE_HXX
 
-#include <web/module.hxx>
+#include <web/server/module.hxx>
 
 #include <libbrep/types.hxx>
 #include <libbrep/utility.hxx>
 
 #include <mod/utility.hxx>
-#include <mod/options.hxx>
 #include <mod/diagnostics.hxx>
+#include <mod/module-options.hxx>
 
 namespace brep
 {

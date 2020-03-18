@@ -1,8 +1,8 @@
-// file      : web/apache/log.hxx -*- C++ -*-
+// file      : web/server/apache/log.hxx -*- C++ -*-
 // license   : MIT; see accompanying LICENSE file
 
-#ifndef WEB_APACHE_LOG_HXX
-#define WEB_APACHE_LOG_HXX
+#ifndef WEB_SERVER_APACHE_LOG_HXX
+#define WEB_SERVER_APACHE_LOG_HXX
 
 #include <httpd.h>       // request_rec, server_rec
 #include <http_log.h>
@@ -11,7 +11,7 @@
 #include <cstdint>   // uint64_t
 #include <algorithm> // min()
 
-#include <web/module.hxx>
+#include <web/server/module.hxx>
 
 namespace web
 {
@@ -77,4 +77,4 @@ namespace web
   }
 }
 
-#endif // WEB_APACHE_LOG_HXX
+#endif // WEB_SERVER_APACHE_LOG_HXX

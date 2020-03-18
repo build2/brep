@@ -300,12 +300,12 @@ try
     ops.db_port (),
     "options='-c default_transaction_isolation=serializable'");
 
-  // Prevent several brep-migrate/load instances from updating DB
+  // Prevent several brep utility instances from updating the database
   // simultaneously.
   //
   database_lock l (db);
 
-  // Currently we don't support data migration for the manual database scheme
+  // Currently we don't support data migration for the manual database schema
   // migration.
   //
   if (db.schema_migration (db_schema))

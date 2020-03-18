@@ -1,0 +1,176 @@
+// file      : monitor/monitor.cli
+// license   : MIT; see accompanying LICENSE file
+
+include <vector>;
+include <string>;
+include <cstddef>; // size_t
+include <cstdint>; // uint16_t
+
+include <mod/module.cli>; // Reuse CLI support types.
+
+"\section=1"
+"\name=brep-monitor"
+"\summary=monitor brep infrastructure"
+
+namespace brep
+{
+  namespace options
+  {
+    {
+      "<options> <brep-config> <toolchain> <name> <version>",
+
+      "\h|SYNOPSIS|
+
+       \c{\b{brep-monitor --help}\n
+          \b{brep-monitor --version}\n
+          \b{brep-monitor} [<options>] <brep-config> <toolchain> [<toolchain>...]}
+
+       \c{<toolchain> = <name>[\b{/}<version>]}
+
+       \h|DESCRIPTION|
+
+       \cb{brep-monitor} analyzes the \cb{brep} internal state and reports the
+       infrastructure issues printing their descriptions to \cb{stderr}.
+
+       The specified \cb{brep} configuration file (<brep-config>) is used to
+       retrieve information required to access the databases and deduce the
+       expected behavior. Most of this information can be overridden via the
+       command line options.
+
+       Currently, only delayed package builds for the specified toolchains are
+       reported. If toolchain version is omitted then all package builds with
+       this toolchain name are considered.
+
+       \cb{brep-monitor} maintains its own state in the brep \cb{build}
+       database. In particular, it records timestamps of the reported package
+       build delays and optionally omits them from being reported again during
+       the timeout specified with the \cb{--report-timeout} option.
+
+       By default, a brief report is printed. Use the \cb{--full-report}
+       option to obtain the full report (which may be large).
+
+       Note that \cb{brep-monitor} expects the \cb{build} database schema to
+       have already been created using \l{brep-migrate(1)}."
+    }
+
+    class monitor
+    {
+      "\h|OPTIONS|"
+
+      std::size_t --build-timeout
+      {
+        "<seconds>",
+        "Time to wait (in seconds) before considering a package build as
+         delayed. If unspecified, the sum of \cb{brep}'s
+         \cb{build-normal-rebuild-timeout} and \cb{build-result-timeout}
+         configuration option values is used. Note also that an archived
+         package that is unbuilt is always considered delayed."
+      }
+
+      std::size_t --report-timeout
+      {
+        "<seconds>",
+        "Time to wait (in seconds) before repeating a report of a package
+         build delay. By default there is no delay and all reports are
+         repeated."
+      }
+
+      bool --full-report
+      {
+        "Print the list of delayed package builds rather than just their number
+         per build configuration."
+      }
+
+      bool --clean
+      {
+        "Additionally clean the monitor state removing outdated information
+         related to non-existent packages, configurations, etc."
+      }
+
+      // Note that the web service would normally logs in under a different
+      // user (and potentially switch the role afterwords) and so falling back
+      // to brep's user name and password wouldn't make much sense.
+      //
+      std::string --build-db-user|-u
+      {
+        "<user>",
+        "\cb{build} database user name. If unspecified, then operating system
+         (login) name is used."
+      }
+
+      std::string --build-db-password
+      {
+        "<pass>",
+        "\cb{build} database password. If unspecified, then login without
+         password is expected to work."
+      }
+
+      std::string --build-db-name|-n = "brep_package"
+      {
+        "<name>",
+        "\cb{build} database name. If unspecified, then \cb{brep}'s
+         \cb{build-db-name} configuration option value is used."
+      }
+
+      std::string --build-db-host|-h
+      {
+        "<host>",
+        "\cb{build} database host name, address, or socket. If unspecified,
+         then \cb{brep}'s \cb{build-db-host} configuration option value is
+         used."
+      }
+
+      std::uint16_t --build-db-port|-p
+      {
+        "<port>",
+        "\cb{build} database port number. If unspecified, then \cb{brep}'s
+         \cb{build-db-port} configuration option value is used."
+      }
+
+      std::string --pager // String to allow empty value.
+      {
+        "<path>",
+        "The pager program to be used to show long text. Commonly used pager
+         programs are \cb{less} and \cb{more}. You can also specify additional
+         options that should be passed to the pager program with
+         \cb{--pager-option}. If an empty string is specified as the pager
+         program, then no pager will be used. If the pager program is not
+         explicitly specified, then \cb{brep-monitor} will try to use
+         \cb{less}. If it is not available, then no pager will be used."
+      }
+
+      std::vector<std::string> --pager-option
+      {
+        "<opt>",
+        "Additional option to be passed to the pager program. See \cb{--pager}
+         for more information on the pager program. Repeat this option to
+         specify multiple pager options."
+      }
+
+      bool --help {"Print usage information and exit."}
+      bool --version {"Print version and exit."}
+    };
+
+    "\h|EXIT STATUS|
+
+     \dl|
+
+     \li|\cb{0}
+
+     Success.|
+
+     \li|\cb{1}
+
+     Fatal error.|
+
+     \li|\cb{2}
+
+     An instance of \cb{brep-monitor} or some other \cb{brep} utility is
+     already running. Try again.|
+
+     \li|\cb{3}
+
+     Recoverable database error. Try again.||
+    "
+  }
+}

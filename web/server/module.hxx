@@ -1,8 +1,8 @@
-// file      : web/module.hxx -*- C++ -*-
+// file      : web/server/module.hxx -*- C++ -*-
 // license   : MIT; see accompanying LICENSE file
 
-#ifndef WEB_MODULE_HXX
-#define WEB_MODULE_HXX
+#ifndef WEB_SERVER_MODULE_HXX
+#define WEB_SERVER_MODULE_HXX
 
 #include <map>
 #include <string>
@@ -296,4 +296,4 @@ namespace web
   };
 }
 
-#endif // WEB_MODULE_HXX
+#endif // WEB_SERVER_MODULE_HXX

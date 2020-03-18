@@ -8,12 +8,12 @@
 #include <odb/database.hxx>
 #include <odb/transaction.hxx>
 
-#include <web/module.hxx>
+#include <web/server/module.hxx>
 
 #include <libbrep/build.hxx>
 #include <libbrep/build-odb.hxx>
 
-#include <mod/options.hxx>
+#include <mod/module-options.hxx>
 
 using namespace std;
 using namespace bbot;

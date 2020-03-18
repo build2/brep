@@ -1,4 +1,4 @@
-// file      : web/apache/service.txx -*- C++ -*-
+// file      : web/server/apache/service.txx -*- C++ -*-
 // license   : MIT; see accompanying LICENSE file
 
 #include <httpd.h>    // APEXIT_CHILDSICK

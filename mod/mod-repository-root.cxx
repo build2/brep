@@ -10,10 +10,10 @@
 #include <sstream>
 #include <algorithm> // find()
 
-#include <web/module.hxx>
+#include <web/server/module.hxx>
 
 #include <mod/module.hxx>
-#include <mod/options.hxx>
+#include <mod/module-options.hxx>
 
 #include <mod/mod-ci.hxx>
 #include <mod/mod-submit.hxx>

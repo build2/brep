@@ -15,15 +15,15 @@
 
 #include <libbbot/manifest.hxx>
 
-#include <web/module.hxx>
+#include <web/server/module.hxx>
 
 #include <libbrep/build.hxx>
 #include <libbrep/build-odb.hxx>
 #include <libbrep/package.hxx>
 #include <libbrep/package-odb.hxx>
 
-#include <mod/build.hxx>   // *_url()
-#include <mod/options.hxx>
+#include <mod/build.hxx>          // *_url()
+#include <mod/module-options.hxx>
 
 using namespace std;
 using namespace butl;
@@ -409,6 +409,7 @@ handle (request& rq, response&)
         b->results = move (rqm.result.results);
 
         b->timestamp = system_clock::now ();
+        b->completion_timestamp = b->timestamp;
 
         build_db_->update (b);
 

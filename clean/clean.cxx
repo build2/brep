@@ -111,8 +111,8 @@ namespace brep
       ops.db_port (),
       "options='-c default_transaction_isolation=serializable'");
 
-    // Prevent several brep-clean/migrate instances from updating build
-    // database simultaneously.
+    // Prevent several brep utility instances from updating the database
+    // simultaneously.
     //
     database_lock l (db);
 
@@ -316,6 +316,12 @@ namespace brep
                         ? i->second
                         : default_timeout);
 
+          // @@ Note that this approach doesn't consider the case when both
+          //    the configuration and the package still exists but the package
+          //    now excludes the configuration (configuration is now of the
+          //    legacy class instead of the default class, etc). We should
+          //    probably re-implement it in a way brep-monitor does it.
+          //
           bool cleanup (
             // Check that the build is not stale.
             //

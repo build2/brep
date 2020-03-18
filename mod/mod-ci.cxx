@@ -17,11 +17,12 @@
 #include <libbpkg/manifest.hxx>
 #include <libbpkg/package-name.hxx>
 
-#include <web/xhtml.hxx>
-#include <web/module.hxx>
+#include <web/server/module.hxx>
+
+#include <web/xhtml/serialization.hxx>
 
 #include <mod/page.hxx>
-#include <mod/options.hxx>
+#include <mod/module-options.hxx>
 #include <mod/external-handler.hxx>
 
 using namespace std;
@@ -116,8 +117,8 @@ handle (request& rq, response& rs)
   // latter case we will always respond with the same neutral message for
   // security reason, logging the error details. Note that descriptions of
   // exceptions caught by the web server are returned to the client (see
-  // web/module.hxx for details), and we want to avoid this when there is a
-  // danger of exposing sensitive data.
+  // web/server/module.hxx for details), and we want to avoid this when there
+  // is a danger of exposing sensitive data.
   //
   // Also we will pass through exceptions thrown by the underlying API, unless
   // we need to handle them or add details for the description, in which case

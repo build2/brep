@@ -5,8 +5,8 @@
 
 #include <odb/exceptions.hxx>
 
-#include <mod/options.hxx>
 #include <mod/database.hxx>
+#include <mod/module-options.hxx>
 
 namespace brep
 {

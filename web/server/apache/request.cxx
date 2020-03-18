@@ -1,7 +1,7 @@
-// file      : web/apache/request.cxx -*- C++ -*-
+// file      : web/server/apache/request.cxx -*- C++ -*-
 // license   : MIT; see accompanying LICENSE file
 
-#include <web/apache/request.hxx>
+#include <web/server/apache/request.hxx>
 
 #include <apr.h>         // APR_SIZE_MAX
 #include <apr_errno.h>   // apr_status_t, APR_SUCCESS, APR_E*, apr_strerror()
@@ -38,7 +38,7 @@
 #include <libbutl/optional.mxx>
 #include <libbutl/timestamp.mxx>
 
-#include <web/mime-url-encoding.hxx>
+#include <web/server/mime-url-encoding.hxx>
 
 using namespace std;
 using namespace butl;

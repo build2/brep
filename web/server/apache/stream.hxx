@@ -1,8 +1,8 @@
-// file      : web/apache/stream.hxx -*- C++ -*-
+// file      : web/server/apache/stream.hxx -*- C++ -*-
 // license   : MIT; see accompanying LICENSE file
 
-#ifndef WEB_APACHE_STREAM_HXX
-#define WEB_APACHE_STREAM_HXX
+#ifndef WEB_SERVER_APACHE_STREAM_HXX
+#define WEB_SERVER_APACHE_STREAM_HXX
 
 #include <httpd.h>         // request_rec, HTTP_*
 #include <http_protocol.h> // ap_*()
@@ -13,7 +13,7 @@
 #include <streambuf>
 #include <algorithm> // min(), max()
 
-#include <web/module.hxx> // invalid_request
+#include <web/server/module.hxx> // invalid_request
 
 namespace web
 {
@@ -145,4 +145,4 @@ namespace web
   }
 }
 
-#endif // WEB_APACHE_STREAM_HXX
+#endif // WEB_SERVER_APACHE_STREAM_HXX

@@ -1,4 +1,44 @@
 <changelog xmlns="http://www.codesynthesis.com/xmlns/odb/changelog" database="pgsql" schema-name="build" version="1">
+  <changeset version="10">
+    <alter-table name="build">
+      <add-column name="completion_timestamp" type="BIGINT" null="false" default="0"/>
+    </alter-table>
+    <add-table name="build_delay" kind="object">
+      <column name="package_tenant" type="TEXT" null="false"/>
+      <column name="package_name" type="CITEXT" null="false"/>
+      <column name="package_version_epoch" type="INTEGER" null="false"/>
+      <column name="package_version_canonical_upstream" type="TEXT" null="false"/>
+      <column name="package_version_canonical_release" type="TEXT" null="false" options="COLLATE &quot;C&quot;"/>
+      <column name="package_version_revision" type="INTEGER" null="false"/>
+      <column name="configuration" type="TEXT" null="false"/>
+      <column name="toolchain_name" type="TEXT" null="false"/>
+      <column name="toolchain_version_epoch" type="INTEGER" null="false"/>
+      <column name="toolchain_version_canonical_upstream" type="TEXT" null="false"/>
+      <column name="toolchain_version_canonical_release" type="TEXT" null="false" options="COLLATE &quot;C&quot;"/>
+      <column name="toolchain_version_revision" type="INTEGER" null="false"/>
+      <column name="package_version_upstream" type="TEXT" null="false"/>
+      <column name="package_version_release" type="TEXT" null="true"/>
+      <column name="toolchain_version_upstream" type="TEXT" null="false"/>
+      <column name="toolchain_version_release" type="TEXT" null="true"/>
+      <column name="report_timestamp" type="BIGINT" null="false"/>
+      <column name="package_timestamp" type="BIGINT" null="false"/>
+      <primary-key>
+        <column name="package_tenant"/>
+        <column name="package_name"/>
+        <column name="package_version_epoch"/>
+        <column name="package_version_canonical_upstream"/>
+        <column name="package_version_canonical_release"/>
+        <column name="package_version_revision"/>
+        <column name="configuration"/>
+        <column name="toolchain_name"/>
+        <column name="toolchain_version_epoch"/>
+        <column name="toolchain_version_canonical_upstream"/>
+        <column name="toolchain_version_canonical_release"/>
+        <column name="toolchain_version_revision"/>
+      </primary-key>
+    </add-table>
+  </changeset>
+
   <model version="9">
     <table name="build" kind="object">
       <column name="package_tenant" type="TEXT" null="false"/>

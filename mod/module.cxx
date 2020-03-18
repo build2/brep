@@ -10,10 +10,10 @@
 #include <cstring>    // strchr()
 #include <functional> // bind()
 
-#include <web/module.hxx>
-#include <web/apache/log.hxx>
+#include <web/server/module.hxx>
+#include <web/server/apache/log.hxx>
 
-#include <mod/options.hxx>
+#include <mod/module-options.hxx>
 
 using namespace std;
 using namespace placeholders; // For std::bind's _1, etc.

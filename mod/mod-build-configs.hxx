@@ -8,7 +8,7 @@
 #include <libbrep/utility.hxx>
 
 #include <mod/module.hxx>
-#include <mod/options.hxx>
+#include <mod/module-options.hxx>
 #include <mod/build-config-module.hxx>
 
 namespace brep

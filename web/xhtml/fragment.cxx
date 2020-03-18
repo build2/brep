@@ -1,7 +1,7 @@
-// file      : web/xhtml-fragment.cxx -*- C++ -*-
+// file      : web/xhtml/fragment.cxx -*- C++ -*-
 // license   : MIT; see accompanying LICENSE file
 
-#include <web/xhtml-fragment.hxx>
+#include <web/xhtml/fragment.hxx>
 
 #include <string>
 #include <cassert>
@@ -9,7 +9,7 @@
 #include <libstudxml/parser.hxx>
 #include <libstudxml/serializer.hxx>
 
-#include <web/xhtml.hxx>
+#include <web/xhtml/serialization.hxx>
 
 using namespace std;
 using namespace xml;

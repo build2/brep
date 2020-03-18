@@ -1,7 +1,7 @@
-// file      : web/apache/service.cxx -*- C++ -*-
+// file      : web/server/apache/service.cxx -*- C++ -*-
 // license   : MIT; see accompanying LICENSE file
 
-#include <web/apache/service.hxx>
+#include <web/server/apache/service.hxx>
 
 #include <apr_pools.h> // apr_palloc()
 
@@ -18,8 +18,8 @@
 #include <libbutl/utility.mxx>  // function_cast()
 #include <libbutl/optional.mxx>
 
-#include <web/module.hxx>
-#include <web/apache/log.hxx>
+#include <web/server/module.hxx>
+#include <web/server/apache/log.hxx>
 
 using namespace std;
 using namespace butl;

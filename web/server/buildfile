@@ -1,4 +1,4 @@
-# file      : web/buildfile
+# file      : web/server/buildfile
 # license   : MIT; see accompanying LICENSE file
 
 # This is currently part of the brep apache module but lives in a separate
@@ -8,11 +8,8 @@
 #
 import libs  = libapr1%lib{apr-1}
 import libs += libapreq2%lib{apreq2}
-import libs += libstudxml%lib{studxml}
 import libs += libbutl%lib{butl}
 
-libus{web}: {hxx ixx txx cxx}{** -version} {hxx}{version} $libs
-
-hxx{version}: in{version} $src_root/manifest
+libus{web-server}: {hxx ixx txx cxx}{**} $libs
 
 {hxx ixx txx}{*}: install = false

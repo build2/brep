@@ -1,8 +1,8 @@
-// file      : web/apache/request.hxx -*- C++ -*-
+// file      : web/server/apache/request.hxx -*- C++ -*-
 // license   : MIT; see accompanying LICENSE file
 
-#ifndef WEB_APACHE_REQUEST_HXX
-#define WEB_APACHE_REQUEST_HXX
+#ifndef WEB_SERVER_APACHE_REQUEST_HXX
+#define WEB_SERVER_APACHE_REQUEST_HXX
 
 #include <httpd.h> // request_rec, HTTP_*, OK, M_POST
 
@@ -14,8 +14,8 @@
 #include <ostream>
 #include <streambuf>
 
-#include <web/module.hxx>
-#include <web/apache/stream.hxx>
+#include <web/server/module.hxx>
+#include <web/server/apache/stream.hxx>
 
 namespace web
 {
@@ -228,6 +228,6 @@ namespace web
   }
 }
 
-#include <web/apache/request.ixx>
+#include <web/server/apache/request.ixx>
 
-#endif // WEB_APACHE_REQUEST_HXX
+#endif // WEB_SERVER_APACHE_REQUEST_HXX

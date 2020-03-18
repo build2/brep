@@ -113,7 +113,7 @@ CREATE EXTENSION citext;
 Exit psql (^D)
 
 
-2. Create Database Schemes and Load the Repository
+2. Create Database Schemas and Load the Repository
 
 All the commands are executed from brep project root.
 
@@ -205,7 +205,7 @@ $ sudo tail -f /var/log/apache2/error.log
 
 4. Reloading During Development
 
-To do a "complete reload" (i.e., recreate database schemes, load the repository
+To do a "complete reload" (i.e., recreate database schemas, load the repository
 data, and reload the Apache2 plugin), execute the following from brep/:
 
 $ migrate/brep-migrate --recreate package

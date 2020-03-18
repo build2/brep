@@ -1,4 +1,4 @@
-// file      : web/xhtml-fragment.hxx -*- C++ -*-
+// file      : web/xhtml/fragment.hxx -*- C++ -*-
 // license   : MIT; see accompanying LICENSE file
 
 #ifndef WEB_XHTML_FRAGMENT_HXX

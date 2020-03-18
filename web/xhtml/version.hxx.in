@@ -1,0 +1,11 @@
+// file      : web/xhtml/version.hxx.in -*- C++ -*-
+// license   : MIT; see accompanying LICENSE file
+
+#ifndef WEB_XHTML_VERSION_HXX_IN
+#define WEB_XHTML_VERSION_HXX_IN
+
+#include <libstudxml/version.hxx>
+
+$libstudxml.check(LIBSTUDXML_VERSION, LIBSTUDXML_SNAPSHOT)$
+
+#endif // WEB_XHTML_VERSION_HXX_IN

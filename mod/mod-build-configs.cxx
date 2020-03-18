@@ -7,11 +7,12 @@
 
 #include <libstudxml/serializer.hxx>
 
-#include <web/xhtml.hxx>
-#include <web/module.hxx>
+#include <web/server/module.hxx>
+
+#include <web/xhtml/serialization.hxx>
 
 #include <mod/page.hxx>
-#include <mod/options.hxx>
+#include <mod/module-options.hxx>
 
 using namespace std;
 using namespace bbot;
