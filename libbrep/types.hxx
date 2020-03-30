@@ -94,6 +94,7 @@ namespace brep
   //
   using butl::system_clock;
   using butl::timestamp;
+  using butl::duration;
   using butl::timestamp_nonexistent;
 }
 

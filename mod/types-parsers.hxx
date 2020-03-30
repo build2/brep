@@ -39,6 +39,15 @@ namespace brep
       parse (dir_path&, bool&, scanner&);
     };
 
+    // Parse time of day specified in the `hh:mm` form.
+    //
+    template <>
+    struct parser<duration>
+    {
+      static void
+      parse (duration&, bool&, scanner&);
+    };
+
     template <>
     struct parser<bpkg::repository_location>
     {

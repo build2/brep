@@ -140,12 +140,15 @@ namespace brep
              << "': " << e << endl;
         return 1;
       }
-    }
 
-    if (!mod_ops.build_config_specified ())
-    {
-      cerr << "warning: package building functionality is disabled" << endl;
-      return 0;
+      if (mod_ops.build_alt_rebuild_start_specified () !=
+          mod_ops.build_alt_rebuild_stop_specified ())
+      {
+        cerr << "build-alt-rebuild-start and build-alt-rebuild-stop "
+             << "configuration options must both be either specified or not "
+             << "in '" << f << "'" << endl;
+        return 1;
+      }
     }
 
     // Parse the toolchains suppressing duplicates.
@@ -212,6 +215,12 @@ namespace brep
 
     // Parse buildtab.
     //
+    if (!mod_ops.build_config_specified ())
+    {
+      cerr << "warning: package building functionality is disabled" << endl;
+      return 0;
+    }
+
     build_configs configs;
 
     try
@@ -471,14 +480,55 @@ namespace brep
       prep_bquery pbq (
         conn->prepare_query<package_build> ("package-build-query", bq));
 
-      timestamp::duration build_timeout (
-        ops.build_timeout_specified ()
-        ? chrono::seconds (ops.build_timeout ())
-        : chrono::seconds (mod_ops.build_normal_rebuild_timeout () +
-                           mod_ops.build_result_timeout ()));
+      duration build_timeout;
+
+      // If the build timeout is not specified explicitly, then calculate it
+      // as the sum of the package rebuild timeout (normal rebuild timeout if
+      // the alternative timeout is unspecified and the maximum of two
+      // otherwise) and the build result timeout.
+      //
+      if (!ops.build_timeout_specified ())
+      {
+        duration normal_rebuild_timeout (
+          chrono::seconds (mod_ops.build_normal_rebuild_timeout ()));
+
+        if (mod_ops.build_alt_rebuild_start_specified ())
+        {
+          // Calculate the alternative rebuild timeout as the time interval
+          // lenght, unless it is specified explicitly.
+          //
+          if (!mod_ops.build_alt_rebuild_timeout_specified ())
+          {
+            const duration& start (mod_ops.build_alt_rebuild_start ());
+            const duration& stop  (mod_ops.build_alt_rebuild_stop ());
+
+            // Note that if the stop time is less than the start time then the
+            // interval extends through the midnight.
+            //
+            build_timeout = start <= stop
+                            ? stop - start
+                            : (24h - start) + stop;
+          }
+          else
+            build_timeout =
+              chrono::seconds (mod_ops.build_alt_rebuild_timeout ());
+
+          // Take the maximum of the alternative and normal rebuild timeouts.
+          //
+          if (build_timeout < normal_rebuild_timeout)
+            build_timeout = normal_rebuild_timeout;
+        }
+        else
+          build_timeout = normal_rebuild_timeout;
+
+        // Summarize the rebuild and build result timeouts.
+        //
+        build_timeout += chrono::seconds (mod_ops.build_result_timeout ());
+      }
+      else
+        build_timeout = chrono::seconds (ops.build_timeout ());
 
       timestamp now (system_clock::now ());
-
       timestamp build_expiration (now - build_timeout);
 
       timestamp report_expiration (

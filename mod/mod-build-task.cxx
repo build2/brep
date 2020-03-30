@@ -59,6 +59,14 @@ init (scanner& s)
 
   if (options_->build_config_specified ())
   {
+    // Verify that build-alt-rebuild-{start,stop} are both either specified or
+    // not.
+    //
+    if (options_->build_alt_rebuild_start_specified () !=
+        options_->build_alt_rebuild_stop_specified ())
+      fail << "build-alt-rebuild-start and build-alt-rebuild-stop "
+           << "configuration options must both be either specified or not";
+
     database_module::init (*options_, options_->build_db_retry ());
 
     // Check that the database 'build' schema matches the current one. It's
@@ -254,11 +262,47 @@ handle (request& rq, response& rs)
     uint64_t forced_result_expiration_ns (
       expiration_ns (options_->build_forced_rebuild_timeout ()));
 
-    timestamp normal_rebuild_expiration (
-      expiration (options_->build_normal_rebuild_timeout ()));
-
     timestamp forced_rebuild_expiration (
       expiration (options_->build_forced_rebuild_timeout ()));
+
+    timestamp normal_rebuild_expiration;
+
+    if (options_->build_alt_rebuild_start_specified ())
+    {
+      const duration& start (options_->build_alt_rebuild_start ());
+      const duration& stop  (options_->build_alt_rebuild_stop ());
+
+      duration dt (daytime (now));
+
+      // Note that if the stop time is less than the start time then the
+      // interval extends through the midnight.
+      //
+      bool alt_timeout (start <= stop
+                        ? dt >= start && dt < stop
+                        : dt >= start || dt < stop);
+
+      // If we out of the alternative rebuild timeout interval, then fall back
+      // to using the normal rebuild timeout.
+      //
+      if (alt_timeout)
+      {
+        if (!options_->build_alt_rebuild_timeout_specified ())
+        {
+          duration interval_len (start <= stop
+                                 ? stop - start
+                                 : (24h - start) + stop);
+
+          normal_rebuild_expiration = now - interval_len;
+        }
+        else
+          normal_rebuild_expiration =
+            expiration (options_->build_alt_rebuild_timeout ());
+      }
+    }
+
+    if (normal_rebuild_expiration == timestamp_nonexistent)
+      normal_rebuild_expiration =
+        expiration (options_->build_normal_rebuild_timeout ());
 
     // Return the challenge (nonce) if brep is configured to authenticate bbot
     // agents. Return nullopt otherwise.
@@ -301,7 +345,7 @@ handle (request& rq, response& rs)
           if (!os.wait () || nonce.size () != 64)
             fail << "unable to generate nonce";
 
-          uint64_t t (chrono::duration_cast<std::chrono::nanoseconds> (
+          uint64_t t (chrono::duration_cast<chrono::nanoseconds> (
                         now.time_since_epoch ()).count ());
 
           sha256 cs (nonce.data (), nonce.size ());
@@ -397,11 +441,11 @@ handle (request& rq, response& rs)
                           canonical_version (toolchain_version),
                           true /* revision */)                   &&
 
-      (bld_query::state == "built" ||
-       ((bld_query::force == "forcing" &&
-         bld_query::timestamp > forced_result_expiration_ns) ||
-        (bld_query::force != "forcing" && // Unforced or forced.
-         bld_query::timestamp > normal_result_expiration_ns))));
+      (bld_query::state == "built"                          ||
+       (bld_query::force == "forcing" &&
+        bld_query::timestamp > forced_result_expiration_ns) ||
+       (bld_query::force != "forcing" && // Unforced or forced.
+        bld_query::timestamp > normal_result_expiration_ns)));
 
     prep_bld_query bld_prep_query (
       conn->prepare_query<build> ("mod-build-task-build-query", bq));

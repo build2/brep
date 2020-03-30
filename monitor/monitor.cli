@@ -32,10 +32,10 @@ namespace brep
        \cb{brep-monitor} analyzes the \cb{brep} internal state and reports the
        infrastructure issues printing their descriptions to \cb{stderr}.
 
-       The specified \cb{brep} configuration file (<brep-config>) is used to
-       retrieve information required to access the databases and deduce the
-       expected behavior. Most of this information can be overridden via the
-       command line options.
+       The specified \cb{brep} module configuration file (<brep-config>) is
+       used to retrieve information required to access the databases and
+       deduce the expected behavior. Most of this information can be
+       overridden via the command line options.
 
        Currently, only delayed package builds for the specified toolchains are
        reported. If toolchain version is omitted then all package builds with
@@ -64,10 +64,21 @@ namespace brep
       {
         "<seconds>",
         "Time to wait (in seconds) before considering a package build as
-         delayed. If unspecified, the sum of \cb{brep}'s
-         \cb{build-normal-rebuild-timeout} and \cb{build-result-timeout}
-         configuration option values is used. Note also that an archived
-         package that is unbuilt is always considered delayed."
+         delayed. If unspecified, it is the sum of the package rebuild timeout
+         (normal rebuild timeout if the alternative timeout is unspecified and
+         the maximum of two otherwise) and the build result timeout (see the
+         \cb{build-normal-rebuild-timeout}, \cb{build-alt-rebuild-*}, and
+         \cb{build-result-timeout} \c{brep} module configuration options
+         for details).
+
+         Note that a package that was not built before it was archived is
+         always considered as delayed. However, to distinguish this case from
+         a situation where a package was archived before a configuration have
+         been added, \cb{brep-monitor} needs to observe the package as
+         buildable for this configuration before it is archived. As result, if
+         you run \cb{brep-monitor} periodically (for example, as a cron job),
+         then make sure its running period is less than the tenant archive
+         timeout."
       }
 
       std::size_t --report-timeout

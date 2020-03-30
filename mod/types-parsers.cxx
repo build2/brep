@@ -3,6 +3,8 @@
 
 #include <mod/types-parsers.hxx>
 
+#include <libbutl/timestamp.mxx> // from_string()
+
 #include <mod/module-options.hxx>
 
 using namespace std;
@@ -48,6 +50,40 @@ namespace brep
     {
       xs = true;
       parse_path (x, s);
+    }
+
+    // Parse time of day.
+    //
+    void parser<duration>::
+    parse (duration& x, bool& xs, scanner& s)
+    {
+      xs = true;
+
+      const char* o (s.next ());
+
+      if (!s.more ())
+        throw missing_value (o);
+
+      const char* v (s.next ());
+
+      // To avoid the manual time of day parsing and validation, let's parse
+      // it as the first Epoch day time and convert the result (timestamp) to
+      // the time elapsed since Epoch (duration).
+      //
+      try
+      {
+        string t ("1970-01-01 ");
+        t += v;
+
+        x = butl::from_string (t.c_str (),
+                               "%Y-%m-%d %H:%M",
+                               false /* local */).time_since_epoch ();
+        return;
+      }
+      catch (const invalid_argument&) {}
+      catch (const system_error&) {}
+
+      throw invalid_value (o, v);
     }
 
     // Parse repository_location.

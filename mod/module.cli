@@ -199,6 +199,40 @@ namespace brep
         "Time to wait before considering a package for a normal rebuild. Must
          be specified in seconds. Default is 24 hours."
       }
+
+      size_t build-alt-rebuild-timeout
+      {
+        "<seconds>",
+        "Alternative package rebuild timeout to use instead of the normal
+         rebuild timeout (see \cb{build-normal-rebuild-timeout} for details)
+         during the time interval specified with the
+         \cb{build-alt-rebuild-start} and \cb{build-alt-rebuild-stop} options.
+         Must be specified in seconds. Default is the time interval length."
+      }
+
+      duration build-alt-rebuild-start
+      {
+        "<hours>:<minutes>",
+        "The start time of the alternative package rebuild timeout (see
+         \cb{build-alt-rebuild-timeout} for details). Must be specified as
+         a time of day in the local timezone. The \cb{build-alt-rebuild-start}
+         and \cb{build-alt-rebuild-stop} options must be either both specified
+         or absent. If unspecified, then no alternative rebuild timeout will
+         be used."
+      }
+
+      duration build-alt-rebuild-stop
+      {
+        "<hours>:<minutes>",
+        "The end time of the alternative package rebuild timeout (see
+         \cb{build-alt-rebuild-timeout} for details). Must be specified as
+         a time of day in the local timezone. If it is less than the
+         \cb{build-alt-rebuild-start} option value, then the time interval
+         extends through midnight. The \cb{build-alt-rebuild-start} and
+         \cb{build-alt-rebuild-stop} options must be either both specified or
+         absent. If unspecified, then no alternative rebuild timeout will be
+         used."
+      }
     };
 
     class build_db
