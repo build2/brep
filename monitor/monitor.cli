@@ -44,7 +44,10 @@ namespace brep
        \cb{brep-monitor} maintains its own state in the brep \cb{build}
        database. In particular, it records timestamps of the reported package
        build delays and optionally omits them from being reported again during
-       the timeout specified with the \cb{--report-timeout} option.
+       the timeout specified with the \cb{--report-timeout} option. If the
+       timeout is unspecified, then the report timestamps are not updated. To
+       report all delays and still update the timestamps specify the zero
+       report timeout.
 
        By default, a brief report is printed. Use the \cb{--full-report}
        option to obtain the full report (which may be large).

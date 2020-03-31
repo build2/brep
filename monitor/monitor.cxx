@@ -509,9 +509,9 @@ namespace brep
               {
                 id = build_id (p->id, c.name, t.first, t.second);
 
-                // If the toolchain version is not specified then search for
-                // the latest build across all toolchain versions and search
-                // for a specific build otherwise.
+                // If the toolchain version is unspecified then search for the
+                // latest build across all toolchain versions and search for a
+                // specific build otherwise.
                 //
                 shared_ptr<build> b;
 
@@ -592,13 +592,13 @@ namespace brep
                 else
                   delayed = (bct == timestamp_nonexistent);
 
-                // If the report timeout is not specified then report the
-                // delay unconditionally. Otherwise, report the active package
-                // build delay if the report timeout is expired and the
-                // archived package build delay if it was never reported. Note
-                // that fixing the building infrastructure won't help building
-                // an archived package, so reporting its build delays
-                // repeatedly is meaningless.
+                // If the report timeout is unspecified then report the delay
+                // unconditionally. Otherwise, report the active package build
+                // delay if the report timeout is expired and the archived
+                // package build delay if it was never reported. Note that
+                // fixing the building infrastructure won't help building an
+                // archived package, so reporting its build delays repeatedly
+                // is meaningless.
                 //
                 if (delayed &&
                     (!ops.report_timeout_specified () ||
@@ -721,12 +721,20 @@ namespace brep
 
       // Persist the delay report timestamps.
       //
-      transaction t (db.begin ());
+      // If we don't consider the report timestamps for reporting delays, it
+      // seems natural not to update these timestamps either. Note that
+      // reporting all delays and still updating the report timestamps can be
+      // achieved by specifying the zero report timeout.
+      //
+      if (ops.report_timeout_specified ())
+      {
+        transaction t (db.begin ());
 
-      for (shared_ptr<const build_delay> d: delays)
-        db.update (d);
+        for (shared_ptr<const build_delay> d: delays)
+          db.update (d);
 
-      t.commit ();
+        t.commit ();
+      }
     }
     catch (const io_error&)
     {
