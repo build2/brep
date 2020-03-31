@@ -417,6 +417,9 @@ namespace brep
       }
     };
 
+    size_t reported_delay_count (0);
+    size_t total_delay_count (0);
+
     set<shared_ptr<const build_delay>, compare_delay> delays;
     {
       connection_ptr conn (db.connection ());
@@ -592,25 +595,42 @@ namespace brep
                 else
                   delayed = (bct == timestamp_nonexistent);
 
-                // If the report timeout is unspecified then report the delay
-                // unconditionally. Otherwise, report the active package build
-                // delay if the report timeout is expired and the archived
-                // package build delay if it was never reported. Note that
-                // fixing the building infrastructure won't help building an
-                // archived package, so reporting its build delays repeatedly
-                // is meaningless.
-                //
-                if (delayed &&
-                    (!ops.report_timeout_specified () ||
-                     (!bp.archived
-                      ? d->report_timestamp <= report_expiration
-                      : d->report_timestamp == timestamp_nonexistent)))
+                if (delayed)
                 {
-                  // Note that we update the delay objects persistent state
-                  // later, after we successfully print the report.
+                  // If the report timeout is zero then report the delay
+                  // unconditionally. Otherwise, report the active package
+                  // build delay if the report timeout is expired and the
+                  // archived package build delay if it was never reported.
+                  // Note that fixing the building infrastructure won't help
+                  // building an archived package, so reporting its build
+                  // delays repeatedly is meaningless.
                   //
-                  d->report_timestamp = now;
-                  delays.insert (move (d));
+                  if (ops.report_timeout () == 0 ||
+                      (!bp.archived
+                       ? d->report_timestamp <= report_expiration
+                       : d->report_timestamp == timestamp_nonexistent))
+                  {
+                    // Note that we update the delay objects persistent state
+                    // later, after we successfully print the report.
+                    //
+                    d->report_timestamp = now;
+                    delays.insert (move (d));
+
+                    ++reported_delay_count;
+                  }
+                  //
+                  // In the brief mode also collect unreported delays to
+                  // deduce and print the total number of delays per
+                  // configuration. Mark such delays with the
+                  // timestamp_nonexistent report timestamp.
+                  //
+                  else if (!ops.full_report ())
+                  {
+                    d->report_timestamp = timestamp_nonexistent;
+                    delays.insert (move (d));
+                  }
+
+                  ++total_delay_count;
                 }
               }
             }
@@ -623,14 +643,24 @@ namespace brep
 
     // Report package build delays, if any.
     //
-    if (!delays.empty ())
+    if (reported_delay_count != 0)
     try
     {
       // Print the report.
       //
       cerr.exceptions (ostream::badbit | ostream::failbit);
 
-      cerr << "Package build delays (" << delays.size () << "):" << endl;
+      // Don't print the total delay count if the report timeout is zero since
+      // all delays are reported in this case.
+      //
+      bool print_total_delay_count (ops.report_timeout () != 0);
+
+      cerr << "Package build delays (" << reported_delay_count;
+
+      if (print_total_delay_count)
+        cerr << '/' << total_delay_count;
+
+      cerr << "):" << endl;
 
       // Group the printed delays by toolchain and configuration.
       //
@@ -638,19 +668,34 @@ namespace brep
       const version* toolchain_version (nullptr);
       const string*  configuration     (nullptr);
 
-      // Print the delayed package build number per configuration rather than
-      // the packages themselves in the brief report mode.
+      // In the brief report mode print the number of reported/total delayed
+      // package builds per configuration rather than the packages themselves.
       //
-      size_t config_build_count (0);
+      size_t config_reported_delay_count (0);
+      size_t config_total_delay_count (0);
 
-      auto brief_config = [&configuration, &config_build_count] ()
+      auto brief_config = [&configuration,
+                           &config_reported_delay_count,
+                           &config_total_delay_count,
+                           print_total_delay_count] ()
       {
         if (configuration != nullptr)
         {
-          cerr << "    " << *configuration << " (" << config_build_count
-               << ")" << endl;
+          // Only print configurations with delays that needs to be reported.
+          //
+          if (config_reported_delay_count != 0)
+          {
+            cerr << "    " << *configuration << " ("
+                 << config_reported_delay_count;
 
-          config_build_count = 0;
+            if (print_total_delay_count)
+              cerr << '/' << config_total_delay_count;
+
+            cerr << ')' << endl;
+          }
+
+          config_reported_delay_count = 0;
+          config_total_delay_count = 0;
         }
       };
 
@@ -713,7 +758,12 @@ namespace brep
           cerr << endl;
         }
         else
-          ++config_build_count;
+        {
+          if (d->report_timestamp != timestamp_nonexistent)
+            ++config_reported_delay_count;
+
+          ++config_total_delay_count;
+        }
       }
 
       if (!ops.full_report ())
@@ -731,7 +781,12 @@ namespace brep
         transaction t (db.begin ());
 
         for (shared_ptr<const build_delay> d: delays)
-          db.update (d);
+        {
+          // Only update timestamps for delays that needs to be reported.
+          //
+          if (d->report_timestamp != timestamp_nonexistent)
+            db.update (d);
+        }
 
         t.commit ();
       }
