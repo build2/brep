@@ -447,8 +447,9 @@ namespace brep
       // Prepare the package build prepared query.
       //
       // This query will only be used for toolchains that have no version
-      // specified on the command line to obtain the latest build across all
-      // toolchain versions.
+      // specified on the command line to obtain the latest completed build
+      // across all toolchain versions, if present, and the latest incomplete
+      // build otherwise.
       //
       using bquery = query<package_build>;
       using prep_bquery = prepared_query<package_build>;
@@ -456,10 +457,13 @@ namespace brep
       build_id id;
       const auto& bid (bquery::build::id);
 
-      bquery bq ((equal<package_build> (bid.package, id.package)          &&
-                  bid.configuration == bquery::_ref (id.configuration)    &&
+      bquery bq ((equal<package_build> (bid.package, id.package)       &&
+                  bid.configuration == bquery::_ref (id.configuration) &&
                   bid.toolchain_name == bquery::_ref (id.toolchain_name)) +
-                 "ORDER BY" + bquery::build::timestamp + "DESC" + "LIMIT 1");
+                 "ORDER BY"                                               +
+                 bquery::build::completion_timestamp + "DESC, "           +
+                 bquery::build::timestamp + "DESC"                        +
+                 "LIMIT 1");
 
       prep_bquery pbq (
         conn->prepare_query<package_build> ("package-build-query", bq));
