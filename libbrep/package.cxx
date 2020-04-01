@@ -110,25 +110,38 @@ namespace brep
         examples (move (es)),
         benchmarks (move (bms)),
         builds (move (bs)),
-        build_constraints (!stub () ? move (bc) : build_constraints_type ()),
+        build_constraints (move (bc)),
         internal_repository (move (rp)),
         location (move (lc)),
         fragment (move (fr)),
-        sha256sum (move (sh)),
-        buildable (!stub () && internal_repository->buildable)
+        sha256sum (move (sh))
   {
+    if (stub ())
+      unbuildable_reason = unbuildable_reason::stub;
+    else if (!internal_repository->buildable)
+      unbuildable_reason = unbuildable_reason::unbuildable;
+
+    buildable = !unbuildable_reason;
+
     assert (internal_repository->internal);
   }
 
   package::
   package (package_name nm,
            version_type vr,
+           build_class_exprs bs,
+           build_constraints_type bc,
            shared_ptr<repository_type> rp)
       : id (rp->tenant, move (nm), vr),
         tenant (id.tenant),
         name (id.name),
         version (move (vr)),
-        buildable (false)
+        builds (move (bs)),
+        build_constraints (move (bc)),
+        buildable (false),
+        unbuildable_reason (stub ()
+                            ? unbuildable_reason::stub
+                            : unbuildable_reason::external)
   {
     assert (!rp->internal);
     other_repositories.emplace_back (move (rp));

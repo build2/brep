@@ -323,6 +323,38 @@ namespace brep
 
   #pragma db value(build_constraint) definition
 
+  // The primary reason why a package is unbuildable by the build bot
+  // controller service.
+  //
+  enum class unbuildable_reason: std::uint8_t
+  {
+    stub,          // A stub,                                     otherwise
+    test,          // A separate test (built as part of primary), otherwise
+    external,      // From an external repository,                otherwise
+    unbuildable    // From an internal unbuildable repository.
+  };
+
+  string
+  to_string (unbuildable_reason);
+
+  unbuildable_reason
+  to_unbuildable_reason (const string&); // May throw invalid_argument.
+
+  inline ostream&
+  operator<< (ostream& os, unbuildable_reason r) {return os << to_string (r);}
+
+  using optional_unbuildable_reason = optional<unbuildable_reason>;
+
+  #pragma db map type(unbuildable_reason) as(string) \
+    to(to_string (?))                                \
+    from(brep::to_unbuildable_reason (?))
+
+  #pragma db map type(optional_unbuildable_reason) as(brep::optional_string) \
+    to((?) ? to_string (*(?)) : brep::optional_string ())                    \
+    from((?)                                                                 \
+    ? brep::to_unbuildable_reason (*(?))                                     \
+    : brep::optional_unbuildable_reason ())                                  \
+
   // Version comparison operators.
   //
   // They allow comparing objects that have epoch, canonical_upstream,

@@ -206,7 +206,6 @@ create (database& db, bool extra_only) const
 
 // Register the data migration functions for the package database schema.
 //
-#if 0
 template <schema_version v>
 using package_migration_entry_base =
   data_migration_entry<v, LIBBREP_PACKAGE_SCHEMA_VERSION_BASE>;
@@ -218,11 +217,19 @@ struct package_migration_entry: package_migration_entry_base<v>
       : package_migration_entry_base<v> (f, "package") {}
 };
 
+// Set the unbuildable reason for unbuildable packages.
+//
+// Note that we are unable to restore the exact reason and so always set it
+// to 'unbuildable'.
+//
+//#if 0
 static const package_migration_entry<18>
 package_migrate_v18 ([] (database& db)
 {
+  db.execute ("UPDATE package SET unbuildable_reason = 'unbuildable' "
+              "WHERE NOT buildable");
 });
-#endif
+//#endif
 
 // main() function
 //

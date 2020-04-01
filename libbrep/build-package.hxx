@@ -68,6 +68,19 @@ namespace brep
     build_repository (): canonical_name (id.canonical_name) {}
   };
 
+  // Forward declarations.
+  //
+  class build_package;
+
+  // Build package test dependency.
+  //
+  #pragma db value
+  struct build_dependency
+  {
+    package_name name;
+    lazy_shared_ptr<build_package> package;
+  };
+
   // Foreign object that is mapped to a subset of the package object.
   //
   #pragma db object table("build_package") pointer(shared_ptr) readonly session
@@ -76,6 +89,14 @@ namespace brep
   public:
     package_id id;
     upstream_version version;
+
+    // Mapped to the package object tests, examples, and benchmarks members
+    // using the PostgreSQL foreign table mechanism.
+    //
+    small_vector<build_dependency, 1> tests;
+    small_vector<build_dependency, 1> examples;
+    small_vector<build_dependency, 1> benchmarks;
+
     lazy_shared_ptr<build_repository> internal_repository;
     bool buildable;
 
@@ -89,10 +110,16 @@ namespace brep
     //
     build_constraints constraints;
 
+    bool
+    internal () const noexcept {return internal_repository != nullptr;}
+
     // Database mapping.
     //
     #pragma db member(id) id column("")
     #pragma db member(version) set(this.version.init (this.id.version, (?)))
+    #pragma db member(tests) id_column("") value_column("dep_")
+    #pragma db member(examples) id_column("") value_column("dep_")
+    #pragma db member(benchmarks) id_column("") value_column("dep_")
     #pragma db member(builds) id_column("") value_column("")
     #pragma db member(constraints) id_column("") value_column("")
 

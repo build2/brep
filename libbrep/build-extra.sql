@@ -10,6 +10,12 @@ DROP FOREIGN TABLE IF EXISTS build_package_constraints;
 
 DROP FOREIGN TABLE IF EXISTS build_package_builds;
 
+DROP FOREIGN TABLE IF EXISTS build_package_benchmarks;
+
+DROP FOREIGN TABLE IF EXISTS build_package_examples;
+
+DROP FOREIGN TABLE IF EXISTS build_package_tests;
+
 DROP FOREIGN TABLE IF EXISTS build_package;
 
 DROP FOREIGN TABLE IF EXISTS build_repository;
@@ -18,14 +24,12 @@ DROP FOREIGN TABLE IF EXISTS build_tenant;
 
 -- The foreign table for build_tenant object.
 --
---
 CREATE FOREIGN TABLE build_tenant (
   id TEXT NOT NULL,
   archived BOOLEAN NOT NULL)
 SERVER package_server OPTIONS (table_name 'tenant');
 
 -- The foreign table for build_repository object.
---
 --
 CREATE FOREIGN TABLE build_repository (
   tenant TEXT NOT NULL,
@@ -36,7 +40,6 @@ CREATE FOREIGN TABLE build_repository (
 SERVER package_server OPTIONS (table_name 'repository');
 
 -- The foreign table for build_package object.
---
 --
 CREATE FOREIGN TABLE build_package (
   tenant TEXT NOT NULL,
@@ -52,9 +55,68 @@ CREATE FOREIGN TABLE build_package (
   buildable BOOLEAN NOT NULL)
 SERVER package_server OPTIONS (table_name 'package');
 
--- The foreign table for the build_package object builds member (that is of a
+-- The foreign table for the build_package object tests member (that is of a
 -- container type).
 --
+CREATE FOREIGN TABLE build_package_tests (
+  tenant TEXT NOT NULL,
+  name CITEXT NOT NULL,
+  version_epoch INTEGER NOT NULL,
+  version_canonical_upstream TEXT NOT NULL,
+  version_canonical_release TEXT NOT NULL COLLATE "C",
+  version_revision INTEGER NOT NULL,
+  index BIGINT NOT NULL,
+  dep_name CITEXT NOT NULL,
+  dep_package_tenant TEXT NULL,
+  dep_package_name CITEXT NULL,
+  dep_package_version_epoch INTEGER NULL,
+  dep_package_version_canonical_upstream TEXT NULL,
+  dep_package_version_canonical_release TEXT NULL COLLATE "C",
+  dep_package_version_revision INTEGER NULL)
+SERVER package_server OPTIONS (table_name 'package_tests');
+
+-- The foreign table for the build_package object examples member (that is of a
+-- container type).
+--
+CREATE FOREIGN TABLE build_package_examples (
+  tenant TEXT NOT NULL,
+  name CITEXT NOT NULL,
+  version_epoch INTEGER NOT NULL,
+  version_canonical_upstream TEXT NOT NULL,
+  version_canonical_release TEXT NOT NULL COLLATE "C",
+  version_revision INTEGER NOT NULL,
+  index BIGINT NOT NULL,
+  dep_name CITEXT NOT NULL,
+  dep_package_tenant TEXT NULL,
+  dep_package_name CITEXT NULL,
+  dep_package_version_epoch INTEGER NULL,
+  dep_package_version_canonical_upstream TEXT NULL,
+  dep_package_version_canonical_release TEXT NULL COLLATE "C",
+  dep_package_version_revision INTEGER NULL)
+SERVER package_server OPTIONS (table_name 'package_examples');
+
+-- The foreign table for the build_package object benchmarks member (that is
+-- of a container type).
+--
+CREATE FOREIGN TABLE build_package_benchmarks (
+  tenant TEXT NOT NULL,
+  name CITEXT NOT NULL,
+  version_epoch INTEGER NOT NULL,
+  version_canonical_upstream TEXT NOT NULL,
+  version_canonical_release TEXT NOT NULL COLLATE "C",
+  version_revision INTEGER NOT NULL,
+  index BIGINT NOT NULL,
+  dep_name CITEXT NOT NULL,
+  dep_package_tenant TEXT NULL,
+  dep_package_name CITEXT NULL,
+  dep_package_version_epoch INTEGER NULL,
+  dep_package_version_canonical_upstream TEXT NULL,
+  dep_package_version_canonical_release TEXT NULL COLLATE "C",
+  dep_package_version_revision INTEGER NULL)
+SERVER package_server OPTIONS (table_name 'package_benchmarks');
+
+-- The foreign table for the build_package object builds member (that is of a
+-- container type).
 --
 CREATE FOREIGN TABLE build_package_builds (
   tenant TEXT NOT NULL,
@@ -70,7 +132,6 @@ SERVER package_server OPTIONS (table_name 'package_builds');
 
 -- The foreign table for the build_package object constraints member (that is
 -- of a container type).
---
 --
 CREATE FOREIGN TABLE build_package_constraints (
   tenant TEXT NOT NULL,

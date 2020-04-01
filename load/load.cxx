@@ -566,7 +566,11 @@ load_packages (const shared_ptr<repository>& rp,
       else
         // Create external package object.
         //
-        p = make_shared<package> (move (pm.name), move (pm.version), rp);
+        p = make_shared<package> (move (pm.name),
+                                  move (pm.version),
+                                  move (pm.builds),
+                                  move (pm.build_constraints),
+                                  rp);
 
       db.persist (p);
     }
@@ -600,9 +604,14 @@ load_packages (const shared_ptr<repository>& rp,
 
         // A non-stub package is buildable if belongs to at least one
         // buildable repository (see libbrep/package.hxx for details).
+        // Note that if this is an external test package it will be marked as
+        // unbuildable later (see resolve_dependencies() for details).
         //
-        if (!p->stub () && !p->buildable)
-          p->buildable = rp->buildable;
+        if (rp->buildable && !p->buildable && !p->stub ())
+        {
+          p->buildable = true;
+          p->unbuildable_reason = nullopt;
+        }
       }
 
       p->other_repositories.push_back (rp);
@@ -852,9 +861,11 @@ find (const lazy_shared_ptr<repository>& r,
 // Resolve package run-time dependencies, tests, examples, and benchmarks.
 // Make sure that the best matching dependency belongs to the package
 // repositories, their complements, recursively, or their immediate
-// prerequisite repositories (only for run-time dependencies). Fail if unable
-// to resolve a dependency, unless ignore_unresolved is true in which case
-// leave this dependency NULL. Should be called once per internal package.
+// prerequisite repositories (only for run-time dependencies). Set the
+// buildable flag to false for the resolved tests, examples, and benchmarks
+// packages. Fail if unable to resolve a dependency, unless ignore_unresolved
+// is true in which case leave this dependency NULL. Should be called once per
+// internal package.
 //
 static void
 resolve_dependencies (package& p, database& db, bool ignore_unresolved)
@@ -872,7 +883,7 @@ resolve_dependencies (package& p, database& db, bool ignore_unresolved)
       p.benchmarks.empty ())
     return;
 
-  auto resolve = [&p, &db] (dependency& d, bool prereq)
+  auto resolve = [&p, &db] (dependency& d, bool test)
   {
     // Dependency should not be resolved yet.
     //
@@ -934,9 +945,26 @@ resolve_dependencies (package& p, database& db, bool ignore_unresolved)
 
     for (const auto& pp: db.query<package> (q + order_by_version_desc (vm)))
     {
-      if (find (p.internal_repository, pp, prereq))
+      if (find (p.internal_repository, pp, !test))
       {
         d.package.reset (db, pp.id);
+
+        // If the resolved dependency is an external test, then mark it as
+        // such, unless it is a stub.
+        //
+        if (test)
+        {
+          shared_ptr<package> dp (d.package.load ());
+
+          if (!dp->stub ())
+          {
+            dp->buildable = false;
+            dp->unbuildable_reason = unbuildable_reason::test;
+
+            db.update (dp);
+          }
+        }
+
         return true;
       }
     }
@@ -963,26 +991,26 @@ resolve_dependencies (package& p, database& db, bool ignore_unresolved)
       // specifying in the manifest file an alternative which can't be
       // resolved, unless unresolved dependencies are allowed.
       //
-      if (!resolve (d, true /* prereq */) && !ignore_unresolved)
+      if (!resolve (d, false /* test */) && !ignore_unresolved)
         bail (d, "dependency");
     }
   }
 
   for (dependency& d: p.tests)
   {
-    if (!resolve (d, false /* prereq */) && !ignore_unresolved)
+    if (!resolve (d, true /* test */) && !ignore_unresolved)
       bail (d, "tests");
   }
 
   for (dependency& d: p.examples)
   {
-    if (!resolve (d, false /* prereq */) && !ignore_unresolved)
+    if (!resolve (d, true /* test */) && !ignore_unresolved)
       bail (d, "examples");
   }
 
   for (dependency& d: p.benchmarks)
   {
-    if (!resolve (d, false /* prereq */) && !ignore_unresolved)
+    if (!resolve (d, true /* test */) && !ignore_unresolved)
       bail (d, "benchmarks");
   }
 
