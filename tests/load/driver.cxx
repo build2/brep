@@ -272,7 +272,7 @@ test_git_repos (const cstrings& loader_args,
                  version_constraint (
                    dep_ver ("1.0"), false, dep_ver ("1.0"), false)));
 
-    assert (p->buildable);
+    assert (p->buildable == buildable_status::buildable);
 
     t.commit ();
   }
@@ -397,7 +397,7 @@ test_pkg_repos (const cstrings& loader_args,
     assert (fpvxy->sha256sum && *fpvxy->sha256sum ==
             "c994fd49f051ab7fb25f3a4e68ca878e484c5d3c2cb132b37d41224b0621b618");
 
-    assert (fpvxy->buildable);
+    assert (fpvxy->buildable == buildable_status::buildable);
 
     // libfoo-1.0
     //
@@ -433,7 +433,7 @@ test_pkg_repos (const cstrings& loader_args,
     assert (fpv1->sha256sum && *fpv1->sha256sum ==
             "e89c6d746f8b1ea3ec58d294946d2f683d133438d2ac8c88549ba24c19627e76");
 
-    assert (fpv1->buildable);
+    assert (fpv1->buildable == buildable_status::buildable);
 
     // libfoo-1.2.2
     //
@@ -708,7 +708,7 @@ test_pkg_repos (const cstrings& loader_args,
     assert (xpv->sha256sum && *xpv->sha256sum ==
             "1833906dd93ccc0cda832d6a1b3ef9ed7877bb9958b46d9b2666033d4a7919c9");
 
-    assert (xpv->buildable);
+    assert (xpv->buildable == buildable_status::buildable);
 
     // Verify libfoo package versions.
     //
@@ -827,7 +827,7 @@ test_pkg_repos (const cstrings& loader_args,
     assert (fpv5->sha256sum && *fpv5->sha256sum ==
             "c02b6033107387e05f48aa62ee6498152c967deb0e91a62f1e618fe9fd1bc644");
 
-    assert (fpv5->buildable);
+    assert (fpv5->buildable == buildable_status::buildable);
 
     // Verify libexp package version.
     //
@@ -870,7 +870,7 @@ test_pkg_repos (const cstrings& loader_args,
 
     assert (epv->requirements.empty ());
 
-    assert (epv->buildable);
+    assert (epv->buildable == buildable_status::buildable);
 
     db.load (*epv, epv->build_section);
 

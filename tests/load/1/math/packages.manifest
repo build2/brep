@@ -89,25 +89,25 @@ name: libfoo-benchmarks
 version: 1.2.4
 summary: The Foo Math Library benchmarks
 license: MIT
-builds: none; Is only build to benchmark libfoo.
+builds: 64; Fails building for 32 bits.
 location: libfoo-benchmarks-1.2.4.tar.gz
-sha256sum: 2ec3985a540ca5bf74786d0792820cfa8a2790964a5aeaba443dfa91f2a54c04
+sha256sum: ba664343db5b9bd574450175834b0dd39d038dcff7387477b6eff0d5783a8ac4
 :
 name: libfoo-examples
 version: 1.2.4
 summary: The Foo Math Library examples
 license: MIT
-builds: none; Is only built to demo libfoo usage.
+builds: 64; Fails building for 32 bits.
 location: libfoo-examples-1.2.4.tar.gz
-sha256sum: 99658b9a5a5b834047b692b93ded9f9af3d255eb5ea3b27594f600b902039995
+sha256sum: 1343d1826c3ae5446ad965bc9aa7b1586e4238c7736c344e63a4a6bae3d57a88
 :
 name: libfoo-tests
 version: 1.2.4
 summary: The Foo Math Library tests
 license: MIT
-builds: none; Is only built to test libfoo.
+builds: 64; Fails building for 32 bits.
 location: libfoo-tests-1.2.4.tar.gz
-sha256sum: 16712c90df5ba2ffb920d29c9c25a29564f8ae01f167359c4651572789e6cd6c
+sha256sum: c5c0520b4e612fa2f8948c42824f3e199926c2395bf2c2f898e83f9eb19261a4
 :
 name: libpq
 version: 0

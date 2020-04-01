@@ -25,7 +25,7 @@
 //
 #define LIBBREP_BUILD_SCHEMA_VERSION_BASE 9
 
-#pragma db model version(LIBBREP_BUILD_SCHEMA_VERSION_BASE, 11, closed)
+#pragma db model version(LIBBREP_BUILD_SCHEMA_VERSION_BASE, 12, closed)
 
 // We have to keep these mappings at the global scope instead of inside
 // the brep namespace because they need to be also effective in the
@@ -285,7 +285,7 @@ namespace brep
   #pragma db view object(build)                                       \
     object(build_package inner:                                       \
            brep::operator== (build::id.package, build_package::id) && \
-           build_package::buildable)                                  \
+           build_package::buildable == "buildable")                   \
     query(distinct)
   struct toolchain
   {
@@ -329,7 +329,7 @@ namespace brep
     object(build)                                                      \
     object(build_package inner:                                        \
            brep::operator== (build::id.package, build_package::id) &&  \
-           build_package::buildable)                                   \
+           build_package::buildable == "buildable")                    \
     object(build_tenant: build_package::id.tenant == build_tenant::id)
   struct package_build
   {
@@ -340,7 +340,7 @@ namespace brep
     object(build)                                                      \
     object(build_package inner:                                        \
            brep::operator== (build::id.package, build_package::id) &&  \
-           build_package::buildable)                                   \
+           build_package::buildable == "buildable")                    \
     object(build_tenant: build_package::id.tenant == build_tenant::id)
   struct package_build_count
   {

@@ -323,6 +323,42 @@ namespace brep
 
   #pragma db value(build_constraint) definition
 
+  // Whether a package is buildable by the build bot controller service and
+  // what is the "main" reason if it is not.
+  //
+  // While we could potentially calculate this status on the fly, that would
+  // complicate the database queries significantly.
+  //
+  enum class buildable_status: std::uint8_t
+  {
+    buildable,   // Not a test nor stub, from internal buildable repository.
+    unbuildable, // Not a test nor stub, from internal unbuildable repository.
+    external,    // Not a test nor stub, from external repository.
+    test,        // Test, not a stub.
+    stub         // Stub.
+  };
+
+  string
+  to_string (buildable_status);
+
+  buildable_status
+  to_buildable_status (const string&); // May throw invalid_argument.
+
+  inline ostream&
+  operator<< (ostream& os, buildable_status s) {return os << to_string (s);}
+
+  // Return true if the status is not buildable.
+  //
+  inline bool
+  operator! (buildable_status s)
+  {
+    return s != buildable_status::buildable;
+  }
+
+  #pragma db map type(buildable_status) as(string) \
+    to(to_string (?))                              \
+    from(brep::to_buildable_status (?))
+
   // Version comparison operators.
   //
   // They allow comparing objects that have epoch, canonical_upstream,

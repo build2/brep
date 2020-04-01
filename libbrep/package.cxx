@@ -110,12 +110,15 @@ namespace brep
         examples (move (es)),
         benchmarks (move (bms)),
         builds (move (bs)),
-        build_constraints (!stub () ? move (bc) : build_constraints_type ()),
+        build_constraints (move (bc)),
         internal_repository (move (rp)),
         location (move (lc)),
         fragment (move (fr)),
         sha256sum (move (sh)),
-        buildable (!stub () && internal_repository->buildable)
+        buildable (
+          stub ()                         ? buildable_status::stub        :
+          !internal_repository->buildable ? buildable_status::unbuildable :
+                                            buildable_status::buildable)
   {
     assert (internal_repository->internal);
   }
@@ -123,12 +126,18 @@ namespace brep
   package::
   package (package_name nm,
            version_type vr,
+           build_class_exprs bs,
+           build_constraints_type bc,
            shared_ptr<repository_type> rp)
       : id (rp->tenant, move (nm), vr),
         tenant (id.tenant),
         name (id.name),
         version (move (vr)),
-        buildable (false)
+        builds (move (bs)),
+        build_constraints (move (bc)),
+        buildable (stub ()
+                   ? buildable_status::stub
+                   : buildable_status::external)
   {
     assert (!rp->internal);
     other_repositories.emplace_back (move (rp));

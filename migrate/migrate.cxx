@@ -221,8 +221,7 @@ struct package_migration_entry: package_migration_entry_base<v>
 // boolean to enumeration.
 
 // Note that changing the data member type is not automatically handled by the
-// migration machinery. Thus, we split the schema change into two steps,
-// delaying the second step until the next commit:
+// migration machinery. Thus, we split the schema change into two steps:
 //
 // - Rename the buildable data member column preserving its boolean type and
 //   migrate the data copying it from the original column into the new
@@ -241,6 +240,15 @@ package_migrate_v18 ([] (database& db)
   // Copy the buildable flag values into the new temporary column.
   //
   db.execute ("UPDATE package SET buildable_ = buildable");
+});
+
+static const package_migration_entry<19>
+package_migrate_v19 ([] (database& db)
+{
+  // Convert the buildable flag values to the enumeration values.
+  //
+  db.execute ("UPDATE package SET buildable = "
+              "CASE WHEN buildable_ THEN 'buildable' ELSE 'unbuildable' END");
 });
 
 // main() function

@@ -20,7 +20,7 @@
 //
 #define LIBBREP_PACKAGE_SCHEMA_VERSION_BASE 17
 
-#pragma db model version(LIBBREP_PACKAGE_SCHEMA_VERSION_BASE, 18, closed)
+#pragma db model version(LIBBREP_PACKAGE_SCHEMA_VERSION_BASE, 19, closed)
 
 namespace brep
 {
@@ -362,8 +362,7 @@ namespace brep
     using requirements_type = brep::requirements;
     using build_constraints_type = brep::build_constraints;
 
-    // Create internal package object. Note that for stubs the build
-    // constraints are meaningless, and so not saved.
+    // Create internal package object.
     //
     package (package_name,
              version_type,
@@ -400,12 +399,22 @@ namespace brep
 
     // Create external package object.
     //
-    // External repository packages can appear on the WEB interface only in
-    // dependency list in the form of a link to the corresponding WEB page.
-    // The only package information required to compose such a link is the
-    // package name, version, and repository location.
+    // External package can appear on the WEB interface only in dependency
+    // list in the form of a link to the corresponding WEB page. The only
+    // package information required to compose such a link is the package name,
+    // version, and repository location.
     //
-    package (package_name name, version_type, shared_ptr<repository_type>);
+    // External package can also be a separate test for some primary package
+    // (and belong to a complement but yet external repository), and so we may
+    // need its build class expressions and constraints to decide if to build
+    // it together with the primary package or not (see test-exclude task
+    // manifest value for details).
+    //
+    package (package_name name,
+             version_type,
+             build_class_exprs,
+             build_constraints_type,
+             shared_ptr<repository_type>);
 
     bool
     internal () const noexcept {return internal_repository != nullptr;}
@@ -451,9 +460,9 @@ namespace brep
     optional<email_type> build_error_email;
     dependencies_type dependencies;
     requirements_type requirements;
-    small_vector<dependency, 1> tests;
-    small_vector<dependency, 1> examples;
-    small_vector<dependency, 1> benchmarks;
+    small_vector<dependency, 1> tests;        // Note: foreign-mapped in build.
+    small_vector<dependency, 1> examples;     // Note: foreign-mapped in build.
+    small_vector<dependency, 1> benchmarks;   // Note: foreign-mapped in build.
 
     build_class_exprs builds;                 // Note: foreign-mapped in build.
     build_constraints_type build_constraints; // Note: foreign-mapped in build.
@@ -478,16 +487,9 @@ namespace brep
 
     vector<lazy_shared_ptr<repository_type>> other_repositories;
 
-    // Whether the package is buildable by the build bot controller service.
-    // Can only be true for non-stubs that belong to at least one buildable
-    // (internal) repository.
-    //
-    // While we could potentially calculate this flag on the fly, that would
-    // complicate the database queries significantly.
-    //
     // Note: foreign-mapped in build.
     //
-    bool buildable;
+    buildable_status buildable;
 
     // Database mapping.
     //
@@ -582,8 +584,6 @@ namespace brep
     //
     #pragma db member(other_repositories)                     \
       id_column("") value_column("repository_") value_not_null
-
-    #pragma db member(buildable) column("buildable_")
 
     // search_index
     //

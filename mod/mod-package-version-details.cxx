@@ -430,7 +430,8 @@ handle (request& rq, response& rs)
   print_dependencies (pkg->examples,   "Examples",   "examples");
   print_dependencies (pkg->benchmarks, "Benchmarks", "benchmarks");
 
-  bool builds (build_db_ != nullptr && pkg->buildable);
+  bool builds (build_db_ != nullptr &&
+               pkg->buildable == buildable_status::buildable);
 
   if (builds)
   {

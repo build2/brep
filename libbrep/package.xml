@@ -1,4 +1,11 @@
 <changelog xmlns="http://www.codesynthesis.com/xmlns/odb/changelog" database="pgsql" schema-name="package" version="1">
+  <changeset version="19">
+    <alter-table name="package">
+      <add-column name="buildable" type="TEXT" null="false"/>
+      <drop-column name="buildable_"/>
+    </alter-table>
+  </changeset>
+
   <changeset version="18">
     <alter-table name="package">
       <add-column name="buildable_" type="BOOLEAN" null="false"/>

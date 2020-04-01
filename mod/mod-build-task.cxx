@@ -220,14 +220,44 @@ handle (request& rq, response& rs)
 
       lazy_shared_ptr<build_repository> r (p->internal_repository);
 
-      strings fp;
+      strings fps;
       if (r->certificate_fingerprint)
-        fp.emplace_back (move (*r->certificate_fingerprint));
+        fps.emplace_back (move (*r->certificate_fingerprint));
+
+      // Exclude external test packages which exclude the task build
+      // configuration.
+      //
+      small_vector<package, 1> tes;
+      auto add_exclusions = [&tes, &cm, this]
+                            (const small_vector<build_dependency, 1>& tests)
+      {
+        for (const build_dependency& t: tests)
+        {
+          // Don't exclude unresolved external tests.
+          //
+          // Note that this may result in the build task failure. However,
+          // silently excluding such tests could end up with missed software
+          // bugs which feels much worse.
+          //
+          if (t.package != nullptr)
+          {
+            shared_ptr<build_package> p (t.package.load ());
+
+            if (exclude (p->builds, p->constraints, *cm.config))
+              tes.push_back (package {move (p->id.name), move (p->version)});
+          }
+        }
+      };
+
+      add_exclusions (p->tests);
+      add_exclusions (p->examples);
+      add_exclusions (p->benchmarks);
 
       task_manifest task (move (b->package_name),
                           move (b->package_version),
                           move (r->location),
-                          move (fp),
+                          move (fps),
+                          move (tes),
                           cm.machine->name,
                           cm.config->target,
                           cm.config->environment,
@@ -595,7 +625,7 @@ handle (request& rq, response& rs)
             //
             // We iterate over buildable packages.
             //
-            assert (p->internal_repository != nullptr);
+            assert (p->internal ());
 
             p->internal_repository.load ();
 
@@ -677,8 +707,8 @@ handle (request& rq, response& rs)
             shared_ptr<build_package> p (
               build_db_->find<build_package> (b->id.package));
 
-            if (p != nullptr                      &&
-                p->internal_repository != nullptr &&
+            if (p != nullptr   &&
+                p->internal () &&
                 !exclude (p->builds, p->constraints, *cm.config))
             {
               assert (b->status);
