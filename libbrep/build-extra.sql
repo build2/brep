@@ -49,7 +49,7 @@ CREATE FOREIGN TABLE build_package (
   version_release TEXT NULL,
   internal_repository_tenant TEXT NULL,
   internal_repository_canonical_name TEXT NULL,
-  buildable BOOLEAN NOT NULL)
+  buildable_ BOOLEAN NOT NULL)
 SERVER package_server OPTIONS (table_name 'package');
 
 -- The foreign table for the build_package object builds member (that is of a

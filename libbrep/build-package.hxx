@@ -96,6 +96,8 @@ namespace brep
     #pragma db member(builds) id_column("") value_column("")
     #pragma db member(constraints) id_column("") value_column("")
 
+    #pragma db member(buildable) column("buildable_")
+
   private:
     friend class odb::access;
     build_package () = default;

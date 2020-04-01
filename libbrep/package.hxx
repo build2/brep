@@ -20,7 +20,7 @@
 //
 #define LIBBREP_PACKAGE_SCHEMA_VERSION_BASE 17
 
-#pragma db model version(LIBBREP_PACKAGE_SCHEMA_VERSION_BASE, 17, closed)
+#pragma db model version(LIBBREP_PACKAGE_SCHEMA_VERSION_BASE, 18, closed)
 
 namespace brep
 {
@@ -582,6 +582,8 @@ namespace brep
     //
     #pragma db member(other_repositories)                     \
       id_column("") value_column("repository_") value_not_null
+
+    #pragma db member(buildable) column("buildable_")
 
     // search_index
     //

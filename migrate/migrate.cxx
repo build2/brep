@@ -206,7 +206,6 @@ create (database& db, bool extra_only) const
 
 // Register the data migration functions for the package database schema.
 //
-#if 0
 template <schema_version v>
 using package_migration_entry_base =
   data_migration_entry<v, LIBBREP_PACKAGE_SCHEMA_VERSION_BASE>;
@@ -218,11 +217,31 @@ struct package_migration_entry: package_migration_entry_base<v>
       : package_migration_entry_base<v> (f, "package") {}
 };
 
+// Migrate the package buildable member data while changing its type from
+// boolean to enumeration.
+
+// Note that changing the data member type is not automatically handled by the
+// migration machinery. Thus, we split the schema change into two steps,
+// delaying the second step until the next commit:
+//
+// - Rename the buildable data member column preserving its boolean type and
+//   migrate the data copying it from the original column into the new
+//   temporary column (package schema version 18). Note that the original
+//   column is deleted at the end of the migration.
+//
+// - Change the buildable data member type to the buildable_status
+//   enumeration, revert the column name and migrate the data by filling the
+//   originally-named column based on the temporary column (package schema
+//   version 19). Note that the temporary column is deleted at the end of the
+//   migration.
+//
 static const package_migration_entry<18>
 package_migrate_v18 ([] (database& db)
 {
+  // Copy the buildable flag values into the new temporary column.
+  //
+  db.execute ("UPDATE package SET buildable_ = buildable");
 });
-#endif
 
 // main() function
 //
