@@ -140,8 +140,8 @@ namespace brep
     package_name name;
     optional<version_constraint> constraint;
 
-    // Resolved dependency package. NULL if the repository load was shallow
-    // and so the package dependencies are not resolved.
+    // Resolved dependency package. Can be NULL if the repository load was
+    // shallow and the package dependency could not be resolved.
     //
     lazy_shared_ptr<package_type> package;
 

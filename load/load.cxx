@@ -852,11 +852,12 @@ find (const lazy_shared_ptr<repository>& r,
 // Resolve package run-time dependencies, tests, examples, and benchmarks.
 // Make sure that the best matching dependency belongs to the package
 // repositories, their complements, recursively, or their immediate
-// prerequisite repositories (only for run-time dependencies). Should be
-// called once per internal package.
+// prerequisite repositories (only for run-time dependencies). Fail if unable
+// to resolve a dependency, unless ignore_unresolved is true in which case
+// leave this dependency NULL. Should be called once per internal package.
 //
 static void
-resolve_dependencies (package& p, database& db)
+resolve_dependencies (package& p, database& db, bool ignore_unresolved)
 {
   using brep::dependency;
   using brep::dependency_alternatives;
@@ -960,31 +961,28 @@ resolve_dependencies (package& p, database& db)
       // Practically it is enough to resolve at least one dependency
       // alternative to build a package. Meanwhile here we consider an error
       // specifying in the manifest file an alternative which can't be
-      // resolved.
+      // resolved, unless unresolved dependencies are allowed.
       //
-      if (!resolve (d, true /* prereq */))
+      if (!resolve (d, true /* prereq */) && !ignore_unresolved)
         bail (d, "dependency");
     }
   }
 
-  // Should we allow tests, examples, and benchmarks packages to be
-  // unresolvable? Let's forbid that until we see a use case for that.
-  //
   for (dependency& d: p.tests)
   {
-    if (!resolve (d, false /* prereq */))
+    if (!resolve (d, false /* prereq */) && !ignore_unresolved)
       bail (d, "tests");
   }
 
   for (dependency& d: p.examples)
   {
-    if (!resolve (d, false /* prereq */))
+    if (!resolve (d, false /* prereq */) && !ignore_unresolved)
       bail (d, "examples");
   }
 
   for (dependency& d: p.benchmarks)
   {
-    if (!resolve (d, false /* prereq */))
+    if (!resolve (d, false /* prereq */) && !ignore_unresolved)
       bail (d, "benchmarks");
   }
 
@@ -1371,9 +1369,9 @@ try
       load_repositories (r, db, ops.ignore_unknown (), ops.shallow ());
     }
 
-    // Resolve internal packages dependencies unless this is a shallow load.
+    // Resolve internal packages dependencies and, unless this is a shallow
+    // load, make sure there are no package dependency cycles.
     //
-    if (!ops.shallow ())
     {
       session s;
       using query = query<package>;
@@ -1382,16 +1380,17 @@ try
              db.query<package> (
                query::id.tenant == tnt &&
                query::internal_repository.canonical_name.is_not_null ()))
-        resolve_dependencies (p, db);
+        resolve_dependencies (p, db, ops.shallow ());
 
-      // Make sure there is no package dependency cycles.
-      //
-      package_ids chain;
-      for (const auto& p:
-             db.query<package> (
-               query::id.tenant == tnt &&
-               query::internal_repository.canonical_name.is_not_null ()))
-        detect_dependency_cycle (p.id, chain, db);
+      if (!ops.shallow ())
+      {
+        package_ids chain;
+        for (const auto& p:
+               db.query<package> (
+                 query::id.tenant == tnt &&
+                 query::internal_repository.canonical_name.is_not_null ()))
+          detect_dependency_cycle (p.id, chain, db);
+      }
     }
   }
 

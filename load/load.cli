@@ -53,7 +53,8 @@ class options
   bool --shallow
   {
     "Don't load package information from prerequisite or complement
-     repositories."
+     repositories, don't fail if unable to resolve a package dependency, and
+     don't detect package dependency cycles."
   };
 
   std::string --tenant
