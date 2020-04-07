@@ -117,9 +117,9 @@ namespace brep
         sha256sum (move (sh))
   {
     if (stub ())
-      unbuildable_reason = unbuildable_reason::stub;
+      unbuildable_reason = brep::unbuildable_reason::stub;
     else if (!internal_repository->buildable)
-      unbuildable_reason = unbuildable_reason::unbuildable;
+      unbuildable_reason = brep::unbuildable_reason::unbuildable;
 
     buildable = !unbuildable_reason;
 
@@ -140,8 +140,8 @@ namespace brep
         build_constraints (move (bc)),
         buildable (false),
         unbuildable_reason (stub ()
-                            ? unbuildable_reason::stub
-                            : unbuildable_reason::external)
+                            ? brep::unbuildable_reason::stub
+                            : brep::unbuildable_reason::external)
   {
     assert (!rp->internal);
     other_repositories.emplace_back (move (rp));
