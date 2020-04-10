@@ -222,6 +222,12 @@ struct package_migration_entry: package_migration_entry_base<v>
 // Note that we are unable to restore the exact reason and so always set it
 // to 'unbuildable'.
 //
+// Also note that we don't set the buildable flag to false for the separate
+// test packages here. Implementing this properly in the data migration feels
+// hairy (see load/load.cxx for details). Instead we rely on brep-load to
+// handle this on the next tenant reload that can be enforced by using the
+// --force option.
+//
 //#if 0
 static const package_migration_entry<18>
 package_migrate_v18 ([] (database& db)
