@@ -262,75 +262,8 @@ $ edit config/ci.xhtml # Add custom form fields, adjust CSS style, etc.
 For sample CI request handler implementations see brep/handler/ci/.
 
 Here we assume you have setup an appropriate Apache2 virtual server. Open the
-corresponding Apache2 .conf file and add the following inside VirtualHost (you
-can also find this fragment in install/share/brep/etc/brep-apache2.conf):
-
-        # Load the brep module.
-        #
-        <IfModule !brep_module>
-          LoadModule brep_module /home/brep/install/libexec/brep/mod_brep.so
-        </IfModule>
-
-        # Repository email. This email is used for the From: header in emails
-        # send by brep (for example, build failure notifications).
-        #
-        brep-email admin@example.org
-
-        # Repository host. It specifies the schema and the host address (but
-        # not the root path; see brep-root below) that will be used whenever
-        # brep needs to construct an absolute URL to one of its locations (for
-        # example, a link to a build log that is being send via email).
-        #
-        brep-host https://example.org
-
-        # Repository root. This is the part of the URL between the host name
-        # and the start of the repository. For example, root value /pkg means
-        # the repository URL is http://example.org/pkg/. Specify / to use the
-        # web server root (e.g., http://example.org/). If using a different
-        # repository root, don't forget to also change Location and Alias
-        # directives below.
-        #
-        brep-root /pkg
-
-        <Location "/pkg">
-          SetHandler brep
-
-          <IfModule dir_module>
-            DirectoryIndex disabled
-            DirectorySlash Off
-          </IfModule>
-        </Location>
-
-        # Brep module configuration. If you prefer, you can paste the contents
-        # of this file here. However, you will need to prefix every option with
-        # 'brep-'.
-        #
-        brep-conf /home/brep/config/brep-module.conf
-
-        # Static brep content (CSS files).
-        #
-        <IfModule !alias_module>
-          Error "mod_alias is not enabled"
-        </IfModule>
-
-        # Note: trailing slashes are important!
-        #
-        Alias /pkg/@/ /home/brep/install/share/brep/www/
-
-        <Directory "/home/brep/install/share/brep/www">
-          Require all granted
-        </Directory>
-
-        # You can also serve the repository files from the repository root.
-        # For example:
-        #
-        #   http://example.org/pkg/1/...  -> /path/to/repo/1/...
-        #
-        #AliasMatch ^/pkg/(\d+)/(.+) /path/to/repo/$1/$2
-        #
-        #<Directory "/path/to/repo">
-        #  Require all granted
-        #</Directory>
+corresponding Apache2 .conf file and add the contents of
+brep/etc/brep-apache2.conf into the <VirtualHost> section.
 
 The output content types of the brep module are application/xhtml+xml,
 text/manifest and text/plain. If you would like to make sure they get

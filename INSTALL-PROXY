@@ -1,0 +1,136 @@
+This guide shows how to configure the Apache2-based HTTP proxy server for
+proxying HTTP(S) requests and caching the responses.
+
+Note that for security reasons most clients (curl, wget, etc) perform HTTPS
+requests via HTTP proxies by establishing a tunnel using the HTTP CONNECT
+method and encrypting all the communications, thus making the origin server's
+responses non-cacheable. This proxy setup uses the over-HTTP caching for cases
+when the HTTPS response caching is desirable and presumed safe (for example,
+signed repository manifests, checksum'ed package archives, etc., or the proxy
+is located inside a trusted, private network).
+
+Specifically, this setup interprets the requested HTTP URLs as HTTPS URLs by
+default, effectively replacing the http URL scheme with https. If desired, to
+also support proxying/caching of the HTTP URL requests, the proxy can be
+configured to either recognize certain hosts as HTTP-only or to recognize a
+custom HTTP header that can be sent by an HTTP client to prevent the
+http-to-https scheme conversion.
+
+In this guide commands that start with the # shell prompt are expected to be
+executed as root and those starting with $ -- as a regular user in their home
+directory. All the commands are provided for Debian, so you may need to adjust
+them to match your distribution/OS.
+
+1. Enable Apache2 Modules
+
+Here we assume you have the Apache2 server installed and running.
+
+Enable the following Apache2 modules used in the proxy setup:
+
+  rewrite
+  headers
+  ssl
+  proxy
+  proxy_http
+  cache
+  cache_disk
+
+These modules are commonly used and are likely to be installed together with
+the Apache2 server. After the modules are enabled restart Apache2 and make
+sure that the server has started successfully. For example:
+
+# a2enmod rewrite            # Enable the rewrite module.
+  ...
+# systemctl restart apache2
+# systemctl status apache2   # Verify started.
+
+To troubleshoot, see Apache logs.
+
+
+2. Setup Proxy in Apache2 Configuration File
+
+Create the directory for the proxy logs. For example:
+
+# mkdir -p /var/www/cache.lan/log
+
+Note that here and below we assume that the host name the Apache2 instance is
+running is cache.lan.
+
+Create a separate <VirtualHost> section intended for proxying HTTP(S) requests
+and caching the responses in the Apache2 configuration file. Note that there
+is no single commonly used HTTP proxy port, thus you may want to use the port
+80 if it is not already assigned to some other virtual host. If you decide to
+use some other port, make sure the corresponding `Listen <port>` directive is
+present in the Apache2 configuration file.
+
+Inside <VirtualHost> replace DocumentRoot (and anything else related to the
+normal document serving) with the contents of brep/etc/proxy-apache2.conf and
+adjust CacheRoot (see below) as well as any other values if desired.
+
+<VirtualHost *:80>
+        LogLevel warn
+        ErrorLog /var/www/cache.lan/log/error.log
+        CustomLog /var/www/cache.lan/log/access.log combined
+
+        <contents of proxy-apache2.conf>
+
+</VirtualHost>
+
+We will assume that the default /var/cache/apache2/mod_cache_disk directory is
+specified for the CacheRoot directive. If that's not the case, then make sure
+the specified directory is writable by the user under which Apache2 is
+running, for example, executing the following command:
+
+# setfacl -m g:www-data:rwx /path/to/proxy/cache
+
+Restart Apache2 and make sure that the server has started successfully.
+
+# systemctl restart apache2
+# systemctl status apache2   # Verify started.
+
+Make sure the proxy functions properly and caches the HTTP responses, for
+example:
+
+$ ls /var/cache/apache2/mod_cache_disk                    # Empty.
+$ curl --proxy http://cache.lan:80 http://www.example.com # Prints HTML.
+$ ls /var/cache/apache2/mod_cache_disk                    # Non-empty.
+
+To troubleshoot, see Apache logs.
+
+
+3. Setup Periodic Cache Cleanup
+
+The cache directory cleanup is performed with the htcacheclean utility
+(normally installed together with the Apache2 server) that you can run as a
+cron job or as a systemd service. If you are running a single Apache2-based
+cache on the host, the natural choice is to run it as a system-wide service
+customizing the apache-htcacheclean systemd unit configuration, if required.
+Specifically, you may want to change the max disk cache size limit and/or the
+cache root directory path, so it matches the CacheRoot Apache2 configuration
+directive value (see above). Run the following command to see the current
+cache cleaner service setup.
+
+# systemctl cat apache-htcacheclean
+
+The output may look as follows:
+
+...
+[Service]
+...
+Environment=HTCACHECLEAN_SIZE=300M
+Environment=HTCACHECLEAN_DAEMON_INTERVAL=120
+Environment=HTCACHECLEAN_PATH=/var/cache/apache2/mod_cache_disk
+Environment=HTCACHECLEAN_OPTIONS=-n
+EnvironmentFile=-/etc/default/apache-htcacheclean
+ExecStart=/usr/bin/htcacheclean -d $HTCACHECLEAN_DAEMON_INTERVAL -p $HTCACHECLEAN_PATH -l $HTCACHECLEAN_SIZE $HTCACHECLEAN_OPTIONS
+...
+
+To change the service configuration either use the `systemctl edit
+apache-htcacheclean` command or, as for the above example, edit the
+environment file (/etc/default/apache-htcacheclean).
+
+Restart the cache cleaner service and make sure that it is started
+successfully and the process arguments match the expectations.
+
+# systemctl restart apache-htcacheclean
+# systemctl status apache-htcacheclean   # Verify process arguments.
