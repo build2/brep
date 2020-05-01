@@ -21,6 +21,7 @@
 
 #include <odb/lazy-ptr.hxx>
 
+#include <libbutl/url.mxx>
 #include <libbutl/path.mxx>
 #include <libbutl/path-io.mxx>
 #include <libbutl/optional.mxx>
@@ -89,6 +90,10 @@ namespace brep
   using dir_paths = std::vector<dir_path>;
 
   using butl::path_cast;
+
+  // <libbutl/url.mxx>
+  //
+  using butl::url;
 
   // <libbutl/timestamp.mxx>
   //

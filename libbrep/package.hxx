@@ -59,14 +59,14 @@ namespace brep
     to((?) ? to_string (*(?)) : brep::optional_string ())               \
     from((?) ? brep::to_text_type (*(?)) : brep::optional_text_type ())
 
-  // url
+  // manifest_url
   //
-  using bpkg::url;
+  using bpkg::manifest_url;
 
-  #pragma db value(url) definition
-  #pragma db member(url::value) virtual(string) before \
-    get(this.string ())                                \
-    set(this = brep::url ((?), "" /* comment */))      \
+  #pragma db value(manifest_url) definition
+  #pragma db member(manifest_url::value) virtual(string) before \
+    get(this.string ())                                         \
+    set(this = brep::manifest_url ((?), "" /* comment */))      \
     column("")
 
   // email
@@ -356,7 +356,6 @@ namespace brep
     using upstream_version_type = brep::upstream_version;
     using priority_type = brep::priority;
     using license_alternatives_type = brep::license_alternatives;
-    using url_type = brep::url;
     using email_type = brep::email;
     using dependencies_type = brep::dependencies;
     using requirements_type = brep::requirements;
@@ -376,10 +375,10 @@ namespace brep
              optional<string> description,
              optional<text_type> description_type,
              string changes,
-             optional<url_type>,
-             optional<url_type> doc_url,
-             optional<url_type> src_url,
-             optional<url_type> package_url,
+             optional<manifest_url> url,
+             optional<manifest_url> doc_url,
+             optional<manifest_url> src_url,
+             optional<manifest_url> package_url,
              optional<email_type>,
              optional<email_type> package_email,
              optional<email_type> build_email,
@@ -449,10 +448,10 @@ namespace brep
     optional<string> description;         // Absent if type is unknown.
     optional<text_type> description_type; // Present if description is present.
     string changes;
-    optional<url_type> url;
-    optional<url_type> doc_url;
-    optional<url_type> src_url;
-    optional<url_type> package_url;
+    optional<manifest_url> url;
+    optional<manifest_url> doc_url;
+    optional<manifest_url> src_url;
+    optional<manifest_url> package_url;
     optional<email_type> email;
     optional<email_type> package_email;
     optional<email_type> build_email;

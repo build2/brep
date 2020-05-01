@@ -14,8 +14,6 @@
 
 #include <libstudxml/serializer.hxx>
 
-#include <libbutl/url.mxx>
-
 #include <web/xhtml/fragment.hxx>
 #include <web/xhtml/serialization.hxx>
 
@@ -576,7 +574,7 @@ namespace brep
     if (icasecmp (url_.scheme, "https") == 0 ||
         icasecmp (url_.scheme, "http") == 0)
     {
-      butl::url u (url_);
+      url u (url_);
       u.scheme.clear ();
 
       s << A(HREF=url_) << u << ~A;

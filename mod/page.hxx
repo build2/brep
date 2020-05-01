@@ -378,13 +378,14 @@ namespace brep
   class TR_URL
   {
   public:
-    TR_URL (const url& u, const char* l = "url"): url_ (u), label_ (l) {}
+    TR_URL (const manifest_url& u, const char* l = "url")
+        : url_ (u), label_ (l) {}
 
     void
     operator() (xml::serializer&) const;
 
   private:
-    const url& url_;
+    const manifest_url& url_;
     const char* label_;
   };
 
