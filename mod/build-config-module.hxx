@@ -42,13 +42,15 @@ namespace brep
     exclude (const small_vector<bpkg::build_class_expr, 1>& exprs,
              const vector<bpkg::build_constraint>& constrs,
              const bbot::build_config& cfg,
-             string* reason = nullptr) const
+             string* reason = nullptr,
+             bool default_all_ucs = false) const
     {
       return brep::exclude (exprs,
                             constrs,
                             cfg,
                             build_conf_->class_inheritance_map,
-                            reason);
+                            reason,
+                            default_all_ucs);
     }
 
     // Check if the configuration belongs to the specified class.

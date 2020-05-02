@@ -243,7 +243,17 @@ handle (request& rq, response& rs)
           {
             shared_ptr<build_package> p (t.package.load ());
 
-            if (exclude (p->builds, p->constraints, *cm.config))
+            // Use the `all` class as a least restrictive default underlying
+            // build class set. Note that we should only apply the explicit
+            // build restrictions to the external test packages (think about
+            // the `builds: all` and `builds: -windows` manifest values for
+            // the primary and external test packages, respectively).
+            //
+            if (exclude (p->builds,
+                         p->constraints,
+                         *cm.config,
+                         nullptr /* reason */,
+                         true /* default_all_ucs */))
               tes.push_back (package {move (p->id.name), move (p->version)});
           }
         }

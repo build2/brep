@@ -18,14 +18,18 @@ namespace brep
   // Return true if the specified build configuration is excluded by a package
   // based on its underlying build class set, build class expressions, and
   // build constraints, potentially extending the underlying set with the
-  // special classes. Set the exclusion reason if requested.
+  // special classes. Set the exclusion reason if requested. Optionally use
+  // the `all` class as a default underlying build class set rather than the
+  // `default` class (which is, for example, the case for the external test
+  // packages not to reduce their build configuration set needlessly).
   //
   bool
   exclude (const small_vector<bpkg::build_class_expr, 1>&,
            const vector<bpkg::build_constraint>&,
            const bbot::build_config&,
            const std::map<string, string>& class_inheritance_map,
-           string* reason = nullptr);
+           string* reason = nullptr,
+           bool default_all_ucs = false);
 
   // Convert dash-separated components (target, build configuration name,
   // machine name) or a pattern thereof into a path, replacing dashes with

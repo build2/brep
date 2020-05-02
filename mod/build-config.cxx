@@ -13,17 +13,21 @@ namespace brep
   using namespace bpkg;
   using namespace bbot;
 
-  // The default underlying class set expression (see below).
+  // The default underlying class set expressions (see below).
   //
   static const build_class_expr default_ucs_expr (
     {"default"}, '+', "Default.");
+
+  static const build_class_expr all_ucs_expr (
+    {"all"}, '+', "All.");
 
   bool
   exclude (const small_vector<build_class_expr, 1>& exprs,
            const vector<build_constraint>& constrs,
            const build_config& cfg,
            const map<string, string>& class_inheritance_map,
-           string* reason)
+           string* reason,
+           bool default_all_ucs)
   {
     // Save the first sentence of the reason, lower-case the first letter if
     // the beginning looks like a word (all subsequent characters until a
@@ -132,9 +136,11 @@ namespace brep
     //   cannot affect the result.
     //
     const build_class_expr& ucs_expr (
-      ucs != nullptr
-      ? build_class_expr (ucs->underlying_classes, '+', ucs->comment)
-      : default_ucs_expr);
+      ucs != nullptr  ? build_class_expr (ucs->underlying_classes,
+                                          '+',
+                                          ucs->comment)            :
+      default_all_ucs ? all_ucs_expr                               :
+                        default_ucs_expr);
 
     match (ucs_expr);
 
