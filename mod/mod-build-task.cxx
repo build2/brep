@@ -228,40 +228,33 @@ handle (request& rq, response& rs)
       // configuration.
       //
       small_vector<package, 1> tes;
-      auto add_exclusions = [&tes, &cm, this]
-                            (const small_vector<build_dependency, 1>& tests)
+
+      for (const build_test_dependency& td: p->tests)
       {
-        for (const build_dependency& t: tests)
+        // Don't exclude unresolved external tests.
+        //
+        // Note that this may result in the build task failure. However,
+        // silently excluding such tests could end up with missed software
+        // bugs which feels much worse.
+        //
+        if (td.package != nullptr)
         {
-          // Don't exclude unresolved external tests.
-          //
-          // Note that this may result in the build task failure. However,
-          // silently excluding such tests could end up with missed software
-          // bugs which feels much worse.
-          //
-          if (t.package != nullptr)
-          {
-            shared_ptr<build_package> p (t.package.load ());
+          shared_ptr<build_package> p (td.package.load ());
 
-            // Use the `all` class as a least restrictive default underlying
-            // build class set. Note that we should only apply the explicit
-            // build restrictions to the external test packages (think about
-            // the `builds: all` and `builds: -windows` manifest values for
-            // the primary and external test packages, respectively).
-            //
-            if (exclude (p->builds,
-                         p->constraints,
-                         *cm.config,
-                         nullptr /* reason */,
-                         true /* default_all_ucs */))
-              tes.push_back (package {move (p->id.name), move (p->version)});
-          }
+          // Use the `all` class as a least restrictive default underlying
+          // build class set. Note that we should only apply the explicit
+          // build restrictions to the external test packages (think about
+          // the `builds: all` and `builds: -windows` manifest values for
+          // the primary and external test packages, respectively).
+          //
+          if (exclude (p->builds,
+                       p->constraints,
+                       *cm.config,
+                       nullptr /* reason */,
+                       true /* default_all_ucs */))
+            tes.push_back (package {move (p->id.name), move (p->version)});
         }
-      };
-
-      add_exclusions (p->tests);
-      add_exclusions (p->examples);
-      add_exclusions (p->benchmarks);
+      }
 
       task_manifest task (move (b->package_name),
                           move (b->package_version),

@@ -237,6 +237,17 @@ package_migrate_v18 ([] (database& db)
 });
 //#endif
 
+// Merging the package examples and benchmarks tables into the package tests
+// table is a bit hairy. Thus, we won't bother with that and just cleanup the
+// amended package tests table, relying on the loader to fill it in a short
+// time.
+//
+static const package_migration_entry<19>
+package_migrate_v19 ([] (database& db)
+{
+  db.execute ("DELETE from package_tests");
+});
+
 // main() function
 //
 int

@@ -397,38 +397,61 @@ handle (request& rq, response& rs)
       << ~TABLE;
   }
 
-  auto print_dependencies = [&s, &print_dependency]
-                            (const small_vector<dependency, 1>& deps,
-                             const char* heading,
-                             const char* id)
+  // Print the test dependencies grouped by types as the separate blocks.
+  //
+  // Print test dependencies of the specific type.
+  //
+  auto print_tests = [&pkg, &s, &print_dependency] (test_dependency_type dt)
   {
-    if (!deps.empty ())
-    {
-      s << H3 << heading << ~H3
-        << TABLE(CLASS="proplist", ID=id)
-        <<   TBODY;
+    string id;
 
-      for (const dependency& d: deps)
+    bool first (true);
+    for (const test_dependency& td: pkg->tests)
+    {
+      if (td.type == dt)
       {
+        // Print the table header if this is a first test dependency.
+        //
+        if (first)
+        {
+          id = to_string (dt);
+
+          // Capitalize the heading.
+          //
+          string heading (id);
+          heading[0] = ucase (id[0]);
+
+          s << H3 << heading << ~H3
+            << TABLE(CLASS="proplist", ID=id)
+            <<   TBODY;
+
+          first = false;
+        }
+
         s << TR(CLASS=id)
           <<   TD
           <<     SPAN(CLASS="value");
 
-        print_dependency (d);
+        print_dependency (td);
 
         s <<     ~SPAN
           <<   ~TD
           << ~TR;
       }
+    }
 
+    // Print the table closing tags if it was printed.
+    //
+    if (!first)
+    {
       s <<   ~TBODY
         << ~TABLE;
     }
   };
 
-  print_dependencies (pkg->tests,      "Tests",      "tests");
-  print_dependencies (pkg->examples,   "Examples",   "examples");
-  print_dependencies (pkg->benchmarks, "Benchmarks", "benchmarks");
+  print_tests (test_dependency_type::tests);
+  print_tests (test_dependency_type::examples);
+  print_tests (test_dependency_type::benchmarks);
 
   bool builds (build_db_ != nullptr && pkg->buildable);
 

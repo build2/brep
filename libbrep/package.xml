@@ -1,4 +1,78 @@
 <changelog xmlns="http://www.codesynthesis.com/xmlns/odb/changelog" database="pgsql" schema-name="package" version="1">
+  <changeset version="19">
+    <alter-table name="package_tests">
+      <add-column name="test_name" type="CITEXT" null="false"/>
+      <add-column name="test_min_version_epoch" type="INTEGER" null="true"/>
+      <add-column name="test_min_version_canonical_upstream" type="TEXT" null="true"/>
+      <add-column name="test_min_version_canonical_release" type="TEXT" null="true"/>
+      <add-column name="test_min_version_revision" type="INTEGER" null="true"/>
+      <add-column name="test_min_version_upstream" type="TEXT" null="true"/>
+      <add-column name="test_min_version_release" type="TEXT" null="true"/>
+      <add-column name="test_max_version_epoch" type="INTEGER" null="true"/>
+      <add-column name="test_max_version_canonical_upstream" type="TEXT" null="true"/>
+      <add-column name="test_max_version_canonical_release" type="TEXT" null="true"/>
+      <add-column name="test_max_version_revision" type="INTEGER" null="true"/>
+      <add-column name="test_max_version_upstream" type="TEXT" null="true"/>
+      <add-column name="test_max_version_release" type="TEXT" null="true"/>
+      <add-column name="test_min_open" type="BOOLEAN" null="true"/>
+      <add-column name="test_max_open" type="BOOLEAN" null="true"/>
+      <add-column name="test_package_tenant" type="TEXT" null="true"/>
+      <add-column name="test_package_name" type="CITEXT" null="true"/>
+      <add-column name="test_package_version_epoch" type="INTEGER" null="true"/>
+      <add-column name="test_package_version_canonical_upstream" type="TEXT" null="true"/>
+      <add-column name="test_package_version_canonical_release" type="TEXT" null="true" options="COLLATE &quot;C&quot;"/>
+      <add-column name="test_package_version_revision" type="INTEGER" null="true"/>
+      <add-column name="test_type" type="TEXT" null="false"/>
+      <add-foreign-key name="test_package_tenant_fk" deferrable="DEFERRED">
+        <column name="test_package_tenant"/>
+        <references table="tenant">
+          <column name="id"/>
+        </references>
+      </add-foreign-key>
+      <add-foreign-key name="test_package_fk" deferrable="DEFERRED">
+        <column name="test_package_tenant"/>
+        <column name="test_package_name"/>
+        <column name="test_package_version_epoch"/>
+        <column name="test_package_version_canonical_upstream"/>
+        <column name="test_package_version_canonical_release"/>
+        <column name="test_package_version_revision"/>
+        <references table="package">
+          <column name="tenant"/>
+          <column name="name"/>
+          <column name="version_epoch"/>
+          <column name="version_canonical_upstream"/>
+          <column name="version_canonical_release"/>
+          <column name="version_revision"/>
+        </references>
+      </add-foreign-key>
+      <drop-foreign-key name="dep_package_tenant_fk"/>
+      <drop-foreign-key name="dep_package_fk"/>
+      <drop-column name="dep_name"/>
+      <drop-column name="dep_min_version_epoch"/>
+      <drop-column name="dep_min_version_canonical_upstream"/>
+      <drop-column name="dep_min_version_canonical_release"/>
+      <drop-column name="dep_min_version_revision"/>
+      <drop-column name="dep_min_version_upstream"/>
+      <drop-column name="dep_min_version_release"/>
+      <drop-column name="dep_max_version_epoch"/>
+      <drop-column name="dep_max_version_canonical_upstream"/>
+      <drop-column name="dep_max_version_canonical_release"/>
+      <drop-column name="dep_max_version_revision"/>
+      <drop-column name="dep_max_version_upstream"/>
+      <drop-column name="dep_max_version_release"/>
+      <drop-column name="dep_min_open"/>
+      <drop-column name="dep_max_open"/>
+      <drop-column name="dep_package_tenant"/>
+      <drop-column name="dep_package_name"/>
+      <drop-column name="dep_package_version_epoch"/>
+      <drop-column name="dep_package_version_canonical_upstream"/>
+      <drop-column name="dep_package_version_canonical_release"/>
+      <drop-column name="dep_package_version_revision"/>
+    </alter-table>
+    <drop-table name="package_examples"/>
+    <drop-table name="package_benchmarks"/>
+  </changeset>
+
   <changeset version="18">
     <alter-table name="package">
       <add-column name="unbuildable_reason" type="TEXT" null="true"/>

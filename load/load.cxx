@@ -500,30 +500,25 @@ load_packages (const shared_ptr<repository>& rp,
           ds.emplace_back (pda.conditional, pda.buildtime, move (pda.comment));
 
           for (auto& pd: pda)
+          {
             // The package member will be assigned during dependency
             // resolution procedure.
             //
             ds.back ().push_back (dependency {move (pd.name),
                                               move (pd.constraint),
                                               nullptr /* package */});
+          }
         }
 
-        auto deps = [] (small_vector<bpkg::dependency, 1>&& ds)
+        small_vector<brep::test_dependency, 1> ts;
+
+        if (!pm.tests.empty ())
         {
-          small_vector<dependency, 1> r;
+          ts.reserve (pm.tests.size ());
 
-          if (!ds.empty ())
-          {
-            r.reserve (ds.size ());
-
-            for (bpkg::dependency& d: ds)
-              r.push_back (dependency {move (d.name),
-                                       move (d.constraint),
-                                       nullptr /* package */});
-          }
-
-          return r;
-        };
+          for (bpkg::test_dependency& td: pm.tests)
+            ts.emplace_back (move (td.name), td.type, move (td.constraint));
+        }
 
         // Cache before the package name is moved.
         //
@@ -553,9 +548,7 @@ load_packages (const shared_ptr<repository>& rp,
           move (pm.build_error_email),
           move (ds),
           move (pm.requirements),
-          deps (move (pm.tests)),
-          deps (move (pm.examples)),
-          deps (move (pm.benchmarks)),
+          move (ts),
           move (pm.builds),
           move (pm.build_constraints),
           move (pm.location),
@@ -858,14 +851,13 @@ find (const lazy_shared_ptr<repository>& r,
   return false;
 }
 
-// Resolve package run-time dependencies, tests, examples, and benchmarks.
-// Make sure that the best matching dependency belongs to the package
-// repositories, their complements, recursively, or their immediate
-// prerequisite repositories (only for run-time dependencies). Set the
-// buildable flag to false for the resolved tests, examples, and benchmarks
-// packages. Fail if unable to resolve a dependency, unless ignore_unresolved
-// is true in which case leave this dependency NULL. Should be called once per
-// internal package.
+// Resolve package run-time dependencies and external tests. Make sure that
+// the best matching dependency belongs to the package repositories, their
+// complements, recursively, or their immediate prerequisite repositories
+// (only for run-time dependencies). Set the buildable flag to false for the
+// resolved external tests packages. Fail if unable to resolve a dependency,
+// unless ignore_unresolved is true in which case leave this dependency
+// NULL. Should be called once per internal package.
 //
 static void
 resolve_dependencies (package& p, database& db, bool ignore_unresolved)
@@ -877,10 +869,7 @@ resolve_dependencies (package& p, database& db, bool ignore_unresolved)
   //
   assert (p.internal ());
 
-  if (p.dependencies.empty () &&
-      p.tests.empty ()        &&
-      p.examples.empty ()     &&
-      p.benchmarks.empty ())
+  if (p.dependencies.empty () && p.tests.empty ())
     return;
 
   auto resolve = [&p, &db] (dependency& d, bool test)
@@ -996,22 +985,10 @@ resolve_dependencies (package& p, database& db, bool ignore_unresolved)
     }
   }
 
-  for (dependency& d: p.tests)
+  for (brep::test_dependency& td: p.tests)
   {
-    if (!resolve (d, true /* test */) && !ignore_unresolved)
-      bail (d, "tests");
-  }
-
-  for (dependency& d: p.examples)
-  {
-    if (!resolve (d, true /* test */) && !ignore_unresolved)
-      bail (d, "examples");
-  }
-
-  for (dependency& d: p.benchmarks)
-  {
-    if (!resolve (d, true /* test */) && !ignore_unresolved)
-      bail (d, "benchmarks");
+    if (!resolve (td, true /* test */) && !ignore_unresolved)
+      bail (td, td.name.string ().c_str ());
   }
 
   db.update (p); // Update the package state.

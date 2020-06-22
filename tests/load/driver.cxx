@@ -204,7 +204,7 @@ main (int argc, char* argv[])
 static inline dependency
 dep (const char* n, optional<version_constraint> c)
 {
-  return dependency {package_name (n), move (c), nullptr};
+  return dependency {package_name (n), move (c), nullptr /* package */};
 }
 
 static inline version
