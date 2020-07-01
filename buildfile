@@ -1,8 +1,8 @@
 # file      : buildfile
 # license   : MIT; see accompanying LICENSE file
 
-./: {*/ -build/ -web/}                              \
-    doc{LICENSE AUTHORS LEGAL NEWS README INSTALL*} \
+./: {*/ -build/ -web/}                                     \
+    doc{NEWS README INSTALL*} legal{LICENSE AUTHORS LEGAL} \
     manifest
 
 # Don't install tests or the INSTALL* files.
