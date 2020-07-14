@@ -1,3 +1,18 @@
+Version 0.13.0
+
+  * Support for the alternative package rebuild timeout.
+
+    The alternative rebuild timeout can be used to "pull" the rebuild window
+    to the specified time of day, for example, to optimize load and/or power
+    consumption of the build infrastructure (off-work hours, solar, off-peak
+    electricity tariffs, etc).
+
+  * New brep-monitor utility for monitoring for and reporting on brep state
+    issues. Currently it only reports build delays. See brep-monitor(1) for
+    details.
+
+  * Support for test-exclude task manifest value.
+
 Version 0.12.0
 
   * Support for specifying explicit environment names in buildtabs.
