@@ -1,6 +1,6 @@
 : 1
 name: brep
-version: 0.13.0
+version: 0.14.0-a.0.z
 project: build2
 summary: build2 package repository web interface
 license: MIT
@@ -26,10 +26,10 @@ depends: libapr1
 depends: libapreq2
 depends: libcmark-gfm == 0.29.0-a.1
 depends: libcmark-gfm-extensions == 0.29.0-a.1
-depends: libstudxml ^1.1.0-b.9
-depends: libodb ^2.5.0-b.19
-depends: libodb-pgsql ^2.5.0-b.19
-depends: libbutl ^0.13.0
-depends: libbpkg ^0.13.0
-depends: libbbot ^0.13.0
-depends: libbutl.bash ^0.13.0
+depends: libstudxml [1.1.0-b.9.1 1.1.0-b.10)
+depends: libodb [2.5.0-b.20.1 2.5.0-b.21)
+depends: libodb-pgsql [2.5.0-b.20.1 2.5.0-b.21)
+depends: libbutl [0.14.0-a.0.1 0.14.0-a.1)
+depends: libbpkg [0.14.0-a.0.1 0.14.0-a.1)
+depends: libbbot [0.14.0-a.0.1 0.14.0-a.1)
+depends: libbutl.bash [0.14.0-a.0.1 0.14.0-a.1)
