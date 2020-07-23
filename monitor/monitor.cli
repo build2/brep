@@ -85,7 +85,7 @@ namespace brep
       {
         "<seconds>",
         "Time to wait (in seconds) before repeating a report of a package
-         build delay. By default there is no delay and all reports are
+         build delay. By default there is no timeout and all reports are
          repeated."
       }
 
