@@ -18,12 +18,6 @@ DROP FOREIGN TABLE IF EXISTS build_repository;
 
 DROP FOREIGN TABLE IF EXISTS build_tenant;
 
--- @@ TMP Also drop tables that are removed in 12 schema version. Drop these
---    statements after 0.13.0 is released.
---
-DROP FOREIGN TABLE IF EXISTS build_package_benchmarks;
-DROP FOREIGN TABLE IF EXISTS build_package_examples;
-
 -- The foreign table for build_tenant object.
 --
 CREATE FOREIGN TABLE build_tenant (

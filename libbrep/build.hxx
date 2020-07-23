@@ -23,7 +23,7 @@
 
 // Used by the data migration entries.
 //
-#define LIBBREP_BUILD_SCHEMA_VERSION_BASE 9
+#define LIBBREP_BUILD_SCHEMA_VERSION_BASE 12
 
 #pragma db model version(LIBBREP_BUILD_SCHEMA_VERSION_BASE, 12, closed)
 
@@ -254,7 +254,12 @@ namespace brep
     //
     #pragma db member(timestamp) index
 
-    // @@ TMP remove when 0.13.0 is released.
+    // This is not required since 0.14.0. Note however, that just dropping
+    // this line won't pan out since this would require migration which odb is
+    // currently unable to handle automatically, advising to re-implement this
+    // change by adding a new data member with the desired default value,
+    // migrating the data, and deleting the old data member. This sounds a bit
+    // hairy, so let's keep it for now.
     //
     #pragma db member(completion_timestamp) default(0)
 

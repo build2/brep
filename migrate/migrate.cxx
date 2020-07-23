@@ -206,6 +206,7 @@ create (database& db, bool extra_only) const
 
 // Register the data migration functions for the package database schema.
 //
+#if 0
 template <schema_version v>
 using package_migration_entry_base =
   data_migration_entry<v, LIBBREP_PACKAGE_SCHEMA_VERSION_BASE>;
@@ -217,36 +218,11 @@ struct package_migration_entry: package_migration_entry_base<v>
       : package_migration_entry_base<v> (f, "package") {}
 };
 
-// Set the unbuildable reason for unbuildable packages.
-//
-// Note that we are unable to restore the exact reason and so always set it
-// to 'unbuildable'.
-//
-// Also note that we don't set the buildable flag to false for the separate
-// test packages here. Implementing this properly in the data migration feels
-// hairy (see load/load.cxx for details). Instead we rely on brep-load to
-// handle this on the next tenant reload that can be enforced by using the
-// --force option.
-//
-//#if 0
-static const package_migration_entry<18>
-package_migrate_v18 ([] (database& db)
+static const package_migration_entry<20>
+package_migrate_v20 ([] (database& db)
 {
-  db.execute ("UPDATE package SET unbuildable_reason = 'unbuildable' "
-              "WHERE NOT buildable");
 });
-//#endif
-
-// Merging the package examples and benchmarks tables into the package tests
-// table is a bit hairy. Thus, we won't bother with that and just cleanup the
-// amended package tests table, relying on the loader to fill it in a short
-// time.
-//
-static const package_migration_entry<19>
-package_migrate_v19 ([] (database& db)
-{
-  db.execute ("DELETE from package_tests");
-});
+#endif
 
 // main() function
 //
