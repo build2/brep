@@ -557,7 +557,7 @@ for i in {1..11}; do
     #
     prj_man="$d/project-owner.manifest"
 
-    if [ ! -f "$prj_man" ]; then
+    if [ ! -f "$prj_man" -a "$ref_auth" != "project" ]; then
       run mkdir -p "$d" # Also creates the owners directory if not exist.
 
       ctl="$(repository_base "$control")"
@@ -574,7 +574,7 @@ for i in {1..11}; do
     # Now the package name.
     #
     d="$d/$name"
-    run mkdir "$d"
+    run mkdir -p "$d" # Also creates the project directory if not exist.
 
     pkg_man="$d/package-owner.manifest"
 
