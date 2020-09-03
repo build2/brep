@@ -1,0 +1,8 @@
+# Create a bridge network device.
+#
+# Use ethernet interface's MAC address as bridge MAC.
+
+[NetDev]
+Name=br0
+Kind=bridge
+MACAddress=02:11:11:11:11:11

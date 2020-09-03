@@ -1,0 +1,14 @@
+# Configure the bridge with IPv4 DHCP.
+
+[Match]
+Name=br0
+
+[Network]
+DHCP=ipv4
+IPForward=yes
+
+[DHCPv4]
+#UseHostname=yes
+
+[Link]
+RequiredForOnline=yes

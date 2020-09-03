@@ -1,0 +1,12 @@
+# Add the ethernet interface to the bridge.
+#
+# Change eth0 to your ethernet interface name.
+
+[Match]
+Name=eth0
+
+[Network]
+Bridge=br0
+
+[Link]
+RequiredForOnline=no

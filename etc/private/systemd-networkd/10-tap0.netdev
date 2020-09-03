@@ -1,0 +1,12 @@
+# Create a tap network device.
+#
+# Set user/group to the user/group that will be using the tap
+# (e.g., the user that will run the VM that will use this tap).
+
+[NetDev]
+Name=tap0
+Kind=tap
+
+[Tap]
+#User=
+#Group=

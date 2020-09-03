@@ -1,0 +1,16 @@
+# Add the tap interface to the bridge.
+#
+# Note: do not assign MAC address to the tap interface, it's not the same
+# thing as the interface inside the VM (which is what we want to assign the
+# MAC address to).
+#
+
+[Match]
+Name=tap0
+
+[Network]
+Bridge=br0
+#ConfigureWithoutCarrier=yes
+
+[Link]
+RequiredForOnline=no

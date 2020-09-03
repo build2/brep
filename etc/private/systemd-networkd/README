@@ -1,0 +1,100 @@
+This directory contains sample configuration files for setting up a bridge
+(br0) and a permanent tap interface (tap0) using systemd's networkd network
+manager. The tap interface can be used, for example, to run a virtual machine
+that appears as a real machine on the host's Ethernet network.
+
+Assumptions:
+
+ - The host's Ethernet interface is eth0.
+ - The host uses IPv4 DHCP for network configuration.
+
+Note: only perform the following steps over a physical login to the host since
+the configuration involves bringing the host's networking down.
+
+
+1. Switch to systemd-networkd for network configuration.
+
+Overall, the goal of this step is to disable the currently used network
+manager and enable systemd-networkd. First check if systemd-networkd is
+already used:
+
+# systemctl status systemd-networkd
+
+If it's enabled and running, skip to step 2. Otherwise, identify the currently
+used network manager. The possible options depend on the distribution used so
+consult the relevant documentation for details. One common option is the GNOME
+network manager:
+
+# systemctl status NetworkManager
+
+If it's enabled and running, stop and disable:
+
+# systemctl stop NetworkManager
+# systemctl disable NetworkManager
+
+For Debian-based distributions a common approach is to define the network
+configuration in the /etc/network/interfaces file. To disable this method,
+perform the following steps:
+
+# systemctl stop networking
+# mv /etc/network/interfaces /etc/network/interfaces.disabled
+
+Once the current network manager is disabled, proceed to step 2.
+
+
+2. Configure bridged networking using systemd-networkd.
+
+Copy configuration files found in this directory to /etc/systemd/network/ (see
+the comment at the beginning of each file for its purpose):
+
+# cp *.netdev *.network /etc/systemd/network/
+
+Note: if you are already using systemd-networkd, then you may already have
+some configuration in /etc/systemd/network/. If the existing configuration
+conflicts with this setup (for example, you already have a configuration
+for eth0), then you will need to remove the relevant files.
+
+Then adjust the following to match your setup:
+
+  - Ethernet interface name if not eth0: 20-br0-eth0.network (both name and
+    content)
+
+  - Bridge MAC address: 10-br0.netdev
+
+    Use your Ethernet interface's address as your bridge address, which
+    you can obtain with:
+
+    # ip link show eth0
+
+  - Tap user/group: 10-tap0.netdev
+
+    For example, set to the user/group that will run the VM that will use this
+    tap interface.
+
+
+3. Test and enable networking using systemd-networkd.
+
+Once the configuration is complete, start/restart systemd-networkd and verify
+networking is configured correctly.
+
+# systemctl restart systemd-networkd
+# systemctl status systemd-networkd
+# ip addr show br0
+# ip addr show tap0
+
+Specifically, verify that:
+
+  - The br0 MAC address is correct.
+
+  - The br0 interface is assigned (via DHCP) an IP address and, if a fixed
+    IP is used, it's what's expected.
+
+  - Try to ping example.org to confirm the overall network (routing, DNS)
+    is functional.
+
+If everything looks good, enable systemd-networkd:
+
+# systemctl enable systemd-networkd
+
+You may also want to reboot the host and performs the above verifications
+one more time.
