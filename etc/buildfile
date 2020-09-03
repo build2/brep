@@ -3,11 +3,28 @@
 
 ./: file{** -buildfile}
 
-# Install into the etc/ subdirectory of, say, /usr/share/
-# recreating subdirectories.
+# Install into the etc/ subdirectory of, say, /usr/share/ recreating
+# subdirectories.
 #
 *:
 {
   install         = data/etc/
   install.subdirs = true
+}
+
+# Keep the executable permission for the installed script files.
+#
+private/
+{
+  file{vm-start}@./                  \
+  file{vm-start-base}@./             \
+  file{vm-login}@./                  \
+  file{vm-stop}@./: install.mode=755
+
+  install/
+  {
+    file{brep-install}@./                      \
+    file{brep-startup}@./                      \
+    file{vm-gen-service}@./ : install.mode=755
+  }
 }

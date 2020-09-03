@@ -1,0 +1,433 @@
+#! /usr/bin/env bash
+
+# file      : etc/private/install/brep-install
+# license   : MIT; see accompanying LICENSE file
+
+# Setup HTTP-only brep instance with unsigned package submission support via
+# direct repository publishing (brep/handler/submit/submit-pub).
+#
+# NOTE: this setup should only be used in private/trusted environments.
+#
+# Unless the --setup option is specified, create the 'brep' group and user and
+# re-run itself with the --setup option under this user. In the setup mode
+# install and configure the brep instance, automating the instructions from
+# the INSTALL file, including:
+#
+# - Build the build2 toolchain (installing it to /usr/local/) and brep
+#   (installing it to ~brep/install/).
+#
+# - Install PostgreSQL and create brep users/databases.
+#
+# - Installing Apache2 and configure HTTP server with the brep module.
+#
+# Note that the script is written for use on Debian-based distributions so you
+# will need to adjust it to match other distributions or operating systems.
+#
+# Options:
+#
+# --mount
+#
+#   Mount the virtio-9p device with id 'state' as the /var/brep directory.
+#   This directory is expected to either contain the pkg repository or be
+#   empty, in which case an empty repository will be automatically
+#   initialized. If this option is unspecified, the directory will be created
+#   in the local filesystem.
+#
+# --brep-user
+#
+#   User and group ids to use when creating the 'brep' group and user. If
+#   unspecified, 63700 is used.
+#
+# --setup
+#
+#   Install and configure the brep instance, assuming that the 'brep' user
+#   already exists and this script is executed as this user.
+#
+usage="Usage: $0 [<options>]"
+
+# build2 toolchain repository certificate fingerprint. Note: this is a
+# repository the toolchain installation script downloads the build2 packages
+# from.
+#
+toolchain_repo_cert_fp="86:BA:D4:DE:2C:87:1A:EE:38:C7:F1:64:7F:65:77:02:15:79:F3:C4:83:C0:AB:5A:EA:F4:F7:8C:1D:63:30:C6"
+#toolchain_repo_cert_fp="37:CE:2C:A5:1D:CF:93:81:D7:07:46:AD:66:B3:C3:90:83:B8:96:9E:34:F0:E7:B3:A2:B0:6C:EF:66:A4:BE:65"
+
+# brep package repository URL and certificate fingerprint.
+#
+#brep_repo_url="https://pkg.cppget.org/1/alpha"
+#brep_repo_cert_fp="86:BA:D4:DE:2C:87:1A:EE:38:C7:F1:64:7F:65:77:02:15:79:F3:C4:83:C0:AB:5A:EA:F4:F7:8C:1D:63:30:C6"
+brep_repo_url="https://stage.build2.org/1"
+brep_repo_cert_fp="37:CE:2C:A5:1D:CF:93:81:D7:07:46:AD:66:B3:C3:90:83:B8:96:9E:34:F0:E7:B3:A2:B0:6C:EF:66:A4:BE:65"
+
+owd=`pwd`
+trap "{ exit 1; }"  ERR
+trap "{ cd $owd; }" EXIT
+set -o errtrace # Trap in functions.
+
+function info  () { echo "$*" 1>&2; }
+function error () { info "error: $*"; exit 1; }
+
+# Trace a command line, quoting empty arguments as well as those that contain
+# spaces.
+#
+function trace () # <cmd> <arg>...
+{
+  local s="+"
+  while [ "$#" -gt 0 ]; do
+    if [ -z "$1" -o -z "${1##* *}" ]; then
+      s="$s \"$1\""
+    else
+      s="$s $1"
+    fi
+
+    shift
+  done
+
+  info "$s"
+}
+
+# Trace and run a command.
+#
+run () # <args>...
+{
+  trace "$@"
+  "$@"
+}
+
+# The chosen fixed id for the 'brep' user. Note: must match the id of the
+# 'brep' user on the host.
+#
+# Note that Linux assigns the [0 99] range for the statically allocated system
+# users and [100 499] -- for dynamic allocations by administrators and post-
+# install scripts. Debian, in turn, assigns the [100 999] range for the
+# dynamically allocated system users and [60000 64999] -- for statically
+# allocated on demand "obscure package users".
+#
+brep_id=63700 # Update the README file on change.
+
+# Parse the command line options and, while at it, compose the options array
+# for potential re-execution as the 'brep' user.
+#
+mount=
+setup=
+ops=()
+
+while [ "$#" -gt 0 ]; do
+  case "$1" in
+    --mount)
+      mount=true
+      ops+=("$1")
+      shift
+      ;;
+    --brep-user)
+      shift
+      brep_id="$1"
+      shift
+      ;;
+    --setup)
+      setup=true
+      shift
+      ;;
+    *)
+      break # The end of options is encountered.
+      ;;
+  esac
+done
+
+if [ "$#" -ne 0 ]; then
+  error "$usage"
+fi
+
+scr_exe="$(realpath "${BASH_SOURCE[0]}")"
+scr_dir="$(dirname "$scr_exe")"
+
+# Unless we are not in the setup mode, non-interactively add the 'brep'
+# user/group and re-execute the script in the setup mode as this user.
+#
+if [ ! "$setup" ]; then
+  run sudo addgroup --gid "$brep_id" brep
+
+  run sudo adduser --uid "$brep_id" --gid "$brep_id" --disabled-password \
+      --gecos "" brep
+
+  run sudo tee -a /etc/sudoers.d/brep >/dev/null <<EOF
+brep ALL=(ALL) NOPASSWD:ALL
+EOF
+
+  run sudo chmod 0440 /etc/sudoers.d/brep
+
+  # Use --session-command rather than --command|-c to make sure that when the
+  # su program receives SIGINT (Ctrl-C) it kills not just its child process
+  # but also all its descendants.
+  #
+  # Note: here we rely on ops to not contain spaces or be empty.
+  #
+  run exec sudo su -l brep --session-command "'$scr_exe' --setup ${ops[@]}"
+fi
+
+# Here we assume that we are executed as brep user.
+#
+run cd "$HOME"
+
+# Mount the brep state directory, if requested. Note that otherwise, the
+# directory will be created later, in the local filesystem by the brep-startup
+# script.
+#
+if [ "$mount" ]; then
+  run sudo mkdir -p /var/brep
+
+  run sudo tee -a /etc/fstab >/dev/null <<EOF
+state /var/brep 9p trans=virtio,version=9p2000.L,posixacl,cache=none,_netdev 0 0
+EOF
+
+  run sudo mount -a
+fi
+
+# Install the prerequisite binary packages.
+#
+run sudo apt-get --yes update
+run sudo apt-get --yes install --no-install-recommends g++
+run sudo apt-get --yes install --no-install-recommends postgresql postgresql-contrib libpq-dev
+run sudo apt-get --yes install --no-install-recommends apache2 libapr1-dev libapreq2-dev apache2-dev
+run sudo apt-get --yes install --no-install-recommends acl rsync
+run sudo apt-get clean
+
+# Install build2 toolchain.
+#
+run mkdir build2-build
+run cd build2-build
+
+# Look for the toolchain installation script in this script directory.
+#
+run cp "$(echo "$scr_dir"/build2-install-*.sh)" .
+run sh ./build2-install-*.sh --no-check --yes --trust "$toolchain_repo_cert_fp"
+#run sh ./build2-install-*.sh --no-check --yes --local
+
+run cd .. # Back to brep home.
+
+# Grant Apache2 read access to the module and configuration.
+#
+run setfacl -m  g:www-data:rx "$HOME"
+run setfacl -dm g:www-data:rx "$HOME"
+
+# Install brep.
+#
+run mkdir brep
+run cd brep
+
+run bpkg create                               \
+ cc                                           \
+ config.cc.coptions="-O3"                     \
+ config.cc.poptions="-I$(apxs -q includedir)" \
+ config.bin.lib=shared                        \
+ config.bin.rpath="$HOME/install/lib"         \
+ config.install.root="$HOME/install"
+
+run bpkg add "$brep_repo_url"
+run bpkg fetch --trust "$brep_repo_cert_fp"
+run bpkg build --yes brep ?sys:libapr1 ?sys:libapreq2 ?sys:libpq
+run bpkg install brep
+
+run cd .. # Back to brep home.
+
+# Create PostgreSQL user and databases.
+#
+# Note that while we could probably omit the build-related setup, let's keep
+# it to stay close to the instructions in the INSTALL file and to simplify the
+# potential future configuration of the brep instance as a build2 build bot
+# controller.
+#
+run sudo sudo -u postgres psql <<EOF
+CREATE DATABASE brep_package
+TEMPLATE template0
+ENCODING 'UTF8'
+LC_COLLATE 'en_US.UTF8'
+LC_CTYPE 'en_US.UTF8';
+
+CREATE DATABASE brep_build
+TEMPLATE template0
+ENCODING 'UTF8'
+LC_COLLATE 'en_US.UTF8'
+LC_CTYPE 'en_US.UTF8';
+
+CREATE USER brep;
+
+GRANT ALL PRIVILEGES ON DATABASE brep_package, brep_build TO brep;
+
+CREATE USER "www-data" INHERIT IN ROLE brep;
+
+CREATE USER "brep-build" INHERIT IN ROLE brep PASSWORD '-';
+EOF
+
+# Create the "staging" package database for the submit-pub package submission
+# handler.
+#
+run sudo sudo -u postgres psql <<EOF
+CREATE DATABASE brep_submit_package
+TEMPLATE template0
+ENCODING 'UTF8'
+LC_COLLATE 'en_US.UTF8'
+LC_CTYPE 'en_US.UTF8';
+
+GRANT ALL PRIVILEGES ON DATABASE brep_submit_package TO brep;
+EOF
+
+# Make sure the 'brep' and Apache2 user's logins work properly.
+#
+q="SELECT current_database();"
+run psql -d brep_package        -c "$q" >/dev/null
+run psql -d brep_build          -c "$q" >/dev/null
+run psql -d brep_submit_package -c "$q" >/dev/null
+
+run sudo sudo -u www-data psql -d brep_package -c "$q" >/dev/null
+run sudo sudo -u www-data psql -d brep_build   -c "$q" >/dev/null
+
+# Setup the connection between the databases.
+#
+run sudo sudo -u postgres psql -d brep_build <<EOF
+CREATE EXTENSION postgres_fdw;
+
+CREATE SERVER package_server
+FOREIGN DATA WRAPPER postgres_fdw
+OPTIONS (dbname 'brep_package', updatable 'false');
+
+GRANT USAGE ON FOREIGN SERVER package_server to brep;
+
+CREATE USER MAPPING FOR PUBLIC
+SERVER package_server
+OPTIONS (user 'brep-build', password '-');
+EOF
+
+# Allow brep-build user to access the brep_package database.
+#
+f="$(run sudo sudo -u postgres psql -t -A -c "show hba_file;")"
+s="# TYPE  DATABASE      USER        ADDRESS  METHOD\nlocal   brep_package  brep-build           md5\n\n"
+
+run sudo sed --in-place=.bak "1s/^/$s/" "$f"
+run sudo systemctl restart postgresql
+
+# Enable creating database tables with columns of the case-insensitive
+# character string type.
+#
+q="CREATE EXTENSION citext;"
+run sudo sudo -u postgres psql -d brep_package        <<<"$q"
+run sudo sudo -u postgres psql -d brep_build          <<<"$q"
+run sudo sudo -u postgres psql -d brep_submit_package <<<"$q"
+
+# Copy the brep module configuration.
+#
+# Note: must be done before bin/brep-startup execution, which adjusts the
+# configuration.
+#
+run mkdir config
+run cp "$scr_dir/brep-module.conf" config/
+
+# Initialize the brep private instance, in particular creating the database
+# schemas and running the brep loader.
+#
+run mkdir bin/
+run cp "$scr_dir/brep-startup" bin/
+run bin/brep-startup
+
+# Smoke test the database schemas.
+#
+run psql -d brep_package        -c 'SELECT canonical_name, summary FROM repository' >/dev/null
+run psql -d brep_build          -c 'SELECT package_name FROM build'                 >/dev/null
+run psql -d brep_build          -c 'SELECT DISTINCT name FROM build_package'        >/dev/null
+run psql -d brep_submit_package -c 'SELECT canonical_name, summary FROM repository' >/dev/null
+
+# Setup executing the brep-startup script on boot.
+#
+run sudo cp "$scr_dir/brep-startup.service" /etc/systemd/system/
+
+run sudo systemctl start brep-startup.service  # Make sure there are no issues.
+run sudo systemctl enable brep-startup.service
+
+# Prepare directories for the package submission service.
+#
+run mkdir submit-data
+run mkdir submit-temp
+run setfacl -m g:www-data:rwx submit-data
+run setfacl -m g:www-data:rwx submit-temp
+
+# Make the Apache2 user owned directories fully accessible by the 'brep' user
+# (which the submit-pub submission handler will run as).
+#
+run setfacl -dm g:brep:rwx submit-data
+run setfacl -dm g:brep:rwx submit-temp
+
+# Add the Apache2 user to sudoers, so the submission handler can re-execute
+# itself as the 'brep' user.
+#
+run sudo tee -a /etc/sudoers.d/www-data >/dev/null <<EOF
+www-data ALL=(ALL) NOPASSWD:ALL
+EOF
+
+run sudo chmod 0440 /etc/sudoers.d/www-data
+
+# Setup the Apache2 module.
+#
+run sudo mkdir -p /var/www/brep/log/
+
+run sudo cp "$scr_dir/brep-apache2.conf" /etc/apache2/sites-available/000-brep.conf
+run sudo cp "$scr_dir/brep-logrotate"    /etc/logrotate.d/brep
+
+run sudo a2dissite --purge -q 000-default
+run sudo a2ensite          -q 000-brep
+
+run sudo systemctl restart apache2
+run sudo systemctl status  apache2 >/dev/null
+
+# Make sure the Apache2 service depends on PostgreSQL and
+# brep-startup.service, so that they are started in proper order.
+#
+run sudo mkdir -p /etc/systemd/system/apache2.service.d/
+run sudo tee      /etc/systemd/system/apache2.service.d/postgresql.conf >/dev/null <<EOF
+[Unit]
+Requires=postgresql.service
+After=postgresql.service
+EOF
+
+run sudo tee      /etc/systemd/system/apache2.service.d/brep-startup.conf >/dev/null <<EOF
+[Unit]
+Requires=brep-startup.service
+After=brep-startup.service
+EOF
+
+run sudo mkdir -p /etc/systemd/system/postgresql.service.d/
+run sudo tee      /etc/systemd/system/postgresql.service.d/apache2.conf >/dev/null <<EOF
+[Unit]
+Wants=apache2.service
+EOF
+
+run sudo systemctl daemon-reload
+
+# Verify that Apache2 is stopped after PostgreSQL is stopped.
+#
+run sudo systemctl stop postgresql
+
+ec="0"
+run sudo systemctl status apache2 >/dev/null || ec="$?"
+
+if [ "$ec" -ne 3  ]; then
+  error "exit code 3 (unit is not active) is expected instead of $ec"
+fi
+
+# Verify that Apache2 is started after PostgreSQL is started.
+#
+run sudo systemctl start postgresql
+
+run sleep 3
+run sudo systemctl status apache2 >/dev/null
+
+# Setup periodic loader execution.
+#
+run sudo cp "$scr_dir/brep-load.service" /etc/systemd/system/
+run sudo cp "$scr_dir/brep-load.timer"   /etc/systemd/system/
+
+run sudo systemctl start brep-load.service # Make sure there are no issues.
+
+run sudo systemctl start  brep-load.timer
+run sudo systemctl status brep-load.timer >/dev/null
+run sudo systemctl enable brep-load.timer
+run sudo systemctl status brep-load.timer >/dev/null

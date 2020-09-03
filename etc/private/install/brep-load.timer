@@ -1,0 +1,33 @@
+[Unit]
+Description=brep repository loader timer
+RefuseManualStart=no
+RefuseManualStop=no
+
+# Note that due to brep-startup service's oneshot type, this unit won't be
+# started until the brep-startup process exits successfully.
+#
+# Also note that if brep-startup fails and is restarted manually, similar to
+# services, the timer is not started automatically. Instead, it has to be
+# started manually with `systemctl start brep-load.timer`.
+#
+Requires=brep-startup.service
+After=brep-startup.service
+
+[Timer]
+Unit=brep-load.service
+
+# Don't keep track of the timer across reboots.
+#
+Persistent=false
+
+# Start the timer for the first time.
+#
+OnBootSec=1
+
+# Then wait 4-5 seconds until the next run.
+#
+OnUnitInactiveSec=4
+AccuracySec=1
+
+[Install]
+WantedBy=timers.target

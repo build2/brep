@@ -439,8 +439,12 @@ for i in {1..11}; do
     trace "+ exec {fd}<$l"
     exec {fd}<"$l"
 
+    # Note that on the locking failure we don't suggest the user to try again,
+    # since the client program may suggest to re-try later for all server
+    # errors (as bdep-publish(1) does).
+    #
     if ! run flock -w "$ref_lock_timeout" "$fd"; then
-      exit_with_manifest 503 "submission service temporarily unavailable"
+      exit_with_manifest 503 "submission service is busy"
     fi
 
     # Pull the reference repository.

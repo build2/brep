@@ -1,0 +1,11 @@
+[Unit]
+Description=brep repository loader service
+
+[Service]
+Type=oneshot
+User=brep
+Group=brep
+ExecStart=/home/brep/install/bin/brep-load /home/brep/config/loadtab
+
+[Install]
+WantedBy=default.target

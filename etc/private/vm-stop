@@ -1,0 +1,24 @@
+#! /usr/bin/env bash
+
+# Stop virtual machine started with vm-start.
+#
+usage="usage: $0 <monitor-socket>"
+
+owd="$(pwd)"
+trap "{ cd '$owd'; exit 1; }" ERR
+set -o errtrace # Trap in functions.
+
+function info () { echo "$*" 1>&2; }
+function error () { info "$*"; exit 1; }
+
+mon="$1"
+
+if [ -z "$mon" ]; then
+  error "missing monitor socket"
+fi
+
+echo system_powerdown | socat - "UNIX-CONNECT:$mon" >/dev/null
+
+# Wait for QEMU to close the socket. This is racy so ignore errors.
+#
+socat "UNIX-CONNECT:$mon" - >/dev/null 2>&1 || true

@@ -51,7 +51,7 @@ function info () # <severity> <text>
     ts=
   fi
 
-  echo "[$ts] [brep:$severity] [ref $info_ref] [$info_self]: $*" 1>&2;
+  echo "[$ts] [brep:$severity] [ref $info_ref] [$info_self]: $*" 1>&2
 }
 
 function error () { info "error" "$*"; exit 1; }

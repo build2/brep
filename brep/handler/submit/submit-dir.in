@@ -66,20 +66,17 @@ fi
 m="$data_dir/package.manifest"
 extract_package_manifest "$data_dir/$archive" "$m"
 
-# Parse the package manifest and obtain the package name, version, and
-# project.
+# Parse the package manifest and obtain the package name and version.
 #
 manifest_parser_start "$m"
 
 name=
 version=
-project=
 
 while IFS=: read -ru "$manifest_parser_ofd" -d '' n v; do
   case "$n" in
     name)    name="$v"    ;;
     version) version="$v" ;;
-    project) project="$v" ;;
   esac
 done
 
@@ -91,10 +88,6 @@ fi
 
 if [ -z "$version" ]; then
   error "version manifest value expected"
-fi
-
-if [ -z "$project" ]; then
-  project="$name"
 fi
 
 if [ -n "$simulate" ]; then

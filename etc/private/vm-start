@@ -1,0 +1,98 @@
+#! /usr/bin/env bash
+
+# file      : etc/private/vm-start
+# license   : MIT; see accompanying LICENSE file
+
+# Start the brep virtual machine (VM) for installing or running the previously
+# installed brep private instance. Must be executed on the host as brep user.
+#
+# Share with the VM the brep state directory as the 9p filesystem with the
+# passthrough security model enabled. This directory is expected to be owned
+# by the brep user and either contain the pkg repository maintained by the
+# brep instance or be empty, in which case the empty repository will be
+# automatically initialized.
+#
+# Note that you can signal to the VM to regenerate the repository on startup
+# (e.g., after package removal) by removing the packages.manifest file from
+# the repository.
+#
+# Options:
+#
+# --state <dir>
+#
+#   State directory to share with the VM. If unspecified, $HOME/state is
+#   assumed.
+#
+# --install <dir>
+#
+#   Also share with the VM the install directory (contains the brep private
+#   instance installation script and auxiliary files).
+#
+# Note that this script wraps the generic vm-start-base script and passes
+# through any arguments that follows these options to that script.
+#
+usage="usage: $0 [<options>] [<base-options>] <machine-img> [<extra-qemu-options>]"
+
+trap "{ exit 1; }" ERR
+set -o errtrace # Trap ERR in functions.
+
+function info () { echo "$*" 1>&2; }
+function error () { info "$*"; exit 1; }
+
+install=
+state="$HOME/state"
+
+while [ "$#" -gt 0 ]; do
+  case "$1" in
+    --install)
+      shift
+      install="${1%/}"
+      shift
+      ;;
+    --state)
+      shift
+      state="${1%/}"
+      shift
+      ;;
+    *)
+      break # The end of options is encountered.
+      ;;
+  esac
+done
+
+if [ "$#" -eq 0 ]; then
+  error "missing machine image"
+fi
+
+# Verify the state directory existence.
+#
+if [ ! -d "$state" ]; then
+  error "state directory '$state' does not exist or is not a directory"
+fi
+
+# Compute the start and QEMU options.
+#
+start_ops=()
+qemu_ops=(\
+  -fsdev "local,id=state,path=$state,security_model=passthrough" \
+  -device "virtio-9p-pci,fsdev=state,mount_tag=state")
+
+if [ -n "$install" ]; then
+
+  # Verify the toolchain install script existence in the install directory.
+  #
+  if [ ! -f "$(echo "$install"/build2-install-*.sh)" ]; then
+    error "missing toolchain installation script in '$install' directory"
+  fi
+
+  start_ops+=(--stdio)
+  qemu_ops+=(\
+    -fsdev "local,id=install,path=$install,security_model=passthrough" \
+    -device "virtio-9p-pci,fsdev=install,mount_tag=install")
+fi
+
+# Finally, forward execution to the base script.
+#
+scr_dir="$(dirname "$(realpath "${BASH_SOURCE[0]}")")"
+
+exec "$scr_dir/vm-start-base" "${start_ops[@]}" "$@" "${qemu_ops[@]}"

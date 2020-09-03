@@ -1,0 +1,67 @@
+#! /usr/bin/env bash
+
+# file      : etc/private/install/brep-startup
+# license   : MIT; see accompanying LICENSE file
+
+# (Re-)initialize the brep private instance, normally on the machine startup.
+#
+# Specifically:
+#
+# - Create the pkg repository and symlink to it, unless already exists.
+#
+# - Migrate the brep databases as a sanity check.
+#
+# - Adjust the brep module configuration file using the current host name/IP.
+#
+# - Generate the loadtab using the current host name/IP and run the loader.
+#
+trap "{ exit 1; }" ERR
+
+# Create the pkg repository, if required.
+#
+d=/var/brep/bpkg
+
+if [ ! -L "$d/pkg" ]; then
+  rd="$(date "+pkg-%Y%m%d-%H%M%S-%N")"
+
+  mkdir -p "$d/$rd/1"
+  ln -s "$rd" "$d/pkg"
+fi
+
+r="$d/pkg/1"
+
+if [ ! -f "$r/repositories.manifest" ]; then
+  echo ": 1" >"$r/repositories.manifest"
+fi
+
+if [ ! -f "$r/packages.manifest" ]; then
+  bpkg rep-create -q "$r"
+fi
+
+# Migrate the databases.
+#
+"$HOME/install/bin/brep-migrate" package
+"$HOME/install/bin/brep-migrate" build
+"$HOME/install/bin/brep-migrate" -n brep_submit_package package
+
+# Deduce the machine host name.
+#
+h="$(hostname -f)"
+if [ "$h" == "localhost" ]; then
+  h="$(hostname -I | sed 's/ *$//')" # Strip the potential trailing space(s).
+fi
+
+# Adjust the submission result URL host name in the brep module configuration
+# file.
+#
+sed --in-place -re \
+"\$!N;s%^\s*(submit-handler-argument\s+--result-url\s*\\n)\
+\s*(submit-handler-argument\s+https?://)[^/]+(.*)\$%\1\2$h\3%;P;D" \
+"$HOME/config/brep-module.conf"
+
+# (Re-)generate the loadtab file and reload the repository.
+#
+f="$HOME/config/loadtab"
+
+echo "http://$h/1 private cache:$r" >"$f"
+"$HOME/install/bin/brep-load" "$f"

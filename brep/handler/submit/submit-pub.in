@@ -1,0 +1,413 @@
+#!/usr/bin/env bash
+
+# file      : brep/handler/submit/submit-pub.in
+# license   : MIT; see accompanying LICENSE file
+
+# Package submission handler with direct repository publishing.
+#
+# The overall idea behind this handler is to directly add the package to a
+# private/trusted (unsigned) pkg repository with a simple structure (no
+# sections). Upon successful execution of this handler no additional steps are
+# required.
+#
+# Specifically, the handler performs the following steps:
+#
+# - Lock the repository directory for the duraton of the package submission.
+#
+# - Check for the package duplicate.
+#
+# - Create the new repository as a hardlink-copy of the current one.
+#
+# - Remove any package revisions, if present.
+#
+# - Validate and add the package archive to the new repository (with project
+#   subdirectory).
+#
+# - Re-generate the new repository without signing.
+#
+# - Verify that the new repository is loadable into the brep package database.
+#
+# - Atomically switch the repository symlink to refer to the new repository.
+#
+# - Release the lock and remove the old repository.
+#
+# The repository argument (<repo>) should be an absolute path to a symbolic
+# link to the pkg repository directory, with the archive and manifest files
+# residing in its 1/ subdirectory. The base name of the <repo> path is used
+# as a base for new repository directories.
+#
+# Unless the handler is called for testing, the loader program's absolute path
+# and options should be specified so that the handler can verify that the
+# package is loadable into the brep package database (this makes sure the
+# package dependencies are resolvable, etc).
+#
+# Notes:
+#
+# - Filesystem entries that exist or are created in the data directory:
+#
+#   <pkg>-<ver>.tar.gz   saved by brep (could be other archives in the future)
+#   request.manifest     created by brep
+#   package.manifest     extracted by the handler
+#   loadtab              created by the handler
+#   result.manifest      saved by brep
+#
+# Options:
+#
+# --user <name>
+#
+#   Re-execute itself under the specified user.
+#
+#   Note that the repository can also be modified manually (e.g., to remove
+#   packages). This option is normally specified to make sure that all the
+#   repository filesystem entries belong to a single user, which, in
+#   particular, can simplify their permissions handling (avoid extra ACLs,
+#   etc).
+#
+#   Note that if this option is specified, then current user (normally the
+#   user under which Apache2 is running) must be allowed to execute sudo
+#   without a password, which is only recommended in private/trusted
+#   environments.
+#
+# --result-url <url>
+#
+#   Result URL base for the response. If specified, the handler appends the
+#   <package>/<version> to this value and includes the resulting URL in the
+#   response message.
+#
+usage="usage: $0 [<options>] [<loader-path> <loader-options>] <repo> <dir>"
+
+# Diagnostics.
+#
+verbose= #true
+
+# The repository lock timeout (seconds).
+#
+rep_lock_timeout=60
+
+trap "{ exit 1; }" ERR
+set -o errtrace # Trap ERR in functions.
+
+@import brep/handler/handler@
+@import brep/handler/submit/submit@
+
+# Parse the command line options and, while at it, compose the arguments array
+# for potential re-execution under a different user.
+#
+user=
+result_url=
+
+scr_exe="$(realpath "${BASH_SOURCE[0]}")"
+scr_dir="$(dirname "$scr_exe")"
+
+args=("$scr_exe")
+
+while [ "$#" -gt 0 ]; do
+  case $1 in
+    --user)
+      shift
+      user="$1"
+      shift
+      ;;
+    --result-url)
+      args+=("$1")
+      shift
+      result_url="${1%/}"
+      args+=("$1")
+      shift
+      ;;
+    *)
+      break; # The end of options is encountered.
+      ;;
+  esac
+done
+
+loader_args=() # The loader path and options.
+
+# Assume all the remaining arguments except for the last two (repository
+# symlink and data directory) as the loader program path and arguments.
+#
+while [ "$#" -gt 2 ]; do
+  loader_args+=("$1")
+  args+=("$1")
+  shift
+done
+
+if [ "$#" -ne 2 ]; then
+  error "$usage"
+fi
+
+# pkg repository symlink.
+#
+repo="${1%/}"
+shift
+
+if [ -z "$repo" ]; then
+  error "$usage"
+fi
+
+# Submission data directory.
+#
+data_dir="${1%/}"
+shift
+
+if [ -z "$data_dir" ]; then
+  error "$usage"
+fi
+
+# Re-execute itself under a different user, if requested.
+#
+if [ -n "$user" ]; then
+  args+=("$repo" "$data_dir")
+
+  # Compose the arguments string to pass to the su program, quoting empty
+  # arguments as well as those that contain spaces. Note that here, for
+  # simplicity, we assume that the arguments may not contain '"'.
+  #
+  as=
+  for a in "${args[@]}"; do
+    if [ -z "$a" -o -z "${a##* *}" ]; then
+      a="\"$a\""
+    fi
+    if [ -n "$as" ]; then
+      a=" $a"
+    fi
+    as="$as$a"
+  done
+
+  run exec sudo --non-interactive su -l "$user" -c "$as"
+fi
+
+# Check path presence (do it after user switch for permissions).
+#
+if [ ! -L "$repo" ]; then
+  error "'$repo' does not exist or is not a symlink"
+fi
+
+if [ ! -d "$data_dir" ]; then
+  error "'$data_dir' does not exist or is not a directory"
+fi
+
+reference="$(basename "$data_dir")"
+
+# Parse the submission request manifest and obtain the archive path as well as
+# the simulate value.
+#
+manifest_parser_start "$data_dir/request.manifest"
+
+archive=
+simulate=
+
+while IFS=: read -ru "$manifest_parser_ofd" -d '' n v; do
+  case "$n" in
+    archive)  archive="$v"  ;;
+    simulate) simulate="$v" ;;
+  esac
+done
+
+manifest_parser_finish
+
+if [ -z "$archive" ]; then
+  error "archive manifest value expected"
+fi
+
+if [ -n "$simulate" -a "$simulate" != "success" ]; then
+  exit_with_manifest 400 "unrecognized simulation outcome '$simulate'"
+fi
+
+m="$data_dir/package.manifest"
+extract_package_manifest "$data_dir/$archive" "$m"
+
+# Parse the package manifest and obtain the package name, version, and
+# project.
+#
+manifest_parser_start "$m"
+
+name=
+version=
+project=
+
+while IFS=: read -ru "$manifest_parser_ofd" -d '' n v; do
+  case "$n" in
+    name)    name="$v"    ;;
+    version) version="$v" ;;
+    project) project="$v" ;;
+  esac
+done
+
+manifest_parser_finish
+
+if [ -z "$name" ]; then
+  error "name manifest value expected"
+fi
+
+if [ -z "$version" ]; then
+  error "version manifest value expected"
+fi
+
+if [ -z "$project" ]; then
+  project="$name"
+fi
+
+if [ -n "$result_url" ]; then
+  message_suffix=": $result_url/$name/$version"
+else
+  message_suffix=": $name/$version"
+fi
+
+# Open the reading file descriptor and lock the repository. Fail if unable to
+# lock before timeout.
+#
+l="$repo.lock"
+run touch "$l"
+trace "+ exec {lfd}<$l"
+exec {lfd}<"$l"
+
+# Note that on the locking failure we don't suggest the user to try again,
+# since the client program may suggest to re-try later for all server errors
+# (as bdep-publish(1) does).
+#
+if ! run flock -w "$rep_lock_timeout" "$lfd"; then
+  exit_with_manifest 503 "submission service is busy"
+fi
+
+repo_old="$(realpath "$repo")"                              # Old repo path.
+repo_name="$(basename "$repo")-$(date "+%Y%m%d-%H%M%S-%N")" # New repo name.
+repo_new="$(dirname "$repo_old")/$repo_name"                # New repo path.
+repo_link="$repo_new.link"                                  # New repo symlink.
+
+# On exit, remove the new repository symlink and directory, unless the link
+# doesn't exist or the directory removal is canceled (for example, the new
+# repository is made current).
+#
+function exit_trap ()
+{
+  if [ -L "$repo_link" ]; then
+    run rm -r -f "$repo_link"
+  fi
+
+  if [ -n "$repo_new" -a -d "$repo_new" ]; then
+    run rm -r -f "$repo_new"
+  fi
+}
+
+trap exit_trap EXIT
+
+# Check for the package duplicate (in all projects).
+#
+if [ -n "$(run find "$repo_old/1" -name "$archive")" ]; then
+  exit_with_manifest 422 "duplicate submission"
+fi
+
+# Copy the current repository using hardlinks.
+#
+# -r                 (recursive)
+# -t                 (preserve timestamps)
+# -O                 (omit dir timestamps)
+# --link-dest        (hardlink files instead of copying)
+#
+# We also exclude the packages.manifest file that will be re-generated anyway.
+#
+run rsync -rtO --exclude 'packages.manifest' --link-dest="$repo_old" \
+    "$repo_old/" "$repo_new"
+
+# Remove the package version revisions that may exist in the repository.
+#
+# Strips the version revision part, if present.
+#
+v="$(sed -n -re 's%^(\+?[^+]+)(\+[0-9]+)?$%\1%p' <<<"$version")"
+
+# Go through the potentially matching archives (for example, for foo-1.2.3+2:
+# foo-1.2.3.tar.gz, foo-1.2.3+1.tar.gz, foo-1.2.30.tar.gz, etc) and remove
+# those that match exactly.
+#
+# Change CWD to the section directory to make sure that the found archive
+# paths don't contain spaces.
+#
+fs=($(run cd "$repo_new/1" && run find -name "$name-$v*"))
+
+for f in "${fs[@]}"; do
+  if [[ "$f" =~ ^\./[^/]+/"$name-$v"(\+[0-9]+)?\.[^/]+$ ]]; then
+    run rm "$repo_new/1/$f" >&2
+  fi
+done
+
+# Copy the archive rather than moving it since we may need it for
+# troubleshooting. Note: the data and repository directories can be on
+# different filesystems and so hardlinking could fail.
+#
+run mkdir -p "$repo_new/1/$project"
+run cp "$data_dir/$archive" "$repo_new/1/$project"
+
+# Create the new repository.
+#
+# Note that if bpkg-rep-create fails, we can't reliably distinguish if this is
+# a user or internal error (broken package archive vs broken repository).
+# Thus, we always treat is as a user error, providing the full error
+# description in the response and assuming that the submitter can either fix
+# the issue or report it to the repository maintainers. This again assumes
+# private/trusted environment.
+#
+trace "+ bpkg rep-create '$repo_new/1' 2>&1"
+
+if ! e="$(bpkg rep-create "$repo_new/1" 2>&1)"; then
+  exit_with_manifest 400 "submitted archive is not a valid package
+$e"
+fi
+
+# If requested, verify that the new repository is loadable into the package
+# database and, as in the above case, treat the potential error as a user
+# error.
+#
+if [ "${#loader_args[@]}" -ne 0 ]; then
+  f="$data_dir/loadtab"
+  echo "http://testrepo/1 private cache:$repo_new/1" >"$f"
+
+  trace "+ ${loader_args[@]} '$f' 2>&1"
+
+  if ! e="$("${loader_args[@]}" "$f" 2>&1)"; then
+
+    # Sanitize the error message, removing the confusing lines.
+    #
+    e="$(run sed -re '/testrepo/d' <<<"$e")"
+    exit_with_manifest 400 "unable to add package to repository
+$e"
+  fi
+fi
+
+# Finally, create the new repository symlink and replace the current symlink
+# with it, unless we are simulating.
+#
+run ln -sf "$repo_name" "$repo_link"
+
+if [ -z "$simulate" ]; then
+  run mv -T "$repo_link" "$repo" # Switch the repository symlink atomically.
+
+  # Now, when the repository link is switched, disable the new repository
+  # removal.
+  #
+  # Note that we still can respond with an error status.  However, the
+  # remaining operations are all cleanups and thus unlikely to fail.
+  #
+  repo_new=
+fi
+
+trace "+ exec {lfd}<&-"
+exec {lfd}<&- # Close the file descriptor and unlock the repository.
+
+# Remove the old repository, unless we are simulating.
+#
+# Note that if simulating, we leave the new repository directory/symlink
+# removal to the exit trap (see above).
+#
+if [ -z "$simulate" ]; then
+  run rm -r "$repo_old"
+
+  what="published"
+else
+  what="simulated"
+fi
+
+run rm -r "$data_dir"
+
+trace "package is $what$message_suffix"
+exit_with_manifest 200 "package is published$message_suffix"

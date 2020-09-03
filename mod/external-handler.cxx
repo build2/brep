@@ -96,14 +96,14 @@ namespace brep
         pipe.out.close ();
 
         auto kill = [&pr, &warn, &handler, &ref] ()
-          {
-            // We may still end up well (see below), thus this is a warning.
-            //
-            warn << "ref " << ref << ": process " << handler
-            << " execution timeout expired";
+        {
+          // We may still end up well (see below), thus this is a warning.
+          //
+          warn << "ref " << ref << ": process " << handler
+               << " execution timeout expired";
 
-            pr.kill ();
-          };
+          pr.kill ();
+        };
 
         try
         {
@@ -126,7 +126,7 @@ namespace brep
             }
 
             timeval tm {wd.count () / 1000        /* seconds */,
-                wd.count () % 1000 * 1000 /* microseconds */};
+                        wd.count () % 1000 * 1000 /* microseconds */};
 
             fd_set rd;
             FD_ZERO (&rd);

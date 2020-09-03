@@ -1,0 +1,175 @@
+# file      : tests/submit/submit-pub.testscript
+# license   : MIT; see accompanying LICENSE file
+
+.include data.testscript
+
+user=$getenv("USER")
+
+# Disable tests if the password-less sudo is not enabled for the user.
+#
++if! sudo -u "$user" --non-interactive echo 'test' >'test'
+  exit
+end
+
+root_rep=$~/pkg-1
+
++mkdir -p $root_rep/1
++echo ": 1" >=$root_rep/1/repositories.manifest
++bpkg rep-create $root_rep/1 2>! &$root_rep/1/packages.manifest
+
+clone_root_rep = cp --no-cleanup -r $root_rep ./ &pkg-1/*** &?pkg.lock
+
+: args
+{
+  : none
+  :
+  $* 2>>~%EOE% != 0
+  %\[.+\] \[brep:error\] \[ref \] \[brep-submit-pub\]: usage: .+brep-submit-pub \[<options>\] \[<loader-path> <loader-options>\] <repo> <dir>%
+  EOE
+
+  : few
+  :
+  $* 2>>~%EOE% != 0
+  %\[.+\] \[brep:error\] \[ref \] \[brep-submit-pub\]: usage: .+brep-submit-pub \[<options>\] \[<loader-path> <loader-options>\] <repo> <dir>%
+  EOE
+
+  : repo-not-exist
+  :
+  $* $~/repo $~/dir 2>>~%EOE% != 0
+    %\[.+\] \[brep:error\] \[ref dir\] \[brep-submit-pub\]: '.+repo' does not exist or is not a symlink%
+    EOE
+
+  : dir-not-exist
+  :
+  {
+    $clone_root_rep;
+    ln -s pkg-1 pkg;
+    $* $~/pkg $~/dir 2>>~%EOE% != 0
+      %\[.+\] \[brep:error\] \[ref dir\] \[brep-submit-pub\]: '.+dir' does not exist or is not a directory%
+      EOE
+  }
+}
+
+: success
+:
+{
+  test.options += --user "$user"
+
+  : simulate
+  :
+  {
+    $clone_root_data;
+    echo 'simulate: success' >+$data_dir/request.manifest;
+
+    $clone_root_rep;
+    ln -s pkg-1 pkg;
+
+    $* $~/pkg $~/$data_dir >>"EOO";
+      : 1
+      status: 200
+      message: package is published: libhello/0.1.0
+      reference: $checksum
+      EOO
+
+    test -d $data_dir != 0
+  }
+
+  : for-real
+  :
+  : Here we create the (fake) package revision which is expected to be removed
+  : by the handler.
+  :
+  {
+    $clone_root_data;
+    $clone_root_rep;
+    ln -s pkg-1 pkg;
+
+    mkdir --no-cleanup pkg-1/1/prj;
+    touch --no-cleanup pkg-1/1/prj/libhello-0.1.0+1.tar.gz;
+
+    $* $~/pkg $~/$data_dir &!pkg-1/*** &pkg-*/*** >>"EOO";
+      : 1
+      status: 200
+      message: package is published: libhello/0.1.0
+      reference: $checksum
+      EOO
+
+    # While at it, test the duplicate submission.
+    #
+    $clone_root_data_clean;
+
+    $* $~/pkg $~/$data_dir >>"EOO"
+      : 1
+      status: 422
+      message: duplicate submission
+      reference: $checksum
+      EOO
+  }
+
+  : result-url
+  :
+  {
+    $clone_root_data;
+    $clone_root_rep;
+    ln -s pkg-1 pkg;
+
+    test.options += --result-url 'https://example.com/';
+
+    $* $~/pkg $~/$data_dir &!pkg-1/*** &pkg-*/*** >>"EOO"
+      : 1
+      status: 200
+      message: package is published: https://example.com/libhello/0.1.0
+      reference: $checksum
+      EOO
+  }
+}
+
+: failure
+:
+{
+  test.options += --user "$user"
+
+  : invalid-package
+  :
+  : Here we remove repositories.manifest to make sure that the bpkg-rep-create
+  : failure ends up with a proper response.
+  :
+  {
+    $clone_root_data_clean;
+    $clone_root_rep;
+    ln -s pkg-1 pkg;
+
+    rm pkg/1/repositories.manifest;
+
+    $* $~/brep-loader $~/pkg $~/$data_dir >>~"%EOO%"
+      : 1
+      status: 400
+      message: \\
+      submitted archive is not a valid package
+      %.+
+      \\
+      reference: $checksum
+      EOO
+  }
+
+  : not-loadable
+  :
+  : Here we specify a non-existing brep loader program to make sure that the
+  : brep database load failure ends up with a proper response.
+  :
+  {
+    $clone_root_data_clean;
+    $clone_root_rep;
+    ln -s pkg-1 pkg;
+
+    $* $~/brep-loader $~/pkg $~/$data_dir >>~"%EOO%"
+      : 1
+      status: 400
+      message: \\
+      unable to add package to repository
+      %.+
+      \\
+      reference: $checksum
+      EOO
+  }
+}

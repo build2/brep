@@ -1,0 +1,187 @@
+#! /usr/bin/env bash
+
+# Start a QEMU/KVM virtual machine.
+#
+# --cpu <num>
+#   CPU hardware threads to allocate to the VM, 1 by default.
+#
+# --ram <num>
+#   RAM to allocate to the VM, 2G by default (can be specified with G,
+#   M suffixes).
+#
+# --tap <tap>
+#   Existing tap interface to use instead of creating a new one.
+#
+# --mac <addr>
+#   MAC address to use for the machine.
+#
+# --monitor <path>
+#   Monitor UNIX socket path, /tmp/machine-<tap>-mon.sock if unspecified.
+#
+# --console <path>
+#   Console UNIX socket path, /tmp/machine-<tap>-con.sock if unspecified.
+#
+# --stdio
+#   Connect both console and monitor to stdio (multiplexed).
+#
+# --stdio-monior
+#   Connect only monitor to stdio.
+#
+usage="usage: $0 [<options>] <machine-img> [<extra-qemu-options>]"
+
+owd="$(pwd)"
+trap "{ cd '$owd'; exit 1; }" ERR
+set -o errtrace # Trap in functions.
+
+function info () { echo "$*" 1>&2; }
+function error () { info "$*"; exit 1; }
+
+qemu=(qemu-system-x86_64 -enable-kvm)
+
+# The bridge is only used if we are cretaing the tap.
+#
+br=br0
+
+cpu=1
+ram=2G
+tap=
+mac="de:ad:be:ef:b8:da"
+mon=
+con=
+stdio=
+stdio_monitor=
+
+while [ "$#" -gt 0 ]; do
+  case "$1" in
+    --cpu)
+      shift
+      cpu="$1"
+      shift
+      ;;
+    --ram)
+      shift
+      ram="$1"
+      shift
+      ;;
+    --tap)
+      shift
+      tap="$1"
+      shift
+      ;;
+    --mac)
+      shift
+      mac="$1"
+      shift
+      ;;
+    --monitor)
+      shift
+      mon="$1"
+      shift
+      ;;
+    --console)
+      shift
+      con="$1"
+      shift
+      ;;
+    --stdio)
+      stdio=true
+      stdio_monitor=
+      shift
+      ;;
+    --stdio-monitor)
+      stdio=
+      stdio_monitor=true
+      shift
+      ;;
+    *)
+      break
+      ;;
+  esac
+done
+
+img="$1"
+shift
+
+if [ -z "$img" ]; then
+  error "missing machine image"
+fi
+
+if [ ! -f "$img" ]; then
+  error "machine image '$img' does not exist"
+fi
+
+# Open the reading file descriptor and lock the machine image. Fail if unable
+# to lock.
+#
+# Note that the file descriptor is automatically closed on the script exit and
+# the lock is released.
+#
+exec {lfd}<"$img"
+
+if ! flock -n "$lfd"; then
+  error "machine is already running"
+fi
+
+del_tap=
+if [ -z "$tap" ]; then
+  tap=tap9
+  sudo ip tuntap delete "$tap" mode tap || true
+  sudo ip tuntap add "$tap" mode tap user "$(whoami)"
+  sudo ip link set "$tap" up
+  #sleep 0.5s
+  sudo ip link set "$tap" master "$br"
+  del_tap=true
+fi
+
+if [ -z "$mon" ]; then
+  mon="/tmp/machine-$tap-mon.sock"
+fi
+
+if [ -z "$con" ]; then
+  con="/tmp/machine-$tap-con.sock"
+fi
+
+ops=(\
+  -m "$ram" \
+  -cpu host -smp "$cpu,sockets=1,cores=$cpu,threads=1" \
+  \
+  -netdev "tap,id=net0,ifname=$tap,script=no" \
+  -device "virtio-net-pci,netdev=net0,mac=$mac" \
+  \
+  -drive  "if=none,id=disk0,file=$img,format=raw" \
+  -device "virtio-blk-pci,scsi=off,drive=disk0" \
+  \
+  -nographic \
+)
+
+# Console/monitor options.
+#
+if [ "$stdio" ]; then
+  # Multiplex the monitor and serial console onto stdio. In particular, this
+  # makes sure Ctrl-c is passed to the guest (rather than termination the QEMU
+  # process). To switch between monitor and console, Ctrl-a,c (to terminate
+  # QEMU, type quit in the monitor).
+  #
+  ops+=(-serial mon:stdio)
+else
+  # Monitor.
+  #
+  if [ "$stdio_monitor" ]; then
+    ops+=(-chardev stdio,id=mon)
+  else
+    ops+=(-chardev "socket,id=mon,path=$mon,server,nowait")
+  fi
+
+  ops+=(-mon chardev=mon,mode=readline)
+
+  # Console.
+  #
+  ops+=(-chardev "socket,id=con,path=$con,server,nowait" \
+        -serial chardev:con)
+fi
+
+"${qemu[@]}" "${ops[@]}" -boot c "$@"
+
+if [ "$del_tap" ]; then
+  sudo ip tuntap delete "$tap" mode tap
+fi

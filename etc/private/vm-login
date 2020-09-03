@@ -1,0 +1,30 @@
+#! /usr/bin/env bash
+
+# Get virtual machine console.
+#
+usage="usage: $0 <console-socket>"
+
+owd="$(pwd)"
+trap "{ cd '$owd'; exit 1; }" ERR
+set -o errtrace # Trap in functions.
+
+function info () { echo "$*" 1>&2; }
+function error () { info "$*"; exit 1; }
+
+con="$1"
+
+if [ -z "$con" ]; then
+  error "missing console socket"
+fi
+
+pty="$(dirname "$con")/$(basename -s .sock "$con").pty"
+
+socat "UNIX-CONNECT:$con" "PTY,link=$pty" &
+pid="$!"
+
+screen "$pty"
+
+# Note: socat may have already terminated (e.g., VM was shut down).
+#
+kill "$pid" 2>/dev/null || true
+wait

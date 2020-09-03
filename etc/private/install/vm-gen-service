@@ -1,0 +1,204 @@
+#! /usr/bin/env bash
+
+# Generate systemd .service file for QEMU/KVM virtual machines.
+#
+# Normally the machines are run from a dedicated user account with its home
+# directory containing all the relevant files (management scripts, images,
+# configurations, and sockets). However, this can be overriden with the
+# following options
+#
+# --home <dir>
+#   The virtual machines "home" directory. If unspecified, the user's home
+#   directory is assumed.
+#
+# --bin <dir>
+#   The virtual machines management scripts directory. If unspecified,
+#   <home>/bin is assumed. If specified as relative, then assumed relative
+#   to <home>.
+#
+# --etc <dir>
+#   The virtual machines configuration files directory. If unspecified,
+#   <home>/etc is assumed. If specified as relative, then assumed relative
+#   to <home>.
+#
+# --var <dir>
+#   The virtual machines image files directory. If unspecified, <home>/var is
+#   assumed. If specified as relative, then assumed relative to <home>.
+#
+# --run <dir>
+#   The virtual machines sockets directory. If unspecified, <home>/run is
+#   assumed. If specified as relative, then assumed relative to <home>.
+#
+# If <user> is unspecified, the current user is assumed. If <group> is
+# unspecified, the user's primary group is assumed.
+#
+usage="usage: $0 [<options>] [<user>] [<group>]"
+
+owd="$(pwd)"
+trap "{ cd '$owd'; exit 1; }" ERR
+set -o errtrace # Trap in functions.
+
+function info () { echo "$*" 1>&2; }
+function error () { info "$*"; exit 1; }
+
+home=
+bin=
+etc=
+var=
+run=
+
+while [ "$#" -gt 0 ]; do
+  case "$1" in
+    --home)
+      shift
+      home="$1"
+      shift
+      ;;
+    --bin)
+      shift
+      bin="$1"
+      shift
+      ;;
+    --etc)
+      shift
+      etc="$1"
+      shift
+      ;;
+    --var)
+      shift
+      var="$1"
+      shift
+      ;;
+    --run)
+      shift
+      run="$1"
+      shift
+      ;;
+    *)
+      break
+      ;;
+  esac
+done
+
+user="$1"
+
+if [ -z "$user" ]; then
+  user="$(id -un)"
+fi
+
+group="$2"
+
+if [ -z "$group" ]; then
+  group="$(id -un "$user")"
+fi
+
+if [ -z "$home" ]; then
+  home="$(eval echo ~$user)"
+fi
+
+function complete_dir () # <default> <home> <dir>
+{
+  local r
+  if [ -z "$3" ]; then
+    r="$2/$1"
+  elif [ "${3:0:1}" != "/" ]; then
+    r="$2/$3"
+  else
+    r="$3"
+  fi
+  echo "$(realpath --no-symlinks --canonicalize-missing "$r")"
+}
+
+bin="$(complete_dir bin "$home" "$bin")"
+etc="$(complete_dir etc "$home" "$etc")"
+var="$(complete_dir var "$home" "$var")"
+run="$(complete_dir run "$home" "$run")"
+
+name="vm-$user"
+file="$name@.service"
+
+# Thinks that must be \-escaped:
+#
+# - $ (including in comments)
+# - \ (e.g., in line continuations)
+#
+cat <<EOF >"$file"
+# $file -- QEMU/KVM machine service template for systemd
+#
+# user:  $user
+# group: $group
+# bin:   $bin
+# etc:   $etc
+# var:   $var
+# run:   $run
+#
+# To install:
+#
+# sudo cp $file /etc/systemd/system/
+# sudo chmod 644 /etc/systemd/system/$file
+#
+# cp ... $var/<machine>.img
+# nano   $etc/<machine>.conf # Specify RAM, CPU, TAP, MAC, etc.
+#
+# sudo systemctl start  $name@<machine>
+# sudo systemctl status $name@<machine>
+# login-machine $run/<machine>-con.sock
+# sudo systemctl stop   $name@<machine>
+#
+# sudo systemctl enable $name@<machine>
+
+[Unit]
+Description=QEMU/KVM virtual machine %I
+
+Wants=network-online.target
+#After=network-online.target
+After=multi-user.target
+
+[Service]
+User=$user
+Group=$user
+UMask=0007
+WorkingDirectory=~
+
+Environment=CPU=1
+Environment=RAM=2G
+
+# These MUST be specific in EnvironmentFile!
+#
+#Environment=TAP=
+#Environment=MAC=
+
+# Note that using variable expansion in EnvironmentFile does not work (at
+# least not with systemd 229).
+#
+EnvironmentFile=$etc/%i.conf
+
+# Note that the first word of ExecStart cannot contain variable expansions.
+#
+ExecStart=$bin/vm-start \\
+  --cpu \${CPU} \\
+  --ram \${RAM} \\
+  --tap \${TAP} \\
+  --mac \${MAC} \\
+  --monitor $run/%i-mon.sock \\
+  --console $run/%i-con.sock \\
+  $var/%i.img
+
+ExecStop=$bin/vm-stop $run/%i-mon.sock
+
+# Make systemd wait for ExecStop completion.
+#
+KillMode=none
+TimeoutStopSec=60
+
+[Install]
+WantedBy=multi-user.target
+EOF
+
+info "generated $file for"
+info "  user:  $user"
+info "  group: $group"
+info "  bin:   $bin"
+info "  etc:   $etc"
+info "  var:   $var"
+info "  run:   $run"

@@ -44,7 +44,7 @@ b) Install PostgreSQL 9.3 or above (including the contrib package containing
    the postgres_fdw extension) as well as Apache2 using your distribution's
    packages. Below are the names of these packages for some distributions:
 
-   Debian/Ubuntu: postgresql-server    postgresql-contrib    apache2
+   Debian/Ubuntu: postgresql           postgresql-contrib    apache2
    Fedora/RHEL:   postgresql-server    postgresql-contrib    httpd
    FreeBSD:       postgresqlXY-server  postgresqlXY-contrib  apache24
 
