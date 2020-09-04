@@ -5,12 +5,14 @@ that appears as a real machine on the host's Ethernet network.
 
 Assumptions:
 
- - The host's Ethernet interface is eth0.
+ - The host uses Ethernet for networking.
+
  - The host uses IPv4 DHCP for network configuration.
 
 Note: only perform the following steps over a physical login to the host since
 the configuration involves bringing the host's networking down.
 
+Note: commands that start with the `#` prompt must be executed as root.
 
 1. Switch to systemd-networkd for network configuration.
 
@@ -51,13 +53,17 @@ the comment at the beginning of each file for its purpose):
 
 Note: if you are already using systemd-networkd, then you may already have
 some configuration in /etc/systemd/network/. If the existing configuration
-conflicts with this setup (for example, you already have a configuration
-for eth0), then you will need to remove the relevant files.
+conflicts with this setup (for example, you already have a configuration for
+the Ethernet interface), then you will need to remove the relevant files.
 
 Then adjust the following to match your setup:
 
   - Ethernet interface name if not eth0: 20-br0-eth0.network (both name and
     content)
+
+    Use the following command to list all network interfaces:
+
+    # ip link show
 
   - Bridge MAC address: 10-br0.netdev
 

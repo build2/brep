@@ -10,5 +10,8 @@ IPForward=yes
 [DHCPv4]
 #UseHostname=yes
 
+#SendHostname=yes
+#Hostname=example.lan
+
 [Link]
 RequiredForOnline=yes

@@ -1,0 +1,60 @@
+#! /usr/bin/env bash
+
+# Generate a locally administered MAC address (LAA) number <num> based on the
+# specified universally administered address <mac> (UAA, for example, an
+# address corresponding to the host's physical Ethernet interface).
+#
+# Specifically, the resulting address is formed by combining the
+# LAA-conforming first octet with the subsequent five octets from <mac>:
+#
+# x[26ae]:xx:xx:xx:xx:xx
+#
+# The first octet is derived from <num> as follows:
+#
+#  0-15 : 02-f2
+# 16-31 : 06-f6
+# 32-47 : 0a-fa
+# 48-63 : 0e-fe
+#
+# For example, <num> can correspond to the interface number, such as tap0, for
+# which the resulting MAC address will be used.
+#
+usage="usage: $0 <mac> <num>"
+
+owd="$(pwd)"
+trap "{ cd '$owd'; exit 1; }" ERR
+set -o errtrace # Trap in functions.
+
+function info () { echo "$*" 1>&2; }
+function error () { info "$*"; exit 1; }
+
+if [ -z "$1" ]; then
+  error "$usage"
+fi
+
+o='[0-9a-fA-F]'
+mac="$(sed -nr -e "s/^$o$o:($o$o:$o$o:$o$o:$o$o:$o$o)$/\1/p" <<<"$1")"
+
+if [ -z "$mac" ]; then
+  error "invalid MAC address '$1'"
+fi
+
+if [ -z "$2" ]; then
+  error "$usage"
+fi
+
+num="$2"
+
+if (( num < 0 || num > 63 )); then
+  error "number '$num' is out of 0-63 range"
+fi
+
+if   (( num < 16 )); then
+  printf "%x2:%s\n" $(( num      )) "$mac"
+elif (( num < 32 )); then
+  printf "%x6:%s\n" $(( num - 16 )) "$mac"
+elif (( num < 48 )); then
+  printf "%xa:%s\n" $(( num - 32 )) "$mac"
+else
+  printf "%xe:%s\n" $(( num - 48 )) "$mac"
+fi

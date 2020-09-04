@@ -1,6 +1,8 @@
 #! /usr/bin/env bash
 
-# Get virtual machine console.
+# Get virtual machine console (using screen).
+#
+# Note: use Ctrl-a k to exit screen (or Ctrl-a a k if running inside screen).
 #
 usage="usage: $0 <console-socket>"
 
@@ -22,7 +24,9 @@ pty="$(dirname "$con")/$(basename -s .sock "$con").pty"
 socat "UNIX-CONNECT:$con" "PTY,link=$pty" &
 pid="$!"
 
-screen "$pty"
+# Hack around terminal permission issue when running under `su - <user>`.
+#
+script -q -c "screen $pty" /dev/null
 
 # Note: socat may have already terminated (e.g., VM was shut down).
 #

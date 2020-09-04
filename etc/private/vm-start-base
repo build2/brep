@@ -16,10 +16,10 @@
 #   MAC address to use for the machine.
 #
 # --monitor <path>
-#   Monitor UNIX socket path, /tmp/machine-<tap>-mon.sock if unspecified.
+#   Monitor UNIX socket path, /tmp/vm-<tap>-mon.sock if unspecified.
 #
 # --console <path>
-#   Console UNIX socket path, /tmp/machine-<tap>-con.sock if unspecified.
+#   Console UNIX socket path, /tmp/vm-<tap>-con.sock if unspecified.
 #
 # --stdio
 #   Connect both console and monitor to stdio (multiplexed).
@@ -27,7 +27,7 @@
 # --stdio-monior
 #   Connect only monitor to stdio.
 #
-usage="usage: $0 [<options>] <machine-img> [<extra-qemu-options>]"
+usage="usage: $0 [<options>] <vm-img> [<extra-qemu-options>]"
 
 owd="$(pwd)"
 trap "{ cd '$owd'; exit 1; }" ERR
@@ -103,11 +103,11 @@ img="$1"
 shift
 
 if [ -z "$img" ]; then
-  error "missing machine image"
+  error "missing virtual machine image"
 fi
 
 if [ ! -f "$img" ]; then
-  error "machine image '$img' does not exist"
+  error "virtual machine image '$img' does not exist"
 fi
 
 # Open the reading file descriptor and lock the machine image. Fail if unable
@@ -119,7 +119,7 @@ fi
 exec {lfd}<"$img"
 
 if ! flock -n "$lfd"; then
-  error "machine is already running"
+  error "virtual machine image is already in use"
 fi
 
 del_tap=
@@ -134,11 +134,11 @@ if [ -z "$tap" ]; then
 fi
 
 if [ -z "$mon" ]; then
-  mon="/tmp/machine-$tap-mon.sock"
+  mon="/tmp/vm-$tap-mon.sock"
 fi
 
 if [ -z "$con" ]; then
-  con="/tmp/machine-$tap-con.sock"
+  con="/tmp/vm-$tap-con.sock"
 fi
 
 ops=(\
