@@ -43,6 +43,14 @@
 #   Install and configure the brep instance, assuming that the 'brep' user
 #   already exists and this script is executed as this user.
 #
+# --clean
+#
+#   At the end of the brep instance setup remove installation environment-
+#   specific traces (host name/IP from the configuration files, etc). Normally
+#   you would use this option to make the "clean" machine copy for
+#   distribution. Note that if this option is specified, then the brep
+#   instance will only be unusable after the machine reboot.
+#
 usage="Usage: $0 [<options>]"
 
 # build2 toolchain repository certificate fingerprint. Note: this is a
@@ -110,6 +118,7 @@ brep_id=63700 # Update the README file on change.
 #
 mount=
 setup=
+clean=
 ops=()
 
 while [ "$#" -gt 0 ]; do
@@ -126,6 +135,11 @@ while [ "$#" -gt 0 ]; do
       ;;
     --setup)
       setup=true
+      shift
+      ;;
+    --clean)
+      clean=true
+      ops+=("$1")
       shift
       ;;
     *)
@@ -162,7 +176,7 @@ EOF
   #
   # Note: here we rely on ops to not contain spaces or be empty.
   #
-  run exec sudo su -l brep --session-command "'$scr_exe' --setup ${ops[@]}"
+  run exec sudo su -l brep --session-command "'$scr_exe' --setup ${ops[*]}"
 fi
 
 # Here we assume that we are executed as brep user.
@@ -431,3 +445,26 @@ run sudo systemctl start  brep-load.timer
 run sudo systemctl status brep-load.timer >/dev/null
 run sudo systemctl enable brep-load.timer
 run sudo systemctl status brep-load.timer >/dev/null
+
+# Cleanup the installation environment-specific traces, if requested.
+#
+if [ "$clean" ]; then
+
+  # Stop the relevant services.
+  #
+  run sudo systemctl stop brep-load.timer
+  run sudo systemctl stop apache2
+
+  # Remove the host name/IP from the configuration.
+  #
+  run cp "$scr_dir/brep-module.conf" config/ # Adjusted by brep-startup.
+  run rm config/loadtab                      # Recreated by brep-startup.
+
+  # Finally, stop networking and cleanup the DHCP lease information.
+  #
+  # Note that after networking is stopped, sudo prints the 'unable to resolve
+  # host' diagnostics while trying to obtain the host IP. Thus, we execute the
+  # last two commands via a single sudo call.
+  #
+  run sudo bash -c "systemctl stop networking && rm -rf /var/lib/dhcp/*.leases"
+fi
