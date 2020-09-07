@@ -58,10 +58,11 @@ to upgrade VM images by simply replacing the old one with a new.
 
 However, to make this arrangement work reliably, the brep user/group IDs on
 the host machine must match those inside the VM. As a result, we create the
-brep user with specific IDs:
+brep user/group with specific IDs:
 
-# addgroup --gid 63700 brep
-# adduser --uid 63700 --gid 63700 --gecos '' --disabled-password brep
+# groupadd --gid 63700 brep
+# useradd --uid 63700 --gid 63700 --create-home brep
+# usermod --lock brep # disable password login (if desired)
 
 Additionally, if your distribution requires users that are allowed to use KVM
 to belong to a special group (normally kvm), then add the brep user to this
@@ -80,7 +81,11 @@ $ pwd
 /home/brep
 
 $ curl -fO https://download.build2.org/X.Y.Z/linux-debian-N-brep-X.Y.Z.tar.xz
-$ tar xf --strip-components=1 linux-debian-N-brep-X.Y.Z.tar.xz
+$ sha256sum -b linux-debian-N-brep-X.Y.Z.tar.xz
+
+Verify the checksum matches the one from https://build2.org/download.xhtml
+
+$ tar -xf linux-debian-N-brep-X.Y.Z.tar.xz --strip-components=1
 $ ls
 bin/ etc/ vm/ vm-brep@.service
 
