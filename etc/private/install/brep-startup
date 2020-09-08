@@ -16,6 +16,10 @@
 # - Generate the loadtab using the current host name/IP and run the loader.
 #
 trap "{ exit 1; }" ERR
+set -o errtrace # Trap in functions.
+
+function info  () { echo "$*" 1>&2; }
+function error () { info "error: $*"; exit 1; }
 
 # Create the pkg repository, if required.
 #
@@ -51,12 +55,16 @@ if [ "$h" == "localhost" ]; then
   h="$(hostname -I | sed 's/ *$//')" # Strip the potential trailing space(s).
 fi
 
+if [ -z "$h" ]; then
+  error "unable to obtain host name or IP address"
+fi
+
 # Adjust the submission result URL host name in the brep module configuration
 # file.
 #
 sed --in-place -re \
 "\$!N;s%^\s*(submit-handler-argument\s+--result-url\s*\\n)\
-\s*(submit-handler-argument\s+https?://)[^/]+(.*)\$%\1\2$h\3%;P;D" \
+\s*(submit-handler-argument\s+https?://)[^/]*(.*)\$%\1\2$h\3%;P;D" \
 "$HOME/config/brep-module.conf"
 
 # (Re-)generate the loadtab file and reload the repository.
