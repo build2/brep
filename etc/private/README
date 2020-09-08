@@ -33,7 +33,7 @@ available on the host machine:
   - systemd >= 229    (systemd --version)
   - bash    >= 4.3    (base --version)
   - qemu    >= 2.5.0  (qemu-system-x86_64 --version)
-  - screen, socat     (screen --version, socan -V)
+  - screen, socat     (screen --version, socat -V)
 
 Consult your distribution's package manager if any of these utilities are
 missing.
