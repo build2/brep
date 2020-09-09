@@ -975,8 +975,8 @@ test_pkg_repos (const cstrings& loader_args,
     assert (tr->location.canonical_name () == "pkg:dev.cppget.org/testing");
     assert (tr->location.string () ==
             "http://dev.cppget.org/1/testing");
-    assert (tr->display_name.empty ());
-    assert (tr->priority == 0);
+    assert (tr->display_name == "testing");
+    assert (tr->priority == 3);
     assert (tr->interface_url &&
             *tr->interface_url == "http://test.cppget.org/hello/");
     assert (!tr->email);
@@ -994,7 +994,7 @@ test_pkg_repos (const cstrings& loader_args,
     assert (tr->repositories_timestamp ==
             file_mtime (tr->cache_location.path () / repositories));
 
-    assert (!tr->internal);
+    assert (tr->internal);
     assert (tr->prerequisites.empty ());
     assert (tr->complements.size () == 1);
     assert (tr->complements[0].load () == gr);
@@ -1007,9 +1007,8 @@ test_pkg_repos (const cstrings& loader_args,
       db.load<package> (
         package_id (tenant, package_name ("libmisc"), version ("2.4.0"))));
 
-    assert (check_external (*mpv0));
-    assert (mpv0->other_repositories.size () == 1);
-    assert (mpv0->other_repositories[0].load () == tr);
+    assert (mpv0->internal_repository.load () == tr);
+    assert (mpv0->other_repositories.empty ());
     assert (check_location (mpv0));
     assert (!mpv0->buildable);
 
@@ -1019,9 +1018,8 @@ test_pkg_repos (const cstrings& loader_args,
       db.load<package> (
         package_id (tenant, package_name ("libmisc"), version ("2.3.0+1"))));
 
-    assert (check_external (*mpv1));
-    assert (mpv1->other_repositories.size () == 1);
-    assert (mpv1->other_repositories[0].load () == tr);
+    assert (mpv1->internal_repository.load () == tr);
+    assert (mpv1->other_repositories.empty ());
     assert (check_location (mpv1));
     assert (!mpv1->buildable);
 

@@ -352,6 +352,7 @@ repository_info (const options& lo, const string& rl, const cstrings& options)
 //
 static void
 load_packages (const shared_ptr<repository>& rp,
+               const repository_location& cl,
                database& db,
                bool ignore_unknown,
                const manifest_name_values& overrides)
@@ -361,13 +362,9 @@ load_packages (const shared_ptr<repository>& rp,
   //
   assert (rp->packages_timestamp == timestamp_nonexistent);
 
-  // Only locally accessible repositories allowed until package manager API is
-  // ready.
-  //
-  assert (!rp->cache_location.empty ());
-
   vector<package_manifest> pms;
-  const repository_location& cl (rp->cache_location);
+
+  assert (!cl.empty ());
 
   path p (cl.path () / packages);
 
@@ -621,7 +618,9 @@ load_packages (const shared_ptr<repository>& rp,
 // changed members. Should be called once per persisted internal repository.
 //
 static void
-load_repositories (const shared_ptr<repository>& rp,
+load_repositories (const options& lo,
+                   const shared_ptr<repository>& rp,
+                   const repository_location& cl,
                    database& db,
                    bool ignore_unknown,
                    bool shallow)
@@ -630,11 +629,6 @@ load_repositories (const shared_ptr<repository>& rp,
   // repository prerequisites are already loaded.
   //
   assert (rp->repositories_timestamp == timestamp_nonexistent);
-
-  // Only locally accessible repositories allowed until package manager API is
-  // ready.
-  //
-  assert (!rp->cache_location.empty ());
 
   const string& tenant (rp->tenant);
 
@@ -645,7 +639,9 @@ load_repositories (const shared_ptr<repository>& rp,
 
   pkg_repository_manifests rpm;
 
-  path p (rp->cache_location.path () / repositories);
+  assert (!cl.empty ());
+
+  path p (cl.path () / repositories);
 
   try
   {
@@ -780,15 +776,19 @@ load_repositories (const shared_ptr<repository>& rp,
 
     pr = make_shared<repository> (tenant, move (rl));
 
-    // If the prerequsite repository location is a relative path, then
-    // calculate its cache location.
+    // If the base repository is internal and the prerequsite repository
+    // location is a relative path, then calculate its cache location.
     //
-    if (rm.location.relative ())
+    if (rp->internal && rm.location.relative ())
     {
+      // For an internal repository the cache location always comes from the
+      // loadtab file.
+      //
+      assert (cl.path () == rp->cache_location.path ());
+
       try
       {
-        pr->cache_location =
-          repository_location (rm.location, rp->cache_location);
+        pr->cache_location = repository_location (rm.location, cl);
       }
       catch (const invalid_argument&)
       {
@@ -796,21 +796,141 @@ load_repositories (const shared_ptr<repository>& rp,
              << "repository '" << rm.location << "'" << endl
              << "  info: base (internal) repository location is "
              << rp->location << endl
-             << "  info: base repository cache location is "
-             << rp->cache_location << endl;
+             << "  info: base repository cache location is " << cl << endl;
 
         throw failed ();
+      }
+    }
+
+    // If the (external) prerequisite repository cache location is empty, then
+    // check if the repository is local and, if that's the case, use its
+    // location as a cache location. Otherwise, fetch the repository
+    // information creating a temporary cache for it.
+    //
+    auto_rmdir cdr;         // Remove the temporary cache after the repo load.
+    repository_location cl; // Repository temporary cache location.
+
+    if (pr->cache_location.empty ())
+    {
+      if (pr->location.local ())
+      {
+        pr->cache_location = pr->location;
+      }
+      else
+      {
+        dir_path cd;
+
+        try
+        {
+          cd = dir_path::temp_path ("brep-load-cache");
+        }
+        catch (const system_error& e)
+        {
+          cerr << "unable to obtain temporary directory: " << e;
+          throw failed ();
+        }
+
+        // It's highly unlikely but still possible that the temporary cache
+        // directory already exists. This can only happen due to the unclean
+        // loader termination. Let's remove it and retry.
+        //
+        try
+        {
+          if (try_mkdir (cd) == mkdir_status::already_exists)
+          {
+            try_rmdir_r (cd);
+
+            if (try_mkdir (cd) == mkdir_status::already_exists)
+              throw_generic_error (EEXIST);
+          }
+        }
+        catch (const system_error& e)
+        {
+          cerr << "unable to create directory '" << cd << "': " << e;
+          throw failed ();
+        }
+
+        cdr = auto_rmdir (cd);
+
+        path rf (cd / repositories);
+        path pf (cd / packages);
+
+        // Note that the fetch timeout can be overridden via --bpkg-option.
+        //
+        cstrings args {
+          "--fetch-timeout", "60", // 1 minute.
+          "--deep",
+          "--manifest",
+          "--repositories",
+          "--repositories-file", rf.string ().c_str (),
+          "--packages",
+          "--packages-file", pf.string ().c_str ()};
+
+        if (rm.trust)
+        {
+          args.push_back ("--trust");
+          args.push_back (rm.trust->c_str ());
+        }
+
+        // Always add it, so bpkg won't try to prompt for a certificate
+        // authentication if the fingerprint doesn't match.
+        //
+        args.push_back ("--trust-no");
+
+        process p (repository_info (lo, pr->location.string (), args));
+
+        try
+        {
+          // @@ Note that bpkg-rep-info can fail with the 'repository manifest
+          //    file checksum mismatch' error if the repository was changed
+          //    during the fetch. We will need to retry when bpkg is fixed to
+          //    exit with some recognizable code on this failure.
+          //
+          if (!p.wait ())
+          {
+            // Assume the child issued diagnostics if terminated normally.
+            //
+            if (!p.exit->normal ())
+              cerr << "process " << lo.bpkg () << " " << *p.exit << endl;
+
+            cerr << "error: unable to fetch manifests for "
+                 << pr->canonical_name << endl
+                 << "  info: base repository location is "
+                 << rp->location << endl;
+
+            throw failed ();
+          }
+        }
+        catch (const process_error& e)
+        {
+          cerr << "error: unable to fetch manifests for "
+               << pr->canonical_name << ": " << e << endl;
+
+          throw failed ();
+        }
+
+        // Note that this is a non-pkg repository cache and so we create the
+        // dir repository location (see load_repositories(path) for details).
+        //
+        cl = repository_location (repository_url (cd.string ()),
+                                  repository_type::dir);
       }
     }
 
     // We don't apply overrides to the external packages.
     //
     load_packages (pr,
+                   !pr->cache_location.empty () ? pr->cache_location : cl,
                    db,
                    ignore_unknown,
                    manifest_name_values () /* overrides */);
 
-    load_repositories (pr, db, ignore_unknown, false /* shallow */);
+    load_repositories (lo,
+                       pr,
+                       !pr->cache_location.empty () ? pr->cache_location : cl,
+                       db,
+                       ignore_unknown,
+                       false /* shallow */);
   }
 
   db.update (rp);
@@ -1149,8 +1269,11 @@ certificate_info (const options& lo,
       pr.wait ();
     }
 
-    // Assume the child issued diagnostics.
+    // Assume the child issued diagnostics if terminated normally.
     //
+    if (!pr.exit->normal ())
+      cerr << "process " << lo.bpkg () << " " << *pr.exit << endl;
+
     cerr << "error: unable to fetch certificate information for "
          << rl.canonical_name () << endl;
 
@@ -1358,7 +1481,11 @@ try
                                  ir.buildable,
                                  priority++));
 
-      load_packages (r, db, ops.ignore_unknown (), overrides);
+      load_packages (r,
+                     r->cache_location,
+                     db,
+                     ops.ignore_unknown (),
+                     overrides);
     }
 
     // On the second pass over the internal repositories we load their
@@ -1371,7 +1498,12 @@ try
         db.load<repository> (
           repository_id (tnt, ir.location.canonical_name ())));
 
-      load_repositories (r, db, ops.ignore_unknown (), ops.shallow ());
+      load_repositories (ops,
+                         r,
+                         r->cache_location,
+                         db,
+                         ops.ignore_unknown (),
+                         ops.shallow ());
     }
 
     // Resolve internal packages dependencies and, unless this is a shallow

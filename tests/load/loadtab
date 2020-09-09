@@ -1,4 +1,5 @@
-http://dev.cppget.org/1/stable   stable   cache:1/stable buildable:no
+http://dev.cppget.org/1/stable   stable   cache:1/stable                       buildable:no
 http://dev.cppget.org/1/math     math     cache:1/math
-http://dev.cppget.org/1/signed   signed   cache:pkg/1/dev.cppget.org/signed   fingerprint:C3:EC:12:53:AD:64:41:0E:35:3A:9A:A6:EE:57:BF:E6:05:40:42:2B:FF:AF:2C:B0:99:AD:E9:4A:9C:48:40:22
-http://dev.cppget.org/1/unsigned unsigned cache:pkg/1/dev.cppget.org/unsigned fingerprint:
+http://dev.cppget.org/1/testing  testing  cache:1/testing                      buildable:no
+http://dev.cppget.org/1/signed   signed   cache:pkg/1/dev.cppget.org/signed                  fingerprint:C3:EC:12:53:AD:64:41:0E:35:3A:9A:A6:EE:57:BF:E6:05:40:42:2B:FF:AF:2C:B0:99:AD:E9:4A:9C:48:40:22
+http://dev.cppget.org/1/unsigned unsigned cache:pkg/1/dev.cppget.org/unsigned                fingerprint:
