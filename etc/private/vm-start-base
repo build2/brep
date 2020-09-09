@@ -15,6 +15,9 @@
 # --mac <addr>
 #   MAC address to use for the machine.
 #
+# --pid <path>
+#   PID file path, /tmp/vm-<tap>.pid if unspecified.
+#
 # --monitor <path>
 #   Monitor UNIX socket path, /tmp/vm-<tap>-mon.sock if unspecified.
 #
@@ -22,15 +25,16 @@
 #   Console UNIX socket path, /tmp/vm-<tap>-con.sock if unspecified.
 #
 # --stdio
-#   Connect both console and monitor to stdio (multiplexed).
+#   Connect both console and monitor to stdio (multiplexed). This disables
+#   the creation of the monitor and console sockets.
 #
 # --stdio-monior
-#   Connect only monitor to stdio.
+#   Connect only monitor to stdio. This disables the creation of the monitor
+#   socket.
 #
 usage="usage: $0 [<options>] <vm-img> [<extra-qemu-options>]"
 
-owd="$(pwd)"
-trap "{ cd '$owd'; exit 1; }" ERR
+trap "{ exit 1; }" ERR
 set -o errtrace # Trap in functions.
 
 function info () { echo "$*" 1>&2; }
@@ -46,6 +50,7 @@ cpu=1
 ram=2G
 tap=
 mac="de:ad:be:ef:b8:da"
+pid=
 mon=
 con=
 stdio=
@@ -71,6 +76,11 @@ while [ "$#" -gt 0 ]; do
     --mac)
       shift
       mac="$1"
+      shift
+      ;;
+    --pid)
+      shift
+      pid="$1"
       shift
       ;;
     --monitor)
@@ -133,6 +143,11 @@ if [ -z "$tap" ]; then
   del_tap=true
 fi
 
+if [ -z "$pid" ]; then
+  pid="/tmp/vm-$tap.pid"
+fi
+echo "$$" >"$pid"
+
 if [ -z "$mon" ]; then
   mon="/tmp/vm-$tap-mon.sock"
 fi
@@ -181,6 +196,10 @@ else
 fi
 
 "${qemu[@]}" "${ops[@]}" -boot c "$@"
+
+if [ "$pid" -o "$mon" -o "$con" ]; then
+  rm -f "$pid" "$mon" "$con"
+fi
 
 if [ "$del_tap" ]; then
   sudo ip tuntap delete "$tap" mode tap

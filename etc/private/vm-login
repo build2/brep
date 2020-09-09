@@ -6,8 +6,7 @@
 #
 usage="usage: $0 <console-socket>"
 
-owd="$(pwd)"
-trap "{ cd '$owd'; exit 1; }" ERR
+trap "{ exit 1; }" ERR
 set -o errtrace # Trap in functions.
 
 function info () { echo "$*" 1>&2; }

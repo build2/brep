@@ -35,7 +35,20 @@ fi
 r="$d/pkg/1"
 
 if [ ! -f "$r/repositories.manifest" ]; then
-  echo ": 1" >"$r/repositories.manifest"
+  cat <<EOF >"$r/repositories.manifest"
+: 1
+#summary: Private repository
+#description: \\
+#This is a private repository.
+#And this description can contain multiple lines.
+#\\
+#email: admin@example.org
+
+#:
+#role: prerequisite
+#location: https://pkg.cppget.org/1/stable
+#trust: ...
+EOF
 fi
 
 if [ ! -f "$r/packages.manifest" ]; then

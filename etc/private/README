@@ -214,7 +214,7 @@ If the VM fails to start, study the log for a possible cause:
 
 # journalctl -u vm-brep@brep
 
-If the VM has started successfully, perform the same verifications as on step
+If the VM has started successfully, perform the same verifications as on Step
 4 above.
 
 To login to the VM running as a systemd service (for example, to verify IP
@@ -239,7 +239,7 @@ After this you may also want to reboot the host machine and confirm the VM is
 started on boot.
 
 
-6. Managing the repository state.
+6. Manage the repository state.
 
 While you can submit packages to the repository using bdep-publish(1), you can
 also add them manually. Also, packages can only be removed manually.
@@ -263,7 +263,7 @@ Putting it all together, the steps could look like this:
 # systemctl stop vm-brep@brep
 # su - brep
 $ cd state/bpkg/pkg
-$ ...
+$ <make your changes here>
 $ rm 1/packages.manifest
 $ exit
 # systemctl start vm-brep@brep
@@ -278,3 +278,42 @@ $ ~/bin/vm-login ~/brep-con.sock
 
   # systemctl status brep-startup
   # journalctl -u brep-startup
+
+
+7. Upgrade the VM.
+
+To upgrade to the new version of the VM, first download and unpack the new
+VM archive similar to Step 2:
+
+$ curl -fO https://download.build2.org/X.Y.Z/linux-debian-N-brep-X.Y.Z.tar.xz
+$ sha256sum -b linux-debian-N-brep-X.Y.Z.tar.xz
+
+Verify the checksum matches the one from https://build2.org/download.xhtml
+
+$ tar -xf linux-debian-N-brep-X.Y.Z.tar.xz
+
+Next read the linux-debian-N-brep-X.Y.Z/NEWS file for changes and potential
+backwards compatibility issues. Unless instructed otherwise by the NEWS file,
+the upgrade procedure is as follows:
+
+# systemctl stop vm-brep@brep
+
+$ cd
+$ mkdir bak
+$ mv -t bak/ bin etc vm/brep.img vm-brep@.service README NEWS
+$ mv -t ./ linux-debian-N-brep-X.Y.Z/*
+$ rm state/bpkg/pkg/1/packages.manifest
+
+# cp ~brep/vm-brep@.service /etc/systemd/system/
+# chmod 644 /etc/systemd/system/vm-brep@.service
+# systemctl daemon-reload
+# systemctl start vm-brep@brep
+# systemctl status vm-brep@brep
+
+If the VM has started successfully, perform the same verifications as on Step
+4 above. If everything is functioning correctly, you can remove the backup
+files:
+
+$ rm -r bak
+
+If there are any issues, investigate as on Step 6.

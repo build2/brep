@@ -180,13 +180,16 @@ ExecStart=$bin/vm-start \\
   --ram \${RAM} \\
   --tap \${TAP} \\
   --mac \${MAC} \\
+  --pid $run/%i.pid \\
   --monitor $run/%i-mon.sock \\
   --console $run/%i-con.sock \\
   $var/%i.img
 
-ExecStop=$bin/vm-stop $run/%i-mon.sock
+ExecStop=$bin/vm-stop $run/%i.pid $run/%i-mon.sock
 
-# Make systemd wait for ExecStop completion.
+# This makes sure systemd waits for the ExecStart command to exit rather
+# than killing it as soon as ExecStop exits (this is necessary since our
+# vm-stop may exit just before vm-start).
 #
 KillMode=none
 TimeoutStopSec=60

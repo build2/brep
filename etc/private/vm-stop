@@ -2,23 +2,36 @@
 
 # Stop virtual machine started with vm-start.
 #
-usage="usage: $0 <monitor-socket>"
+usage="usage: $0 <pid-file> <monitor-socket>"
 
-owd="$(pwd)"
-trap "{ cd '$owd'; exit 1; }" ERR
+trap "{ exit 1; }" ERR
 set -o errtrace # Trap in functions.
 
 function info () { echo "$*" 1>&2; }
 function error () { info "$*"; exit 1; }
 
-mon="$1"
 
-if [ -z "$mon" ]; then
-  error "missing monitor socket"
+if [ -z "$1" -o ! -f "$1" ]; then
+  error "missing or invalid PID file"
 fi
+
+pid="$(sed -nr -e 's/([0-9]+)/\1/p' "$1")"
+
+if [ -z "$pid" ]; then
+  error "PID file $1 does not contain valid PID"
+fi
+
+if [ -z "$2" -o ! -S "$2" ]; then
+  error "missing or invalid monitor socket"
+fi
+
+mon="$2"
 
 echo system_powerdown | socat - "UNIX-CONNECT:$mon" >/dev/null
 
-# Wait for QEMU to close the socket. This is racy so ignore errors.
+# An alternative way to implement this would be to connect a pipe to the
+# monitor socket and wait for it to be closed.
 #
-socat "UNIX-CONNECT:$mon" - >/dev/null 2>&1 || true
+while [ -e "/proc/$pid" ]; do
+  sleep 0.2
+done
