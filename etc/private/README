@@ -131,10 +131,11 @@ assign the VM its IP address and hostname. If you need to submit a request to
 your network administrator, then the following text could serve as a template:
 
 "I would like to run a VM on the <host> machine that needs to have its own IP
- address and domain name (configured via DHCP. It will have fixed MAC address
+ address and domain name (configured via DHCP). It will have fixed MAC address
  <mac> (which was derived from <host>'s physical Ethernet address; but you are
- welcome to assign a different MAC address if desired). I would like this
- machine to have the <vm> name if possible.
+ welcome to assign a different MAC address if desired). The DHCP client ID is
+ the same as the MAC address. I would like this machine to have the <vm> name
+ if possible.
 
  This will be a QEMU/KVM virtual machine running as a systemd service. It will
  use bridged networking with a tap interface."
@@ -145,8 +146,9 @@ Where:
   <mac>   the generated mac address (02:yy:yy:yy:yy:yy)
   <vm>    VM machine name, for example, mybrep.lan
 
-Note that the VM is configured to receive its hostname from DHCP. Failed that,
-the repository URL will use the IP address.
+Note that the VM is configured to receive its hostname from DHCP server (the
+DHCP protocol option 12, "Host Name"). Failed that, the repository URL will
+use the IP address.
 
 Next, create the package repository directory and start the VM for testing
 (replace 02:yy:yy:yy:yy:yy with the actual MAC address):
@@ -251,7 +253,10 @@ two rules that you must follow:
   2. You must make any modification only as user brep.
 
 After performing the modifications, remove the 1/packages.manifest file to
-trigger the repository metadata regeneration on the next VM startup.
+trigger the repository metadata regeneration on the next VM startup. You can
+also customize the repositories.manifest file in the same way. For example,
+you could add cppget.org as a prerequisite repository for your private
+repository.
 
 Putting it all together, the steps could look like this:
 
@@ -266,8 +271,8 @@ $ exit
 Note also that it's easy to break the repository with manual modifications.
 For example, you may add a package that has an unmet dependency or remove a
 package that still has some dependents. In this case, the repository web
-interface will be unavailable. As a result, you may want to login into the VM
-and verify the repository regeneration was successful:
+interface will be unavailable. In this case, you can login into the VM to
+investigate:
 
 $ ~/bin/vm-login ~/brep-con.sock
 
