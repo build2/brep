@@ -1,13 +1,14 @@
 This directory contains a virtual machine (VM) with a build2 repository web
-interface (brep) installation for a private package repository plus a number
-of scripts and configuration files for running this machine as a systemd
-service.
+interface (brep) installed and configured for a private package repository.
+It also includes a number of scripts and configuration files for running
+this VM as a systemd service.
 
 A brep installation consists of a web server (Apache2), a database server
 (PostgreSQL), and a number of auxiliary processes (repository loader,
 submission handler, etc). While all this can be installed and configured
-manually (as described in brep/INSTALL), this VM makes it possible to quickly
-setup a private repository.
+manually (as described in brep/INSTALL), this VM has everything pre-installed
+and pre-configured which makes it possible to quickly get a private
+repository up and running.
 
 Note that the configuration offered by this VM is only suitable for a
 private/trusted environment, normally either for personal use (host-local)
@@ -20,9 +21,9 @@ or for use within an organization's private network. Specifically:
   - Submitted packages are published directly and without ownership
     authentication.
 
-  - The VM does not perform auto-update (since it does not assume the presence
-    of an Internet connection) and therefore may not have the latest security
-    updates.
+  - The VM does not auto-update (since it does not assume the presence of an
+    Internet connection) and therefore may not have the latest security
+    patches.
 
 The below setup instructions are for host machines that run systemd-based
 Linux distributions. Note, however, that it should be possible to use other
@@ -31,7 +32,7 @@ QEMU/KVM virtual machines. The following utilities are expected to be
 available on the host machine:
 
   - systemd >= 229    (systemd --version)
-  - bash    >= 4.3    (base --version)
+  - bash    >= 4.3    (bash --version)
   - qemu    >= 2.5.0  (qemu-system-x86_64 --version)
   - screen, socat     (screen --version, socat -V)
 
@@ -43,18 +44,24 @@ well as at least 1G or RAM (2G recommended) and at least 5G of disk space
 (4G for VM image and the rest for package storage) that can be dedicated
 to the VM.
 
-Note: commands that start with the `#` prompt must be executed as root.
+Commands shown in this guide use several prompts with the following meaning:
+
+  # -- must be executed as root on the host machine
+  $ -- must be execute as user brep on the host machine
+  > -- can be executed for testing on any other machine with build2 installed
 
 
-1. Create the brep user and group.
+1. Create the brep user and group
+---------------------------------
 
 In this setup, the VM image, scripts, etc., as well as the repository packages
-are all kept in the home directory of the special brep user. In particular,
+are all kept in the home directory of the special user brep. In particular,
 the packages are stored on the host machine (as opposed to inside the VM
 image) and are shared with the VM (using the virtio-9p filesystem). As a
 result, if necessary, you can manipulate the package repository from the host
 machine (but see Step 6 below for the rules). This setup also makes it easier
-to upgrade VM images by simply replacing the old one with a new.
+to upgrade VM images by simply replacing the old image with a new (see Step 7
+below for details).
 
 However, to make this arrangement work reliably, the brep user/group IDs on
 the host machine must match those inside the VM. As a result, we create the
@@ -71,10 +78,11 @@ group:
 # usermod -G kvm brep
 
 If unsure whether this is required, skip this step and come back to it if you
-get 'KVM: permission denied' error on Step 4.
+get the 'KVM: permission denied' error on Step 4.
 
 
-2. Download and unpack the VM archive into the brep user's home directory.
+2. Download and unpack the VM archive into the brep user's home directory
+-------------------------------------------------------------------------
 
 # su - brep
 $ pwd
@@ -87,39 +95,41 @@ Verify the checksum matches the one from https://build2.org/download.xhtml
 
 $ tar -xf linux-debian-N-brep-X.Y.Z.tar.xz --strip-components=1
 $ ls
-bin/ etc/ vm/ vm-brep@.service
+bin/ etc/ vm/ vm-brep@.service README NEWS
 
 
-3. Configure networking for the VM.
+3. Configure networking for the VM
+----------------------------------
 
 This setup expects the VM to use bridged networking with a persistent tap
 interface. This allows for a wide variety of configurations ranging between
 host-local (private bridge without routing), subnet (private bridge with
-routing/NAT), and local network (public bridge over host's Ethernet
+routing/NAT), and local area network (public bridge over host's Ethernet
 adapter). In particular, the last configuration would make the repository
 accessible from other machines on the same local network.
 
 The exact steps on how to setup bridged networking and create a persistent tap
-interface depend the network manager used so consult your distribution's
+interface depend the network manager used thus consult your distribution's
 documentation for details. The guide found in etc/systemd-networkd/README
-shows how to setup the local network configuration mentioned above using the
-systemd-networkd network manager available on most systemd-based
+shows how to setup the local area network configuration mentioned above using
+the systemd-networkd network manager available on most systemd-based
 distributions.
 
 In the rest of this guide we assume that tap interface called tap0 is
 appropriately configured and is owned by user/group brep.
 
 
-4. Generate a MAC address and start the VM for testing.
+4. Generate a MAC address and start the VM for testing
+------------------------------------------------------
 
-The recommended way to obtain a MAC address for the VM is to generate it
-based on the host's Ethernet adapter address (see inside vm-gen-macaddress
+The recommended way to obtain a MAC address for the VM is to generate it based
+on the address of the host's Ethernet adapter (see inside vm-gen-macaddress
 for details):
 
 $ ~/bin/vm-gen-macaddress xx:yy:yy:yy:yy:yy 0
 
-Where xx:yy:yy:yy:yy:yy is the MAC address of the host's Ethernet adapter that
-can be viewed with the following command:
+Where xx:yy:yy:yy:yy:yy is the MAC address of the host's Ethernet adapter
+which can can be viewed with the following command:
 
 # ip link show
 
@@ -133,18 +143,18 @@ your network administrator, then the following text could serve as a template:
 "I would like to run a VM on the <host> machine that needs to have its own IP
  address and domain name (configured via DHCP). It will have fixed MAC address
  <mac> (which was derived from <host>'s physical Ethernet address; but you are
- welcome to assign a different MAC address if desired). The DHCP client ID is
+ welcome to assign a different MAC address if required). The DHCP client ID is
  the same as the MAC address. I would like this machine to have the <vm> name
  if possible.
 
- This will be a QEMU/KVM virtual machine running as a systemd service. It will
- use bridged networking with a tap interface."
+ FYI, this is a QEMU/KVM virtual machine running as a systemd service. It
+ will use bridged networking with a tap interface."
 
 Where:
 
-  <host>  host machine name, for example, myserver.lan (run hostname -f)
+  <host>  host machine's name, for example, myserver.lan (run hostname -f)
   <mac>   the generated mac address (02:yy:yy:yy:yy:yy)
-  <vm>    VM machine name, for example, mybrep.lan
+  <vm>    VM machine's name, for example, mybrep.lan
 
 Note that the VM is configured to receive its hostname from DHCP server (the
 DHCP protocol option 12, "Host Name"). Failed that, the repository URL will
@@ -165,29 +175,30 @@ address, hostname, and the network functionality:
   # ping example.org
 
 If everything appears correct, visit the repository web page with a browser
-(for example, http://mybrep.lan). Check the About page to see the repository
-URL.
+(for example, http://mybrep.lan). Check the About page to verify the
+repository URL matches the hostname or IP address.
 
 Try to submit a package (for example, from your development machine):
 
-$ bdep new hello
-$ cd hello
-$ git add . && git commit -m test
-$ bdep init -C @test cc
-$ bdep publish --control=none --repository http://mybrep.lan --force=snapshot
+> bdep new hello
+> cd hello
+> git add . && git commit -m test
+> bdep init -C @test cc
+> bdep publish --control=none --repository http://mybrep.lan --force=snapshot
 
 Visit the repository web page and confirm the package is there. Then try to
-build the submitted package from the repository:
+consume the submitted package from the repository:
 
-$ bpkg create -d test
-$ bpkg build -d test hello@http://mybrep.lan/1
+> bpkg create -d test
+> bpkg build -d test hello@http://mybrep.lan/1
 
 If everything is working fine, shut the VM down:
 
   # shutdown -h now
 
 
-5. Setup the VM to run as a systemd service.
+5. Setup the VM to run as a systemd service
+-------------------------------------------
 
 To start the VM as a systemd service on host boot, perform the following
 steps.
@@ -210,21 +221,21 @@ Then configure the systemd service:
 # systemctl start vm-brep@brep
 # systemctl status vm-brep@brep
 
-If the VM fails to start, study the log for a possible cause:
+If the VM fails to start, study the logs for a possible cause:
 
 # journalctl -u vm-brep@brep
 
 If the VM has started successfully, perform the same verifications as on Step
 4 above.
 
-To login to the VM running as a systemd service (for example, to verify IP
-and hostname) use the vm-login script (which uses screen to connect to the
-VM's console):
+To login to the VM running as a systemd service (for example, to verify IP and
+hostname) use the vm-login script (which uses screen(1) to connect to the VM's
+console):
 
 $ ~/bin/vm-login ~/brep-con.sock
 
-To close the login, press Ctrl-a k (or Ctrl-a a k if already running inside
-screen).
+To close the login, press 'Ctrl-a k' (or 'Ctrl-a a k' if already running
+inside screen).
 
 If everything functions correctly, verify the VM can be stopped:
 
@@ -239,10 +250,12 @@ After this you may also want to reboot the host machine and confirm the VM is
 started on boot.
 
 
-6. Manage the repository state.
+6. Manage the repository state
+------------------------------
 
-While you can submit packages to the repository using bdep-publish(1), you can
-also add them manually. Also, packages can only be removed manually.
+While you can submit packages to the repository using bdep-publish(1), they
+can also be added them manually. Also, currently, packages can only be removed
+manually.
 
 The repository packages and metadata are stored in the ~brep/state/bpkg/pkg/
 directory. If you need to make any modifications in this directory, there are
@@ -262,17 +275,17 @@ Putting it all together, the steps could look like this:
 
 # systemctl stop vm-brep@brep
 # su - brep
-$ cd state/bpkg/pkg
+$ cd state/bpkg/pkg/1
 $ <make your changes here>
-$ rm 1/packages.manifest
+$ rm packages.manifest
 $ exit
 # systemctl start vm-brep@brep
 
 Note also that it's easy to break the repository with manual modifications.
 For example, you may add a package that has an unmet dependency or remove a
-package that still has some dependents. In this case, the repository web
-interface will be unavailable. In this case, you can login into the VM to
-investigate:
+package that still has some dependents. In this case, the brep service inside
+the VM will fail to start and the repository web interface will be
+unavailable. In this case, you can login into the VM to investigate:
 
 $ ~/bin/vm-login ~/brep-con.sock
 
@@ -280,7 +293,8 @@ $ ~/bin/vm-login ~/brep-con.sock
   # journalctl -u brep-startup
 
 
-7. Upgrade the VM.
+7. Upgrade the VM
+-----------------
 
 To upgrade to the new version of the VM, first download and unpack the new
 VM archive similar to Step 2:
@@ -300,8 +314,9 @@ the upgrade procedure is as follows:
 
 $ cd
 $ mkdir bak
-$ mv -t bak/ bin etc vm/brep.img vm-brep@.service README NEWS
+$ mv -t bak/ bin etc vm vm-brep@.service README NEWS
 $ mv -t ./ linux-debian-N-brep-X.Y.Z/*
+$ cp bak/vm/brep.conf vm/
 $ rm state/bpkg/pkg/1/packages.manifest
 
 # cp ~brep/vm-brep@.service /etc/systemd/system/
