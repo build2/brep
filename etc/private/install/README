@@ -13,7 +13,7 @@ The VM is prepared and tested using user brep:
 Note: different UID/GID can be used by passing the --brep-user option to the
 brep-install script.
 
-# sudo su - brep
+# su - brep
 $ mkdir -p bin vm state/bpkg
 
 Next copy the prepared VM image:
@@ -42,7 +42,7 @@ brep-install. The VM normally already has the following changes applied:
 
 Clone or copy the brep repository and create the directory structure:
 
-$ cp -r ../brep ./
+$ cp -r .../brep ./
 $ cp brep/etc/private/vm-* bin/
 $ cp -r brep/etc/private ./etc
 
