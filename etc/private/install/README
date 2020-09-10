@@ -1,0 +1,75 @@
+This directory contains scripts, configuration files, etc., that are used to
+prepare the virtual machine (VM) with a build2 repository web interface (brep)
+described in ../README. This document provides terse notes on how this VM is
+prepared.
+
+The VM is prepared and tested using user brep:
+
+# groupadd --gid 63700 brep
+# useradd --uid 63700 --gid 63700 --create-home brep
+# usermod --lock brep
+# usermod -G kvm brep
+
+Note: different UID/GID can be used by passing the --brep-user option to the
+brep-install script.
+
+# sudo su - brep
+$ mkdir -p bin vm state/bpkg
+
+Next copy the prepared VM image:
+
+$ cp .../linux_debian_10.img vm/brep.img
+
+The brep-install script assumes a Debian-based VM distribution. Other
+distributions can probably be made to work but will require changes to
+brep-install. The VM normally already has the following changes applied:
+
+  # apt-get install acpid # For QEMU system_powerdown to work.
+  # systemctl enable acpid
+
+  # systemctl enable serial-getty@ttyS0.service
+  # systemctl start serial-getty@ttyS0.service
+
+  # nano /etc/default/grub
+  # # GRUB_CMDLINE_LINUX_DEFAULT="console=ttyS0"
+  # # GRUB_TERMINAL="serial console"
+  # update-grub
+
+  # echo localhost >/etc/hostname
+  # nano /etc/dhcp/dhclient.conf
+  # # Comment out `send host-name ...`.
+  # # Add `send dhcp-client-identifier = hardware;`
+
+Clone or copy the brep repository and create the directory structure:
+
+$ cp -r ../brep ./
+$ cp brep/etc/private/vm-* bin/
+$ cp -r brep/etc/private ./etc
+
+Download the build2 toolchain installation script:
+
+$ curl -sSfO https://download.build2.org/X.Y.Z/build2-install-X.Y.Z.sh
+$ # Verify the checksum.
+$ mv build2-install-*.sh etc/install/
+
+Start the VM (give as much CPU/RAM as available to speed up compilation):
+
+$ ~/bin/vm-start --install etc/install/ --cpu 8 --ram 8G \
+  --tap tap0 --mac de:ad:be:ef:de:ad vm/brep.img
+
+Login into the VM as root, then perform the following steps:
+
+  # mount -t 9p -o trans=virtio,version=9p2000.L install /mnt
+  # /mnt/brep-install --mount
+
+After the installation is complete, test the result as described in ../README.
+
+Note: to create a "clean" VM for distribution, pass the --clean option to
+brep-install, shut the VM down immediately after installation, save the clean
+VM image, then boot a copy for testing.
+
+Generate the systemd service template file:
+
+~/etc/install/vm-gen-service --bin bin --etc vm --var vm --run .
+
+Test starting the VM as a systemd service as described in ../README.
