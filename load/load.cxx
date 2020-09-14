@@ -4,6 +4,8 @@
 #include <signal.h> // signal()
 
 #include <cerrno>
+#include <chrono>
+#include <thread>    // this_thread::sleep_for()
 #include <cstring>   // strncmp()
 #include <iostream>
 #include <algorithm> // find(), find_if()
@@ -36,6 +38,7 @@ using std::cout;
 using std::cerr;
 using std::endl;
 
+using namespace std::this_thread;
 using namespace odb::core;
 using namespace butl;
 using namespace bpkg;
@@ -52,6 +55,17 @@ static const char* help_info (
 
 static const path packages     ("packages.manifest");
 static const path repositories ("repositories.manifest");
+
+// Retry executing bpkg on recoverable errors for about 10 seconds.
+//
+// Should we just exit with some "bpkg recoverable" code instead and leave it
+// to the caller to perform retries? Feels like it's better to handle such
+// errors ourselves rather than to complicate every caller. Note that having
+// some frequently updated prerequisite repository can make these errors quite
+// probable, even if the internal repositories are rarely updated.
+//
+static const size_t               bpkg_retries (10);
+static const std::chrono::seconds bpkg_retry_timeout (1);
 
 struct internal_repository
 {
@@ -877,20 +891,39 @@ load_repositories (const options& lo,
         //
         args.push_back ("--trust-no");
 
-        process p (repository_info (lo, pr->location.string (), args));
-
-        try
+        // Retry bpkg-rep-info on recoverable errors, for a while.
+        //
+        for (size_t i (0);; ++i)
         {
-          // @@ Note that bpkg-rep-info can fail with the 'repository manifest
-          //    file checksum mismatch' error if the repository was changed
-          //    during the fetch. We will need to retry when bpkg is fixed to
-          //    exit with some recognizable code on this failure.
-          //
-          if (!p.wait ())
+          if (i != 0)
           {
+            // Let's follow up the bpkg's diagnostics with the number of
+            // retries left.
+            //
+            cerr << bpkg_retries - i + 1 << " retries left" << endl;
+            sleep_for (bpkg_retry_timeout);
+          }
+
+          process p (repository_info (lo, pr->location.string (), args));
+
+          try
+          {
+            // Bail out from the retry loop on success.
+            //
+            if (p.wait ())
+              break;
+
             // Assume the child issued diagnostics if terminated normally.
             //
-            if (!p.exit->normal ())
+            if (p.exit->normal ())
+            {
+              // Retry the manifests fetch on a recoverable error, unless the
+              // retries limit is reached.
+              //
+              if (p.exit->code () == 2 && i != bpkg_retries)
+                continue;
+            }
+            else
               cerr << "process " << lo.bpkg () << " " << *p.exit << endl;
 
             cerr << "error: unable to fetch manifests for "
@@ -900,13 +933,13 @@ load_repositories (const options& lo,
 
             throw failed ();
           }
-        }
-        catch (const process_error& e)
-        {
-          cerr << "error: unable to fetch manifests for "
-               << pr->canonical_name << ": " << e << endl;
+          catch (const process_error& e)
+          {
+            cerr << "error: unable to fetch manifests for "
+                 << pr->canonical_name << ": " << e << endl;
 
-          throw failed ();
+            throw failed ();
+          }
         }
 
         // Note that this is a non-pkg repository cache and so we create the
@@ -1186,108 +1219,130 @@ certificate_info (const options& lo,
                   const repository_location& rl,
                   const optional<string>& fp)
 {
-  try
+  cstrings args {
+    "--cert-fingerprint",
+    "--cert-name",
+    "--cert-organization",
+    "--cert-email",
+    "-q"};                 // Don't print info messages.
+
+  const char* trust ("--trust-no");
+
+  if (fp)
   {
-    cstrings args {
-      "--cert-fingerprint",
-      "--cert-name",
-      "--cert-organization",
-      "--cert-email",
-      "-q"};                 // Don't print info messages.
-
-    const char* trust ("--trust-no");
-
-    if (fp)
+    if (!fp->empty ())
     {
-      if (!fp->empty ())
-      {
-        args.push_back ("--trust");
-        args.push_back (fp->c_str ());
-      }
-      else
-        trust = "--trust-yes";
-
-      if (!rl.remote ())
-      {
-        args.push_back ("--auth");
-        args.push_back ("all");
-      }
+      args.push_back ("--trust");
+      args.push_back (fp->c_str ());
     }
+    else
+      trust = "--trust-yes";
 
-    args.push_back (trust);
+    if (!rl.remote ())
+    {
+      args.push_back ("--auth");
+      args.push_back ("all");
+    }
+  }
 
-    process pr (repository_info (lo, rl.string (), args));
+  args.push_back (trust);
+
+  // Retry bpkg-rep-info on recoverable errors, for a while.
+  //
+  for (size_t i (0);; ++i)
+  {
+    if (i != 0)
+    {
+      // Let's follow up the bpkg's diagnostics with the number of retries
+      // left.
+      //
+      cerr << bpkg_retries - i + 1 << " retries left" << endl;
+      sleep_for (bpkg_retry_timeout);
+    }
 
     try
     {
-      ifdstream is (
-        move (pr.in_ofd),
-        ifdstream::failbit | ifdstream::badbit | ifdstream::eofbit);
+      process pr (repository_info (lo, rl.string (), args));
 
-      optional<certificate> cert;
-
-      string fingerprint;
-      getline (is, fingerprint);
-
-      if (!fingerprint.empty ())
+      try
       {
-        cert = certificate ();
-        cert->fingerprint = move (fingerprint);
-        getline (is, cert->name);
-        getline (is, cert->organization);
-        getline (is, cert->email);
+        ifdstream is (
+          move (pr.in_ofd),
+          ifdstream::failbit | ifdstream::badbit | ifdstream::eofbit);
+
+        optional<certificate> cert;
+
+        string fingerprint;
+        getline (is, fingerprint);
+
+        if (!fingerprint.empty ())
+        {
+          cert = certificate ();
+          cert->fingerprint = move (fingerprint);
+          getline (is, cert->name);
+          getline (is, cert->organization);
+          getline (is, cert->email);
+        }
+        else
+        {
+          // Read out empty lines.
+          //
+          string s;
+          getline (is, s); // Name.
+          getline (is, s); // Organization.
+          getline (is, s); // Email.
+        }
+
+        // Check that EOF is successfully reached.
+        //
+        is.exceptions (ifdstream::failbit | ifdstream::badbit);
+        if (is.peek () != ifdstream::traits_type::eof ())
+          throw io_error ("");
+
+        is.close ();
+
+        if (pr.wait ())
+          return cert;
+
+        // Fall through.
+        //
+      }
+      catch (const io_error&)
+      {
+        // Child exit status doesn't matter. Just wait for the process
+        // completion and fall through.
+        //
+        pr.wait ();
+      }
+
+      // Assume the child issued diagnostics if terminated normally.
+      //
+      if (pr.exit->normal ())
+      {
+        // Retry the certificate fetch on a recoverable error, unless the
+        // retries limit is reached.
+        //
+        if (pr.exit->code () == 2 && i != bpkg_retries)
+          continue;
       }
       else
-      {
-        // Read out empty lines.
-        //
-        string s;
-        getline (is, s); // Name.
-        getline (is, s); // Organization.
-        getline (is, s); // Email.
-      }
+        cerr << "process " << lo.bpkg () << " " << *pr.exit << endl;
 
-      // Check that EOF is successfully reached.
-      //
-      is.exceptions (ifdstream::failbit | ifdstream::badbit);
-      if (is.peek () != ifdstream::traits_type::eof ())
-        throw io_error ("");
-
-      is.close ();
-
-      if (pr.wait ())
-        return cert;
+      cerr << "error: unable to fetch certificate information for "
+           << rl.canonical_name () << endl;
 
       // Fall through.
-      //
     }
-    catch (const io_error&)
+    catch (const process_error& e)
     {
-      // Child exit status doesn't matter. Just wait for the process
-      // completion and fall through.
-      //
-      pr.wait ();
+      cerr << "error: unable to fetch certificate information for "
+           << rl.canonical_name () << ": " << e << endl;
+
+      // Fall through.
     }
 
-    // Assume the child issued diagnostics if terminated normally.
-    //
-    if (!pr.exit->normal ())
-      cerr << "process " << lo.bpkg () << " " << *pr.exit << endl;
-
-    cerr << "error: unable to fetch certificate information for "
-         << rl.canonical_name () << endl;
-
-    // Fall through.
+    throw failed ();
   }
-  catch (const process_error& e)
-  {
-    cerr << "error: unable to fetch certificate information for "
-         << rl.canonical_name () << ": " << e << endl;
-
-    // Fall through.
-  }
-
-  throw failed ();
 }
 
 int
