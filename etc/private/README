@@ -234,8 +234,9 @@ console):
 
 $ ~/bin/vm-login ~/brep-con.sock
 
-To close the login, press 'Ctrl-a k' (or 'Ctrl-a a k' if already running
-inside screen).
+Note that the screen may be blank (due to this being a serial console). In
+this case, press Enter to see the login. To close the login, press 'Ctrl-a k'
+(or 'Ctrl-a a k' if already running inside screen).
 
 If everything functions correctly, verify the VM can be stopped:
 
