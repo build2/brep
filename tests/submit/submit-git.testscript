@@ -94,10 +94,10 @@ pkg_ctl="$prj_ctl/hello.git"
 : success
 :
 {
-  : ref-unknown-tgt-aquire-prj-pkg
+  : ref-unknown-tgt-acquire-prj-pkg
   :
   : Test that on the first package submission the project and package names
-  : ownership is successfully aquired. Authentication is enabled on both the
+  : ownership is successfully acquired. Authentication is enabled on both the
   : reference and target repos.
   :
   : Note that here we also test that --commiter-* options are picked up
@@ -173,7 +173,7 @@ pkg_ctl="$prj_ctl/hello.git"
   : ref-disabled-tgt-aquire-prj-pkg
   :
   : Test that on the first package submit the project and package names
-  : ownership is successfully aquired. Authentication is disabled for the
+  : ownership is successfully acquired. Authentication is disabled for the
   : reference repo.
   :
   {
@@ -203,10 +203,10 @@ pkg_ctl="$prj_ctl/hello.git"
       EOO
   }
 
-  : ref-absent-tgt-aquire-prj-pkg
+  : ref-absent-tgt-acquire-prj-pkg
   :
   : Test that on the first package submit the project and package names
-  : ownership is successfully aquired. Reference repo is absent.
+  : ownership is successfully acquired. Reference repo is absent.
   :
   : Note that here we also pass the --result-url option.
   :
@@ -434,6 +434,45 @@ pkg_ctl="$prj_ctl/hello.git"
       message: package submission is queued: libhello/0.1.0
       reference: $checksum
       EOO
+  }
+
+  : ref-absent-tgt-pkg-rev
+  :
+  : Test that the package revision is removed.
+  :
+  {
+    $clone_root_data;
+
+    $clone_root_tgt;
+    $g clone tgt.git &tgt/***;
+
+    cat <<EOI >=tgt/submit.config.bash;
+      sections['*']=1/alpha
+      EOI
+
+    # Add the libhello/0.1.0+1 package revision to the target repository.
+    #
+    tar -xf $data_dir/libhello-0.1.0.tar.gz &libhello-0.1.0/***;
+    sed -i -e 's/(version: 0.1.0)/\1+1/' libhello-0.1.0/manifest;
+    mv libhello-0.1.0 libhello-0.1.0+1;
+    mkdir -p tgt/1/alpha/hello/;
+    tar cfz tgt/1/alpha/hello/libhello-0.1.0+1.tar.gz libhello-0.1.0+1;
+    $g -C tgt add 1/;
+
+    $g -C tgt commit -am 'Add config and archive';
+    $g -C tgt push;
+
+    $* "file:///$~/tgt.git" $data_dir >>"EOO" &tgt/1/alpha/hello/libhello-0.1.0.tar.gz;
+      : 1
+      status: 200
+      message: package submission is queued: libhello/0.1.0
+      reference: $checksum
+      EOO
+
+    $g -C tgt pull;
+
+    test -f tgt/1/alpha/hello/libhello-0.1.0+1.tar.gz == 1;
+    test -f tgt/1/alpha/hello/libhello-0.1.0.tar.gz
   }
 
   : section-fallback

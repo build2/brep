@@ -639,28 +639,11 @@ for i in {1..11}; do
     exit_with_manifest 400 "unrecognized section '$section'"
   fi
 
-  # Strips the version revision part, if present.
-  #
-  v="$(sed -n -re 's%^(\+?[^+]+)(\+[0-9]+)?$%\1%p' <<<"$version")"
+  IFS=$'\n' eval \
+  'arcs=($(run pkg_find_archives "$name" "$version*" "$tgt_dir/$s"))'
 
-  # Make sure the section directory exists before we run find in it.
-  #
-  d="$tgt_dir/$s/$project"
-  run mkdir -p "$d" # Create all the parent directories as well.
-
-  # Go through the potentially matching archives (for example, for
-  # foo-1.2.3+2: foo-1.2.3.tar.gz, foo-1.2.3+1.tar.gz, foo-1.2.30.tar.gz, etc)
-  # and remove those that match exactly.
-  #
-  # Change CWD to the section directory to make sure that the found archive
-  # paths don't contain spaces.
-  #
-  fs=($(run cd "$tgt_dir/$s" && run find -name "$name-$v*"))
-
-  for f in "${fs[@]}"; do
-    if [[ "$f" =~ ^\./[^/]+/"$name-$v"(\+[0-9]+)?\.[^/]+$ ]]; then
-      run git -C "$tgt_dir" rm $gqo "$s/$f" >&2
-    fi
+  for f in "${arcs[@]}"; do
+    run git -C "$tgt_dir" rm $gqo "${f#$tgt_dir/}" >&2
   done
 
   # Finally, add the package archive to the target repository.
@@ -669,8 +652,10 @@ for i in {1..11}; do
   # Make sure the project directory exists before we copy the archive into it.
   # Note that it was removed by git-rm if it became empty.
   #
+  d="$tgt_dir/$s/$project"
+  run mkdir -p "$d"        # Create all the parent directories as well.
+
   a="$d/$archive"
-  run mkdir -p "$d"                # Create all the parent directories as well.
   run cp "$data_dir/$archive" "$a"
 
   git_add "$tgt_dir" "${a#$tgt_dir/}"

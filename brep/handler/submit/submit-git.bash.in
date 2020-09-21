@@ -77,15 +77,20 @@ function check_package_duplicate () # <name> <version> <repo-dir>
   #
   local s
   for s in "${!sections[@]}"; do
-    local d="$rep/${sections[$s]}"
+    local p
+    IFS=$'\n' eval \
+    'p=($(run pkg_find_archive "$nam-$ver.*" "$rep/${sections[$s]}"))'
 
-    if [ -d "$d" ]; then
-      local f
-      f="$(run find "$d" -name "$nam-$ver.*")"
+    if [ "${#p[@]}" -ne 0 ]; then
+      local n="${p[0]}"
+      local v="${p[1]}"
 
-      if [ -n "$f" ]; then
-        trace "found: $f"
+      trace "found: $n/$v in ${p[3]}"
+
+      if [ "$n" == "$nam" ]; then
         exit_with_manifest 422 "duplicate submission"
+      else
+        exit_with_manifest 422 "submission conflicts with $n/$v"
       fi
     fi
   done

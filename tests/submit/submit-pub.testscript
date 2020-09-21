@@ -76,7 +76,7 @@ clone_root_rep = cp --no-cleanup -r $root_rep ./ &pkg-1/*** &?pkg.lock
 
   : for-real
   :
-  : Here we create the (fake) package revision which is expected to be removed
+  : Here we also create the package revision which is expected to be removed
   : by the handler.
   :
   {
@@ -84,8 +84,13 @@ clone_root_rep = cp --no-cleanup -r $root_rep ./ &pkg-1/*** &?pkg.lock
     $clone_root_rep;
     ln -s pkg-1 pkg;
 
-    mkdir --no-cleanup pkg-1/1/prj;
-    touch --no-cleanup pkg-1/1/prj/libhello-0.1.0+1.tar.gz;
+    # Add the libhello/0.1.0+1 package revision to the repository.
+    #
+    mkdir --no-cleanup pkg-1/1/hello;
+    tar -xf $~/$data_dir/libhello-0.1.0.tar.gz &libhello-0.1.0/***;
+    sed -i -e 's/(version: 0.1.0)/\1+1/' libhello-0.1.0/manifest;
+    mv libhello-0.1.0 libhello-0.1.0+1;
+    tar cfz pkg-1/1/hello/libhello-0.1.0+1.tar.gz libhello-0.1.0+1;
 
     $* $~/pkg $~/$data_dir &!pkg-1/*** &pkg-*/*** >>"EOO";
       : 1
@@ -94,16 +99,21 @@ clone_root_rep = cp --no-cleanup -r $root_rep ./ &pkg-1/*** &?pkg.lock
       reference: $checksum
       EOO
 
+    test -f pkg/1/hello/libhello-0.1.0+1.tar.gz == 1;
+    test -f pkg/1/hello/libhello-0.1.0.tar.gz;
+
     # While at it, test the duplicate submission.
     #
     $clone_root_data_clean;
 
-    $* $~/pkg $~/$data_dir >>"EOO"
+    $* $~/pkg $~/$data_dir >>"EOO";
       : 1
       status: 422
       message: duplicate submission
       reference: $checksum
       EOO
+
+    test -f pkg/1/hello/libhello-0.1.0.tar.gz
   }
 
   : result-url

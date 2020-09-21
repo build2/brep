@@ -19,6 +19,10 @@ location: ../libbutl.bash.git##HEAD
 
 :
 role: prerequisite
+location: ../bpkg-rep.git##HEAD
+
+:
+role: prerequisite
 location: https://git.build2.org/packaging/libapr/libapr1.git##HEAD
 
 :

@@ -294,8 +294,22 @@ trap exit_trap EXIT
 
 # Check for the package duplicate (in all projects).
 #
-if [ -n "$(run find "$repo_old/1" -name "$archive")" ]; then
-  exit_with_manifest 422 "duplicate submission"
+# Use <name>-<version>.* without .tar.gz in case we want to support more
+# archive types later.
+#
+IFS=$'\n' eval 'p=($(run pkg_find_archive "$name-$version.*" "$repo_old/1"))'
+
+if [ "${#p[@]}" -ne 0 ]; then
+  n="${p[0]}"
+  v="${p[1]}"
+
+  trace "found: $n/$v in ${p[3]}"
+
+  if [ "$n" == "$name" ]; then
+    exit_with_manifest 422 "duplicate submission"
+  else
+    exit_with_manifest 422 "submission conflicts with $n/$v"
+  fi
 fi
 
 # Copy the current repository using hardlinks.
@@ -310,25 +324,14 @@ fi
 run rsync -rtO --exclude 'packages.manifest' --link-dest="$repo_old" \
     "$repo_old/" "$repo_new"
 
-# Remove the package version revisions that may exist in the repository.
+# Remove the package version revision archives that may exist in the
+# repository.
 #
-# Strips the version revision part, if present.
-#
-v="$(sed -n -re 's%^(\+?[^+]+)(\+[0-9]+)?$%\1%p' <<<"$version")"
+IFS=$'\n' eval \
+'arcs=($(run pkg_find_archives "$name" "$version*" "$repo_new/1"))'
 
-# Go through the potentially matching archives (for example, for foo-1.2.3+2:
-# foo-1.2.3.tar.gz, foo-1.2.3+1.tar.gz, foo-1.2.30.tar.gz, etc) and remove
-# those that match exactly.
-#
-# Change CWD to the section directory to make sure that the found archive
-# paths don't contain spaces.
-#
-fs=($(run cd "$repo_new/1" && run find -name "$name-$v*"))
-
-for f in "${fs[@]}"; do
-  if [[ "$f" =~ ^\./[^/]+/"$name-$v"(\+[0-9]+)?\.[^/]+$ ]]; then
-    run rm "$repo_new/1/$f" >&2
-  fi
+for f in "${arcs[@]}"; do
+  run rm "$f"
 done
 
 # Copy the archive rather than moving it since we may need it for

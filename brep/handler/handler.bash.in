@@ -12,6 +12,9 @@ fi
 @import libbutl/manifest-parser@
 @import libbutl/manifest-serializer@
 
+bpkg_rep_bpkg=bpkg
+@import bpkg-rep/package-archive@
+
 # Diagnostics.
 #
 # We expect the user to set the verbose variable either to true or empty
@@ -148,3 +151,7 @@ function manifest_serialize () # <name> <value>
 #  trace "$1: $2"
   printf "%s:%s\0" "$1" "$2" >&"$manifest_serializer_ifd"
 }
+
+function pkg_verify_archive () { bpkg_rep_pkg_verify_archive "$@"; }
+function pkg_find_archives ()  { bpkg_rep_pkg_find_archives "$@"; }
+function pkg_find_archive ()   { bpkg_rep_pkg_find_archive "$@"; }
