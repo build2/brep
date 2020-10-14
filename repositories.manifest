@@ -3,44 +3,9 @@ summary: build2 package repository web interface repository
 
 :
 role: prerequisite
-location: ../libbutl.git##HEAD
+location: https://git.build2.org/bpkg-util.git#ci
 
 :
 role: prerequisite
-location: ../libbpkg.git##HEAD
-
-:
-role: prerequisite
-location: ../libbbot.git##HEAD
-
-:
-role: prerequisite
-location: ../libbutl.bash.git##HEAD
-
-:
-role: prerequisite
-location: ../bpkg-util.git##HEAD
-
-:
-role: prerequisite
-location: https://git.build2.org/packaging/libapr/libapr1.git##HEAD
-
-:
-role: prerequisite
-location: https://git.build2.org/packaging/libapreq/libapreq2.git##HEAD
-
-:
-role: prerequisite
-location: https://git.build2.org/packaging/cmark-gfm/cmark-gfm.git##HEAD
-
-:
-role: prerequisite
-location: https://git.codesynthesis.com/odb/libodb.git##HEAD
-
-:
-role: prerequisite
-location: https://git.codesynthesis.com/odb/libodb-pgsql.git##HEAD
-
-:
-role: prerequisite
-location: https://git.codesynthesis.com/libstudxml/libstudxml.git##HEAD
+location: https://stage.build2.org/1
+trust: 37:CE:2C:A5:1D:CF:93:81:D7:07:46:AD:66:B3:C3:90:83:B8:96:9E:34:F0:E7:B3:A2:B0:6C:EF:66:A4:BE:65
