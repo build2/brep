@@ -19,7 +19,7 @@ location: ../libbutl.bash.git##HEAD
 
 :
 role: prerequisite
-location: ../bpkg-rep.git##HEAD
+location: ../bpkg-util.git##HEAD
 
 :
 role: prerequisite

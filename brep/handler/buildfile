@@ -3,7 +3,7 @@
 
 import mods  = libbutl.bash%bash{manifest-parser}
 import mods += libbutl.bash%bash{manifest-serializer}
-import mods += bpkg-rep%bash{package-archive}
+import mods += bpkg-util%bash{package-archive}
 
 ./: bash{handler} submit/ ci/
 
