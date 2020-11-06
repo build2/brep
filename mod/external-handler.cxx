@@ -95,6 +95,8 @@ namespace brep
                                   data_dir));
         pipe.out.close ();
 
+        // Kill the process and wait for its completion.
+        //
         auto kill = [&pr, &warn, &handler, &ref] ()
         {
           // We may still end up well (see below), thus this is a warning.
@@ -103,6 +105,7 @@ namespace brep
                << " execution timeout expired";
 
           pr.kill ();
+          pr.wait ();
         };
 
         try
