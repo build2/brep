@@ -82,10 +82,10 @@ function check_package_duplicate () # <name> <version> <repo-dir>
     'p=($(run pkg_find_archive "$nam-$ver.*" "$rep/${sections[$s]}"))'
 
     if [ "${#p[@]}" -ne 0 ]; then
-      local n="${p[0]}"
-      local v="${p[1]}"
+      local n="${p[1]}"
+      local v="${p[2]}"
 
-      trace "found: $n/$v in ${p[3]}"
+      trace "found: $n/$v in ${p[0]}"
 
       if [ "$n" == "$nam" ]; then
         exit_with_manifest 422 "duplicate submission"

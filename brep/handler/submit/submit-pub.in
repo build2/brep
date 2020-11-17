@@ -300,10 +300,10 @@ trap exit_trap EXIT
 IFS=$'\n' eval 'p=($(run pkg_find_archive "$name-$version.*" "$repo_old/1"))'
 
 if [ "${#p[@]}" -ne 0 ]; then
-  n="${p[0]}"
-  v="${p[1]}"
+  n="${p[1]}"
+  v="${p[2]}"
 
-  trace "found: $n/$v in ${p[3]}"
+  trace "found: $n/$v in ${p[0]}"
 
   if [ "$n" == "$name" ]; then
     exit_with_manifest 422 "duplicate submission"
