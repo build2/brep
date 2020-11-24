@@ -491,27 +491,12 @@ handle (request& rq, response&)
     }
   };
 
-  // Don't send the build notification email if the empty package build email
-  // is specified.
+  // Send the build notification email if a non-empty package build email is
+  // specified.
   //
   optional<email>& build_email (pkg->build_email);
-  if (build_notify && (!build_email || !build_email->empty ()))
-  {
-    // If none of the package build-* addresses is specified, then the build
-    // email address is assumed to be the same as the package email address,
-    // if specified, otherwise as the project email address, if specified,
-    // otherwise the notification email is not sent.
-    //
-    optional<email> to;
-
-    if (build_email)
-      to = move (build_email);
-    else if (!pkg->build_warning_email && !pkg->build_error_email)
-      to = move (pkg->package_email ? pkg->package_email : pkg->email);
-
-    if (to)
-      send_email (*to);
-  }
+  if (build_notify && build_email && !build_email->empty ())
+    send_email (*pkg->build_email);
 
   assert (bld->status);
 
