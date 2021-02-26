@@ -78,8 +78,7 @@ function check_package_duplicate () # <name> <version> <repo-dir>
   local s
   for s in "${!sections[@]}"; do
     local p
-    IFS=$'\n' eval \
-    'p=($(run pkg_find_archive "$nam-$ver.*" "$rep/${sections[$s]}"))'
+    run pkg_find_archive "$nam-$ver.*" "$rep/${sections[$s]}" | readarray -t p
 
     if [ "${#p[@]}" -ne 0 ]; then
       local n="${p[1]}"

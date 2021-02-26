@@ -186,8 +186,10 @@ git_timeout=10
 ref_lock_timeout=30
 
 trap "{ exit 1; }" ERR
-set -o errtrace # Trap ERR in functions.
-set -o pipefail # Return the rightmost non-zero exit status in a pipeline.
+set -o errtrace     # Trap in functions and subshells.
+set -o pipefail     # Fail if any pipeline command fails.
+shopt -s lastpipe   # Execute last pipeline command in the current shell.
+shopt -s nullglob   # Expand no-match globs to nothing rather than themselves.
 
 @import brep/handler/handler@
 @import brep/handler/submit/submit@
@@ -639,8 +641,7 @@ for i in {1..11}; do
     exit_with_manifest 400 "unrecognized section '$section'"
   fi
 
-  IFS=$'\n' eval \
-  'arcs=($(run pkg_find_archives "$name" "$version*" "$tgt_dir/$s"))'
+  run pkg_find_archives "$name" "$version*" "$tgt_dir/$s" | readarray -t arcs
 
   for f in "${arcs[@]}"; do
     run git -C "$tgt_dir" rm $gqo "${f#$tgt_dir/}" >&2

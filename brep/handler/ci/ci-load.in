@@ -213,28 +213,25 @@ while [ "$more" ]; do
 
     manifest_names+=("$n")
     manifest_values+=("$v")
-
   done
 
   # Reduce the first manifest case.
   #
-  if [ ${#manifest_names[@]} -eq 0 ]; then
+  if [[ "${#manifest_names[@]}" -eq 0 ]]; then
     continue
   fi
 
   # Add or filter out the manifest, if present.
   #
-  if [ ${#packages[@]} -ne 0 ]; then
-
-    if [[ -v packages["$name"] ]]; then
+  if [[ "${#packages[@]}" -ne 0 ]]; then
+    if [[ -v "packages[$name]" ]]; then
       packages["$name"]=
       packages["$name/$version"]= # Clear it either, as may also be present.
-    elif [[ -v packages["$name/$version"] ]]; then
+    elif [[ -v "packages[$name/$version]" ]]; then
       packages["$name/$version"]=
     else
       continue # Skip.
     fi
-
   fi
 
   packages_manifest_names+=("${manifest_names[@]}")

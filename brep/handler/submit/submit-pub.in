@@ -85,7 +85,10 @@ verbose= #true
 rep_lock_timeout=60
 
 trap "{ exit 1; }" ERR
-set -o errtrace # Trap ERR in functions.
+set -o errtrace     # Trap in functions and subshells.
+set -o pipefail     # Fail if any pipeline command fails.
+shopt -s lastpipe   # Execute last pipeline command in the current shell.
+shopt -s nullglob   # Expand no-match globs to nothing rather than themselves.
 
 @import brep/handler/handler@
 @import brep/handler/submit/submit@
@@ -297,7 +300,7 @@ trap exit_trap EXIT
 # Use <name>-<version>.* without .tar.gz in case we want to support more
 # archive types later.
 #
-IFS=$'\n' eval 'p=($(run pkg_find_archive "$name-$version.*" "$repo_old/1"))'
+run pkg_find_archive "$name-$version.*" "$repo_old/1" | readarray -t p
 
 if [ "${#p[@]}" -ne 0 ]; then
   n="${p[1]}"
@@ -327,8 +330,7 @@ run rsync -rtO --exclude 'packages.manifest' --link-dest="$repo_old" \
 # Remove the package version revision archives that may exist in the
 # repository.
 #
-IFS=$'\n' eval \
-'arcs=($(run pkg_find_archives "$name" "$version*" "$repo_new/1"))'
+run pkg_find_archives "$name" "$version*" "$repo_new/1" | readarray -t arcs
 
 for f in "${arcs[@]}"; do
   run rm "$f"
