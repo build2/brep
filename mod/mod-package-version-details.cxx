@@ -472,7 +472,7 @@ handle (request& rq, response& rs)
     }
   }
 
-  bool archived (package_db_->load<brep::tenant> (tenant)->archived);
+  shared_ptr<brep::tenant> tn (package_db_->load<brep::tenant> (tenant));
 
   t.commit ();
 
@@ -504,7 +504,7 @@ handle (request& rq, response& rs)
     //
     vector<pair<string, version>> toolchains;
 
-    if (!archived)
+    if (!tn->archived)
     {
       using query = query<toolchain>;
 
@@ -568,8 +568,12 @@ handle (request& rq, response& rs)
                          b.toolchain_version.string ())
         <<     TR_VALUE ("config",
                          b.configuration + " / " + b.target.string ())
-        <<     TR_VALUE ("timestamp", ts)
-        <<     TR_BUILD_RESULT (b, host, root)
+        <<     TR_VALUE ("timestamp", ts);
+
+      if (b.interactive) // Note: can only be present for the building state.
+        s <<   TR_VALUE ("login", *b.interactive);
+
+      s <<     TR_BUILD_RESULT (b, host, root)
         <<   ~TBODY
         << ~TABLE;
 
@@ -606,22 +610,27 @@ handle (request& rq, response& rs)
         << ~TABLE;
     }
 
-    // Print the package build exclusions that belong to the 'default' class.
+    // Print the package build exclusions that belong to the 'default' class,
+    // unless the package is built interactively (normally for a single
+    // configuration).
     //
-    for (const auto& c: *build_conf_)
+    if (!tn->interactive)
     {
-      string reason;
-      if (belongs (c, "default") && exclude (c, &reason))
+      for (const auto& c: *build_conf_)
       {
-        s << TABLE(CLASS="proplist build")
-          <<   TBODY
-          <<     TR_VALUE ("config", c.name + " / " + c.target.string ())
-          <<     TR_VALUE ("result",
-                           !reason.empty ()
-                           ? "excluded (" + reason + ')'
-                           : "excluded")
-          <<   ~TBODY
-          << ~TABLE;
+        string reason;
+        if (belongs (c, "default") && exclude (c, &reason))
+        {
+          s << TABLE(CLASS="proplist build")
+            <<   TBODY
+            <<     TR_VALUE ("config", c.name + " / " + c.target.string ())
+            <<     TR_VALUE ("result",
+                             !reason.empty ()
+                             ? "excluded (" + reason + ')'
+                             : "excluded")
+            <<   ~TBODY
+            << ~TABLE;
+        }
       }
     }
 

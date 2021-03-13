@@ -49,8 +49,8 @@ init (scanner& s)
     options_->root (dir_path ("/"));
 
   // Check that the database 'package' schema matches the current one. It's
-  // enough to perform the check in just a single module implementation (and we
-  // don't do in the dispatcher because it doesn't use the database).
+  // enough to perform the check in just a single module implementation (and
+  // we don't do in the dispatcher because it doesn't use the database).
   //
   // Note that the failure can be reported by each web server worker process.
   // While it could be tempting to move the check to the
@@ -137,7 +137,7 @@ handle (request& rq, response& rs)
     <<     DIV(ID="content");
 
   // If the tenant is empty then we are in the global view and will display
-  // packages from all the tenants.
+  // packages from all the public tenants.
   //
   optional<string> tn;
   if (!tenant.empty ())

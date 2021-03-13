@@ -40,8 +40,10 @@ namespace brep
   // tenant
   //
   tenant::
-  tenant (string i)
+  tenant (string i, bool p, optional<string> r)
       : id (move (i)),
+        private_ (p),
+        interactive (move (r)),
         creation_timestamp (timestamp::clock::now ())
   {
   }

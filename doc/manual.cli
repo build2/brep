@@ -306,6 +306,15 @@ Check violations that are explicitly mentioned above are always reported with
 the CI result manifest. Other errors (for example, internal server errors)
 might be reported with unformatted text, including HTML.
 
+If the CI request contains the \c{interactive} parameter, then the CI service
+provides the execution environment login information for each test and stops
+them at the specified breakpoint.
+
+Pre-defined breakpoint ids are \c{error} and \c{warning}. The breakpoint id is
+included into the CI request manifest and the CI service must at least handle
+\c{error} but may recognize additional ids (build phase/command identifiers,
+etc).
+
 If the CI request contains the \c{simulate} parameter, then the CI service
 simulates the specified outcome of the CI process without actually performing
 any externally visible actions (e.g., testing the package, publishing the
@@ -328,8 +337,9 @@ corresponding to the custom request parameters.
 id: <request-id>
 repository: <url>
 [package]: <name>[/<version>]
-timestamp: <date-time>
+[interactive]: <breakpoint>
 [simulate]: <outcome>
+timestamp: <date-time>
 [client-ip]: <string>
 [user-agent]: <string>
 \

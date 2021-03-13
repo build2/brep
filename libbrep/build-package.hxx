@@ -30,6 +30,8 @@ namespace brep
   public:
     string id;
 
+    bool private_;
+    optional<string> interactive;
     bool archived;
 
     // Database mapping.

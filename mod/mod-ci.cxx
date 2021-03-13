@@ -376,14 +376,17 @@ handle (request& rq, response& rs)
           s.next ("package", p);
       }
 
+      if (params.interactive_specified ())
+        s.next ("interactive", params.interactive ());
+
+      if (!simulate.empty ())
+        s.next ("simulate", simulate);
+
       s.next ("timestamp",
               butl::to_string (ts,
                                "%Y-%m-%dT%H:%M:%SZ",
                                false /* special */,
                                false /* local */));
-
-      if (!simulate.empty ())
-        s.next ("simulate", simulate);
 
       // Serialize the User-Agent HTTP header and the client IP address.
       //
@@ -412,10 +415,11 @@ handle (request& rq, response& rs)
       {
         const string& n (nv.name);
 
-        if (n != "repository" &&
-            n != "_"          &&
-            n != "package"    &&
-            n != "overrides"  &&
+        if (n != "repository"  &&
+            n != "_"           &&
+            n != "package"     &&
+            n != "overrides"   &&
+            n != "interactive" &&
             n != "simulate")
           s.next (n, nv.value ? *nv.value : "");
       }

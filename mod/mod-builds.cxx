@@ -133,6 +133,8 @@ match (const C qc, const string& pattern)
   return qc + "SIMILAR TO" + query<T>::_val (transform (pattern));
 }
 
+// If tenant is absent, then query builds from all the public tenants.
+//
 template <typename T>
 static inline query<T>
 build_query (const brep::cstrings* configs,
@@ -143,18 +145,18 @@ build_query (const brep::cstrings* configs,
   using namespace brep;
   using query = query<T>;
   using qb = typename query::build;
-
-  query q (configs != nullptr
-           ? qb::id.configuration.in_range (configs->begin (), configs->end ())
-           : query (true));
+  using qt = typename query::build_tenant;
 
   const auto& pid (qb::id.package);
 
-  if (tenant)
-    q = q && pid.tenant == *tenant;
+  query q (tenant ? pid.tenant == *tenant : !qt::private_);
 
   if (archived)
-    q = q && query::build_tenant::archived == *archived;
+    q = q && qt::archived == *archived;
+
+  if (configs != nullptr)
+    q = q && qb::id.configuration.in_range (configs->begin (),
+                                            configs->end ());
 
   // Note that there is no error reported if the filter parameters parsing
   // fails. Instead, it is considered that no package builds match such a
@@ -267,6 +269,8 @@ build_query (const brep::cstrings* configs,
   return q;
 }
 
+// If tenant is absent, then query packages from all the public tenants.
+//
 template <typename T>
 static inline query<T>
 package_query (const brep::params::builds& params,
@@ -276,14 +280,12 @@ package_query (const brep::params::builds& params,
   using namespace brep;
   using query = query<T>;
   using qp = typename query::build_package;
+  using qt = typename query::build_tenant;
 
-  query q (true);
-
-  if (tenant)
-    q = q && qp::id.tenant == *tenant;
+  query q (tenant ? qp::id.tenant == *tenant : !qt::private_);
 
   if (archived)
-    q = q && query::build_tenant::archived == *archived;
+    q = q && qt::archived == *archived;
 
   // Note that there is no error reported if the filter parameters parsing
   // fails. Instead, it is considered that no packages match such a query.
@@ -383,7 +385,7 @@ handle (request& rq, response& rs)
     <<     DIV(ID="content");
 
   // If the tenant is empty then we are in the global view and will display
-  // builds from all the tenants.
+  // builds from all the public tenants.
   //
   optional<string> tn;
   if (!tenant.empty ())
@@ -672,14 +674,18 @@ handle (request& rq, response& rs)
         <<     TR_VALUE ("config", b.configuration)
         <<     TR_VALUE ("machine", b.machine)
         <<     TR_VALUE ("target", b.target.string ())
-        <<     TR_VALUE ("timestamp", ts)
-        <<     TR_BUILD_RESULT (b, host, root);
+        <<     TR_VALUE ("timestamp", ts);
+
+      if (b.interactive) // Note: can only be present for the building state.
+        s <<   TR_VALUE ("login", *b.interactive);
+
+      s <<     TR_BUILD_RESULT (b, host, root);
 
       // In the global view mode add the tenant builds link. Note that the
       // global view (and the link) makes sense only in the multi-tenant mode.
       //
       if (!tn && !b.tenant.empty ())
-        s << TR_TENANT (tenant_name, "builds", root, b.tenant);
+        s <<   TR_TENANT (tenant_name, "builds", root, b.tenant);
 
       s <<   ~TBODY
         << ~TABLE;
@@ -809,15 +815,20 @@ handle (request& rq, response& rs)
 
         const auto& bid (bld_query::build::id);
 
-        bld_query bq (equal<package_build_count> (bid.package, id)  &&
-                      bid.configuration == bld_query::_ref (config) &&
+        bld_query bq (
+          equal<package_build_count> (bid.package, id)  &&
+          bid.configuration == bld_query::_ref (config) &&
 
           // Note that the query already constrains configurations via the
-          // configuration name and the tenant via the build package id.
+          // configuration name.
+          //
+          // Also note that while the query already constrains the tenant via
+          // the build package id, we still need to pass the tenant not to
+          // erroneously filter out the private tenants.
           //
           build_query<package_build_count> (nullptr /* configs */,
                                             bld_params,
-                                            nullopt /* tenant */,
+                                            tn,
                                             false /* archived */));
 
         prep_bld_query bld_prep_query (
@@ -925,11 +936,12 @@ handle (request& rq, response& rs)
     bld_query bq (
       equal<package_build> (bld_query::build::id.package, id) &&
 
-      // Note that the query already constrains the tenant via the build
-      // package id.
+      // Note that while the query already constrains the tenant via the build
+      // package id, we still need to pass the tenant not to erroneously
+      // filter out the private tenants.
       //
       build_query<package_build> (
-        &conf_names, bld_params, nullopt /* tenant */, false /* archived */));
+        &conf_names, bld_params, tn, false /* archived */));
 
     prep_bld_query bld_prep_query (
       conn->prepare_query<package_build> ("mod-builds-build-query", bq));

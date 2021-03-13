@@ -59,6 +59,7 @@ namespace brep
          version pvr,
          string cfg,
          string tnm, version tvr,
+         optional<string> inr,
          optional<string> afp, optional<string> ach,
          string mnm, string msm,
          butl::target_triplet trg)
@@ -72,6 +73,7 @@ namespace brep
         toolchain_name (id.toolchain_name),
         toolchain_version (move (tvr)),
         state (build_state::building),
+        interactive (move (inr)),
         timestamp (timestamp_type::clock::now ()),
         force (force_state::unforced),
         agent_fingerprint (move (afp)), agent_challenge (move (ach)),

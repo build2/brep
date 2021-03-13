@@ -4,12 +4,14 @@
 #include <mod/mod-build-task.hxx>
 
 #include <map>
+#include <regex>
 #include <chrono>
 
 #include <odb/database.hxx>
 #include <odb/transaction.hxx>
 #include <odb/schema-catalog.hxx>
 
+#include <libbutl/regex.mxx>
 #include <libbutl/sha256.mxx>
 #include <libbutl/utility.mxx>             // compare_c_string
 #include <libbutl/openssl.mxx>
@@ -195,11 +197,12 @@ handle (request& rq, response& rs)
   {
     vector<shared_ptr<build>> rebuilds;
 
-    // Create the task response manifest. The package must have the internal
-    // repository loaded.
+    // Create the task response manifest. Must be called inside the build db
+    // transaction.
     //
     auto task = [this] (shared_ptr<build>&& b,
                         shared_ptr<build_package>&& p,
+                        shared_ptr<build_tenant>&& t,
                         const config_machine& cm) -> task_response_manifest
     {
       uint64_t ts (
@@ -218,7 +221,11 @@ handle (request& rq, response& rs)
                          tenant_dir (options_->root (), b->tenant).string () +
                          "?build-result");
 
-      lazy_shared_ptr<build_repository> r (p->internal_repository);
+      assert (transaction::has_current ());
+
+      assert (p->internal ()); // The package is expected to be buildable.
+
+      lazy_shared_ptr<build_repository> r (p->internal_repository.load ());
 
       strings fps;
       if (r->certificate_fingerprint)
@@ -265,7 +272,8 @@ handle (request& rq, response& rs)
                           cm.config->target,
                           cm.config->environment,
                           cm.config->args,
-                          cm.config->warning_regexes);
+                          cm.config->warning_regexes,
+                          move (t->interactive));
 
       return task_response_manifest (move (session),
                                      move (b->agent_challenge),
@@ -430,12 +438,66 @@ handle (request& rq, response& rs)
         pkg_query::build_repository::id.canonical_name.in_range (rp.begin (),
                                                                  rp.end ());
 
+    // Transform (in-place) the interactive login information into the actual
+    // login command, if specified in the manifest and the transformation
+    // regexes are specified in the configuration.
+    //
+    if (tqm.interactive_login &&
+        options_->build_interactive_login_specified ())
+    {
+      optional<string> lc;
+      string l (tqm.agent + ' ' + *tqm.interactive_login);
+
+      // Use the first matching regex for the transformation.
+      //
+      for (const pair<regex, string>& rf: options_->build_interactive_login ())
+      {
+        pair<string, bool> r (regex_replace_match (l, rf.first, rf.second));
+
+        if (r.second)
+        {
+          lc = move (r.first);
+          break;
+        }
+      }
+
+      if (!lc)
+        throw invalid_request (400, "unable to match login info '" + l + "'");
+
+      tqm.interactive_login = move (lc);
+    }
+
+    // If the interactive mode if false or true, then filter out the
+    // respective packages. Otherwise, order them so that packages from the
+    // interactive build tenants appear first.
+    //
+    interactive_mode imode (tqm.effective_interactive_mode ());
+
+    switch (imode)
+    {
+    case interactive_mode::false_:
+      {
+        pq = pq && pkg_query::build_tenant::interactive.is_null ();
+        break;
+      }
+    case interactive_mode::true_:
+      {
+        pq = pq && pkg_query::build_tenant::interactive.is_not_null ();
+        break;
+      }
+    case interactive_mode::both: break; // See below.
+    }
+
     // Specify the portion.
     //
     size_t offset (0);
 
-    pq += "ORDER BY" +
-      pkg_query::build_package::id.tenant + "," +
+    pq += "ORDER BY";
+
+    if (imode == interactive_mode::both)
+      pq += pkg_query::build_tenant::interactive + "NULLS LAST,";
+
+    pq += pkg_query::build_package::id.tenant + "," +
       pkg_query::build_package::id.name +
       order_by_version (pkg_query::build_package::id.version, false) +
       "OFFSET" + pkg_query::_ref (offset) + "LIMIT 50";
@@ -512,8 +574,8 @@ handle (request& rq, response& rs)
         // configurations that remained can be built. We will take the first
         // one, if present.
         //
-        // Also save the built package configurations for which it's time to be
-        // rebuilt.
+        // Also save the built package configurations for which it's time to
+        // be rebuilt.
         //
         config_machines configs (cfg_machines); // Make a copy for this pkg.
         auto pkg_builds (bld_prep_query.execute ());
@@ -567,6 +629,16 @@ handle (request& rq, response& rs)
             shared_ptr<build> b (build_db_->find<build> (bid));
             optional<string> cl (challenge ());
 
+            shared_ptr<build_tenant> t (
+              build_db_->load<build_tenant> (bid.package.tenant));
+
+            // Move the interactive build login information into the build
+            // object, if the package to be built interactively.
+            //
+            optional<string> login (t->interactive
+                                    ? move (tqm.interactive_login)
+                                    : nullopt);
+
             // If build configuration doesn't exist then create the new one
             // and persist. Otherwise put it into the building state, refresh
             // the timestamp and update.
@@ -579,6 +651,7 @@ handle (request& rq, response& rs)
                                       move (bid.configuration),
                                       move (bid.toolchain_name),
                                       move (toolchain_version),
+                                      move (login),
                                       move (agent_fp),
                                       move (cl),
                                       mh.name,
@@ -606,6 +679,7 @@ handle (request& rq, response& rs)
                       b->results.empty ());
 
               b->state = build_state::building;
+              b->interactive = move (login);
 
               // Switch the force state not to reissue the task after the
               // forced rebuild timeout. Note that the result handler will
@@ -626,13 +700,7 @@ handle (request& rq, response& rs)
 
             // Finally, prepare the task response manifest.
             //
-            // We iterate over buildable packages.
-            //
-            assert (p->internal ());
-
-            p->internal_repository.load ();
-
-            tsm = task (move (b), move (p), cm);
+            tsm = task (move (b), move (p), move (t), cm);
           }
         }
 
@@ -704,19 +772,39 @@ handle (request& rq, response& rs)
             assert (i != cfg_machines.end ());
             const config_machine& cm (i->second);
 
-            // Rebuild the package if still present, is buildable and doesn't
-            // exclude the configuration.
+            // Rebuild the package if still present, is buildable, doesn't
+            // exclude the configuration, and matches the request's
+            // interactive mode.
+            //
+            // Note that while change of the latter seems rather far fetched,
+            // let's check it for good measure.
             //
             shared_ptr<build_package> p (
               build_db_->find<build_package> (b->id.package));
 
-            if (p != nullptr   &&
-                p->internal () &&
+            shared_ptr<build_tenant> t (
+              p != nullptr
+              ? build_db_->load<build_tenant> (p->id.tenant)
+              : nullptr);
+
+            if (p != nullptr                          &&
+                p->buildable                          &&
+                (t->interactive.has_value () ==
+                 (imode != interactive_mode::false_)) &&
                 !exclude (p->builds, p->constraints, *cm.config))
             {
               assert (b->status);
 
               b->state = build_state::building;
+
+              // Save the interactive build login information into the build
+              // object, if the package to be built interactively.
+              //
+              // Can't move from, as may need it on the next iteration.
+              //
+              b->interactive = t->interactive
+                               ? tqm.interactive_login
+                               : nullopt;
 
               // Can't move from, as may need them on the next iteration.
               //
@@ -738,9 +826,7 @@ handle (request& rq, response& rs)
 
               build_db_->update (b);
 
-              p->internal_repository.load ();
-
-              tsm = task (move (b), move (p), cm);
+              tsm = task (move (b), move (p), move (t), cm);
             }
           }
 

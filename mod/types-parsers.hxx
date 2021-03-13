@@ -7,6 +7,8 @@
 #ifndef MOD_TYPES_PARSERS_HXX
 #define MOD_TYPES_PARSERS_HXX
 
+#include <regex>
+
 #include <libbpkg/manifest.hxx> // repository_location
 
 #include <web/xhtml/fragment.hxx>
@@ -74,6 +76,13 @@ namespace brep
     {
       static void
       parse (web::xhtml::fragment&, bool&, scanner&);
+    };
+
+    template <>
+    struct parser<pair<std::regex, string>>
+    {
+      static void
+      parse (pair<std::regex, string>&, bool&, scanner&);
     };
   }
 }

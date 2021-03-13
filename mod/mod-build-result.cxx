@@ -398,6 +398,10 @@ handle (request& rq, response&)
         b->status = rqm.result.status;
         b->force  = force_state::unforced;
 
+        // Cleanup the interactive build login information.
+        //
+        b->interactive = nullopt;
+
         // Cleanup the authentication data.
         //
         b->agent_fingerprint = nullopt;

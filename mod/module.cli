@@ -1,6 +1,8 @@
 // file      : mod/options.cli -*- C++ -*-
 // license   : MIT; see accompanying LICENSE file
 
+include <regex>;
+
 include <libbpkg/manifest.hxx>; // repository_location
 
 include <web/xhtml/fragment.hxx>;
@@ -307,7 +309,7 @@ namespace brep
          edge. The value is treated as an XHTML5 fragment."
       }
 
-      vector<page_menu> menu;
+      vector<page_menu> menu
       {
         "<label=link>",
         "Web page menu. Each entry is displayed in the page header in the
@@ -341,7 +343,7 @@ namespace brep
          The default is 500 (~ 80 characters * 6 lines)."
       }
 
-      uint16_t package-changes = 5000;
+      uint16_t package-changes = 5000
       {
         "<len>",
         "Number of package changes characters to display in brief pages. The
@@ -393,6 +395,18 @@ namespace brep
         "<seconds>",
         "Time to wait before considering the expected task result lost. Must be
          specified in seconds. The default is 3 hours."
+      }
+
+      vector<pair<std::regex, string>> build-interactive-login
+      {
+        "</regex/replacement/>",
+        "Regular expressions for transforming the interactive build login
+         information, for example, into the actual command that can be used
+         by the user. The regular expressions are matched against the
+         \"<agent>\ <interactive-login>\" string containing the respective
+         task request manifest values. The first matching expression is used
+         for the transformation. If no expression matches, then the task
+         request is considered invalid, unless no expressions are specified."
       }
     };
 
@@ -836,6 +850,10 @@ namespace brep
       // parameter is specified to detect presence of the upload.
       //
       string overrides;
+
+      // Interactive build execution breakpoint.
+      //
+      string interactive;
 
       // Submission simulation outcome.
       //

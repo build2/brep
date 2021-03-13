@@ -1,4 +1,10 @@
 <changelog xmlns="http://www.codesynthesis.com/xmlns/odb/changelog" database="pgsql" schema-name="build" version="1">
+  <changeset version="13">
+    <alter-table name="build">
+      <add-column name="interactive" type="TEXT" null="true"/>
+    </alter-table>
+  </changeset>
+
   <model version="12">
     <table name="build" kind="object">
       <column name="package_tenant" type="TEXT" null="false"/>

@@ -25,7 +25,7 @@
 //
 #define LIBBREP_BUILD_SCHEMA_VERSION_BASE 12
 
-#pragma db model version(LIBBREP_BUILD_SCHEMA_VERSION_BASE, 12, closed)
+#pragma db model version(LIBBREP_BUILD_SCHEMA_VERSION_BASE, 13, closed)
 
 // We have to keep these mappings at the global scope instead of inside
 // the brep namespace because they need to be also effective in the
@@ -178,13 +178,14 @@ namespace brep
     using package_name_type = brep::package_name;
 
     // Create the build object with the building state, non-existent status,
-    // the timestamp set to now and the force state set to unforced.
+    // the timestamp set to now, and the force state set to unforced.
     //
     build (string tenant,
            package_name_type,
            version,
            string configuration,
            string toolchain_name, version toolchain_version,
+           optional<string> interactive,
            optional<string> agent_fingerprint,
            optional<string> agent_challenge,
            string machine, string machine_summary,
@@ -200,6 +201,11 @@ namespace brep
     upstream_version toolchain_version; // Original of id.toolchain_version.
 
     build_state state;
+
+    // If present, the login information for the interactive build. May be
+    // present only in the building state.
+    //
+    optional<string> interactive;
 
     // Time of the last state change (the creation time initially).
     //

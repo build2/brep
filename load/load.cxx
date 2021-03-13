@@ -1474,6 +1474,11 @@ try
     throw failed ();
   }
 
+  // Note: the interactive tenant implies private.
+  //
+  if (ops.interactive_specified ())
+    ops.private_ (true);
+
   // Load the description of all the internal repositories from the
   // configuration file.
   //
@@ -1511,7 +1516,11 @@ try
 
     // Persist the tenant.
     //
-    db.persist (tenant (tnt));
+    db.persist (tenant (tnt,
+                        ops.private_ (),
+                        (ops.interactive_specified ()
+                         ? ops.interactive ()
+                         : optional<string> ())));
 
     // On the first pass over the internal repositories we load their
     // certificate information and packages.

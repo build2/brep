@@ -20,7 +20,7 @@
 //
 #define LIBBREP_PACKAGE_SCHEMA_VERSION_BASE 19
 
-#pragma db model version(LIBBREP_PACKAGE_SCHEMA_VERSION_BASE, 19, closed)
+#pragma db model version(LIBBREP_PACKAGE_SCHEMA_VERSION_BASE, 20, closed)
 
 namespace brep
 {
@@ -226,9 +226,21 @@ namespace brep
     // flag set to false.
     //
     explicit
-    tenant (string id);
+    tenant (string id, bool private_, optional<string> interactive);
 
     string id;
+
+    // If true, display the packages in the web interface only in the tenant
+    // view mode.
+    //
+    bool private_;                // Note: foreign-mapped in build.
+
+    // Interactive package build breakpoint.
+    //
+    // If present, then packages from this tenant will only be built
+    // interactively and only non-interactively otherwise.
+    //
+    optional<string> interactive; // Note: foreign-mapped in build.
 
     timestamp creation_timestamp;
     bool archived = false;        // Note: foreign-mapped in build.
@@ -236,6 +248,7 @@ namespace brep
     // Database mapping.
     //
     #pragma db member(id) id
+    #pragma db member(private_) default(false) // @@ TMP
 
   private:
     friend class odb::access;

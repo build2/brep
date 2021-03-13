@@ -64,6 +64,19 @@ class options
      specified, then the single-tenant mode is assumed."
   };
 
+  bool --private
+  {
+    "Display the tenant packages in the web interface only in the tenant view
+     mode."
+  };
+
+  std::string --interactive
+  {
+    "<bkp>",
+    "Build the tenant packages interactively, stopping builds at the specified
+     breakpoint. Implies \cb{--private}."
+  };
+
   brep::path --overrides-file
   {
     "<file>",

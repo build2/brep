@@ -25,7 +25,10 @@ verbose= #true
 fetch_timeout=60
 
 trap "{ exit 1; }" ERR
-set -o errtrace # Trap ERR in functions.
+set -o errtrace     # Trap ERR in functions.
+set -o pipefail     # Fail if any pipeline command fails.
+shopt -s lastpipe   # Execute last pipeline command in the current shell.
+shopt -s nullglob   # Expand no-match globs to nothing rather than themselves.
 
 @import brep/handler/handler@
 @import brep/handler/ci/ci@
@@ -33,7 +36,7 @@ set -o errtrace # Trap ERR in functions.
 # The handler's own options.
 #
 result_url=
-while [ $# -gt 0 ]; do
+while [[ "$#" -gt 0 ]]; do
   case $1 in
     --result-url)
       shift
@@ -50,7 +53,7 @@ done
 #
 loader="$1"
 
-if [ -z "$loader" ]; then
+if [[ -z "$loader" ]]; then
   error "$usage"
 fi
 
@@ -60,7 +63,7 @@ shift
 # options.
 #
 loader_options=()
-while [ $# -gt 1 ]; do
+while [[ "$#" -gt 1 ]]; do
   loader_options+=("$1")
   shift
 done
@@ -69,11 +72,11 @@ done
 #
 data_dir="${1%/}"
 
-if [ -z "$data_dir" ]; then
+if [[ -z "$data_dir" ]]; then
   error "$usage"
 fi
 
-if [ ! -d "$data_dir" ]; then
+if [[ ! -d "$data_dir" ]]; then
   error "'$data_dir' does not exist or is not a directory"
 fi
 
@@ -84,8 +87,9 @@ reference="$(basename "$data_dir")"
 #
 manifest_parser_start "$data_dir/request.manifest"
 
-simulate=
 repository=
+interactive=
+simulate=
 
 # Package map. We first enter packages from the request manifest as keys and
 # setting the values to true. Then we go through the repository package list
@@ -106,13 +110,14 @@ spec=
 
 while IFS=: read -ru "$manifest_parser_ofd" -d '' n v; do
   case "$n" in
-    simulate)   simulate="$v"   ;;
-    repository) repository="$v" ;;
+    repository)  repository="$v"  ;;
+    interactive) interactive="$v" ;;
+    simulate)    simulate="$v"    ;;
 
     package)
       packages["$v"]=true
 
-      if [ -n "$spec" ]; then
+      if [[ -n "$spec" ]]; then
         spec="$spec,"
       fi
       spec="$spec$v"
@@ -122,22 +127,22 @@ done
 
 manifest_parser_finish
 
-if [ -n "$spec" ]; then
+if [[ -n "$spec" ]]; then
   spec="$spec@"
 fi
 
 spec="$spec$repository"
 
-if [ -z "$repository" ]; then
+if [[ -z "$repository" ]]; then
   error "repository manifest value expected"
 fi
 
-if [ -n "$simulate" -a "$simulate" != "success" ]; then
+if [[ -n "$simulate" && "$simulate" != "success" ]]; then
   exit_with_manifest 400 "unrecognized simulation outcome '$simulate'"
 fi
 
 message_suffix=
-if [ -n "$result_url" ]; then
+if [[ -n "$result_url" ]]; then
   message_suffix=": $result_url/@$reference" # Append the tenant id.
 fi
 
@@ -146,7 +151,7 @@ fi
 # Note that we can't assume a real repository URL is specified if simulating
 # so trying to query the repository info is not a good idea.
 #
-if [ -n "$simulate" ]; then
+if [[ -n "$simulate" ]]; then
   run rm -r "$data_dir"
 
   trace "CI request for '$spec' is simulated$message_suffix"
@@ -188,9 +193,9 @@ manifest_values=()
 manifest_version=
 
 more=true
-while [ "$more" ]; do
+while [[ "$more" ]]; do
 
-  if [ -n "$manifest_version" ]; then
+  if [[ -n "$manifest_version" ]]; then
     manifest_names=("")
     manifest_values=("$manifest_version")
   fi
@@ -237,8 +242,8 @@ while [ "$more" ]; do
   packages_manifest_names+=("${manifest_names[@]}")
   packages_manifest_values+=("${manifest_values[@]}")
 
-  if [ -z "$display_name" ]; then
-    if [ -n "$project" ]; then
+  if [[ -z "$display_name" ]]; then
+    if [[ -n "$project" ]]; then
       display_name="$project"
     else
       display_name="$name"
@@ -252,7 +257,7 @@ manifest_parser_finish
 # the repository.
 #
 for p in "${!packages[@]}"; do
-  if [ "${packages[$p]}" ]; then
+  if [[ "${packages[$p]}" ]]; then
     exit_with_manifest 422 "unknown package $p"
   fi
 done
@@ -260,7 +265,7 @@ done
 # Verify that the repository is not empty. Failed that, the repository display
 # name wouldn't be set.
 #
-if [ -z "$display_name" ]; then
+if [[ -z "$display_name" ]]; then
   exit_with_manifest 422 "no packages in repository"
 fi
 
@@ -272,7 +277,7 @@ run mv "$cache_dir/packages.manifest" "$cache_dir/packages.manifest.orig"
 #
 manifest_serializer_start "$cache_dir/packages.manifest"
 
-for ((i=0; i <= ${#packages_manifest_names[@]}; ++i)); do
+for ((i=0; i <= "${#packages_manifest_names[@]}"; ++i)); do
   manifest_serialize "${packages_manifest_names[$i]}" \
                      "${packages_manifest_values[$i]}"
 done
@@ -286,7 +291,7 @@ run echo "$repository $display_name cache:cache" >"$loadtab"
 
 # Apply overrides, if uploaded.
 #
-if [ -f "$data_dir/overrides.manifest" ]; then
+if [[ -f "$data_dir/overrides.manifest" ]]; then
   loader_options+=(--overrides-file "$data_dir/overrides.manifest")
 fi
 
@@ -294,6 +299,12 @@ fi
 # the tenant identified by the reference.
 #
 loader_options+=(--force --shallow --tenant "$reference")
+
+# Build the packages interactively, if requested.
+#
+if [[ -n "$interactive" ]]; then
+  loader_options+=(--interactive "$interactive")
+fi
 
 run "$loader" "${loader_options[@]}" "$loadtab"
 

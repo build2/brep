@@ -3,11 +3,15 @@
 
 #include <mod/types-parsers.hxx>
 
+#include <sstream>
+
+#include <libbutl/regex.mxx>
 #include <libbutl/timestamp.mxx> // from_string()
 
 #include <mod/module-options.hxx>
 
 using namespace std;
+using namespace butl;
 using namespace bpkg;
 using namespace web::xhtml;
 
@@ -75,9 +79,9 @@ namespace brep
         string t ("1970-01-01 ");
         t += v;
 
-        x = butl::from_string (t.c_str (),
-                               "%Y-%m-%d %H:%M",
-                               false /* local */).time_since_epoch ();
+        x = from_string (t.c_str (),
+                         "%Y-%m-%d %H:%M",
+                         false /* local */).time_since_epoch ();
         return;
       }
       catch (const invalid_argument&) {}
@@ -179,6 +183,38 @@ namespace brep
       catch (const xml::parsing&)
       {
         throw invalid_value (o, v);
+      }
+    }
+
+    // Parse the '/regex/replacement/' string into the regex/replacement pair.
+    //
+    void parser<pair<std::regex, string>>::
+    parse (pair<std::regex, string>& x, bool& xs, scanner& s)
+    {
+      xs = true;
+      const char* o (s.next ());
+
+      if (!s.more ())
+        throw missing_value (o);
+
+      const char* v (s.next ());
+
+      try
+      {
+        x = regex_replace_parse (v);
+      }
+      catch (const invalid_argument& e)
+      {
+        throw invalid_value (o, v, e.what ());
+      }
+      catch (const regex_error& e)
+      {
+        // Sanitize the description.
+        //
+        ostringstream os;
+        os << e;
+
+        throw invalid_value (o, v, os.str ());
       }
     }
   }
