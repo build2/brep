@@ -89,9 +89,9 @@ handle (request& rq, response& rs)
     <<     DIV_HEADER (options_->logo (), options_->menu (), root, tenant)
     <<     DIV(ID="content");
 
-  auto url = [&root] (const string& cls)
+  auto url = [&root, this] (const string& cls)
   {
-    string r (root.string () + "?build-configs");
+    string r (tenant_dir (root, tenant).string () + "?build-configs");
 
     if (cls != "all")
     {
