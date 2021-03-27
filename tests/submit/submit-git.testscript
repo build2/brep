@@ -31,6 +31,8 @@ clone_root_ref = cp --no-cleanup -r $root_ref ./ &ref.git/***
   owners=owners
   EOI
 
++$g -C $root_ref_dir config user.name 'Test Script'
++$g -C $root_ref_dir config user.email 'testscript@example.com'
 +$g -C $root_ref_dir add '*'
 +$g -C $root_ref_dir commit -m 'Add submit.config.bash'
 +$g -C $root_ref_dir push
@@ -190,6 +192,8 @@ pkg_ctl="$prj_ctl/hello.git"
       # owners=owners
       EOI
 
+    $g -C ref config user.name 'Test Script';
+    $g -C ref config user.email 'testscript@example.com';
     $g -C ref commit -am 'Disable ownership';
     $g -C ref push;
 
@@ -251,6 +255,8 @@ pkg_ctl="$prj_ctl/hello.git"
       control: $pkg_ctl
       EOI
 
+    $g -C tgt config user.name 'Test Script';
+    $g -C tgt config user.email 'testscript@example.com';
     $g -C tgt add owners;
     $g -C tgt commit -m 'Add ownership info';
     $g -C tgt push;
@@ -288,6 +294,8 @@ pkg_ctl="$prj_ctl/hello.git"
       control: $prj_ctl/
       EOI
 
+    $g -C ref config user.name 'Test Script';
+    $g -C ref config user.email 'testscript@example.com';
     $g -C ref add owners;
     $g -C ref commit -m 'Add ownership info';
     $g -C ref push;
@@ -305,6 +313,8 @@ pkg_ctl="$prj_ctl/hello.git"
       control: $pkg_ctl
       EOI
 
+    $g -C tgt config user.name 'Test Script';
+    $g -C tgt config user.email 'testscript@example.com';
     $g -C tgt add owners;
     $g -C tgt commit -m 'Add ownership info';
     $g -C tgt push;
@@ -357,6 +367,8 @@ pkg_ctl="$prj_ctl/hello.git"
       control: $pkg_ctl
       EOI
 
+    $g -C ref config user.name 'Test Script';
+    $g -C ref config user.email 'testscript@example.com';
     $g -C ref add owners;
     $g -C ref commit -m 'Add ownership info';
     $g -C ref push;
@@ -392,6 +404,8 @@ pkg_ctl="$prj_ctl/hello.git"
       control: $prj_ctl/
       EOI
 
+    $g -C ref config user.name 'Test Script';
+    $g -C ref config user.email 'testscript@example.com';
     $g -C ref add owners;
     $g -C ref commit -m 'Add ownership info';
     $g -C ref push;
@@ -425,6 +439,8 @@ pkg_ctl="$prj_ctl/hello.git"
       # owners=owners
       EOI
 
+    $g -C tgt config user.name 'Test Script';
+    $g -C tgt config user.email 'testscript@example.com';
     $g -C tgt commit -am 'Disable ownership';
     $g -C tgt push;
 
@@ -459,6 +475,8 @@ pkg_ctl="$prj_ctl/hello.git"
     tar cfz tgt/1/alpha/hello/libhello-0.1.0+1.tar.gz libhello-0.1.0+1;
     $g -C tgt add 1/;
 
+    $g -C tgt config user.name 'Test Script';
+    $g -C tgt config user.email 'testscript@example.com';
     $g -C tgt commit -am 'Add config and archive';
     $g -C tgt push;
 
@@ -493,6 +511,8 @@ pkg_ctl="$prj_ctl/hello.git"
       owners=owners
       EOI
 
+    $g -C tgt config user.name 'Test Script';
+    $g -C tgt config user.email 'testscript@example.com';
     $g -C tgt commit -am 'Add section name fallback';
     $g -C tgt push;
 
@@ -610,6 +630,8 @@ pkg_ctl="$prj_ctl/hello.git"
     mkdir -p ref/1/alpha/hello;
     cp $data_dir/libhello-0.1.0.tar.gz ref/1/alpha/hello/;
 
+    $g -C ref config user.name 'Test Script';
+    $g -C ref config user.email 'testscript@example.com';
     $g -C ref add 1/;
     $g -C ref commit -m 'Add libhello-0.1.0.tar.gz';
     $g -C ref push;
@@ -651,6 +673,8 @@ pkg_ctl="$prj_ctl/hello.git"
       control: $prj_ctl/foo
       EOI
 
+    $g -C ref config user.name 'Test Script';
+    $g -C ref config user.email 'testscript@example.com';
     $g -C ref add owners;
     $g -C ref commit -m 'Add ownership info';
     $g -C ref push;
@@ -683,6 +707,8 @@ pkg_ctl="$prj_ctl/hello.git"
       control: https://example.com/foo
       EOI
 
+    $g -C ref config user.name 'Test Script';
+    $g -C ref config user.email 'testscript@example.com';
     $g -C ref add owners/hello/project-owner.manifest;
     $g -C ref commit -m 'Add project ownership info';
     $g -C ref push;
@@ -724,6 +750,8 @@ pkg_ctl="$prj_ctl/hello.git"
       control: $prj_ctl/foo
       EOI
 
+    $g -C ref config user.name 'Test Script';
+    $g -C ref config user.email 'testscript@example.com';
     $g -C ref add owners;
     $g -C ref commit -m 'Add ownership info';
     $g -C ref push;
@@ -750,6 +778,8 @@ pkg_ctl="$prj_ctl/hello.git"
     mkdir -p tgt/1/alpha/hello;
     cp $data_dir/libhello-0.1.0.tar.gz tgt/1/alpha/hello/;
 
+    $g -C tgt config user.name 'Test Script';
+    $g -C tgt config user.email 'testscript@example.com';
     $g -C tgt add 1/;
     $g -C tgt commit -m 'Add libhello-0.1.0.tar.gz';
     $g -C tgt push;
@@ -790,6 +820,8 @@ pkg_ctl="$prj_ctl/hello.git"
       control: $prj_ctl/foo
       EOI
 
+    $g -C tgt config user.name 'Test Script';
+    $g -C tgt config user.email 'testscript@example.com';
     $g -C tgt add owners;
     $g -C tgt commit -m 'Add ownership info';
     $g -C tgt push;
@@ -822,6 +854,8 @@ pkg_ctl="$prj_ctl/hello.git"
       # owners=owners
       EOI
 
+    $g -C tgt config user.name 'Test Script';
+    $g -C tgt config user.email 'testscript@example.com';
     $g -C tgt commit -am 'Disable ownership';
     $g -C tgt push;
 
@@ -855,6 +889,8 @@ pkg_ctl="$prj_ctl/hello.git"
       control: $prj_ctl/
       EOI
 
+    $g -C ref config user.name 'Test Script';
+    $g -C ref config user.email 'testscript@example.com';
     $g -C ref add owners;
     $g -C ref commit -m 'Add project ownership info';
     $g -C ref push;
@@ -870,6 +906,8 @@ pkg_ctl="$prj_ctl/hello.git"
       # owners=owners
       EOI
 
+    $g -C tgt config user.name 'Test Script';
+    $g -C tgt config user.email 'testscript@example.com';
     $g -C tgt commit -am 'Disable ownership';
     $g -C tgt push;
 
@@ -910,6 +948,8 @@ pkg_ctl="$prj_ctl/hello.git"
       control: $prj_ctl/foo
       EOI
 
+    $g -C tgt config user.name 'Test Script';
+    $g -C tgt config user.email 'testscript@example.com';
     $g -C tgt add owners;
     $g -C tgt commit -m 'Add ownership info';
     $g -C tgt push;
