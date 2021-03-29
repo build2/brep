@@ -57,15 +57,15 @@ usage="Usage: $0 [<options>]"
 # repository the toolchain installation script downloads the build2 packages
 # from.
 #
-toolchain_repo_cert_fp="86:BA:D4:DE:2C:87:1A:EE:38:C7:F1:64:7F:65:77:02:15:79:F3:C4:83:C0:AB:5A:EA:F4:F7:8C:1D:63:30:C6"
-#toolchain_repo_cert_fp="37:CE:2C:A5:1D:CF:93:81:D7:07:46:AD:66:B3:C3:90:83:B8:96:9E:34:F0:E7:B3:A2:B0:6C:EF:66:A4:BE:65"
+toolchain_repo_cert_fp="70:64:FE:E4:E0:F3:60:F1:B4:51:E1:FA:12:5C:E0:B3:DB:DF:96:33:39:B9:2E:E5:C2:68:63:4C:A6:47:39:43"
+#toolchain_repo_cert_fp="EC:50:13:E2:3D:F7:92:B4:50:0B:BF:2A:1F:7D:31:04:C6:57:6F:BC:BE:04:2E:E0:58:14:FA:66:66:21:1F:14"
 
 # brep package repository URL and certificate fingerprint.
 #
 #brep_repo_url="https://pkg.cppget.org/1/alpha"
-#brep_repo_cert_fp="86:BA:D4:DE:2C:87:1A:EE:38:C7:F1:64:7F:65:77:02:15:79:F3:C4:83:C0:AB:5A:EA:F4:F7:8C:1D:63:30:C6"
+#brep_repo_cert_fp="70:64:FE:E4:E0:F3:60:F1:B4:51:E1:FA:12:5C:E0:B3:DB:DF:96:33:39:B9:2E:E5:C2:68:63:4C:A6:47:39:43"
 brep_repo_url="https://stage.build2.org/1"
-brep_repo_cert_fp="37:CE:2C:A5:1D:CF:93:81:D7:07:46:AD:66:B3:C3:90:83:B8:96:9E:34:F0:E7:B3:A2:B0:6C:EF:66:A4:BE:65"
+brep_repo_cert_fp="EC:50:13:E2:3D:F7:92:B4:50:0B:BF:2A:1F:7D:31:04:C6:57:6F:BC:BE:04:2E:E0:58:14:FA:66:66:21:1F:14"
 
 owd=`pwd`
 trap "{ exit 1; }"  ERR
