@@ -406,7 +406,8 @@ namespace brep
          \"<agent>\ <interactive-login>\" string containing the respective
          task request manifest values. The first matching expression is used
          for the transformation. If no expression matches, then the task
-         request is considered invalid, unless no expressions are specified."
+         request is considered invalid, unless no expressions are specified.
+         Repeat this option to specify multiple expressions."
       }
     };
 
