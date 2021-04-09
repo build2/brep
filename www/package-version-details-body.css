@@ -303,6 +303,7 @@ h1, h2, h3
 .build tr.toolchain td .value,
 .build tr.config td .value,
 .build tr.timestamp td .value,
+.build tr.login td .value,
 .build tr.result td .value
 {
   /* <code> style. */
