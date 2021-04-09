@@ -787,10 +787,11 @@ handle (request& rq, response& rs)
               ? build_db_->load<build_tenant> (p->id.tenant)
               : nullptr);
 
-            if (p != nullptr                          &&
-                p->buildable                          &&
-                (t->interactive.has_value () ==
-                 (imode != interactive_mode::false_)) &&
+            if (p != nullptr                           &&
+                p->buildable                           &&
+                (imode == interactive_mode::both ||
+                 (t->interactive.has_value () ==
+                  (imode == interactive_mode::true_))) &&
                 !exclude (p->builds, p->constraints, *cm.config))
             {
               assert (b->status);
