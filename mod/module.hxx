@@ -135,7 +135,7 @@ namespace brep
       virtual void
       skip ();
 
-      virtual size_t
+      virtual std::size_t
       position ();
 
     private:

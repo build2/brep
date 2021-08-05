@@ -410,6 +410,6 @@ namespace brep
   size_t handler::name_value_scanner::
   position ()
   {
-    return i_ - name_values_.begin ();
+    return (i_ - name_values_.begin ()) * 2 + (name_ ? 0 : 1);
   }
 }
