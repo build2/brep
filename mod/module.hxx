@@ -135,6 +135,9 @@ namespace brep
       virtual void
       skip ();
 
+      virtual size_t
+      position ();
+
     private:
       const name_values& name_values_;
       name_values::const_iterator i_;

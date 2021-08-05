@@ -406,4 +406,10 @@ namespace brep
     else
       throw cli::eos_reached ();
   }
+
+  size_t handler::name_value_scanner::
+  position ()
+  {
+    return i_ - name_values_.begin ();
+  }
 }
