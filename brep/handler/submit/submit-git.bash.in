@@ -167,6 +167,7 @@ function auth_project () # <project> <control> <repo-dir>
 
   local r="unknown"
   local m="$d/$prj/project-owner.manifest"
+  local info=
 
   # If the project owner manifest exists then parse it and try to authenticate
   # the submitter as the project owner.
@@ -179,16 +180,31 @@ function auth_project () # <project> <control> <repo-dir>
 
     local n v
     while IFS=: read -ru "$manifest_parser_ofd" -d '' n v; do
-      if [[ "$n" == "control" && "$ctl" == "$v"* ]]; then
-        r="project"
-        break
+      if [[ "$n" == "control" ]]; then
+        if [[ "$ctl" == "$v"* ]]; then
+          r="project"
+          break
+        fi
+
+        # If the control URLs don't match, then compare them case-
+        # insensitively, converting them to the lower case. If they match
+        # case-insensitively, then still fail the authentication but provide
+        # additional information in the manifest message value.
+        #
+        if [[ "${ctl,,}" == "${v,,}"* ]]; then
+          info="
+  info: control repository URL differs only in character case
+  info: submitted URL:       $ctl
+  info: project owner's URL: $v
+  info: consider using --control to specify exact URL"
+        fi
       fi
     done
 
     manifest_parser_finish
 
     if [ "$r" != "project" ]; then
-      exit_with_manifest 401 "project owner authentication failed"
+      exit_with_manifest 401 "project owner authentication failed$info"
     fi
   fi
 
@@ -214,7 +230,8 @@ function auth_package () # <project> <package> <control> <repo-dir>
 
   local prj="$1"
   local pkg="$2"
-  local ctl="${3%.git}" # Strip the potential .git extension.
+  local ctl="${3%.git}" # For comparison strip the potential .git extension.
+  local ctl_orig="$3"   # For diagnostics use the original URL.
   local rep="$4"
 
   local d
@@ -231,6 +248,7 @@ function auth_package () # <project> <package> <control> <repo-dir>
 
   local r="unknown"
   local m="$d/$prj/$pkg/package-owner.manifest"
+  local info=
 
   # If the package owner manifest exists then parse it and try to authenticate
   # the submitter as the package owner.
@@ -245,16 +263,31 @@ function auth_package () # <project> <package> <control> <repo-dir>
     #
     local n v
     while IFS=: read -ru "$manifest_parser_ofd" -d '' n v; do
-      if [ "$n" == "control" -a "${v%.git}" == "$ctl" ]; then
-        r="package"
-        break
+      if [ "$n" == "control" ]; then
+        local u="${v%.git}"
+
+        if [ "$u" == "$ctl" ]; then
+          r="package"
+          break
+        fi
+
+        # If the control URLs don't match, then compare them case-
+        # insensitively (see auth_project() for details).
+        #
+        if [ "${u,,}" == "${ctl,,}" ]; then
+          info="
+  info: control repository URL differs only in character case
+  info: submitted URL:       $ctl_orig
+  info: package owner's URL: $v
+  info: consider using --control to specify exact URL"
+        fi
       fi
     done
 
     manifest_parser_finish
 
     if [ "$r" != "package" ]; then
-      exit_with_manifest 401 "package owner authentication failed"
+      exit_with_manifest 401 "package owner authentication failed$info"
     fi
   fi
 
