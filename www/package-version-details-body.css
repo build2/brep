@@ -244,10 +244,15 @@ h1, h2, h3
   font-size: 0.94em;
 }
 
+/*
+ * Tests, examples, and benchmarks tables.
+ */
 #tests {margin-top: .4em; margin-bottom: 1em;}
+#tests th {width: 2.8em; text-align: center;}
+#tests th:after{content: "";}
 
 #tests tr:nth-child(even) td {background-color: rgba(0, 0, 0, 0.07);}
-#tests td {margin-left: 2.8em; padding-left: .4em;}
+#tests td {padding-left: .4em;}
 
 #tests tr.tests td .value
 {
@@ -257,9 +262,11 @@ h1, h2, h3
 }
 
 #examples {margin-top: .4em; margin-bottom: 1em;}
+#examples th {width: 2.8em; text-align: center;}
+#examples th:after{content: "";}
 
 #examples tr:nth-child(even) td {background-color: rgba(0, 0, 0, 0.07);}
-#examples td {margin-left: 2.8em; padding-left: .4em;}
+#examples td {padding-left: .4em;}
 
 #examples tr.examples td .value
 {
@@ -269,9 +276,11 @@ h1, h2, h3
 }
 
 #benchmarks {margin-top: .4em; margin-bottom: 1em;}
+#benchmarks th {width: 2.8em; text-align: center;}
+#benchmarks th:after{content: "";}
 
 #benchmarks tr:nth-child(even) td {background-color: rgba(0, 0, 0, 0.07);}
-#benchmarks td {margin-left: 2.8em; padding-left: .4em;}
+#benchmarks td {padding-left: .4em;}
 
 #benchmarks tr.benchmarks td .value
 {

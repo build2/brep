@@ -825,7 +825,7 @@ test_pkg_repos (const cstrings& loader_args,
     assert (check_location (fpv5));
 
     assert (fpv5->sha256sum && *fpv5->sha256sum ==
-            "c02b6033107387e05f48aa62ee6498152c967deb0e91a62f1e618fe9fd1bc644");
+            "042a9c1df1bf6fc61a47d864dceff3cb68640aa68490174c10f5baf813116fa5");
 
     assert (fpv5->buildable);
 

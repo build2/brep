@@ -528,7 +528,10 @@ load_packages (const shared_ptr<repository>& rp,
           ts.reserve (pm.tests.size ());
 
           for (bpkg::test_dependency& td: pm.tests)
-            ts.emplace_back (move (td.name), td.type, move (td.constraint));
+            ts.emplace_back (move (td.name),
+                             td.type,
+                             td.buildtime,
+                             move (td.constraint));
         }
 
         // Cache before the package name is moved.

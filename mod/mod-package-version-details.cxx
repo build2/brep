@@ -327,10 +327,10 @@ handle (request& rq, response& rs)
         <<   TH;
 
       if (da.conditional)
-        s << "?";
+        s << '?';
 
       if (da.buildtime)
-        s << "*";
+        s << '*';
 
       s <<   ~TH
         <<   TD
@@ -429,6 +429,12 @@ handle (request& rq, response& rs)
         }
 
         s << TR(CLASS=id)
+          <<   TH;
+
+        if (td.buildtime)
+          s << '*';
+
+        s <<   ~TH
           <<   TD
           <<     SPAN(CLASS="value");
 

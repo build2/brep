@@ -1,4 +1,10 @@
 <changelog xmlns="http://www.codesynthesis.com/xmlns/odb/changelog" database="pgsql" schema-name="package" version="1">
+  <changeset version="21">
+    <alter-table name="package_tests">
+      <add-column name="test_buildtime" type="BOOLEAN" null="false" default="FALSE"/>
+    </alter-table>
+  </changeset>
+
   <changeset version="20">
     <alter-table name="tenant">
       <add-column name="private" type="BOOLEAN" null="false" default="FALSE"/>

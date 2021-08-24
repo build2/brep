@@ -20,7 +20,7 @@
 //
 #define LIBBREP_PACKAGE_SCHEMA_VERSION_BASE 19
 
-#pragma db model version(LIBBREP_PACKAGE_SCHEMA_VERSION_BASE, 20, closed)
+#pragma db model version(LIBBREP_PACKAGE_SCHEMA_VERSION_BASE, 21, closed)
 
 namespace brep
 {
@@ -194,15 +194,22 @@ namespace brep
   struct test_dependency: dependency
   {
     test_dependency_type type;
+    bool buildtime;
 
     test_dependency () = default;
     test_dependency (package_name n,
                      test_dependency_type t,
+                     bool b,
                      optional<version_constraint> c)
         : dependency {std::move (n), std::move (c), nullptr /* package */},
-          type (t)
+          type (t),
+          buildtime (b)
     {
     }
+
+    // Database mapping.
+    //
+    #pragma db member(buildtime) default(false) // @@ TMP
   };
 
   // certificate
