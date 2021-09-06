@@ -9,6 +9,7 @@
 #include <type_traits> // static_assert
 
 #include <odb/query.hxx>
+#include <odb/nested-container.hxx>
 
 #include <libbpkg/package-name.hxx>
 
@@ -354,6 +355,33 @@ namespace brep
     from((?)                                                                 \
     ? brep::to_unbuildable_reason (*(?))                                     \
     : brep::optional_unbuildable_reason ())                                  \
+
+  // version_constraint
+  //
+  using bpkg::version_constraint;
+
+  #pragma db value(version_constraint) definition
+
+  // test_dependency_type
+  //
+  using bpkg::test_dependency_type;
+  using bpkg::to_test_dependency_type;
+
+  #pragma db map type(test_dependency_type) as(string) \
+    to(to_string (?))                                  \
+    from(brep::to_test_dependency_type (?))
+
+  // requirements
+  //
+  using bpkg::requirement_alternatives;
+  using requirements = vector<requirement_alternatives>;
+
+  #pragma db value(requirement_alternatives) definition
+
+  using requirement_key = odb::nested_key<requirement_alternatives>;
+  using requirement_alternatives_map = std::map<requirement_key, string>;
+
+  #pragma db value(requirement_key)
 
   // Version comparison operators.
   //

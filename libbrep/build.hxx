@@ -11,21 +11,26 @@
 
 #include <libbutl/target-triplet.mxx>
 
-#include <libbbot/manifest.hxx>
-
 #include <libbrep/types.hxx>
 #include <libbrep/utility.hxx>
 
-// Must be included last (see assert in libbrep/common.hxx).
-//
 #include <libbrep/common.hxx>
 #include <libbrep/build-package.hxx>
+
+// Must be included after libbrep/common.hxx, so that the _version structure
+// get defined before libbpkg/manifest.hxx inclusion.
+//
+// Note that if we start using assert() in get/set expressions in this header,
+// we will have to redefine it for ODB compiler after all include directives
+// (see libbrep/common.hxx for details).
+//
+#include <libbbot/manifest.hxx>
 
 // Used by the data migration entries.
 //
 #define LIBBREP_BUILD_SCHEMA_VERSION_BASE 12
 
-#pragma db model version(LIBBREP_BUILD_SCHEMA_VERSION_BASE, 13, closed)
+#pragma db model version(LIBBREP_BUILD_SCHEMA_VERSION_BASE, 14, closed)
 
 // We have to keep these mappings at the global scope instead of inside
 // the brep namespace because they need to be also effective in the

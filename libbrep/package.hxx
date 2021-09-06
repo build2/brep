@@ -85,10 +85,6 @@ namespace brep
 
   // dependencies
   //
-  using bpkg::version_constraint;
-
-  #pragma db value(version_constraint) definition
-
   // Notes:
   //
   // 1. Will the package be always resolvable? What if it is in
@@ -174,22 +170,8 @@ namespace brep
 
   using dependencies = vector<dependency_alternatives>;
 
-  // requirements
-  //
-  using bpkg::requirement_alternatives;
-  using requirements = vector<requirement_alternatives>;
-
-  #pragma db value(requirement_alternatives) definition
-
   // tests
   //
-  using bpkg::test_dependency_type;
-  using bpkg::to_test_dependency_type;
-
-  #pragma db map type(test_dependency_type) as(string) \
-    to(to_string (?))                                  \
-    from(brep::to_test_dependency_type (?))
-
   #pragma db value
   struct test_dependency: dependency
   {
@@ -500,7 +482,7 @@ namespace brep
     optional<email_type> build_warning_email;
     optional<email_type> build_error_email;
     dependencies_type dependencies;
-    requirements_type requirements;
+    requirements_type requirements;           // Note: foreign-mapped in build.
     small_vector<test_dependency, 1> tests;   // Note: foreign-mapped in build.
 
     build_class_exprs builds;                 // Note: foreign-mapped in build.
@@ -587,17 +569,12 @@ namespace brep
 
     // requirements
     //
-    using _requirement_key = odb::nested_key<requirement_alternatives>;
-    using _requirement_alternatives_type =
-               std::map<_requirement_key, string>;
-
-    #pragma db value(_requirement_key)
-    #pragma db member(_requirement_key::outer) column("requirement_index")
-    #pragma db member(_requirement_key::inner) column("index")
+    #pragma db member(requirement_key::outer) column("requirement_index")
+    #pragma db member(requirement_key::inner) column("index")
 
     #pragma db member(requirements) id_column("") value_column("")
     #pragma db member(requirement_alternatives)               \
-      virtual(_requirement_alternatives_type)                 \
+      virtual(requirement_alternatives_map)                   \
       after(requirements)                                     \
       get(odb::nested_get (this.requirements))                \
       set(odb::nested_set (this.requirements, std::move (?))) \

@@ -806,7 +806,7 @@ test_pkg_repos (const cstrings& loader_args,
     assert (fpv5->dependencies[2][1] == dep ("libexpat", nullopt));
 
     requirements& fpvr5 (fpv5->requirements);
-    assert (fpvr5.size () == 4);
+    assert (fpvr5.size () == 5);
 
     assert (fpvr5[0] == req_alts ({"linux", "windows", "macosx"}));
     assert (!fpvr5[0].conditional);
@@ -825,10 +825,12 @@ test_pkg_repos (const cstrings& loader_args,
     assert (fpvr5[3].conditional);
     assert (fpvr5[3].comment == "Only if using VC++ on Windows.");
 
+    assert (fpvr5[4][0] == "host");
+
     assert (check_location (fpv5));
 
     assert (fpv5->sha256sum && *fpv5->sha256sum ==
-            "042a9c1df1bf6fc61a47d864dceff3cb68640aa68490174c10f5baf813116fa5");
+            "6692a487e0908598e36bdeb9c25ed1e4a35bb99587dbc475807d314fa0719ac6");
 
     assert (fpv5->buildable);
 

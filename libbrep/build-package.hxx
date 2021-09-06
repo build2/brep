@@ -5,6 +5,7 @@
 #define LIBBREP_BUILD_PACKAGE_HXX
 
 #include <odb/core.hxx>
+#include <odb/nested-container.hxx>
 
 #include <libbrep/types.hxx>
 #include <libbrep/utility.hxx>
@@ -74,13 +75,28 @@ namespace brep
   //
   class build_package;
 
+  // Build package dependency.
+  //
+  #pragma db value
+  struct build_dependency
+  {
+    package_name name;
+    optional<version_constraint> constraint;
+
+    lazy_shared_ptr<build_package> package;
+
+    // Database mapping.
+    //
+    #pragma db member(constraint) column("")
+  };
+
   // Build package external test dependency.
   //
   #pragma db value
-  struct build_test_dependency
+  struct build_test_dependency: build_dependency
   {
-    package_name name;
-    lazy_shared_ptr<build_package> package;
+    test_dependency_type type;
+    bool buildtime;
   };
 
   // Foreign object that is mapped to a subset of the package object.
@@ -89,25 +105,24 @@ namespace brep
   class build_package
   {
   public:
+    using requirements_type = brep::requirements;
+
     package_id id;
     upstream_version version;
 
-    // Mapped to the package object tests member using the PostgreSQL foreign
-    // table mechanism.
+    // Mapped to the package object requirements and tests members using the
+    // PostgreSQL foreign table mechanism.
     //
+    requirements_type requirements;
     small_vector<build_test_dependency, 1> tests;
 
     lazy_shared_ptr<build_repository> internal_repository;
     bool buildable;
 
-    // Mapped to the package object builds member using the PostgreSQL foreign
-    // table mechanism.
+    // Mapped to the package object builds and build_constraints members using
+    // the PostgreSQL foreign table mechanism.
     //
     build_class_exprs builds;
-
-    // Mapped to the package object build_constraints member using the
-    // PostgreSQL foreign table mechanism.
-    //
     build_constraints constraints;
 
     bool
@@ -117,6 +132,20 @@ namespace brep
     //
     #pragma db member(id) id column("")
     #pragma db member(version) set(this.version.init (this.id.version, (?)))
+
+    // requirements
+    //
+    #pragma db member(requirement_key::outer) column("requirement_index")
+    #pragma db member(requirement_key::inner) column("index")
+
+    #pragma db member(requirements) id_column("") value_column("")
+    #pragma db member(requirement_alternatives)               \
+      virtual(requirement_alternatives_map)                   \
+      after(requirements)                                     \
+      get(odb::nested_get (this.requirements))                \
+      set(odb::nested_set (this.requirements, std::move (?))) \
+      id_column("") key_column("") value_column("id")
+
     #pragma db member(tests) id_column("") value_column("test_")
     #pragma db member(builds) id_column("") value_column("")
     #pragma db member(constraints) id_column("") value_column("")

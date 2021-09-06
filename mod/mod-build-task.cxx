@@ -234,7 +234,7 @@ handle (request& rq, response& rs)
       // Exclude external test packages which exclude the task build
       // configuration.
       //
-      small_vector<package, 1> tes;
+      small_vector<bpkg::test_dependency, 1> tests;
 
       for (const build_test_dependency& td: p->tests)
       {
@@ -259,19 +259,26 @@ handle (request& rq, response& rs)
                        *cm.config,
                        nullptr /* reason */,
                        true /* default_all_ucs */))
-            tes.push_back (package {move (p->id.name), move (p->version)});
+            continue;
         }
+
+        tests.emplace_back (move (td.name),
+                            td.type,
+                            td.buildtime,
+                            move (td.constraint));
       }
 
       task_manifest task (move (b->package_name),
                           move (b->package_version),
                           move (r->location),
                           move (fps),
-                          move (tes),
+                          move (p->requirements),
+                          move (tests),
                           cm.machine->name,
                           cm.config->target,
                           cm.config->environment,
                           cm.config->args,
+                          belongs (*cm.config, "host"),
                           cm.config->warning_regexes,
                           move (t->interactive));
 

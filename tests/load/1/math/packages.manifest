@@ -79,11 +79,12 @@ requires: linux | windows | macosx; Symbian support is coming.
 requires: c++11
 requires: ? ; libc++ standard library if using Clang on Mac OS X.
 requires: ? vc++ >= 12.0; Only if using VC++ on Windows.
+requires: host
 tests: * libfoo-tests == 1.2.4
 examples: libfoo-examples
 benchmarks: libfoo-benchmarks > 0.0.1
 location: libfoo-1.2.4+1.tar.gz
-sha256sum: 042a9c1df1bf6fc61a47d864dceff3cb68640aa68490174c10f5baf813116fa5
+sha256sum: 6692a487e0908598e36bdeb9c25ed1e4a35bb99587dbc475807d314fa0719ac6
 :
 name: libfoo-benchmarks
 version: 1.2.4
