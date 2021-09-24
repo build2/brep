@@ -19,6 +19,9 @@
 #include <libbrep/package.hxx>
 #include <libbrep/package-odb.hxx>
 
+#undef NDEBUG
+#include <cassert>
+
 using std::cerr;
 using std::endl;
 

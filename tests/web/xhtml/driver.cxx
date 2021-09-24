@@ -8,6 +8,9 @@
 
 #include <web/xhtml/serialization.hxx>
 
+#undef NDEBUG
+#include <cassert>
+
 using namespace std;
 using namespace xml;
 
