@@ -268,6 +268,9 @@ handle (request& rq, response& rs)
                             move (td.constraint));
       }
 
+      bool module_pkg (
+        b->package_name.string ().compare (0, 10, "libbuild2-") == 0);
+
       task_manifest task (move (b->package_name),
                           move (b->package_version),
                           move (r->location),
@@ -278,7 +281,7 @@ handle (request& rq, response& rs)
                           cm.config->target,
                           cm.config->environment,
                           cm.config->args,
-                          belongs (*cm.config, "host"),
+                          belongs (*cm.config, module_pkg ? "build2" : "host"),
                           cm.config->warning_regexes,
                           move (t->interactive));
 
