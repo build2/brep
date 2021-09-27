@@ -195,17 +195,27 @@ namespace brep
          be specified in seconds. Default is 10 minutes."
       }
 
-      size_t build-normal-rebuild-timeout = 86400
+      size_t build-soft-rebuild-timeout = 86400
       {
         "<seconds>",
-        "Time to wait before considering a package for a normal rebuild. Must
-         be specified in seconds. Default is 24 hours."
+        "Time to wait before considering a package for a soft rebuild, which
+         should only be performed if the build environment or any of the
+         package dependencies have changed. Must be specified in seconds.
+         Default is 24 hours."
+      }
+
+      size_t build-hard-rebuild-timeout = 604800
+      {
+        "<seconds>",
+        "Time to wait before considering a package for a hard rebuild, which
+         should be performed unconditionally. Must be specified in seconds.
+         Default is 7 days."
       }
 
       size_t build-alt-rebuild-timeout
       {
         "<seconds>",
-        "Alternative package rebuild timeout to use instead of the normal
+        "Alternative package rebuild timeout to use instead of the soft
          rebuild timeout (see \cb{build-normal-rebuild-timeout} for details)
          during the time interval specified with the
          \cb{build-alt-rebuild-start} and \cb{build-alt-rebuild-stop} options.
