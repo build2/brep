@@ -287,7 +287,6 @@ handle (request& rq, response&)
   //
   shared_ptr<build> bld;
 
-  optional<result_status> prev_status;
   bool build_notify (false);
   bool unforced (true);
 
@@ -382,6 +381,58 @@ handle (request& rq, response&)
 
       if (auth)
       {
+        // Verify the result status/checksums.
+        //
+        // Specifically, if the result status is skip, then it can only be in
+        // response to the soft rebuild task (all checksums are present in the
+        // build object) and the result checksums must match the build object
+        // checksums. On verification failure respond with the bad request
+        // HTTP code (400).
+        //
+        if (rqm.result.status == result_status::skip)
+        {
+          if (!b->agent_checksum  ||
+              !b->worker_checksum ||
+              !b->dependency_checksum)
+            throw invalid_request (400, "unexpected skip result status");
+
+          // Can only be absent for initial build, in which case the checksums
+          // are also absent and we would end up with the above 400 response.
+          //
+          assert (b->status);
+
+          // Verify that the result checksum matches the build checksum and
+          // throw invalid_request(400) if that's not the case.
+          //
+          auto verify = [] (const string& build_checksum,
+                            const optional<string>& result_checksum,
+                            const char* what)
+          {
+            if (!result_checksum)
+              throw invalid_request (
+                400,
+                string (what) +
+                " checksum is expected for skip result status");
+
+            if (*result_checksum != build_checksum)
+              throw invalid_request (
+                400,
+                string (what) + " checksum '" + build_checksum  +
+                "' is expected instead of '" + *result_checksum +
+                "' for skip result status");
+          };
+
+          verify (*b->agent_checksum, rqm.agent_checksum, "agent");
+
+          verify (*b->worker_checksum,
+                  rqm.result.worker_checksum,
+                  "worker");
+
+          verify (*b->dependency_checksum,
+                  rqm.result.dependency_checksum,
+                  "dependency");
+        }
+
         unforced = b->force == force_state::unforced;
 
         // Don't send email to the build-email address for the
@@ -392,10 +443,7 @@ handle (request& rq, response&)
                          *b->status == rqm.result.status             &&
                          unforced);
 
-        prev_status = move (b->status);
-
         b->state  = build_state::built;
-        b->status = rqm.result.status;
         b->force  = force_state::unforced;
 
         // Cleanup the interactive build login information.
@@ -407,22 +455,43 @@ handle (request& rq, response&)
         b->agent_fingerprint = nullopt;
         b->agent_challenge = nullopt;
 
-        // Mark the section as loaded, so results are updated.
-        //
-        b->results_section.load ();
-        b->results = move (rqm.result.results);
-
         b->timestamp = system_clock::now ();
-        b->completion_timestamp = b->timestamp;
+        b->soft_timestamp = b->timestamp;
+
+        // If the result status is other than skip, then save the status,
+        // results, and checksums and update the hard timestamp.
+        //
+        if (rqm.result.status != result_status::skip)
+        {
+          b->status = rqm.result.status;
+          b->hard_timestamp = b->soft_timestamp;
+
+          // Mark the section as loaded, so results are updated.
+          //
+          b->results_section.load ();
+          b->results = move (rqm.result.results);
+
+          // Save the checksums.
+          //
+          b->agent_checksum      = move (rqm.agent_checksum);
+          b->worker_checksum     = move (rqm.result.worker_checksum);
+          b->dependency_checksum = move (rqm.result.dependency_checksum);
+        }
 
         build_db_->update (b);
 
-        shared_ptr<build_package> p (
-          build_db_->load<build_package> (b->id.package));
+        // Don't send the build notification email if the task result is
+        // `skip`, the configuration is hidden, or is now excluded by the
+        // package.
+        //
+        if (rqm.result.status != result_status::skip && belongs (*cfg, "all"))
+        {
+          shared_ptr<build_package> p (
+            build_db_->load<build_package> (b->id.package));
 
-        if (belongs (*cfg, "all") &&
-            !exclude (p->builds, p->constraints, *cfg))
-          bld = move (b);
+          if (!exclude (p->builds, p->constraints, *cfg))
+            bld = move (b);
+        }
       }
     }
 

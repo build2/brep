@@ -60,18 +60,26 @@ namespace brep
     {
       "\h|OPTIONS|"
 
-      std::size_t --build-timeout
+      std::size_t --soft-rebuild-timeout
       {
         "<seconds>",
-        "Time to wait (in seconds) before considering a package build as
+        "Time to wait (in seconds) before considering a package soft (re)build as
          delayed. If unspecified, it is the sum of the package rebuild timeout
-         (normal rebuild timeout if the alternative timeout is unspecified and
-         the maximum of two otherwise) and the build result timeout (see the
-         \cb{build-normal-rebuild-timeout}, \cb{build-alt-rebuild-*}, and
-         \cb{build-result-timeout} \c{brep} module configuration options
-         for details).
+         (soft rebuild timeout if the alternative timeout is unspecified and
+         the maximum of two otherwise) and the build result timeout (see
+         the \cb{build-soft-rebuild-timeout}, \cb{build-alt-soft-rebuild-*},
+         and \cb{build-result-timeout} \cb{brep} module configuration options
+         for details). The special zero value disables monitoring of soft
+         rebuilds.
 
-         Note that a package that was not built before it was archived is
+         Note that if both soft and hard rebuilds are disabled in the
+         \cb{brep} module configuration, then \cb{brep-monitor} is unable to
+         come up with a reasonable build timeout on its own. In this case, to
+         monitor the initial package build delays, you may need to specify
+         either \cb{--soft-rebuild-timeout} or \cb{--hard-rebuild-timeout}
+         explicitly.
+
+         Also note that a package that was not built before it was archived is
          always considered as delayed. However, to distinguish this case from
          a situation where a package was archived before a configuration have
          been added, \cb{brep-monitor} needs to observe the package as
@@ -79,6 +87,16 @@ namespace brep
          you run \cb{brep-monitor} periodically (for example, as a cron job),
          then make sure its running period is less than the tenant archive
          timeout."
+      }
+
+      std::size_t --hard-rebuild-timeout
+      {
+        "<seconds>",
+        "Time to wait (in seconds) before considering a package hard (re)build
+         as delayed. If unspecified, it is calculated in the same way as for
+         \cb{--soft-rebuild-timeout} but using the
+         \cb{build-hard-rebuild-timeout} and \cb{build-alt-hard-rebuild-*}
+         \cb{brep} module configuration options."
       }
 
       std::size_t --report-timeout

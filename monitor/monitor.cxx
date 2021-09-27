@@ -41,6 +41,212 @@ namespace brep
   //
   struct failed {};
 
+  // We will collect and report build delays as separate steps not to hold
+  // database locks while printing to stderr. Also we need to order delays
+  // properly, so while printing reports we could group delays by toolchain
+  // and configuration.
+  //
+  // To achieve that, we will iterate through all possible package builds
+  // creating the list of delays with the following sort priority:
+  //
+  // 1: toolchain name
+  // 2: toolchain version (descending)
+  // 3: configuration name
+  // 4: tenant
+  // 5: package name
+  // 6: package version (descending)
+  //
+  struct compare_delay
+  {
+    bool
+    operator() (const shared_ptr<const build_delay>& x,
+                const shared_ptr<const build_delay>& y) const
+    {
+      if (int r = x->toolchain_name.compare (y->toolchain_name))
+        return r < 0;
+
+      if (int r = x->toolchain_version.compare (y->toolchain_version))
+        return r > 0;
+
+      if (int r = x->configuration.compare (y->configuration))
+        return r < 0;
+
+      if (int r = x->tenant.compare (y->tenant))
+        return r < 0;
+
+      if (int r = x->package_name.compare (y->package_name))
+        return r < 0;
+
+      return x->package_version.compare (y->package_version) > 0;
+    }
+  };
+
+  // The ordered list of delays to report.
+  //
+  class delay_report
+  {
+  public:
+    // Note that in the brief mode we also need to print the total number of
+    // delays (reported or not) per configuration. Thus, we add all delays to
+    // the report object, marking them if we need to report them or not.
+    //
+    void
+    add_delay (shared_ptr<build_delay>, bool report);
+
+    bool
+    empty () const
+    {
+      return reported_delay_count_ == 0;
+    }
+
+    // In the brief mode (if full is false) print the number of reported/total
+    // (if total is true) delayed package builds per configuration rather than
+    // the packages themselves.
+    //
+    void
+    print (const char* header, bool total, bool full) const;
+
+  private:
+    // Maps delays to the report flag.
+    //
+    map<shared_ptr<const build_delay>, bool, compare_delay> delays_;
+    size_t reported_delay_count_ = 0;
+  };
+
+  void delay_report::
+  add_delay (shared_ptr<build_delay> delay, bool report)
+  {
+    delays_.emplace (move (delay), report);
+
+    if (report)
+      ++reported_delay_count_;
+  }
+
+  void delay_report::
+  print (const char* header, bool total, bool full) const
+  {
+    if (empty ())
+      return;
+
+    cerr << header << " (" << reported_delay_count_;
+
+    if (total)
+      cerr << '/' << delays_.size ();
+
+    cerr << "):" << endl;
+
+    // Group the printed delays by toolchain and configuration.
+    //
+    const string*  toolchain_name    (nullptr);
+    const version* toolchain_version (nullptr);
+    const string*  configuration     (nullptr);
+
+    size_t config_reported_delay_count (0);
+    size_t config_total_delay_count (0);
+
+    auto brief_config = [&configuration,
+                         &config_reported_delay_count,
+                         &config_total_delay_count,
+                         total] ()
+    {
+      if (configuration != nullptr)
+      {
+        // Only print configurations with delays that needs to be reported.
+        //
+        if (config_reported_delay_count != 0)
+        {
+          cerr << "    " << *configuration << " ("
+               << config_reported_delay_count;
+
+          if (total)
+            cerr << '/' << config_total_delay_count;
+
+          cerr << ')' << endl;
+        }
+
+        config_reported_delay_count = 0;
+        config_total_delay_count = 0;
+      }
+    };
+
+    for (const auto& dr: delays_)
+    {
+      bool report (dr.second);
+
+      if (full && !report)
+        continue;
+
+      const shared_ptr<const build_delay>& d (dr.first);
+
+      // Print the toolchain, if changed.
+      //
+      if (toolchain_name == nullptr            ||
+          d->toolchain_name != *toolchain_name ||
+          d->toolchain_version != *toolchain_version)
+      {
+        if (!full)
+          brief_config ();
+
+        if (toolchain_name != nullptr)
+          cerr << endl;
+
+        cerr << "  " << d->toolchain_name;
+
+        if (!d->toolchain_version.empty ())
+          cerr << "/" << d->toolchain_version;
+
+        cerr << endl;
+
+        toolchain_name    = &d->toolchain_name;
+        toolchain_version = &d->toolchain_version;
+        configuration     = nullptr;
+      }
+
+      // Print the configuration, if changed.
+      //
+      if (configuration == nullptr || d->configuration != *configuration)
+      {
+        if (full)
+        {
+          if (configuration != nullptr)
+            cerr << endl;
+
+          cerr << "    " << d->configuration << endl;
+        }
+        else
+          brief_config ();
+
+        configuration = &d->configuration;
+      }
+
+      // Print the delayed build package in the full report mode and count
+      // configuration builds otherwise.
+      //
+      if (full)
+      {
+        // We can potentially extend this information with the archived flag
+        // or the delay duration.
+        //
+        cerr << "      " << d->package_name << "/" << d->package_version;
+
+        if (!d->tenant.empty ())
+          cerr << " " << d->tenant;
+
+        cerr << endl;
+      }
+      else
+      {
+        if (report)
+          ++config_reported_delay_count;
+
+        ++config_total_delay_count;
+      }
+    }
+
+    if (!full)
+      brief_config ();
+  }
+
   static const char* help_info (
     "  info: run 'brep-monitor --help' for more information");
 
@@ -141,12 +347,24 @@ namespace brep
         return 1;
       }
 
-      if (mod_ops.build_alt_rebuild_start_specified () !=
-          mod_ops.build_alt_rebuild_stop_specified ())
+      auto bad_alt = [&f] (const char* what)
       {
-        cerr << "build-alt-rebuild-start and build-alt-rebuild-stop "
-             << "configuration options must both be either specified or not "
-             << "in '" << f << "'" << endl;
+        cerr << "build-alt-" << what << "-rebuild-start and build-alt-"
+             << what << "-rebuild-stop configuration options must both be "
+             << "either specified or not in '" << f << "'" << endl;
+      };
+
+      if (mod_ops.build_alt_hard_rebuild_start_specified () !=
+          mod_ops.build_alt_hard_rebuild_stop_specified ())
+      {
+        bad_alt("hard");
+        return 1;
+      }
+
+      if (mod_ops.build_alt_soft_rebuild_start_specified () !=
+          mod_ops.build_alt_soft_rebuild_stop_specified ())
+      {
+        bad_alt("soft");
         return 1;
       }
     }
@@ -384,59 +602,16 @@ namespace brep
       }
     }
 
-    // Collect and report delays as separate steps not to hold database locks
-    // while printing to stderr. Also we need to properly order delays for
-    // printing.
-    //
-    // Iterate through all possible package builds creating the list of delays
-    // with the following sort priority:
-    //
-    // 1: toolchain name
-    // 2: toolchain version (descending)
-    // 3: configuration name
-    // 4: tenant
-    // 5: package name
-    // 6: package version (descending)
-    //
-    // Such ordering will allow us to group build delays by toolchain and
-    // configuration while printing the report.
-    //
-    struct compare_delay
-    {
-      bool
-      operator() (const shared_ptr<const build_delay>& x,
-                  const shared_ptr<const build_delay>& y) const
-      {
-        if (int r = x->toolchain_name.compare (y->toolchain_name))
-          return r < 0;
-
-        if (int r = x->toolchain_version.compare (y->toolchain_version))
-          return r > 0;
-
-        if (int r = x->configuration.compare (y->configuration))
-          return r < 0;
-
-        if (int r = x->tenant.compare (y->tenant))
-          return r < 0;
-
-        if (int r = x->package_name.compare (y->package_name))
-          return r < 0;
-
-        return x->package_version.compare (y->package_version) > 0;
-      }
-    };
-
-    size_t reported_delay_count (0);
-    size_t total_delay_count (0);
-
-    set<shared_ptr<const build_delay>, compare_delay> delays;
+    delay_report hard_delays_report;
+    delay_report soft_delays_report;
+    set<shared_ptr<const build_delay>, compare_delay> update_delays;
     {
       connection_ptr conn (db.connection ());
 
       // Prepare the buildable package prepared query.
       //
-      // Query buildable packages in chunks in order not to hold locks for
-      // too long.
+      // Query buildable packages in chunks in order not to hold locks for too
+      // long.
       //
       using pquery = query<buildable_package>;
       using prep_pquery = prepared_query<buildable_package>;
@@ -463,6 +638,11 @@ namespace brep
       // across all toolchain versions, if present, and the latest incomplete
       // build otherwise.
       //
+      // Why don't we pick the latest toolchain version? We don't want to
+      // stuck with it on the toolchain rollback. Instead we prefer the
+      // toolchain that built the package last and if there are none, pick the
+      // one for which the build task was issued last.
+      //
       using bquery = query<package_build>;
       using prep_bquery = prepared_query<package_build>;
 
@@ -473,63 +653,126 @@ namespace brep
                   bid.configuration == bquery::_ref (id.configuration) &&
                   bid.toolchain_name == bquery::_ref (id.toolchain_name)) +
                  "ORDER BY"                                               +
-                 bquery::build::completion_timestamp + "DESC, "           +
+                 bquery::build::soft_timestamp + "DESC, "                 +
                  bquery::build::timestamp + "DESC"                        +
                  "LIMIT 1");
 
       prep_bquery pbq (
         conn->prepare_query<package_build> ("package-build-query", bq));
 
-      duration build_timeout;
+      timestamp now (system_clock::now ());
 
-      // If the build timeout is not specified explicitly, then calculate it
-      // as the sum of the package rebuild timeout (normal rebuild timeout if
-      // the alternative timeout is unspecified and the maximum of two
-      // otherwise) and the build result timeout.
+      // Calculate the build/rebuild expiration time, based on the respective
+      // --{soft,hard}-rebuild-timeout monitor options and the
+      // build-{soft,hard}-rebuild-timeout and
+      // build-alt-{soft,hard}-rebuild-{start,stop,timeout} brep module
+      // configuration options.
       //
-      if (!ops.build_timeout_specified ())
+      // If the --*-rebuild-timeout monitor option is zero or is not specified
+      // and the respective build-*-rebuild-timeout brep's configuration
+      // option is zero, then return timestamp_unknown to indicate 'never
+      // expire'. Note that this value is less than any build timestamp value,
+      // including timestamp_nonexistent.
+      //
+      // NOTE: there is a similar code in mod/mod-build-task.cxx.
+      //
+      auto build_expiration = [&now, &mod_ops] (
+        optional<size_t> rebuild_timeout,
+        const optional<pair<duration, duration>>& alt_interval,
+        optional<size_t> alt_timeout,
+        size_t normal_timeout)
       {
-        duration normal_rebuild_timeout (
-          chrono::seconds (mod_ops.build_normal_rebuild_timeout ()));
+        duration t;
 
-        if (mod_ops.build_alt_rebuild_start_specified ())
+        // If the rebuild timeout is not specified explicitly, then calculate
+        // it as the sum of the package rebuild timeout (normal rebuild
+        // timeout if the alternative timeout is unspecified and the maximum
+        // of two otherwise) and the build result timeout.
+        //
+        if (!rebuild_timeout)
         {
-          // Calculate the alternative rebuild timeout as the time interval
-          // lenght, unless it is specified explicitly.
-          //
-          if (!mod_ops.build_alt_rebuild_timeout_specified ())
-          {
-            const duration& start (mod_ops.build_alt_rebuild_start ());
-            const duration& stop  (mod_ops.build_alt_rebuild_stop ());
+          if (normal_timeout == 0)
+            return timestamp_unknown;
 
-            // Note that if the stop time is less than the start time then the
-            // interval extends through the midnight.
+          chrono::seconds nt (normal_timeout);
+
+          if (alt_interval)
+          {
+            // Calculate the alternative timeout, unless it is specified
+            // explicitly.
             //
-            build_timeout = start <= stop
-                            ? stop - start
-                            : (24h - start) + stop;
+            if (!alt_timeout)
+            {
+              const duration& start (alt_interval->first);
+              const duration& stop  (alt_interval->second);
+
+              // Note that if the stop time is less than the start time then
+              // the interval extends through the midnight.
+              //
+              t = start <= stop ? (stop - start) : ((24h - start) + stop);
+
+              // If the normal rebuild time out is greater than 24 hours, then
+              // increase the default alternative timeout by (normal - 24h)
+              // (see build-alt-soft-rebuild-timeout configuration option for
+              // details).
+              //
+              if (nt > 24h)
+                t += nt - 24h;
+            }
+            else
+              t = chrono::seconds (*alt_timeout);
+
+            // Take the maximum of the alternative and normal rebuild
+            // timeouts.
+            //
+            if (t < nt)
+              t = nt;
           }
           else
-            build_timeout =
-              chrono::seconds (mod_ops.build_alt_rebuild_timeout ());
+            t = nt;
 
-          // Take the maximum of the alternative and normal rebuild timeouts.
+          // Summarize the rebuild and build result timeouts.
           //
-          if (build_timeout < normal_rebuild_timeout)
-            build_timeout = normal_rebuild_timeout;
+          t += chrono::seconds (mod_ops.build_result_timeout ());
         }
         else
-          build_timeout = normal_rebuild_timeout;
+        {
+          if (*rebuild_timeout == 0)
+            return timestamp_unknown;
 
-        // Summarize the rebuild and build result timeouts.
-        //
-        build_timeout += chrono::seconds (mod_ops.build_result_timeout ());
-      }
-      else
-        build_timeout = chrono::seconds (ops.build_timeout ());
+          t = chrono::seconds (*rebuild_timeout);
+        }
 
-      timestamp now (system_clock::now ());
-      timestamp build_expiration (now - build_timeout);
+        return now - t;
+      };
+
+      timestamp hard_rebuild_expiration (
+        build_expiration (
+          (ops.hard_rebuild_timeout_specified ()
+           ? ops.hard_rebuild_timeout ()
+           : optional<size_t> ()),
+          (mod_ops.build_alt_hard_rebuild_start_specified ()
+           ? make_pair (mod_ops.build_alt_hard_rebuild_start (),
+                        mod_ops.build_alt_hard_rebuild_stop ())
+           : optional<pair<duration, duration>> ()),
+          (mod_ops.build_alt_hard_rebuild_timeout_specified ()
+           ? mod_ops.build_alt_hard_rebuild_timeout ()
+           : optional<size_t> ()),
+          mod_ops.build_hard_rebuild_timeout ()));
+
+      timestamp soft_rebuild_expiration (
+        build_expiration (
+          (ops.soft_rebuild_timeout_specified ()
+           ? ops.soft_rebuild_timeout ()
+           : optional<size_t> ()),
+          (mod_ops.build_alt_soft_rebuild_start_specified ()
+           ? make_pair (mod_ops.build_alt_soft_rebuild_start (),
+                        mod_ops.build_alt_soft_rebuild_stop ())
+           : optional<pair<duration, duration>> ()),
+          (mod_ops.build_alt_soft_rebuild_timeout_specified ()
+           ? mod_ops.build_alt_soft_rebuild_timeout ()
+           : optional<size_t> ()),
+          mod_ops.build_soft_rebuild_timeout ()));
 
       timestamp report_expiration (
         now - chrono::seconds (ops.report_timeout ()));
@@ -583,8 +826,12 @@ namespace brep
                 // task have been issued recently we may still consider the
                 // build as delayed.
                 //
-                timestamp bct (b != nullptr
-                               ? b->completion_timestamp
+                timestamp bht (b != nullptr
+                               ? b->hard_timestamp
+                               : timestamp_nonexistent);
+
+                timestamp bst (b != nullptr
+                               ? b->soft_timestamp
                                : timestamp_nonexistent);
 
                 // Create the delay object to record a timestamp when the
@@ -605,15 +852,17 @@ namespace brep
                   if (bp.archived && b == nullptr)
                     continue;
 
-                  // Use the build completion or build status change
-                  // timestamp, whichever is earlier, as the build delay
-                  // tracking starting point and fallback to the current time
-                  // if there is no build yet.
+                  // Use the build hard, soft, or status change timestamp (see
+                  // the timestamps description for their ordering
+                  // information) as the build delay tracking starting point
+                  // and fallback to the current time if there is no build
+                  // yet.
                   //
                   timestamp pts (
-                    b == nullptr                                       ? now :
-                    bct != timestamp_nonexistent && bct < b->timestamp ? bct :
-                    b->timestamp);
+                    b == nullptr                 ? now :
+                    bht != timestamp_nonexistent ? bht :
+                    bst != timestamp_nonexistent ? bst :
+                                                   b->timestamp);
 
                   d = make_shared<build_delay> (move (id.package.tenant),
                                                 move (id.package.name),
@@ -632,20 +881,40 @@ namespace brep
                 // if it is not (re-)built by the expiration time. Otherwise,
                 // consider it as delayed if it is unbuilt.
                 //
-                bool delayed;
+                // We also don't need to report an unbuilt archived package
+                // twice, as both soft and hard build delays.
+                //
+                bool hard_delayed;
+                bool soft_delayed;
 
                 if (!bp.archived)
                 {
-                  timestamp bts (bct != timestamp_nonexistent
-                                 ? bct
+                  auto delayed = [&d] (timestamp bt, timestamp be)
+                  {
+                    timestamp t (bt != timestamp_nonexistent
+                                 ? bt
                                  : d->package_timestamp);
+                    return t <= be;
+                  };
 
-                  delayed = (bts <= build_expiration);
+                  hard_delayed = delayed (bht, hard_rebuild_expiration);
+                  soft_delayed = delayed (bst, soft_rebuild_expiration);
                 }
                 else
-                  delayed = (bct == timestamp_nonexistent);
+                {
+                  hard_delayed = (bst == timestamp_nonexistent);
+                  soft_delayed = false;
+                }
 
-                if (delayed)
+                // Add hard/soft delays to the respective reports and collect
+                // the delay for update, if it is reported.
+                //
+                // Note that we update the delay objects persistent state
+                // later, after we successfully print the reports.
+                //
+                bool reported (false);
+
+                if (hard_delayed)
                 {
                   // If the report timeout is zero then report the delay
                   // unconditionally. Otherwise, report the active package
@@ -655,33 +924,43 @@ namespace brep
                   // building an archived package, so reporting its build
                   // delays repeatedly is meaningless.
                   //
-                  if (ops.report_timeout () == 0 ||
-                      (!bp.archived
-                       ? d->report_timestamp <= report_expiration
-                       : d->report_timestamp == timestamp_nonexistent))
-                  {
-                    // Note that we update the delay objects persistent state
-                    // later, after we successfully print the report.
-                    //
-                    d->report_timestamp = now;
-                    delays.insert (move (d));
+                  bool report (
+                    ops.report_timeout () == 0 ||
+                    (!bp.archived
+                     ? d->report_hard_timestamp <= report_expiration
+                     : d->report_hard_timestamp == timestamp_nonexistent));
 
-                    ++reported_delay_count;
-                  }
-                  //
-                  // In the brief mode also collect unreported delays to
-                  // deduce and print the total number of delays per
-                  // configuration. Mark such delays with the
-                  // timestamp_nonexistent report timestamp.
-                  //
-                  else if (!ops.full_report ())
+                  if (report)
                   {
-                    d->report_timestamp = timestamp_nonexistent;
-                    delays.insert (move (d));
+                    d->report_hard_timestamp = now;
+                    reported = true;
                   }
 
-                  ++total_delay_count;
+                  hard_delays_report.add_delay (d, report);
                 }
+
+                if (soft_delayed)
+                {
+                  bool report (ops.report_timeout () == 0 ||
+                               d->report_soft_timestamp <= report_expiration);
+
+                  if (report)
+                  {
+                    d->report_soft_timestamp = now;
+                    reported = true;
+                  }
+
+                  soft_delays_report.add_delay (d, report);
+                }
+
+                // If we don't consider the report timestamps for reporting
+                // delays, it seems natural not to update these timestamps
+                // either. Note that reporting all delays and still updating
+                // the report timestamps can be achieved by specifying the
+                // zero report timeout.
+                //
+                if (reported && ops.report_timeout_specified ())
+                  update_delays.insert (move (d));
               }
             }
           }
@@ -691,159 +970,46 @@ namespace brep
       }
     }
 
-    // Report package build delays, if any.
+    // Print delay reports, if not empty.
     //
-    if (reported_delay_count != 0)
+    if (!hard_delays_report.empty () || !soft_delays_report.empty ())
     try
     {
-      // Print the report.
-      //
       cerr.exceptions (ostream::badbit | ostream::failbit);
 
       // Don't print the total delay count if the report timeout is zero since
       // all delays are reported in this case.
       //
-      bool print_total_delay_count (ops.report_timeout () != 0);
+      bool total (ops.report_timeout () != 0);
 
-      cerr << "Package build delays (" << reported_delay_count;
+      hard_delays_report.print ("Package hard rebuild delays",
+                                total,
+                                ops.full_report ());
 
-      if (print_total_delay_count)
-        cerr << '/' << total_delay_count;
-
-      cerr << "):" << endl;
-
-      // Group the printed delays by toolchain and configuration.
+      // Separate reports with an empty line.
       //
-      const string*  toolchain_name    (nullptr);
-      const version* toolchain_version (nullptr);
-      const string*  configuration     (nullptr);
+      if (!hard_delays_report.empty () && !soft_delays_report.empty ())
+        cerr << endl;
 
-      // In the brief report mode print the number of reported/total delayed
-      // package builds per configuration rather than the packages themselves.
-      //
-      size_t config_reported_delay_count (0);
-      size_t config_total_delay_count (0);
-
-      auto brief_config = [&configuration,
-                           &config_reported_delay_count,
-                           &config_total_delay_count,
-                           print_total_delay_count] ()
-      {
-        if (configuration != nullptr)
-        {
-          // Only print configurations with delays that needs to be reported.
-          //
-          if (config_reported_delay_count != 0)
-          {
-            cerr << "    " << *configuration << " ("
-                 << config_reported_delay_count;
-
-            if (print_total_delay_count)
-              cerr << '/' << config_total_delay_count;
-
-            cerr << ')' << endl;
-          }
-
-          config_reported_delay_count = 0;
-          config_total_delay_count = 0;
-        }
-      };
-
-      for (shared_ptr<const build_delay> d: delays)
-      {
-        // Print the toolchain, if changed.
-        //
-        if (toolchain_name == nullptr            ||
-            d->toolchain_name != *toolchain_name ||
-            d->toolchain_version != *toolchain_version)
-        {
-          if (!ops.full_report ())
-            brief_config ();
-
-          if (toolchain_name != nullptr)
-            cerr << endl;
-
-          cerr << "  " << d->toolchain_name;
-
-          if (!d->toolchain_version.empty ())
-            cerr << "/" << d->toolchain_version;
-
-          cerr << endl;
-
-          toolchain_name    = &d->toolchain_name;
-          toolchain_version = &d->toolchain_version;
-          configuration     = nullptr;
-        }
-
-        // Print the configuration, if changed.
-        //
-        if (configuration == nullptr || d->configuration != *configuration)
-        {
-          if (ops.full_report ())
-          {
-            if (configuration != nullptr)
-              cerr << endl;
-
-            cerr << "    " << d->configuration << endl;
-          }
-          else
-            brief_config ();
-
-          configuration = &d->configuration;
-        }
-
-        // Print the delayed build package in the full report mode and count
-        // configuration builds otherwise.
-        //
-        if (ops.full_report ())
-        {
-          // We can potentially extend this information with the archived flag
-          // or the delay duration.
-          //
-          cerr << "      " << d->package_name << "/" << d->package_version;
-
-          if (!d->tenant.empty ())
-            cerr << " " << d->tenant;
-
-          cerr << endl;
-        }
-        else
-        {
-          if (d->report_timestamp != timestamp_nonexistent)
-            ++config_reported_delay_count;
-
-          ++config_total_delay_count;
-        }
-      }
-
-      if (!ops.full_report ())
-        brief_config ();
-
-      // Persist the delay report timestamps.
-      //
-      // If we don't consider the report timestamps for reporting delays, it
-      // seems natural not to update these timestamps either. Note that
-      // reporting all delays and still updating the report timestamps can be
-      // achieved by specifying the zero report timeout.
-      //
-      if (ops.report_timeout_specified ())
-      {
-        transaction t (db.begin ());
-
-        for (shared_ptr<const build_delay> d: delays)
-        {
-          // Only update timestamps for delays that needs to be reported.
-          //
-          if (d->report_timestamp != timestamp_nonexistent)
-            db.update (d);
-        }
-
-        t.commit ();
-      }
+      soft_delays_report.print ("Package soft rebuild delays",
+                                total,
+                                ops.full_report ());
     }
     catch (const io_error&)
     {
       return 1; // Not much we can do on stderr writing failure.
+    }
+
+    // Persist the delay report timestamps.
+    //
+    if (!update_delays.empty ())
+    {
+      transaction t (db.begin ());
+
+      for (shared_ptr<const build_delay> d: update_delays)
+        db.update (d);
+
+      t.commit ();
     }
 
     return 0;

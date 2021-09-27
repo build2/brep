@@ -30,7 +30,7 @@
 //
 #define LIBBREP_BUILD_SCHEMA_VERSION_BASE 12
 
-#pragma db model version(LIBBREP_BUILD_SCHEMA_VERSION_BASE, 14, closed)
+#pragma db model version(LIBBREP_BUILD_SCHEMA_VERSION_BASE, 15, closed)
 
 // We have to keep these mappings at the global scope instead of inside
 // the brep namespace because they need to be also effective in the
@@ -194,7 +194,9 @@ namespace brep
            optional<string> agent_fingerprint,
            optional<string> agent_challenge,
            string machine, string machine_summary,
-           butl::target_triplet);
+           butl::target_triplet,
+           string controller_checksum,
+           string machine_checksum);
 
     build_id id;
 
@@ -223,15 +225,26 @@ namespace brep
     //
     optional<result_status> status;
 
-    // Time of setting the result status that can be considered as the build
-    // task completion (currently all the result_status values). Initialized
-    // with timestamp_nonexistent by default.
+    // Times of the last soft/hard completed (re)builds. Used to decide when
+    // to perform soft and hard rebuilds, respectively.
     //
-    // Note that in the future we may not consider abort and abnormal as the
-    // task completion and, for example, proceed with automatic rebuild (the
-    // flake monitor idea).
+    // The soft timestamp is updated whenever we receive a task result.
     //
-    timestamp_type completion_timestamp;
+    // The hard timestamp is updated whenever we receive a task result with
+    // a status other than skip.
+    //
+    // Also note that whenever hard_timestamp is updated, soft_timestamp is
+    // updated as well and whenever soft_timestamp is updated, timestamp is
+    // updated as well. Thus the following condition is always true:
+    //
+    // hard_timestamp <= soft_timestamp <= timestamp
+    //
+    // Note that the "completed" above means that we may analyze the task
+    // result/log and deem it as not completed and proceed with automatic
+    // rebuild (the flake monitor idea).
+    //
+    timestamp_type soft_timestamp;
+    timestamp_type hard_timestamp;
 
     // May be present only for the building state.
     //
@@ -247,6 +260,21 @@ namespace brep
     //
     operation_results results;
     odb::section results_section;
+
+    // Checksums of entities involved in the build.
+    //
+    // Optional checksums are provided by the external entities (agent and
+    // worker). All are absent initially.
+    //
+    // Note that the agent checksum can also be absent after the hard rebuild
+    // task is issued and the worker and dependency checksums - after a failed
+    // rebuild (error result status or worse).
+    //
+    string           controller_checksum;
+    string           machine_checksum;
+    optional<string> agent_checksum;
+    optional<string> worker_checksum;
+    optional<string> dependency_checksum;
 
     // Database mapping.
     //
@@ -264,15 +292,6 @@ namespace brep
     // Speed-up queries with ordering the result by the timestamp.
     //
     #pragma db member(timestamp) index
-
-    // This is not required since 0.14.0. Note however, that just dropping
-    // this line won't pan out since this would require migration which odb is
-    // currently unable to handle automatically, advising to re-implement this
-    // change by adding a new data member with the desired default value,
-    // migrating the data, and deleting the old data member. This sounds a bit
-    // hairy, so let's keep it for now.
-    //
-    #pragma db member(completion_timestamp) default(0)
 
     #pragma db member(results) id_column("") value_column("") \
       section(results_section)
@@ -396,10 +415,14 @@ namespace brep
     string& toolchain_name;             // Tracks id.toolchain_name.
     upstream_version toolchain_version; // Original of id.toolchain_version.
 
-    // Time of the latest delay report. Initialized with timestamp_nonexistent
-    // by default.
+    // Times of the latest soft and hard rebuild delay reports. Initialized
+    // with timestamp_nonexistent by default.
     //
-    timestamp report_timestamp;
+    // Note that both reports notify about initial build delays (at their
+    // respective time intervals).
+    //
+    timestamp report_soft_timestamp;
+    timestamp report_hard_timestamp;
 
     // Time when the package is initially considered as buildable for this
     // configuration and toolchain. It is used to track the build delay if the

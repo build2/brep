@@ -14,6 +14,8 @@
 
 #include <libbutl/pager.hxx>
 
+#include <libbrep/build.hxx>
+#include <libbrep/build-odb.hxx>
 #include <libbrep/package.hxx>
 #include <libbrep/package-odb.hxx>
 #include <libbrep/database-lock.hxx>
@@ -223,6 +225,36 @@ package_migrate_v20 ([] (database& db)
 {
 });
 #endif
+
+// Register the data migration functions for the build database schema.
+//
+template <schema_version v>
+using build_migration_entry_base =
+  data_migration_entry<v, LIBBREP_BUILD_SCHEMA_VERSION_BASE>;
+
+template <schema_version v>
+struct build_migration_entry: build_migration_entry_base<v>
+{
+  build_migration_entry (void (*f) (database& db))
+      : build_migration_entry_base<v> (f, "build") {}
+};
+
+static const build_migration_entry<15>
+build_migrate_v15 ([] (database& db)
+{
+  // Setting proper checksums here feels a bit hairy. Let's assign them
+  // naturally on the first rebuild.
+  //
+  db.execute ("UPDATE build SET "
+              "soft_timestamp = completion_timestamp, "
+              "hard_timestamp = completion_timestamp, "
+              "controller_checksum = '', "
+              "machine_checksum = ''");
+
+  db.execute ("UPDATE build_delay SET "
+              "report_soft_timestamp = report_timestamp, "
+              "report_hard_timestamp = report_timestamp");
+});
 
 // main() function
 //

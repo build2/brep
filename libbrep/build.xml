@@ -1,4 +1,22 @@
 <changelog xmlns="http://www.codesynthesis.com/xmlns/odb/changelog" database="pgsql" schema-name="build" version="1">
+  <changeset version="15">
+    <alter-table name="build">
+      <add-column name="soft_timestamp" type="BIGINT" null="false"/>
+      <add-column name="hard_timestamp" type="BIGINT" null="false"/>
+      <add-column name="controller_checksum" type="TEXT" null="false"/>
+      <add-column name="machine_checksum" type="TEXT" null="false"/>
+      <add-column name="agent_checksum" type="TEXT" null="true"/>
+      <add-column name="worker_checksum" type="TEXT" null="true"/>
+      <add-column name="dependency_checksum" type="TEXT" null="true"/>
+      <drop-column name="completion_timestamp"/>
+    </alter-table>
+    <alter-table name="build_delay">
+      <add-column name="report_soft_timestamp" type="BIGINT" null="false"/>
+      <add-column name="report_hard_timestamp" type="BIGINT" null="false"/>
+      <drop-column name="report_timestamp"/>
+    </alter-table>
+  </changeset>
+
   <changeset version="14"/>
 
   <changeset version="13">

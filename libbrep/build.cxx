@@ -62,7 +62,9 @@ namespace brep
          optional<string> inr,
          optional<string> afp, optional<string> ach,
          string mnm, string msm,
-         butl::target_triplet trg)
+         butl::target_triplet trg,
+         string ccs,
+         string mcs)
       : id (package_id (move (tnt), move (pnm), pvr),
             move (cfg),
             move (tnm), tvr),
@@ -79,7 +81,9 @@ namespace brep
         agent_fingerprint (move (afp)), agent_challenge (move (ach)),
         machine (move (mnm)),
         machine_summary (move (msm)),
-        target (move (trg))
+        target (move (trg)),
+        controller_checksum (move (ccs)),
+        machine_checksum (move (mcs))
   {
   }
 

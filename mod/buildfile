@@ -50,7 +50,7 @@ if $cli.configured
   cli.options += --std c++11 -I $src_root --include-with-brackets    \
 --include-prefix mod --guard-prefix MOD --generate-specifier         \
 --cxx-prologue "#include <mod/types-parsers.hxx>"                    \
---cli-namespace brep::cli --generate-file-scanner --option-length 45 \
+--cli-namespace brep::cli --generate-file-scanner --option-length 46 \
 --generate-modifier --generate-description --option-prefix ""
 
   # Include the generated cli files into the distribution and don't remove

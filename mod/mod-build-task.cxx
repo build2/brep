@@ -61,13 +61,23 @@ init (scanner& s)
 
   if (options_->build_config_specified ())
   {
-    // Verify that build-alt-rebuild-{start,stop} are both either specified or
-    // not.
+    // Verify that build-alt-*-rebuild-{start,stop} are both either specified
+    // or not.
     //
-    if (options_->build_alt_rebuild_start_specified () !=
-        options_->build_alt_rebuild_stop_specified ())
-      fail << "build-alt-rebuild-start and build-alt-rebuild-stop "
-           << "configuration options must both be either specified or not";
+    auto bad_alt = [&fail] (const char* what)
+    {
+      fail << "build-alt-" << what << "-rebuild-start and build-alt-" << what
+           << "-rebuild-stop configuration options must both be either "
+           << "specified or not";
+    };
+
+    if (options_->build_alt_soft_rebuild_start_specified () !=
+        options_->build_alt_soft_rebuild_stop_specified ())
+      bad_alt ("soft");
+
+    if (options_->build_alt_hard_rebuild_start_specified () !=
+        options_->build_alt_hard_rebuild_stop_specified ())
+      bad_alt ("hard");
 
     database_module::init (*options_, options_->build_db_retry ());
 
@@ -277,22 +287,25 @@ handle (request& rq, response& rs)
                           move (fps),
                           move (p->requirements),
                           move (tests),
+                          move (b->dependency_checksum),
                           cm.machine->name,
                           cm.config->target,
                           cm.config->environment,
                           cm.config->args,
                           belongs (*cm.config, module_pkg ? "build2" : "host"),
                           cm.config->warning_regexes,
-                          move (t->interactive));
+                          move (t->interactive),
+                          move (b->worker_checksum));
 
       return task_response_manifest (move (session),
                                      move (b->agent_challenge),
                                      move (result_url),
+                                     move (b->agent_checksum),
                                      move (task));
     };
 
-    // Calculate the build (building state) or rebuild (built state) expiration
-    // time for package configurations
+    // Calculate the build (building state) or rebuild (built state)
+    // expiration time for package configurations.
     //
     timestamp now (system_clock::now ());
 
@@ -316,44 +329,95 @@ handle (request& rq, response& rs)
     timestamp forced_rebuild_expiration (
       expiration (options_->build_forced_rebuild_timeout ()));
 
-    timestamp normal_rebuild_expiration;
-
-    if (options_->build_alt_rebuild_start_specified ())
+    // Calculate the soft/hard rebuild expiration time, based on the
+    // respective build-{soft,hard}-rebuild-timeout and
+    // build-alt-{soft,hard}-rebuild-{start,stop,timeout} configuration
+    // options.
+    //
+    // If normal_timeout is zero, then return timestamp_unknown to indicate
+    // 'never expire'. Note that this value is less than any build timestamp
+    // value, including timestamp_nonexistent.
+    //
+    // NOTE: there is a similar code in monitor/monitor.cxx.
+    //
+    auto build_expiration = [&now] (
+      const optional<pair<duration, duration>>& alt_interval,
+      optional<size_t> alt_timeout,
+      size_t normal_timeout)
     {
-      const duration& start (options_->build_alt_rebuild_start ());
-      const duration& stop  (options_->build_alt_rebuild_stop ());
+      if (normal_timeout == 0)
+        return timestamp_unknown;
 
-      duration dt (daytime (now));
+      timestamp r;
+      chrono::seconds nt (normal_timeout);
 
-      // Note that if the stop time is less than the start time then the
-      // interval extends through the midnight.
-      //
-      bool alt_timeout (start <= stop
-                        ? dt >= start && dt < stop
-                        : dt >= start || dt < stop);
-
-      // If we out of the alternative rebuild timeout interval, then fall back
-      // to using the normal rebuild timeout.
-      //
-      if (alt_timeout)
+      if (alt_interval)
       {
-        if (!options_->build_alt_rebuild_timeout_specified ())
+        const duration& start (alt_interval->first);
+        const duration& stop  (alt_interval->second);
+
+        duration dt (daytime (now));
+
+        // Note that if the stop time is less than the start time then the
+        // interval extends through the midnight.
+        //
+        bool use_alt_timeout (start <= stop
+                              ? dt >= start && dt < stop
+                              : dt >= start || dt < stop);
+
+        // If we out of the alternative rebuild timeout interval, then fall
+        // back to using the normal rebuild timeout.
+        //
+        if (use_alt_timeout)
         {
-          duration interval_len (start <= stop
-                                 ? stop - start
-                                 : (24h - start) + stop);
+          // Calculate the alternative timeout, unless it is specified
+          // explicitly.
+          //
+          duration t;
 
-          normal_rebuild_expiration = now - interval_len;
+          if (!alt_timeout)
+          {
+            t = start <= stop ? (stop - start) : ((24h - start) + stop);
+
+            // If the normal rebuild timeout is greater than 24 hours, then
+            // increase the default alternative timeout by (normal - 24h) (see
+            // build-alt-soft-rebuild-timeout configuration option for
+            // details).
+            //
+            if (nt > 24h)
+              t += nt - 24h;
+          }
+          else
+            t = chrono::seconds (*alt_timeout);
+
+          r = now - t;
         }
-        else
-          normal_rebuild_expiration =
-            expiration (options_->build_alt_rebuild_timeout ());
       }
-    }
 
-    if (normal_rebuild_expiration == timestamp_nonexistent)
-      normal_rebuild_expiration =
-        expiration (options_->build_normal_rebuild_timeout ());
+      return r != timestamp_nonexistent ? r : (now - nt);
+    };
+
+    timestamp soft_rebuild_expiration (
+      build_expiration (
+        (options_->build_alt_soft_rebuild_start_specified ()
+         ? make_pair (options_->build_alt_soft_rebuild_start (),
+                      options_->build_alt_soft_rebuild_stop ())
+         : optional<pair<duration, duration>> ()),
+        (options_->build_alt_soft_rebuild_timeout_specified ()
+         ? options_->build_alt_soft_rebuild_timeout ()
+         : optional<size_t> ()),
+        options_->build_soft_rebuild_timeout ()));
+
+    timestamp hard_rebuild_expiration (
+      build_expiration (
+        (options_->build_alt_hard_rebuild_start_specified ()
+         ? make_pair (options_->build_alt_hard_rebuild_start (),
+                      options_->build_alt_hard_rebuild_stop ())
+         : optional<pair<duration, duration>> ()),
+        (options_->build_alt_hard_rebuild_timeout_specified ()
+         ? options_->build_alt_hard_rebuild_timeout ()
+         : optional<size_t> ()),
+        options_->build_hard_rebuild_timeout ()));
 
     // Return the challenge (nonce) if brep is configured to authenticate bbot
     // agents. Return nullopt otherwise.
@@ -555,6 +619,68 @@ handle (request& rq, response& rs)
     prep_bld_query bld_prep_query (
       conn->prepare_query<build> ("mod-build-task-build-query", bq));
 
+    // Return true if a package needs to be rebuilt.
+    //
+    auto needs_rebuild = [&forced_rebuild_expiration,
+                          &soft_rebuild_expiration,
+                          &hard_rebuild_expiration] (const build& b)
+    {
+      assert (b.state == build_state::built);
+
+      return (b.force == force_state::forced &&
+              b.soft_timestamp <= forced_rebuild_expiration) ||
+             b.soft_timestamp <= soft_rebuild_expiration     ||
+             b.hard_timestamp <= hard_rebuild_expiration;
+    };
+
+    // Convert a build to the hard rebuild, resetting the agent checksum and
+    // dropping the previous build task result.
+    //
+    // Note that since the checksums are hierarchical, the agent checksum
+    // reset will trigger resets of the "subordinate" checksums up to the
+    // dependency checksum and so the package will be rebuilt.
+    //
+    // Also note that there is no sense to keep the build task result since we
+    // don't accept the skip result for the hard rebuild task. We, however,
+    // keep the status intact (see below for the reasoning).
+    //
+    auto convert_to_hard = [] (const shared_ptr<build>& b)
+    {
+      b->agent_checksum = nullopt;
+
+      // Mark the section as loaded, so results are updated.
+      //
+      b->results_section.load ();
+      b->results.clear ();
+    };
+
+    // Return SHA256 checksum of the controller logic and the configuration
+    // target, environment, arguments, and warning-detecting regular
+    // expressions.
+    //
+    auto controller_checksum = [] (const build_config& c)
+    {
+      sha256 cs ("1"); // Hash the logic version.
+
+      cs.append (c.target.string ());
+      cs.append (c.environment ? *c.environment : "");
+
+      for (const string& a: c.args)
+        cs.append (a);
+
+      for (const string& re: c.warning_regexes)
+        cs.append (re);
+
+      return string (cs.string ());
+    };
+
+    // Return the machine id as a machine checksum.
+    //
+    auto machine_checksum = [] (const machine_header_manifest& m)
+    {
+      return m.id;
+    };
+
     while (tsm.session.empty ())
     {
       transaction t (conn->begin ());
@@ -604,9 +730,7 @@ handle (request& rq, response& rs)
           {
             assert (i->force != force_state::forcing);
 
-            if (i->timestamp <= (i->force == force_state::forced
-                                 ? forced_rebuild_expiration
-                                 : normal_rebuild_expiration))
+            if (needs_rebuild (*i))
               rebuilds.emplace_back (i.load ());
           }
         }
@@ -666,14 +790,15 @@ handle (request& rq, response& rs)
                                       move (cl),
                                       mh.name,
                                       move (mh.summary),
-                                      cm.config->target);
+                                      cm.config->target,
+                                      controller_checksum (*cm.config),
+                                      machine_checksum (*cm.machine));
 
               build_db_->persist (b);
             }
             else
             {
-              // The package configuration is in the building state, and there
-              // are no results.
+              // The package configuration is in the building state.
               //
               // Note that in both cases we keep the status intact to be able
               // to compare it with the final one in the result request
@@ -681,12 +806,7 @@ handle (request& rq, response& rs)
               // email. The same is true for the forced flag (in the sense
               // that we don't set the force state to unforced).
               //
-              // Load the section to assert the above statement.
-              //
-              build_db_->load (*b, b->results_section);
-
-              assert (b->state == build_state::building &&
-                      b->results.empty ());
+              assert (b->state == build_state::building);
 
               b->state = build_state::building;
               b->interactive = move (login);
@@ -703,6 +823,22 @@ handle (request& rq, response& rs)
               b->machine = mh.name;
               b->machine_summary = move (mh.summary);
               b->target = cm.config->target;
+
+              string ccs (controller_checksum (*cm.config));
+              string mcs (machine_checksum (*cm.machine));
+
+              // Issue the hard rebuild if it is forced or the configuration
+              // or machine has changed.
+              //
+              if (b->hard_timestamp <= hard_rebuild_expiration ||
+                  b->force == force_state::forced              ||
+                  b->controller_checksum != ccs                ||
+                  b->machine_checksum != mcs)
+                convert_to_hard (b);
+
+              b->controller_checksum = move (ccs);
+              b->machine_checksum    = move (mcs);
+
               b->timestamp = system_clock::now ();
 
               build_db_->update (b);
@@ -770,10 +906,9 @@ handle (request& rq, response& rs)
 
           b = build_db_->find<build> (b->id);
 
-          if (b != nullptr && b->state == build_state::built &&
-              b->timestamp <= (b->force == force_state::forced
-                               ? forced_rebuild_expiration
-                               : normal_rebuild_expiration))
+          if (b != nullptr                   &&
+              b->state == build_state::built &&
+              needs_rebuild (*b))
           {
             auto i (cfg_machines.find (b->id.configuration.c_str ()));
 
@@ -828,10 +963,23 @@ handle (request& rq, response& rs)
 
               b->target = cm.config->target;
 
-              // Mark the section as loaded, so results are updated.
+              // Issue the hard rebuild if the timeout expired, rebuild is
+              // forced, or the configuration or machine has changed.
               //
-              b->results_section.load ();
-              b->results.clear ();
+              // Note that we never reset the build status (see above for the
+              // reasoning).
+              //
+              string ccs (controller_checksum (*cm.config));
+              string mcs (machine_checksum (*cm.machine));
+
+              if (b->hard_timestamp <= hard_rebuild_expiration ||
+                  b->force == force_state::forced              ||
+                  b->controller_checksum != ccs                ||
+                  b->machine_checksum != mcs)
+                convert_to_hard (b);
+
+              b->controller_checksum = move (ccs);
+              b->machine_checksum    = move (mcs);
 
               b->timestamp = system_clock::now ();
 
