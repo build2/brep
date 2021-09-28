@@ -15,8 +15,8 @@
 #include <cstring>   // strlen(), strcmp()
 #include <exception>
 
-#include <libbutl/utility.mxx>  // function_cast()
-#include <libbutl/optional.mxx>
+#include <libbutl/utility.hxx>  // function_cast()
+#include <libbutl/optional.hxx>
 
 #include <web/server/module.hxx>
 #include <web/server/apache/log.hxx>

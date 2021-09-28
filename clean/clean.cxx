@@ -12,7 +12,7 @@
 
 #include <odb/pgsql/database.hxx>
 
-#include <libbutl/pager.mxx>
+#include <libbutl/pager.hxx>
 
 #include <libbbot/build-config.hxx>
 

@@ -6,7 +6,7 @@
 #include <string>
 #include <iterator> // back_inserter
 
-#include <libbutl/url.mxx>
+#include <libbutl/url.hxx>
 
 using namespace std;
 using namespace butl;

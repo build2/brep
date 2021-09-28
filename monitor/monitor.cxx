@@ -13,8 +13,8 @@
 
 #include <odb/pgsql/database.hxx>
 
-#include <libbutl/pager.mxx>
-#include <libbutl/utility.mxx> // compare_c_string
+#include <libbutl/pager.hxx>
+#include <libbutl/utility.hxx> // compare_c_string
 
 #include <libbbot/build-config.hxx>
 

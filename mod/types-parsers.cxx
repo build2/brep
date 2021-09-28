@@ -5,8 +5,8 @@
 
 #include <sstream>
 
-#include <libbutl/regex.mxx>
-#include <libbutl/timestamp.mxx> // from_string()
+#include <libbutl/regex.hxx>
+#include <libbutl/timestamp.hxx> // from_string()
 
 #include <mod/module-options.hxx>
 

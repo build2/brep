@@ -6,13 +6,13 @@
 #include <ostream>
 
 #include <libbutl/uuid.hxx>
-#include <libbutl/sendmail.mxx>
-#include <libbutl/fdstream.mxx>
-#include <libbutl/timestamp.mxx>
-#include <libbutl/filesystem.mxx>
-#include <libbutl/process-io.mxx>          // operator<<(ostream, process_args)
-#include <libbutl/manifest-parser.mxx>
-#include <libbutl/manifest-serializer.mxx>
+#include <libbutl/sendmail.hxx>
+#include <libbutl/fdstream.hxx>
+#include <libbutl/timestamp.hxx>
+#include <libbutl/filesystem.hxx>
+#include <libbutl/process-io.hxx>          // operator<<(ostream, process_args)
+#include <libbutl/manifest-parser.hxx>
+#include <libbutl/manifest-serializer.hxx>
 
 #include <libbpkg/manifest.hxx>
 #include <libbpkg/package-name.hxx>

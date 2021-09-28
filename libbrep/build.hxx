@@ -9,7 +9,7 @@
 #include <odb/core.hxx>
 #include <odb/section.hxx>
 
-#include <libbutl/target-triplet.mxx>
+#include <libbutl/target-triplet.hxx>
 
 #include <libbrep/types.hxx>
 #include <libbrep/utility.hxx>

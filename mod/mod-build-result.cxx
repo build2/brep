@@ -6,12 +6,12 @@
 #include <odb/database.hxx>
 #include <odb/transaction.hxx>
 
-#include <libbutl/openssl.mxx>
-#include <libbutl/sendmail.mxx>
-#include <libbutl/fdstream.mxx>
-#include <libbutl/process-io.mxx>
-#include <libbutl/manifest-parser.mxx>
-#include <libbutl/manifest-serializer.mxx>
+#include <libbutl/openssl.hxx>
+#include <libbutl/sendmail.hxx>
+#include <libbutl/fdstream.hxx>
+#include <libbutl/process-io.hxx>
+#include <libbutl/manifest-parser.hxx>
+#include <libbutl/manifest-serializer.hxx>
 
 #include <libbbot/manifest.hxx>
 

@@ -21,12 +21,12 @@
 
 #include <odb/lazy-ptr.hxx>
 
-#include <libbutl/url.mxx>
-#include <libbutl/path.mxx>
-#include <libbutl/path-io.mxx>
-#include <libbutl/optional.mxx>
-#include <libbutl/timestamp.mxx>
-#include <libbutl/small-vector.mxx>
+#include <libbutl/url.hxx>
+#include <libbutl/path.hxx>
+#include <libbutl/path-io.hxx>
+#include <libbutl/optional.hxx>
+#include <libbutl/timestamp.hxx>
+#include <libbutl/small-vector.hxx>
 
 namespace brep
 {
@@ -50,7 +50,7 @@ namespace brep
   using std::weak_ptr;
 
   using std::vector;
-  using butl::small_vector; // <libbutl/small-vector.mxx>
+  using butl::small_vector; // <libbutl/small-vector.hxx>
 
   using strings = vector<string>;
   using cstrings = vector<const char*>;
@@ -69,7 +69,7 @@ namespace brep
 
   using std::generic_category;
 
-  // <libbutl/optional.mxx>
+  // <libbutl/optional.hxx>
   //
   using butl::optional;
   using butl::nullopt;
@@ -79,7 +79,7 @@ namespace brep
   using odb::lazy_shared_ptr;
   using odb::lazy_weak_ptr;
 
-  // <libbutl/path.mxx>
+  // <libbutl/path.hxx>
   //
   using butl::path;
   using butl::dir_path;
@@ -91,11 +91,11 @@ namespace brep
 
   using butl::path_cast;
 
-  // <libbutl/url.mxx>
+  // <libbutl/url.hxx>
   //
   using butl::url;
 
-  // <libbutl/timestamp.mxx>
+  // <libbutl/timestamp.hxx>
   //
   using butl::system_clock;
   using butl::timestamp;

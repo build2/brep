@@ -6,7 +6,7 @@
 
 #include <map>
 
-#include <libbutl/utility.mxx> // compare_c_string
+#include <libbutl/utility.hxx> // compare_c_string
 
 #include <libbpkg/manifest.hxx>
 

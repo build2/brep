@@ -34,9 +34,9 @@
 #include <streambuf>
 #include <algorithm> // min()
 
-#include <libbutl/utility.mxx>   // icasecmp()
-#include <libbutl/optional.mxx>
-#include <libbutl/timestamp.mxx>
+#include <libbutl/utility.hxx>   // icasecmp()
+#include <libbutl/optional.hxx>
+#include <libbutl/timestamp.hxx>
 
 #include <web/server/mime-url-encoding.hxx>
 

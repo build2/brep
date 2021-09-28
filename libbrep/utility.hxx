@@ -10,7 +10,7 @@
 #include <cassert>  // assert()
 #include <iterator> // make_move_iterator()
 
-#include <libbutl/utility.mxx> // icasecmp(), reverse_iterate(),
+#include <libbutl/utility.hxx> // icasecmp(), reverse_iterate(),
                                // operator<<(ostream, exception)
 
 namespace brep
@@ -24,7 +24,7 @@ namespace brep
   using std::make_move_iterator;
   using std::to_string;
 
-  // <libbutl/utility.mxx>
+  // <libbutl/utility.hxx>
   //
   using butl::utf8;
   using butl::icasecmp;

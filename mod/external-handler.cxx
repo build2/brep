@@ -13,9 +13,9 @@
 #include <type_traits>  // static_assert
 #include <system_error> // error_code, generic_category()
 
-#include <libbutl/process.mxx>
-#include <libbutl/fdstream.mxx>
-#include <libbutl/process-io.mxx> // operator<<(ostream, process_args)
+#include <libbutl/process.hxx>
+#include <libbutl/fdstream.hxx>
+#include <libbutl/process-io.hxx> // operator<<(ostream, process_args)
 
 using namespace std;
 using namespace butl;

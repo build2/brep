@@ -6,7 +6,7 @@
 
 #include <odb/pre.hxx>
 
-#include <libbutl/optional.mxx>
+#include <libbutl/optional.hxx>
 
 #include <odb/wrapper-traits.hxx>
 

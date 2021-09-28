@@ -10,8 +10,8 @@
 
 #include <odb/pgsql/database.hxx>
 
-#include <libbutl/process.mxx>
-#include <libbutl/filesystem.mxx>
+#include <libbutl/process.hxx>
+#include <libbutl/filesystem.hxx>
 
 #include <libbrep/types.hxx>
 #include <libbrep/utility.hxx>

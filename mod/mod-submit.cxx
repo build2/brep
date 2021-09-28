@@ -5,14 +5,14 @@
 
 #include <ostream>
 
-#include <libbutl/sha256.mxx>
-#include <libbutl/sendmail.mxx>
-#include <libbutl/fdstream.mxx>
-#include <libbutl/timestamp.mxx>
-#include <libbutl/filesystem.mxx>
-#include <libbutl/process-io.mxx>          // operator<<(ostream, process_args)
-#include <libbutl/manifest-types.mxx>
-#include <libbutl/manifest-serializer.mxx>
+#include <libbutl/sha256.hxx>
+#include <libbutl/sendmail.hxx>
+#include <libbutl/fdstream.hxx>
+#include <libbutl/timestamp.hxx>
+#include <libbutl/filesystem.hxx>
+#include <libbutl/process-io.hxx>          // operator<<(ostream, process_args)
+#include <libbutl/manifest-types.hxx>
+#include <libbutl/manifest-serializer.hxx>
 
 #include <web/server/module.hxx>
 

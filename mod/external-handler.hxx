@@ -4,7 +4,7 @@
 #ifndef MOD_EXTERNAL_HANDLER_HXX
 #define MOD_EXTERNAL_HANDLER_HXX
 
-#include <libbutl/manifest-parser.mxx>
+#include <libbutl/manifest-parser.hxx>
 
 #include <libbrep/types.hxx>
 #include <libbrep/utility.hxx>

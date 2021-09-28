@@ -3,8 +3,8 @@
 
 #include <mod/build-config.hxx>
 
-#include <libbutl/utility.mxx>      // alpha(), etc.
-#include <libbutl/path-pattern.mxx>
+#include <libbutl/utility.hxx>      // alpha(), etc.
+#include <libbutl/path-pattern.hxx>
 
 namespace brep
 {

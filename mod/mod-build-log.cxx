@@ -8,7 +8,7 @@
 #include <odb/database.hxx>
 #include <odb/transaction.hxx>
 
-#include <libbutl/timestamp.mxx> // to_stream()
+#include <libbutl/timestamp.hxx> // to_stream()
 
 #include <web/server/module.hxx>
 
