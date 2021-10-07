@@ -25,7 +25,7 @@ license: MIT
 url: http://www.example.com/foo/
 email: foo-users@example.com
 location: libfoo-1.0.tar.gz
-sha256sum: 754cba3da34dd0296866027a26b6bacf08cacc80f54516d3b8d8eeccbe31ab93
+sha256sum: e89c6d746f8b1ea3ec58d294946d2f683d133438d2ac8c88549ba24c19627e76
 :
 name: libfoo
 version: 0.1
@@ -43,7 +43,7 @@ license: MIT
 url: http://www.example.com/foo/
 email: foo-users@example.com
 location: libfoo-1.2.4+1.tar.gz
-sha256sum: 35ccba3da34dd0296866027a26b6bacf08cacc80f54516d3b8d8eeccbe31ab93
+sha256sum: 6692a487e0908598e36bdeb9c25ed1e4a35bb99587dbc475807d314fa0719ac6
 :
 name: libfoo
 version: 1.2.4+2

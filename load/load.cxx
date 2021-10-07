@@ -667,6 +667,9 @@ load_repositories (const options& lo,
 
     manifest_parser mp (ifs, p.string ());
     rpm = pkg_repository_manifests (mp, ignore_unknown);
+
+    if (rpm.empty ())
+      rpm.emplace_back (repository_manifest ()); // Add the base repository.
   }
   catch (const io_error& e)
   {
