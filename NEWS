@@ -4,12 +4,12 @@ Version 0.14.0
 
   * Support for soft and hard rebuilds.
 
-  * Support for build-time dependencies and target/host configuration split
-    awareness.
+  * Support for build-time dependencies and the target/host configuration
+    split awareness.
 
   * Initial support for private brep-as-VM setup (see etc/private/README).
 
-  * Build notifications are no longer sent if build-email package manifest
+  * Build notifications are no longer sent the if build-email package manifest
     value is unspecified.
 
 Version 0.13.0
