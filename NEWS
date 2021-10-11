@@ -9,7 +9,7 @@ Version 0.14.0
 
   * Initial support for private brep-as-VM setup (see etc/private/README).
 
-  * Build notifications are no longer sent the if build-email package manifest
+  * Build notifications are no longer sent if the build-email package manifest
     value is unspecified.
 
 Version 0.13.0
