@@ -213,7 +213,7 @@ dep (const char* n, optional<version_constraint> c)
 static inline version
 dep_ver (const char* v)
 {
-  return version (v, false /* fold_zero_revision */);
+  return version (v, version::none);
 }
 
 static void

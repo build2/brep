@@ -175,7 +175,7 @@ build_query (const brep::cstrings* configs,
     {
       // May throw invalid_argument.
       //
-      version v (params.version (), false /* fold_zero_revision */);
+      version v (params.version (), version::none);
 
       q = q && compare_version_eq (pid.version,
                                    canonical_version (v),
@@ -303,7 +303,7 @@ package_query (const brep::params::builds& params,
     {
       // May throw invalid_argument.
       //
-      version v (params.version (), false /* fold_zero_revision */);
+      version v (params.version (), version::none);
 
       q = q && compare_version_eq (qp::id.version,
                                    canonical_version (v),
