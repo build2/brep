@@ -214,8 +214,7 @@ handle (request& rq, response& rs)
 
     <<     TR_PRIORITY (pkg->priority)
     <<     TR_LICENSES (pkg->license_alternatives)
-    <<     TR_REPOSITORY (rl.canonical_name (), root, tenant)
-    <<     TR_LOCATION (rl);
+    <<     TR_REPOSITORY (rl, root, tenant);
 
   if (rl.type () == repository_type::pkg)
   {

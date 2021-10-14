@@ -145,7 +145,6 @@ h1, h2, h3
 
 #version tr.version td .value,
 #version tr.priority td .value,
-#version tr.repository td .value
 {
   /* <code> style. */
   font-family: monospace;

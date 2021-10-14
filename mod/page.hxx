@@ -424,30 +424,18 @@ namespace brep
   class TR_REPOSITORY
   {
   public:
-    TR_REPOSITORY (const string& n, const dir_path& r, const string& t)
-        : name_ (n), root_ (r), tenant_ (t) {}
-
-    void
-    operator() (xml::serializer&) const;
-
-  private:
-    const string& name_;
-    const dir_path& root_;
-    const string& tenant_;
-  };
-
-  // Generate repository location element.
-  //
-  class TR_LOCATION
-  {
-  public:
-    TR_LOCATION (const repository_location& l): location_ (l) {}
+    TR_REPOSITORY (const repository_location& l,
+                   const dir_path& r,
+                   const string& t)
+        : location_ (l), root_ (r), tenant_ (t) {}
 
     void
     operator() (xml::serializer&) const;
 
   private:
     const repository_location& location_;
+    const dir_path& root_;
+    const string& tenant_;
   };
 
   // Generate link element.

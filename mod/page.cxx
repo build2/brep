@@ -643,23 +643,12 @@ namespace brep
       <<       A
       <<       HREF
       <<         tenant_dir (root_, tenant_) << "?about#"
-      <<         mime_url_encode (html_id (name_), false)
+      <<         mime_url_encode (html_id (location_.canonical_name ()), false)
       <<       ~HREF
-      <<         name_
+      <<         location_
       <<       ~A
       <<     ~SPAN
       <<   ~TD
-      << ~TR;
-  }
-
-  // TR_LOCATION
-  //
-  void TR_LOCATION::
-  operator() (serializer& s) const
-  {
-    s << TR(CLASS="location")
-      <<   TH << "location" << ~TH
-      <<   TD << SPAN(CLASS="value") << location_ << ~SPAN << ~TD
       << ~TR;
   }
 

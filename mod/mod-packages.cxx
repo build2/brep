@@ -170,8 +170,7 @@ handle (request& rq, response& rs)
       <<     TR_NAME (p->name, equery, root, p->tenant)
       <<     TR_SUMMARY (p->summary)
       <<     TR_LICENSE (p->license_alternatives)
-      <<     TR_DEPENDS (p->dependencies, root, p->tenant)
-      <<     TR_REQUIRES (p->requirements);
+      <<     TR_DEPENDS (p->dependencies, root, p->tenant);
 
     // In the global view mode add the tenant packages link. Note that the
     // global view (and the link) makes sense only in the multi-tenant mode.

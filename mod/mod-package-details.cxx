@@ -265,23 +265,12 @@ handle (request& rq, response& rs)
 
     assert (p->internal ());
 
-    // @@ Shouldn't we make package repository name to be a link to the proper
-    //    place of the About page, describing corresponding repository?
-    //    Yes, I think that's sounds reasonable.
-    //    Or maybe it can be something more valuable like a link to the
-    //    repository package search page ?
+    const repository_location& rl (p->internal_repository.load ()->location);
+
+    // @@ Maybe the repository link can be something more valuable like a link
+    //    to the repository package search page ?
     //
-    // @@ In most cases package location will be the same for all versions
-    //    of the same package. Shouldn't we put package location to the
-    //    package summary part and display it here only if it differs
-    //    from the one in the summary ?
-    //
-    //    Hm, I am not so sure about this. Consider: stable/testing/unstable.
-    //
-    s <<     TR_REPOSITORY (
-               p->internal_repository.object_id ().canonical_name,
-               root,
-               tenant)
+    s <<     TR_REPOSITORY (rl, root, tenant)
       <<     TR_DEPENDS (p->dependencies, root, tenant)
       <<     TR_REQUIRES (p->requirements)
       <<   ~TBODY

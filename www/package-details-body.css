@@ -184,7 +184,6 @@ table.version th {width: 7.6em;}
 
 table.version tr.version td .value,
 table.version tr.priority td .value,
-table.version tr.repository td .value,
 table.version tr.depends td .value,
 table.version tr.requires td .value
 {
