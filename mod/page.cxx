@@ -903,8 +903,14 @@ namespace brep
           {
             // Parse Markdown into the AST.
             //
+            // Note that the footnotes extension needs to be enabled via the
+            // CMARK_OPT_FOOTNOTES flag rather than the
+            // cmark_parser_attach_syntax_extension() function call.
+            //
             unique_ptr<cmark_parser, void (*)(cmark_parser*)> parser (
-              cmark_parser_new (CMARK_OPT_DEFAULT | CMARK_OPT_VALIDATE_UTF8),
+              cmark_parser_new (CMARK_OPT_DEFAULT   |
+                                CMARK_OPT_FOOTNOTES |
+                                CMARK_OPT_VALIDATE_UTF8),
               [] (cmark_parser* p) {cmark_parser_free (p);});
 
             // Enable GitHub extensions in the parser, if requested.
@@ -912,25 +918,20 @@ namespace brep
             if (type_ == text_type::github_mark)
             {
               auto add = [&parser] (const char* ext)
-                {
-                  cmark_syntax_extension* e (
-                    cmark_find_syntax_extension (ext));
+              {
+                cmark_syntax_extension* e (
+                  cmark_find_syntax_extension (ext));
 
-                  // Built-in extension is only expected.
-                  //
-                  assert (e != nullptr);
+                // Built-in extension is only expected.
+                //
+                assert (e != nullptr);
 
-                  cmark_parser_attach_syntax_extension (parser.get (), e);
-                };
+                cmark_parser_attach_syntax_extension (parser.get (), e);
+              };
 
               add ("table");
               add ("strikethrough");
               add ("autolink");
-
-              // Somehow feels unsafe (there are some nasty warnings when
-              // upstream's tasklist.c is compiled), so let's disable for now.
-              //
-              // add ("tasklist");
             }
 
             cmark_parser_feed (parser.get (), text_.c_str (), text_.size ());

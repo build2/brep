@@ -725,12 +725,14 @@ test_pkg_repos (const cstrings& loader_args,
     assert (fpv5->topics ==
             labels ({"math library", "math API", "libbaz fork"}));
     assert (fpv5->keywords == labels ({"c++", "foo", "math", "best"}));
+
     assert (*fpv5->description ==
             "A modern C++ library with easy to use linear algebra and lot "
             "of optimization\ntools.\n\nThere are over 100 functions in "
             "total with an extensive test suite. The API is\nsimilar to "
-            "~~mathlab~~ **MATLAB**.\n\nUseful for conversion of research "
-            "code into production environments.");
+            "~~mathlab~~ **MATLAB**.[^mathlab]\n\nUseful for conversion of "
+            "research code into production environments.\n"
+            "[^mathlab]: MATLAB Capabilities: TODO");
 
     assert (fpv5->url && fpv5->url->string () == "http://www.example.com/foo/");
 
@@ -830,7 +832,7 @@ test_pkg_repos (const cstrings& loader_args,
     assert (check_location (fpv5));
 
     assert (fpv5->sha256sum && *fpv5->sha256sum ==
-            "6692a487e0908598e36bdeb9c25ed1e4a35bb99587dbc475807d314fa0719ac6");
+            "f99cb46b97d0e1dccbdd10571f1f649ac5bbb22d6c25adadbc579ffbbb89d31c");
 
     assert (fpv5->buildable);
 
