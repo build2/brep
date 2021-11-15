@@ -18,7 +18,7 @@
 
 // Used by the data migration entries.
 //
-#define LIBBREP_PACKAGE_SCHEMA_VERSION_BASE 19
+#define LIBBREP_PACKAGE_SCHEMA_VERSION_BASE 21
 
 #pragma db model version(LIBBREP_PACKAGE_SCHEMA_VERSION_BASE, 21, closed)
 
@@ -191,7 +191,7 @@ namespace brep
 
     // Database mapping.
     //
-    #pragma db member(buildtime) default(false) // @@ TMP
+    #pragma db member(buildtime)
   };
 
   // certificate
@@ -237,7 +237,7 @@ namespace brep
     // Database mapping.
     //
     #pragma db member(id) id
-    #pragma db member(private_) default(false) // @@ TMP
+    #pragma db member(private_)
 
   private:
     friend class odb::access;

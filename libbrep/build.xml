@@ -1,31 +1,5 @@
 <changelog xmlns="http://www.codesynthesis.com/xmlns/odb/changelog" database="pgsql" schema-name="build" version="1">
-  <changeset version="15">
-    <alter-table name="build">
-      <add-column name="soft_timestamp" type="BIGINT" null="false"/>
-      <add-column name="hard_timestamp" type="BIGINT" null="false"/>
-      <add-column name="controller_checksum" type="TEXT" null="false"/>
-      <add-column name="machine_checksum" type="TEXT" null="false"/>
-      <add-column name="agent_checksum" type="TEXT" null="true"/>
-      <add-column name="worker_checksum" type="TEXT" null="true"/>
-      <add-column name="dependency_checksum" type="TEXT" null="true"/>
-      <drop-column name="completion_timestamp"/>
-    </alter-table>
-    <alter-table name="build_delay">
-      <add-column name="report_soft_timestamp" type="BIGINT" null="false"/>
-      <add-column name="report_hard_timestamp" type="BIGINT" null="false"/>
-      <drop-column name="report_timestamp"/>
-    </alter-table>
-  </changeset>
-
-  <changeset version="14"/>
-
-  <changeset version="13">
-    <alter-table name="build">
-      <add-column name="interactive" type="TEXT" null="true"/>
-    </alter-table>
-  </changeset>
-
-  <model version="12">
+  <model version="15">
     <table name="build" kind="object">
       <column name="package_tenant" type="TEXT" null="false"/>
       <column name="package_name" type="CITEXT" null="false"/>
@@ -44,15 +18,22 @@
       <column name="toolchain_version_upstream" type="TEXT" null="false"/>
       <column name="toolchain_version_release" type="TEXT" null="true"/>
       <column name="state" type="TEXT" null="false"/>
+      <column name="interactive" type="TEXT" null="true"/>
       <column name="timestamp" type="BIGINT" null="false"/>
       <column name="force" type="TEXT" null="false"/>
       <column name="status" type="TEXT" null="true"/>
-      <column name="completion_timestamp" type="BIGINT" null="false" default="0"/>
+      <column name="soft_timestamp" type="BIGINT" null="false"/>
+      <column name="hard_timestamp" type="BIGINT" null="false"/>
       <column name="agent_fingerprint" type="TEXT" null="true"/>
       <column name="agent_challenge" type="TEXT" null="true"/>
       <column name="machine" type="TEXT" null="false"/>
       <column name="machine_summary" type="TEXT" null="false"/>
       <column name="target" type="TEXT" null="false"/>
+      <column name="controller_checksum" type="TEXT" null="false"/>
+      <column name="machine_checksum" type="TEXT" null="false"/>
+      <column name="agent_checksum" type="TEXT" null="true"/>
+      <column name="worker_checksum" type="TEXT" null="true"/>
+      <column name="dependency_checksum" type="TEXT" null="true"/>
       <primary-key>
         <column name="package_tenant"/>
         <column name="package_name"/>
@@ -151,7 +132,8 @@
       <column name="package_version_release" type="TEXT" null="true"/>
       <column name="toolchain_version_upstream" type="TEXT" null="false"/>
       <column name="toolchain_version_release" type="TEXT" null="true"/>
-      <column name="report_timestamp" type="BIGINT" null="false"/>
+      <column name="report_soft_timestamp" type="BIGINT" null="false"/>
+      <column name="report_hard_timestamp" type="BIGINT" null="false"/>
       <column name="package_timestamp" type="BIGINT" null="false"/>
       <primary-key>
         <column name="package_tenant"/>

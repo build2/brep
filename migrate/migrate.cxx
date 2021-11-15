@@ -220,14 +220,15 @@ struct package_migration_entry: package_migration_entry_base<v>
       : package_migration_entry_base<v> (f, "package") {}
 };
 
-static const package_migration_entry<20>
-package_migrate_v20 ([] (database& db)
+static const package_migration_entry<22>
+package_migrate_v22 ([] (database& db)
 {
 });
 #endif
 
 // Register the data migration functions for the build database schema.
 //
+#if 0
 template <schema_version v>
 using build_migration_entry_base =
   data_migration_entry<v, LIBBREP_BUILD_SCHEMA_VERSION_BASE>;
@@ -239,22 +240,11 @@ struct build_migration_entry: build_migration_entry_base<v>
       : build_migration_entry_base<v> (f, "build") {}
 };
 
-static const build_migration_entry<15>
-build_migrate_v15 ([] (database& db)
+static const build_migration_entry<16>
+build_migrate_v16 ([] (database& db)
 {
-  // Setting proper checksums here feels a bit hairy. Let's assign them
-  // naturally on the first rebuild.
-  //
-  db.execute ("UPDATE build SET "
-              "soft_timestamp = completion_timestamp, "
-              "hard_timestamp = completion_timestamp, "
-              "controller_checksum = '', "
-              "machine_checksum = ''");
-
-  db.execute ("UPDATE build_delay SET "
-              "report_soft_timestamp = report_timestamp, "
-              "report_hard_timestamp = report_timestamp");
 });
+#endif
 
 // main() function
 //
