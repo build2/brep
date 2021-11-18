@@ -36,6 +36,13 @@ namespace brep
 
   private:
     shared_ptr<options::build_result> options_;
+
+    // True if the openssl version is greater or equal to 3.0.0 and so pkeyutl
+    // needs to be used instead of rsautl.
+    //
+    // Note that openssl 3.0.0 deprecates rsautl in favor of pkeyutl.
+    //
+    bool use_openssl_pkeyutl_;
   };
 }
 

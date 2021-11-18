@@ -12,6 +12,7 @@
 #include <libbutl/process-io.hxx>
 #include <libbutl/manifest-parser.hxx>
 #include <libbutl/manifest-serializer.hxx>
+#include <libbutl/semantic-version.hxx>
 
 #include <libbbot/manifest.hxx>
 
@@ -39,7 +40,8 @@ brep::build_result::
 build_result (const build_result& r)
     : database_module (r),
       build_config_module (r),
-      options_ (r.initialized_ ? r.options_ : nullptr)
+      options_ (r.initialized_ ? r.options_  : nullptr),
+      use_openssl_pkeyutl_ (r.initialized_ ? r.use_openssl_pkeyutl_ : false)
 {
 }
 
@@ -60,6 +62,25 @@ init (scanner& s)
                            options_->build_db_retry ());
 
     build_config_module::init (*options_);
+  }
+
+  try
+  {
+    optional<openssl_info> oi (
+      openssl::info ([&trace, this] (const char* args[], size_t n)
+                     {
+                       l2 ([&]{trace << process_args {args, n};});
+                     },
+                     2,
+                     options_->openssl ()));
+
+    use_openssl_pkeyutl_ = oi                    &&
+                           oi->name == "OpenSSL" &&
+                           oi->version >= semantic_version {3, 0, 0};
+  }
+  catch (const system_error& e)
+  {
+    fail << "unable to obtain openssl version: " << e;
   }
 
   if (options_->root ().empty ())
@@ -347,9 +368,12 @@ handle (request& rq, response&)
                         path ("-"), fdstream_mode::text, 2,
                         process_env (options_->openssl (),
                                      options_->openssl_envvar ()),
-                        "rsautl",
+                        use_openssl_pkeyutl_ ? "pkeyutl" : "rsautl",
                         options_->openssl_option (),
-                        "-verify", "-pubin", "-inkey", i->second);
+                        use_openssl_pkeyutl_ ? "-verifyrecover" : "-verify",
+                        "-pubin",
+                        "-inkey",
+                        i->second);
 
             for (const auto& c: *rqm.challenge)
               os.out.put (c); // Sets badbit on failure.
