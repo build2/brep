@@ -8,7 +8,7 @@ role: prerequisite
 #
 email: repoman@dev.cppget.org
 summary: Math C++ package repository
-description: \
+description:\
 This is the awesome C++ package repository full of remarkable algorithms and
 APIs.
 \

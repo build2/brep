@@ -1,5 +1,5 @@
 : 1
-sha256sum: b85ba3a0ba45b98e1fbb2507f199bc4b218a4a413ec6ba4094e214a7507490a2
+sha256sum: 521d17cbd396275aa9eb9b00d456beaaaabae1c004eff6de712bb615c18bb59b
 :
 name: libexp
 version: +2-1.2+1
@@ -48,7 +48,7 @@ license: LGPLv2, MIT; If using with GNU TLS.
 license: BSD; If using with OpenSSL.
 topics: math library, math API, libbaz fork
 keywords: c++ foo math best
-description: \
+description:\
 A modern C++ library with easy to use linear algebra and lot of optimization
 tools.
 
@@ -59,7 +59,7 @@ Useful for conversion of research code into production environments.
 [^mathlab]: MATLAB Capabilities: TODO
 \
 description-type: text/markdown
-changes: \
+changes:\
 1.2.4+1
  * applied patch for critical bug-219
  * regenerated documentation
@@ -116,7 +116,7 @@ version: 0
 summary: PostgreSQL C API client library
 license: PostgreSQL License; Permissive free software license.
 keywords: postgresql database client library c
-description: \
+description:\
 PostgreSQL is an object-relational SQL database management system with libpq
 being its C client library. Applications can use this library to pass queries
 to the PostgreSQL backend server and to receive the results of those queries
@@ -145,7 +145,7 @@ email: pgsql-general@postgresql.org; Mailing list.
 package-email: packaging@build2.org; Mailing list.
 requires: build2 >= 0.4.0
 location: libpq-0.tar.gz
-sha256sum: 75958d000b641c588cdf48e3574584e070104097702dccffdad77947e37f9bd0
+sha256sum: 367e72c8cc4aca1cdb99aacfefb0117ca333031775ff7435b0fa1f4988e33a31
 :
 name: libstudxml
 version: 1.0.0+1

@@ -6,17 +6,18 @@
 
 # Copy cert.pem content to the certificate value of the following manifest
 # files:
-#   1/stable/repositories
-#   pkg/1/dev.cppget.org/signed/repositories
+#   1/stable/repositories.manifest
+#   pkg/1/dev.cppget.org/signed/repositories.manifest
 #
-openssl req -x509 -new -key key.pem -days 1825 -config openssl.cnf > cert.pem
+openssl req -x509 -new -key key.pem -days 3650 -config openssl.cnf > cert.pem
 
 # To regenerate the packages and signature manifest files run:
 #
-# ../../../bpkg/bpkg/bpkg rep-create 1/stable --key key.pem
-# ../../../bpkg/bpkg/bpkg rep-create pkg/1/dev.cppget.org/signed --key key.pem
+# bpkg rep-create 1/math
+# bpkg rep-create 1/stable --key key.pem
+# bpkg rep-create pkg/1/dev.cppget.org/signed --key key.pem
 #
 # Update certificate fingerprint in loadtab for dev.cppget.org/signed
 # repository. To print the fingerprint run:
 #
-# ../../../bpkg/bpkg/bpkg rep-info --cert-fingerprint pkg/1/dev.cppget.org/signed/
+# bpkg rep-info --cert-fingerprint pkg/1/dev.cppget.org/signed/
