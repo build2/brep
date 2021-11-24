@@ -628,8 +628,8 @@ handle (request& rq, response& rs)
       assert (b.state == build_state::built);
 
       return (b.force == force_state::forced &&
-              b.soft_timestamp <= forced_rebuild_expiration) ||
-             b.soft_timestamp <= soft_rebuild_expiration     ||
+              b.timestamp <= forced_rebuild_expiration)  ||
+             b.soft_timestamp <= soft_rebuild_expiration ||
              b.hard_timestamp <= hard_rebuild_expiration;
     };
 
