@@ -416,22 +416,26 @@ namespace brep
     if (!dependencies_.empty ())
       s << "; ";
 
-    for (const auto& d: dependencies_)
+    for (const dependency_alternatives& das: dependencies_)
     {
-      if (&d != &dependencies_[0])
+      if (&das != &dependencies_[0])
         s << ", ";
 
-      if (d.conditional)
+      if (das.conditional)
         s << "?";
 
-      if (d.buildtime)
+      if (das.buildtime)
         s << "*";
 
       // Suppress package name duplicates.
       //
       set<package_name> names;
-      for (const auto& da: d)
-        names.emplace (da.name);
+      for (const dependency_alternative& da: das)
+      {
+        assert (da.size () == 1); // @@ DEP
+
+        names.emplace (da[0].name);
+      }
 
       bool mult (names.size () > 1);
 
@@ -439,9 +443,13 @@ namespace brep
         s << "(";
 
       bool first (true);
-      for (const auto& da: d)
+      for (const dependency_alternative& da: das)
       {
-        const package_name& n (da.name);
+        assert (da.size () == 1); // @@ DEP
+
+        const dependency& d (da[0]);
+
+        const package_name& n (d.name);
         if (names.find (n) != names.end ())
         {
           names.erase (n);
@@ -454,9 +462,9 @@ namespace brep
           // Try to display the dependency as a link if it is resolved.
           // Otherwise display it as plain text.
           //
-          if (da.package != nullptr)
+          if (d.package != nullptr)
           {
-            shared_ptr<package> p (da.package.load ());
+            shared_ptr<package> p (d.package.load ());
             assert (p->internal () || !p->other_repositories.empty ());
 
             shared_ptr<repository> r (
@@ -507,23 +515,23 @@ namespace brep
       <<     SPAN(CLASS="value")
       <<       requirements_.size () << "; ";
 
-    for (const auto& r: requirements_)
+    for (const auto& ras: requirements_)
     {
-      if (&r != &requirements_[0])
+      if (&ras != &requirements_[0])
         s << ", ";
 
-      if (r.conditional)
+      if (ras.conditional)
         s << "?";
 
-      if (r.buildtime)
+      if (ras.buildtime)
         s << "*";
 
-      if (r.empty ())
+      if (ras.empty ())
       {
         // If there is no requirement alternatives specified, then print the
         // comment first word.
         //
-        const auto& c (r.comment);
+        const auto& c (ras.comment);
         if (!c.empty ())
         {
           auto n (c.find (' '));
@@ -535,14 +543,14 @@ namespace brep
       }
       else
       {
-        bool mult (r.size () > 1);
+        bool mult (ras.size () > 1);
 
         if (mult)
           s << "(";
 
-        for (const auto& ra: r)
+        for (const auto& ra: ras)
         {
-          if (&ra != &r[0])
+          if (&ra != &ras[0])
             s << " | ";
 
           s << ra;

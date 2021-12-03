@@ -20,7 +20,7 @@
 //
 #define LIBBREP_PACKAGE_SCHEMA_VERSION_BASE 21
 
-#pragma db model version(LIBBREP_PACKAGE_SCHEMA_VERSION_BASE, 21, closed)
+#pragma db model version(LIBBREP_PACKAGE_SCHEMA_VERSION_BASE, 22, closed)
 
 namespace brep
 {
@@ -156,7 +156,17 @@ namespace brep
   operator!= (const dependency&, const dependency&);
 
   #pragma db value
-  class dependency_alternatives: public vector<dependency>
+  class dependency_alternative: public small_vector<dependency, 1>
+  {
+  public:
+    optional<string> enable;
+
+    dependency_alternative () = default;
+    dependency_alternative (optional<string> e): enable (move (e)) {}
+  };
+
+  #pragma db value
+  class dependency_alternatives: public small_vector<dependency_alternative, 1>
   {
   public:
     bool conditional;
@@ -183,7 +193,7 @@ namespace brep
                      test_dependency_type t,
                      bool b,
                      optional<version_constraint> c)
-        : dependency {std::move (n), std::move (c), nullptr /* package */},
+        : dependency {move (n), move (c), nullptr /* package */},
           type (t),
           buildtime (b)
     {
@@ -551,20 +561,48 @@ namespace brep
 
     // dependencies
     //
-    using _dependency_key = odb::nested_key<dependency_alternatives>;
-    using _dependency_alternatives_type =
-               std::map<_dependency_key, dependency>;
+    // Note that this is a 2-level nested container which is mapped to three
+    // container tables each containing data of each dimension.
 
-    #pragma db value(_dependency_key)
-    #pragma db member(_dependency_key::outer) column("dependency_index")
-    #pragma db member(_dependency_key::inner) column("index")
-
+    // Container of the dependency_alternatives values.
+    //
     #pragma db member(dependencies) id_column("") value_column("")
+
+    // Container of the dependency_alternative values.
+    //
+    using _dependency_alternative_key =
+      odb::nested_key<dependency_alternatives>;
+
+    using _dependency_alternatives_type =
+      std::map<_dependency_alternative_key, dependency_alternative>;
+
+    #pragma db value(_dependency_alternative_key)
+    #pragma db member(_dependency_alternative_key::outer) column("dependency_index")
+    #pragma db member(_dependency_alternative_key::inner) column("index")
+
     #pragma db member(dependency_alternatives)                \
       virtual(_dependency_alternatives_type)                  \
       after(dependencies)                                     \
       get(odb::nested_get (this.dependencies))                \
       set(odb::nested_set (this.dependencies, std::move (?))) \
+      id_column("") key_column("") value_column("")
+
+    // Container of the dependency values.
+    //
+    using _dependency_key = odb::nested2_key<dependency_alternatives>;
+    using _dependency_alternative_dependencies_type =
+      std::map<_dependency_key, dependency>;
+
+    #pragma db value(_dependency_key)
+    #pragma db member(_dependency_key::outer)  column("dependency_index")
+    #pragma db member(_dependency_key::middle) column("alternative_index")
+    #pragma db member(_dependency_key::inner)  column("index")
+
+    #pragma db member(dependency_alternative_dependencies)     \
+      virtual(_dependency_alternative_dependencies_type)       \
+      after(dependency_alternatives)                           \
+      get(odb::nested2_get (this.dependencies))                \
+      set(odb::nested2_set (this.dependencies, std::move (?))) \
       id_column("") key_column("") value_column("dep_")
 
     // requirements

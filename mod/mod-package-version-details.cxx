@@ -320,31 +320,33 @@ handle (request& rq, response& rs)
       << TABLE(CLASS="proplist", ID="depends")
       <<   TBODY;
 
-    for (const auto& da: ds)
+    for (const auto& das: ds)
     {
       s << TR(CLASS="depends")
         <<   TH;
 
-      if (da.conditional)
+      if (das.conditional)
         s << '?';
 
-      if (da.buildtime)
+      if (das.buildtime)
         s << '*';
 
       s <<   ~TH
         <<   TD
         <<     SPAN(CLASS="value");
 
-      for (const auto& d: da)
+      for (const auto& da: das)
       {
-        if (&d != &da[0])
+        if (&da != &das[0])
           s << " | ";
 
-        print_dependency (d);
+        assert (da.size () == 1); // @@ DEP
+
+        print_dependency (da[0]);
       }
 
       s <<     ~SPAN
-        <<     SPAN_COMMENT (da.comment)
+        <<     SPAN_COMMENT (das.comment)
         <<   ~TD
         << ~TR;
     }
@@ -360,34 +362,34 @@ handle (request& rq, response& rs)
       << TABLE(CLASS="proplist", ID="requires")
       <<   TBODY;
 
-    for (const auto& ra: rm)
+    for (const auto& ras: rm)
     {
       s << TR(CLASS="requires")
         <<   TH;
 
-      if (ra.conditional)
+      if (ras.conditional)
         s << "?";
 
-      if (ra.buildtime)
+      if (ras.buildtime)
         s << "*";
 
-      if (ra.conditional || ra.buildtime)
+      if (ras.conditional || ras.buildtime)
         s << " ";
 
       s <<   ~TH
         <<   TD
         <<     SPAN(CLASS="value");
 
-      for (const auto& r: ra)
+      for (const auto& ra: ras)
       {
-        if (&r != &ra[0])
+        if (&ra != &ras[0])
           s << " | ";
 
-        s << r;
+        s << ra;
       }
 
       s <<     ~SPAN
-        <<     SPAN_COMMENT (ra.comment)
+        <<     SPAN_COMMENT (ras.comment)
         <<   ~TD
         << ~TR;
     }

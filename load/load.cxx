@@ -418,6 +418,8 @@ load_packages (const shared_ptr<repository>& rp,
   }
 
   using brep::dependency;
+  using brep::dependency_alternative;
+  using brep::dependency_alternatives;
 
   for (package_manifest& pm: pms)
   {
@@ -493,31 +495,46 @@ load_packages (const shared_ptr<repository>& rp,
           }
         }
 
-        dependencies ds;
+        dependencies tds;
 
-        for (auto& pda: pm.dependencies)
+        for (auto& das: pm.dependencies)
         {
           // Ignore special build2 and bpkg dependencies. We may not have
           // packages for them and also showing them for every package is
           // probably not very helpful.
           //
-          if (pda.buildtime && !pda.empty ())
+          if (das.buildtime && !das.empty ())
           {
-            const package_name& n (pda.front ().name);
+            const auto& da (das.front ());
+
+            assert (da.size () == 1); // @@ DEP
+
+            const package_name& n (da[0].name);
             if (n == "build2" || n == "bpkg")
               continue;
           }
 
-          ds.emplace_back (pda.conditional, pda.buildtime, move (pda.comment));
+          tds.emplace_back (das.conditional,
+                            das.buildtime,
+                            move (das.comment));
 
-          for (auto& pd: pda)
+          dependency_alternatives& tdas (tds.back ());
+
+          for (auto& da: das)
           {
-            // The package member will be assigned during dependency
-            // resolution procedure.
-            //
-            ds.back ().push_back (dependency {move (pd.name),
-                                              move (pd.constraint),
-                                              nullptr /* package */});
+            tdas.push_back (dependency_alternative (move (da.enable)));
+            dependency_alternative& tda (tdas.back ());
+
+            for (auto& d: da)
+            {
+              // The package member will be assigned during dependency
+              // resolution procedure.
+              //
+              tda.push_back (
+                dependency {move (d.name),
+                            move (d.constraint),
+                            nullptr /* package */});
+            }
           }
         }
 
@@ -560,7 +577,7 @@ load_packages (const shared_ptr<repository>& rp,
           move (pm.build_email),
           move (pm.build_warning_email),
           move (pm.build_error_email),
-          move (ds),
+          move (tds),
           move (pm.requirements),
           move (ts),
           move (pm.builds),
@@ -1022,6 +1039,7 @@ static void
 resolve_dependencies (package& p, database& db, bool ignore_unresolved)
 {
   using brep::dependency;
+  using brep::dependency_alternative;
   using brep::dependency_alternatives;
 
   // Resolve dependencies for internal packages only.
@@ -1130,17 +1148,20 @@ resolve_dependencies (package& p, database& db, bool ignore_unresolved)
     throw failed ();
   };
 
-  for (dependency_alternatives& da: p.dependencies)
+  for (dependency_alternatives& das: p.dependencies)
   {
-    for (dependency& d: da)
+    // Practically it is enough to resolve at least one dependency alternative
+    // to build a package. Meanwhile here we consider an error specifying in
+    // the manifest file an alternative which can't be resolved, unless
+    // unresolved dependencies are allowed.
+    //
+    for (dependency_alternative& da: das)
     {
-      // Practically it is enough to resolve at least one dependency
-      // alternative to build a package. Meanwhile here we consider an error
-      // specifying in the manifest file an alternative which can't be
-      // resolved, unless unresolved dependencies are allowed.
-      //
-      if (!resolve (d, false /* test */) && !ignore_unresolved)
-        bail (d, "dependency");
+      for (dependency& d: da)
+      {
+        if (!resolve (d, false /* test */) && !ignore_unresolved)
+          bail (d, "dependency");
+      }
     }
   }
 
@@ -1204,10 +1225,13 @@ detect_dependency_cycle (const package_id& id,
   chain.push_back (id);
 
   shared_ptr<package> p (db.load<package> (id));
-  for (const auto& da: p->dependencies)
+  for (const auto& das: p->dependencies)
   {
-    for (const auto& d: da)
-      detect_dependency_cycle (d.package.object_id (), chain, db);
+    for (const auto& da: das)
+    {
+      for (const auto& d: da)
+        detect_dependency_cycle (d.package.object_id (), chain, db);
+    }
   }
 
   chain.pop_back ();
