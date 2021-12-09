@@ -373,13 +373,28 @@ namespace brep
 
   // requirements
   //
+  // Note that this is a 2-level nested container (see package.hxx for
+  // details).
+  //
+  using bpkg::requirement_alternative;
   using bpkg::requirement_alternatives;
   using requirements = vector<requirement_alternatives>;
 
+  #pragma db value(requirement_alternative) definition
   #pragma db value(requirement_alternatives) definition
 
-  using requirement_key = odb::nested_key<requirement_alternatives>;
-  using requirement_alternatives_map = std::map<requirement_key, string>;
+  using requirement_alternative_key =
+    odb::nested_key<requirement_alternatives>;
+
+  using requirement_alternatives_map =
+    std::map<requirement_alternative_key, requirement_alternative>;
+
+  #pragma db value(requirement_alternative_key)
+
+  using requirement_key = odb::nested2_key<requirement_alternatives>;
+
+  using requirement_alternative_requirements_map =
+    std::map<requirement_key, string>;
 
   #pragma db value(requirement_key)
 

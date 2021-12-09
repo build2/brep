@@ -30,10 +30,24 @@ using namespace butl;
 using namespace brep;
 
 using labels = small_vector<string, 5>;
-using req_alts = small_vector<string, 1>;
 
 static const path packages     ("packages.manifest");
 static const path repositories ("repositories.manifest");
+
+static requirement_alternatives
+req_alts (const strings& ras)
+{
+  requirement_alternatives r;
+  for (const string& s: ras)
+  {
+    requirement_alternative ra;
+    ra.push_back (s);
+
+    r.push_back (move (ra));
+  }
+
+  return r;
+}
 
 static bool
 check_location (shared_ptr<package>& p)
@@ -827,7 +841,7 @@ test_pkg_repos (const cstrings& loader_args,
     assert (fpvr5[3].conditional);
     assert (fpvr5[3].comment == "Only if using VC++ on Windows.");
 
-    assert (fpvr5[4][0] == "host");
+    assert (fpvr5[4][0][0] == "host");
 
     assert (check_location (fpv5));
 

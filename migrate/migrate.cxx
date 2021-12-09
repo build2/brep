@@ -222,9 +222,13 @@ struct package_migration_entry: package_migration_entry_base<v>
 static const package_migration_entry<22>
 package_migrate_v22 ([] (database& db)
 {
-  // Note that package_dependency_alternative_dependencies.alternative_index
-  // is copied from package_dependency_alternatives.index and
-  // package_dependency_alternative_dependencies.index is set to 0.
+  // Note that for both dependency and requirement
+  // package_*_alternative_*s.alternative_index is copied from
+  // package_*_alternatives.index and package_*_alternative_*s.index is set to
+  // 0.
+  //
+
+  // Migrate dependencies.
   //
   db.execute (
     "INSERT INTO \"package_dependency_alternative_dependencies\" "
@@ -290,6 +294,33 @@ package_migrate_v22 ([] (database& db)
     "\"dep_package_version_canonical_release\", "
     "\"dep_package_version_revision\" "
     "FROM \"package_dependency_alternatives\"");
+
+  // Migrate requirements.
+  //
+  db.execute (
+    "INSERT INTO \"package_requirement_alternative_requirements\" "
+    "(\"tenant\", "
+    "\"name\", "
+    "\"version_epoch\", "
+    "\"version_canonical_upstream\", "
+    "\"version_canonical_release\", "
+    "\"version_revision\", "
+    "\"requirement_index\", "
+    "\"alternative_index\", "
+    "\"index\", "
+    "\"id\") "
+    "SELECT "
+    "\"tenant\", "
+    "\"name\", "
+    "\"version_epoch\", "
+    "\"version_canonical_upstream\", "
+    "\"version_canonical_release\", "
+    "\"version_revision\", "
+    "\"requirement_index\", "
+    "\"index\", "
+    "0, "
+    "\"id\" "
+    "FROM \"package_requirement_alternatives\"");
 });
 
 // Register the data migration functions for the build database schema.

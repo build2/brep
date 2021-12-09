@@ -385,7 +385,9 @@ handle (request& rq, response& rs)
         if (&ra != &ras[0])
           s << " | ";
 
-        s << ra;
+        assert (ra.size () == 1); // @@ DEP
+
+        s << ra[0];
       }
 
       s <<     ~SPAN

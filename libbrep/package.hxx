@@ -607,15 +607,36 @@ namespace brep
 
     // requirements
     //
-    #pragma db member(requirement_key::outer) column("requirement_index")
-    #pragma db member(requirement_key::inner) column("index")
+    // Note that this is a 2-level nested container which is mapped to three
+    // container tables each containing data of each dimension.
 
+    // Container of the requirement_alternatives values.
+    //
     #pragma db member(requirements) id_column("") value_column("")
+
+    // Container of the requirement_alternative values.
+    //
+    #pragma db member(requirement_alternative_key::outer) column("requirement_index")
+    #pragma db member(requirement_alternative_key::inner) column("index")
+
     #pragma db member(requirement_alternatives)               \
       virtual(requirement_alternatives_map)                   \
       after(requirements)                                     \
       get(odb::nested_get (this.requirements))                \
       set(odb::nested_set (this.requirements, std::move (?))) \
+      id_column("") key_column("") value_column("")
+
+    // Container of the requirement (string) values.
+    //
+    #pragma db member(requirement_key::outer)  column("requirement_index")
+    #pragma db member(requirement_key::middle) column("alternative_index")
+    #pragma db member(requirement_key::inner)  column("index")
+
+    #pragma db member(requirement_alternative_requirements)    \
+      virtual(requirement_alternative_requirements_map)        \
+      after(requirement_alternatives)                          \
+      get(odb::nested2_get (this.requirements))                \
+      set(odb::nested2_set (this.requirements, std::move (?))) \
       id_column("") key_column("") value_column("id")
 
     // tests

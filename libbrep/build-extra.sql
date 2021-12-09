@@ -12,6 +12,8 @@ DROP FOREIGN TABLE IF EXISTS build_package_builds;
 
 DROP FOREIGN TABLE IF EXISTS build_package_tests;
 
+DROP FOREIGN TABLE IF EXISTS build_package_requirement_alternative_requirements;
+
 DROP FOREIGN TABLE IF EXISTS build_package_requirement_alternatives;
 
 DROP FOREIGN TABLE IF EXISTS build_package_requirements;
@@ -82,8 +84,21 @@ CREATE FOREIGN TABLE build_package_requirement_alternatives (
   version_revision INTEGER NOT NULL,
   requirement_index BIGINT NOT NULL,
   index BIGINT NOT NULL,
-  id TEXT NOT NULL)
+  enable TEXT NULL)
 SERVER package_server OPTIONS (table_name 'package_requirement_alternatives');
+
+CREATE FOREIGN TABLE build_package_requirement_alternative_requirements (
+  tenant TEXT NOT NULL,
+  name CITEXT NOT NULL,
+  version_epoch INTEGER NOT NULL,
+  version_canonical_upstream TEXT NOT NULL,
+  version_canonical_release TEXT NOT NULL COLLATE "C",
+  version_revision INTEGER NOT NULL,
+  requirement_index BIGINT NOT NULL,
+  alternative_index BIGINT NOT NULL,
+  index BIGINT NOT NULL,
+  id TEXT NOT NULL)
+SERVER package_server OPTIONS (table_name 'package_requirement_alternative_requirements');
 
 -- The foreign table for the build_package object tests member (that is of a
 -- container type).
