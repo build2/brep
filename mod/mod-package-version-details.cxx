@@ -362,32 +362,55 @@ handle (request& rq, response& rs)
       << TABLE(CLASS="proplist", ID="requires")
       <<   TBODY;
 
-    for (const auto& ras: rm)
+    for (const requirement_alternatives& ras: rm)
     {
       s << TR(CLASS="requires")
         <<   TH;
 
-      if (ras.conditional)
-        s << "?";
-
       if (ras.buildtime)
-        s << "*";
-
-      if (ras.conditional || ras.buildtime)
-        s << " ";
+        s << '*';
 
       s <<   ~TH
         <<   TD
         <<     SPAN(CLASS="value");
 
-      for (const auto& ra: ras)
+      for (const requirement_alternative& ra: ras)
       {
         if (&ra != &ras[0])
           s << " | ";
 
-        assert (ra.size () == 1); // @@ DEP
+        // Should we enclose multiple requirement ids into curly braces as in
+        // the manifest? Somehow feels redundant here, since there can't be
+        // any ambiguity (requirement group version constraint is already
+        // punched into the specific requirements without constraints).
+        //
+        for (const string& r: ra)
+        {
+          if (&r != &ra[0])
+            s << ' ';
 
-        s << ra[0];
+          s << r;
+        }
+
+        if (ra.enable)
+        {
+          if (!ra.simple () || !ra[0].empty ())
+            s << ' ';
+
+          s << '?';
+
+          if (!ra.enable->empty ())
+          {
+            s << " (";
+
+            if (full)
+              s << *ra.enable;
+            else
+              s << "...";
+
+            s << ')';
+          }
+        }
       }
 
       s <<     ~SPAN

@@ -34,21 +34,6 @@ using labels = small_vector<string, 5>;
 static const path packages     ("packages.manifest");
 static const path repositories ("repositories.manifest");
 
-static requirement_alternatives
-req_alts (const strings& ras)
-{
-  requirement_alternatives r;
-  for (const string& s: ras)
-  {
-    requirement_alternative ra;
-    ra.push_back (s);
-
-    r.push_back (move (ra));
-  }
-
-  return r;
-}
-
 static bool
 check_location (shared_ptr<package>& p)
 {
@@ -822,31 +807,44 @@ test_pkg_repos (const cstrings& loader_args,
     assert (fpv5->dependencies[2][1][0] == dep ("libexpat", nullopt));
 
     requirements& fpvr5 (fpv5->requirements);
-    assert (fpvr5.size () == 5);
+    assert (fpvr5.size () == 8);
 
-    assert (fpvr5[0] == req_alts ({"linux", "windows", "macosx"}));
-    assert (!fpvr5[0].conditional);
+    assert (fpvr5[0][0][0] == "linux");
+    assert (fpvr5[0][1][0] == "windows");
+    assert (fpvr5[0][2][0] == "macosx");
     assert (fpvr5[0].comment == "Symbian support is coming.");
 
-    assert (fpvr5[1] == req_alts ({"c++11"}));
-    assert (!fpvr5[1].conditional);
+    assert (fpvr5[1][0][0] == "c++11");
     assert (fpvr5[1].comment.empty ());
 
-    assert (fpvr5[2].empty ());
-    assert (fpvr5[2].conditional);
+    assert (fpvr5[2][0][0] == "");
+    assert (fpvr5[2][0].enable && *fpvr5[2][0].enable == "");
     assert (fpvr5[2].comment ==
             "libc++ standard library if using Clang on Mac OS X.");
 
-    assert (fpvr5[3] == req_alts ({"vc++ >= 12.0"}));
-    assert (fpvr5[3].conditional);
-    assert (fpvr5[3].comment == "Only if using VC++ on Windows.");
+    assert (fpvr5[3][0][0] == "");
+    assert (!fpvr5[3][0].enable);
+    assert (fpvr5[3].comment == "X11 libs.");
 
-    assert (fpvr5[4][0][0] == "host");
+    assert (fpvr5[4][0][0] == "");
+    assert (fpvr5[4][0].enable && *fpvr5[4][0].enable == "$windows");
+    assert (fpvr5[4].comment == "Only 64-bit.");
+
+    assert (fpvr5[5][0][0] == "x86_64");
+    assert (fpvr5[5][0].enable && *fpvr5[5][0].enable == "");
+    assert (fpvr5[5].comment == "Only if on Windows.");
+
+    assert (fpvr5[6][0][0] == "vc++ >= 12.0");
+    assert (fpvr5[6][0].enable && *fpvr5[6][0].enable == "windows");
+    assert (fpvr5[6].buildtime);
+    assert (fpvr5[6].comment == "Only if using VC++ on Windows.");
+
+    assert (fpvr5[7][0][0] == "host");
 
     assert (check_location (fpv5));
 
     assert (fpv5->sha256sum && *fpv5->sha256sum ==
-            "f99cb46b97d0e1dccbdd10571f1f649ac5bbb22d6c25adadbc579ffbbb89d31c");
+            "d23a7ff116ab7264c3d423af97e4830bdaa8c9101cd95b210b19a97bb8512b74");
 
     assert (fpv5->buildable);
 

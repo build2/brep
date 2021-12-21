@@ -70,7 +70,6 @@ CREATE FOREIGN TABLE build_package_requirements (
   version_canonical_release TEXT NOT NULL COLLATE "C",
   version_revision INTEGER NOT NULL,
   index BIGINT NOT NULL,
-  conditional BOOLEAN NOT NULL,
   buildtime BOOLEAN NOT NULL,
   comment TEXT NOT NULL)
 SERVER package_server OPTIONS (table_name 'package_requirements');
@@ -84,7 +83,8 @@ CREATE FOREIGN TABLE build_package_requirement_alternatives (
   version_revision INTEGER NOT NULL,
   requirement_index BIGINT NOT NULL,
   index BIGINT NOT NULL,
-  enable TEXT NULL)
+  enable TEXT NULL,
+  reflect TEXT NULL)
 SERVER package_server OPTIONS (table_name 'package_requirement_alternatives');
 
 CREATE FOREIGN TABLE build_package_requirement_alternative_requirements (

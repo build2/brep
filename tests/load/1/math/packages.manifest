@@ -75,17 +75,21 @@ email: foo-users@example.com; Public mailing list. Read FAQ before posting.
 package-email: pack@example.com; Current packager.
 depends: libmisc < 1.1 | libmisc > 2.3.0+0; Crashes with 1.1.0-2.3.0.
 depends: libexp >= 1.0
-depends: ? libstudxml | libexpat; The newer the better.
+depends: libstudxml ? ($cxx.target.class == 'windows') | libexpat ?\
+ ($cxx.target.class != 'windows'); The newer the better.
 requires: linux | windows | macosx; Symbian support is coming.
 requires: c++11
 requires: ? ; libc++ standard library if using Clang on Mac OS X.
-requires: ? vc++ >= 12.0; Only if using VC++ on Windows.
+requires: ; X11 libs.
+requires: ? ($windows); Only 64-bit.
+requires: x86_64 ? ; Only if on Windows.
+requires: * vc++ >= 12.0 ? (windows); Only if using VC++ on Windows.
 requires: host
 tests: * libfoo-tests == 1.2.4
 examples: libfoo-examples
 benchmarks: libfoo-benchmarks > 0.0.1
 location: libfoo-1.2.4+1.tar.gz
-sha256sum: f99cb46b97d0e1dccbdd10571f1f649ac5bbb22d6c25adadbc579ffbbb89d31c
+sha256sum: d23a7ff116ab7264c3d423af97e4830bdaa8c9101cd95b210b19a97bb8512b74
 :
 name: libfoo-benchmarks
 version: 1.2.4

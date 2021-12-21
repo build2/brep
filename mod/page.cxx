@@ -520,20 +520,20 @@ namespace brep
       if (&ras != &requirements_[0])
         s << ", ";
 
-      if (ras.conditional)
-        s << "?";
-
       if (ras.buildtime)
-        s << "*";
+        s << '*';
 
-      if (ras.empty ())
+      // If this is a simple requirement without id, then print the comment
+      // first word.
+      //
+      if (ras.simple () && ras[0][0].empty ())
       {
-        // If there is no requirement alternatives specified, then print the
-        // comment first word.
-        //
         const auto& c (ras.comment);
         if (!c.empty ())
         {
+          if (ras[0].enable)
+            s << "? ";
+
           auto n (c.find (' '));
           s << string (c, 0, n);
 
@@ -543,23 +543,31 @@ namespace brep
       }
       else
       {
-        bool mult (ras.size () > 1);
+        bool mult (ras.size () > 1 ||
+                   (ras.size () == 1 && ras[0].size () > 1));
 
         if (mult)
-          s << "(";
+          s << '(';
 
         for (const auto& ra: ras)
         {
           if (&ra != &ras[0])
             s << " | ";
 
-          assert (ra.size () == 1); // @@ DEP
+          for (const string& r: ra)
+          {
+            if (&r != &ra[0])
+              s << ' ';
 
-          s << ra[0];
+            s << r;
+          }
+
+          if (ra.enable)
+            s << " ?";
         }
 
         if (mult)
-          s << ")";
+          s << ')';
       }
     }
 

@@ -1,4 +1,13 @@
 <changelog xmlns="http://www.codesynthesis.com/xmlns/odb/changelog" database="pgsql" schema-name="package" version="1">
+  <changeset version="23">
+    <alter-table name="package_requirements">
+      <drop-column name="conditional"/>
+    </alter-table>
+    <alter-table name="package_requirement_alternatives">
+      <add-column name="reflect" type="TEXT" null="true"/>
+    </alter-table>
+  </changeset>
+
   <changeset version="22">
     <alter-table name="package_dependency_alternatives">
       <add-column name="enable" type="TEXT" null="true"/>
