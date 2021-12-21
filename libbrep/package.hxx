@@ -79,7 +79,7 @@ namespace brep
   // licenses
   //
   using bpkg::licenses;
-  using license_alternatives = vector<licenses>;
+  using license_alternatives = small_vector<licenses, 1>;
 
   #pragma db value(licenses) definition
 
