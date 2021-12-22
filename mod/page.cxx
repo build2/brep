@@ -421,47 +421,67 @@ namespace brep
       if (&das != &dependencies_[0])
         s << ", ";
 
-      if (das.conditional)
-        s << "?";
-
       if (das.buildtime)
         s << "*";
 
-      // Suppress package name duplicates.
+      // Suppress dependency alternative duplicates, like in
+      // `{foo bar} < 1.1 | {foo bar} > 1.5`.
       //
-      set<package_name> names;
-      for (const dependency_alternative& da: das)
+      // Return the dependency package name space-separated list.
+      //
+      auto deps_list = [] (const dependency_alternative& da)
       {
-        assert (da.size () == 1); // @@ DEP
+        string r;
+        for (const dependency& d: da)
+        {
+          if (!r.empty ())
+            r += ' ';
 
-        names.emplace (da[0].name);
-      }
+          r += d.name.string ();
+        }
 
-      bool mult (names.size () > 1);
+        return r;
+      };
+
+      set<string> alternatives;
+      for (const dependency_alternative& da: das)
+        alternatives.insert (deps_list (da));
+
+      // Note that we may end up with a single package name in parenthesis, if
+      // its duplicates were suppresses. This, however, may be helpful,
+      // indicating that there some alternatives for the package.
+      //
+      bool mult (das.size () > 1 ||
+                 (das.size () == 1 && das[0].size () > 1));
 
       if (mult)
-        s << "(";
+        s << '(';
 
       bool first (true);
       for (const dependency_alternative& da: das)
       {
-        assert (da.size () == 1); // @@ DEP
+        auto i (alternatives.find (deps_list (da)));
 
-        const dependency& d (da[0]);
+        if (i == alternatives.end ())
+          continue;
 
-        const package_name& n (d.name);
-        if (names.find (n) != names.end ())
+        alternatives.erase (i);
+
+        if (!first)
+          s << " | ";
+        else
+          first = false;
+
+        for (const dependency& d: da)
         {
-          names.erase (n);
-
-          if (first)
-            first = false;
-          else
-            s << " | ";
+          if (&d != &da[0])
+            s << ' ';
 
           // Try to display the dependency as a link if it is resolved.
           // Otherwise display it as plain text.
           //
+          const package_name& n (d.name);
+
           if (d.package != nullptr)
           {
             shared_ptr<package> p (d.package.load ());
@@ -487,10 +507,13 @@ namespace brep
           else
             s << n;
         }
+
+        if (da.enable)
+          s << " ?";
       }
 
       if (mult)
-        s << ")";
+        s << ')';
     }
 
     s <<     ~SPAN

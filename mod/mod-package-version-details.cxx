@@ -325,9 +325,6 @@ handle (request& rq, response& rs)
       s << TR(CLASS="depends")
         <<   TH;
 
-      if (das.conditional)
-        s << '?';
-
       if (das.buildtime)
         s << '*';
 
@@ -340,9 +337,30 @@ handle (request& rq, response& rs)
         if (&da != &das[0])
           s << " | ";
 
-        assert (da.size () == 1); // @@ DEP
+        // Should we enclose multiple dependencies into curly braces as in the
+        // manifest? Somehow feels redundant here, since there can't be any
+        // ambiguity (dependency group version constraint is already punched
+        // into the specific dependencies without constraints).
+        //
+        for (const dependency& d: da)
+        {
+          if (&d != &da[0])
+            s << ' ';
 
-        print_dependency (da[0]);
+          print_dependency (d);
+        }
+
+        if (da.enable)
+        {
+          s << " ? (";
+
+          if (full)
+            s << *da.enable;
+          else
+            s << "...";
+
+          s << ')';
+        }
       }
 
       s <<     ~SPAN

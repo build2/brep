@@ -1,4 +1,16 @@
 <changelog xmlns="http://www.codesynthesis.com/xmlns/odb/changelog" database="pgsql" schema-name="package" version="1">
+  <changeset version="24">
+    <alter-table name="package_dependencies">
+      <drop-column name="conditional"/>
+    </alter-table>
+    <alter-table name="package_dependency_alternatives">
+      <add-column name="reflect" type="TEXT" null="true"/>
+      <add-column name="prefer" type="TEXT" null="true"/>
+      <add-column name="accept" type="TEXT" null="true"/>
+      <add-column name="require" type="TEXT" null="true"/>
+    </alter-table>
+  </changeset>
+
   <changeset version="23">
     <alter-table name="package_requirements">
       <drop-column name="conditional"/>

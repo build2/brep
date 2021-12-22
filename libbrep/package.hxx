@@ -20,7 +20,7 @@
 //
 #define LIBBREP_PACKAGE_SCHEMA_VERSION_BASE 21
 
-#pragma db model version(LIBBREP_PACKAGE_SCHEMA_VERSION_BASE, 23, closed)
+#pragma db model version(LIBBREP_PACKAGE_SCHEMA_VERSION_BASE, 24, closed)
 
 namespace brep
 {
@@ -159,23 +159,38 @@ namespace brep
   class dependency_alternative: public small_vector<dependency, 1>
   {
   public:
+    // While we currently don't use the reflect, prefer, accept, and require
+    // values, let's save them for completeness.
+    //
     optional<string> enable;
+    optional<string> reflect;
+    optional<string> prefer;
+    optional<string> accept;
+    optional<string> require;
 
     dependency_alternative () = default;
-    dependency_alternative (optional<string> e): enable (move (e)) {}
+    dependency_alternative (optional<string> e,
+                            butl::optional<std::string> r,
+                            butl::optional<std::string> p,
+                            butl::optional<std::string> a,
+                            butl::optional<std::string> q)
+        : enable (std::move (e)),
+          reflect (std::move (r)),
+          prefer (std::move (p)),
+          accept (std::move (a)),
+          require (std::move (q)) {}
   };
 
   #pragma db value
   class dependency_alternatives: public small_vector<dependency_alternative, 1>
   {
   public:
-    bool conditional;
     bool buildtime;
     string comment;
 
     dependency_alternatives () = default;
-    dependency_alternatives (bool d, bool b, string c)
-        : conditional (d), buildtime (b), comment (move (c)) {}
+    dependency_alternatives (bool b, string c)
+        : buildtime (b), comment (move (c)) {}
   };
 
   using dependencies = vector<dependency_alternatives>;

@@ -499,43 +499,41 @@ load_packages (const shared_ptr<repository>& rp,
 
         for (auto& das: pm.dependencies)
         {
-          // Ignore special build2 and bpkg dependencies. We may not have
-          // packages for them and also showing them for every package is
-          // probably not very helpful.
-          //
-          if (das.buildtime && !das.empty ())
-          {
-            const auto& da (das.front ());
-
-            assert (da.size () == 1); // @@ DEP
-
-            const package_name& n (da[0].name);
-            if (n == "build2" || n == "bpkg")
-              continue;
-          }
-
-          tds.emplace_back (das.conditional,
-                            das.buildtime,
-                            move (das.comment));
-
-          dependency_alternatives& tdas (tds.back ());
+          dependency_alternatives tdas (das.buildtime, move (das.comment));
 
           for (auto& da: das)
           {
-            tdas.push_back (dependency_alternative (move (da.enable)));
-            dependency_alternative& tda (tdas.back ());
+            dependency_alternative tda (move (da.enable),
+                                        move (da.reflect),
+                                        move (da.prefer),
+                                        move (da.accept),
+                                        move (da.require));
 
             for (auto& d: da)
             {
+              package_name& n (d.name);
+
+              // Ignore special build2 and bpkg dependencies. We may not have
+              // packages for them and also showing them for every package is
+              // probably not very helpful.
+              //
+              if (das.buildtime && (n == "build2" || n == "bpkg"))
+                continue;
+
               // The package member will be assigned during dependency
               // resolution procedure.
               //
-              tda.push_back (
-                dependency {move (d.name),
-                            move (d.constraint),
-                            nullptr /* package */});
+              tda.push_back (dependency {move (n),
+                                         move (d.constraint),
+                                         nullptr /* package */});
             }
+
+            if (!tda.empty ())
+              tdas.push_back (move (tda));
           }
+
+          if (!tdas.empty ())
+            tds.push_back (move (tdas));
         }
 
         small_vector<brep::test_dependency, 1> ts;
