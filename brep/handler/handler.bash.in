@@ -9,8 +9,8 @@ else
   brep_handler=true
 fi
 
-@import libbutl/manifest-parser@
-@import libbutl/manifest-serializer@
+@import libbutl.bash/manifest-parser@
+@import libbutl.bash/manifest-serializer@
 
 bpkg_util_bpkg=bpkg
 @import bpkg-util/package-archive@
