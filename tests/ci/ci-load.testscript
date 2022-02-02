@@ -105,6 +105,14 @@
         email: user@example.org
         %depends: \\* build2 .+%
         %depends: \\* bpkg .+%
+        bootstrap-build:\\
+        project = libhello
+        %.+
+        \\
+        root-build:\\
+        cxx.std = latest
+        %.+
+        \\
         location: libhello
         %fragment: .+%
         :
@@ -116,6 +124,14 @@
         email: user@example.org
         %depends: \\* build2 .+%
         %depends: \\* bpkg .+%
+        bootstrap-build:\\
+        project = hello
+        %.+
+        \\
+        root-build:\\
+        cxx.std = latest
+        %.+
+        \\
         location: hello
         %fragment: .+%
         EOE
@@ -148,6 +164,14 @@
         email: user@example.org
         %depends: \\* build2 .+%
         %depends: \\* bpkg .+%
+        bootstrap-build:\\
+        project = hello
+        %.+
+        \\
+        root-build:\\
+        cxx.std = latest
+        %.+
+        \\
         location: hello
         %fragment: .+%
         EOE
@@ -181,6 +205,14 @@
         email: user@example.org
         %depends: \\* build2 .+%
         %depends: \\* bpkg .+%
+        bootstrap-build:\\
+        project = libhello
+        %.+
+        \\
+        root-build:\\
+        cxx.std = latest
+        %.+
+        \\
         location: libhello
         %fragment: .+%
         EOE
@@ -200,7 +232,11 @@
         %.
         reference: $request_id
         EOO
-        %.*:.*%+
+        %.+cache:cache%
+        : 1
+        %.+
+        : 1
+        %.+
         EOE
     }
   }
