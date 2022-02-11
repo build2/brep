@@ -546,7 +546,8 @@ load_packages (const shared_ptr<repository>& rp,
             ts.emplace_back (move (td.name),
                              td.type,
                              td.buildtime,
-                             move (td.constraint));
+                             move (td.constraint),
+                             move (td.reflect));
         }
 
         // Cache before the package name is moved.

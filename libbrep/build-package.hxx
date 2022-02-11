@@ -97,6 +97,7 @@ namespace brep
   {
     test_dependency_type type;
     bool buildtime;
+    optional<string> reflect;
   };
 
   // Foreign object that is mapped to a subset of the package object.

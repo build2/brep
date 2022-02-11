@@ -133,7 +133,8 @@ CREATE FOREIGN TABLE build_package_tests (
   test_package_version_canonical_release TEXT NULL COLLATE "C",
   test_package_version_revision INTEGER NULL,
   test_type TEXT NOT NULL,
-  test_buildtime BOOLEAN NOT NULL)
+  test_buildtime BOOLEAN NOT NULL,
+  test_reflect TEXT NULL)
 SERVER package_server OPTIONS (table_name 'package_tests');
 
 -- The foreign table for the build_package object builds member (that is of a

@@ -275,7 +275,8 @@ handle (request& rq, response& rs)
         tests.emplace_back (move (td.name),
                             td.type,
                             td.buildtime,
-                            move (td.constraint));
+                            move (td.constraint),
+                            move (td.reflect));
       }
 
       bool module_pkg (

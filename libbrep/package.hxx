@@ -20,7 +20,7 @@
 //
 #define LIBBREP_PACKAGE_SCHEMA_VERSION_BASE 21
 
-#pragma db model version(LIBBREP_PACKAGE_SCHEMA_VERSION_BASE, 24, closed)
+#pragma db model version(LIBBREP_PACKAGE_SCHEMA_VERSION_BASE, 25, closed)
 
 namespace brep
 {
@@ -170,15 +170,15 @@ namespace brep
 
     dependency_alternative () = default;
     dependency_alternative (optional<string> e,
-                            butl::optional<std::string> r,
-                            butl::optional<std::string> p,
-                            butl::optional<std::string> a,
-                            butl::optional<std::string> q)
-        : enable (std::move (e)),
-          reflect (std::move (r)),
-          prefer (std::move (p)),
-          accept (std::move (a)),
-          require (std::move (q)) {}
+                            optional<string> r,
+                            optional<string> p,
+                            optional<string> a,
+                            optional<string> q)
+        : enable (move (e)),
+          reflect (move (r)),
+          prefer (move (p)),
+          accept (move (a)),
+          require (move (q)) {}
   };
 
   #pragma db value
@@ -202,15 +202,18 @@ namespace brep
   {
     test_dependency_type type;
     bool buildtime;
+    optional<string> reflect;
 
     test_dependency () = default;
     test_dependency (package_name n,
                      test_dependency_type t,
                      bool b,
-                     optional<version_constraint> c)
+                     optional<version_constraint> c,
+                     optional<string> r)
         : dependency {move (n), move (c), nullptr /* package */},
           type (t),
-          buildtime (b)
+          buildtime (b),
+          reflect (move (r))
     {
     }
 
