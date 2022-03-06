@@ -24,8 +24,8 @@ depends: * bpkg >= 0.14.0-
 #requires: ? cli ; Only required if changing .cli files.
 depends: libapr1
 depends: libapreq2
-depends: libcmark-gfm == 0.29.0-a.3
-depends: libcmark-gfm-extensions == 0.29.0-a.3
+depends: libcmark-gfm == 0.29.0-a.4
+depends: libcmark-gfm-extensions == 0.29.0-a.4
 depends: libstudxml ^1.1.0-b.10
 depends: libodb [2.5.0-b.22.1 2.5.0-b.23)
 depends: libodb-pgsql [2.5.0-b.22.1 2.5.0-b.23)
