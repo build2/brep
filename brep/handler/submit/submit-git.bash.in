@@ -56,8 +56,27 @@ function owners_dir () # <repo-dir>
   echo "$r"
 }
 
+# Extract the revision part from the package version. Return 0 if the version
+# doesn't contain revision.
+#
+function version_revision () # version
+{
+  local r
+  r="$(sed -n -re 's%^(\+?[^+]+)(\+([0-9]+))?$%\3%p' <<<"$1")"
+
+  if [ -z "$r" ]; then
+    r="0"
+  fi
+
+  echo "$r"
+}
+
 # Check if a repository already contains the package. Respond with the
 # 'duplicate submission' result manifest and exit if that's the case.
+#
+# Also check if the repository contains newer revision of this package
+# version. Respond with the 'newer revision is present' result manifest and
+# exit if that's the case.
 #
 function check_package_duplicate () # <name> <version> <repo-dir>
 {
@@ -72,13 +91,21 @@ function check_package_duplicate () # <name> <version> <repo-dir>
 
   run source "$rep/submit.config.bash"
 
-  # Check for duplicate package in all sections. Use <name>-<version>.*
-  # without .tar.gz in case we want to support more archive types later.
+  local rev
+  rev="$(version_revision "$ver")"
+
+  # Check for duplicate package and its newer revisions in all sections. Use
+  # <name>-<version>.* without .tar.gz in case we want to support more archive
+  # types later.
   #
   local s
   for s in "${!sections[@]}"; do
+    local d="$rep/${sections[$s]}"
+
+    # Check for duplicate.
+    #
     local p
-    run pkg_find_archive "$nam-$ver.*" "$rep/${sections[$s]}" | readarray -t p
+    run pkg_find_archive "$nam-$ver.*" "$d" | readarray -t p
 
     if [ "${#p[@]}" -ne 0 ]; then
       local n="${p[1]}"
@@ -92,6 +119,26 @@ function check_package_duplicate () # <name> <version> <repo-dir>
         exit_with_manifest 422 "submission conflicts with $n/$v"
       fi
     fi
+
+    # Check for newer revision.
+    #
+    local arcs
+    run pkg_find_archives "$nam" "$ver*" "$d" | readarray -t arcs
+
+    local f
+    for f in "${arcs[@]}"; do
+      local p
+      pkg_verify_archive "$f" | readarray -t p
+
+      local v="${p[1]}"
+
+      local rv
+      rv="$(version_revision "$v")"
+
+      if [ "$rv" -gt "$rev" ]; then
+        exit_with_manifest 422 "newer revision $nam/$v is present"
+      fi
+    done
   done
 }
 

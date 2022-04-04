@@ -466,21 +466,14 @@ pkg_ctl="$prj_ctl/hello.git"
       sections['*']=1/alpha
       EOI
 
-    # Add the libhello/0.1.0+1 package revision to the target repository.
-    #
-    tar -xf $data_dir/libhello-0.1.0.tar.gz &libhello-0.1.0/***;
-    sed -i -e 's/(version: 0.1.0)/\1+1/' libhello-0.1.0/manifest;
-    mv libhello-0.1.0 libhello-0.1.0+1;
-    mkdir -p tgt/1/alpha/hello/;
-    tar cfz tgt/1/alpha/hello/libhello-0.1.0+1.tar.gz libhello-0.1.0+1;
-    $g -C tgt add 1/;
-
     $g -C tgt config user.name 'Test Script';
     $g -C tgt config user.email 'testscript@example.com';
     $g -C tgt commit -am 'Add config and archive';
     $g -C tgt push;
 
-    $* "file:///$~/tgt.git" $data_dir >>"EOO" &tgt/1/alpha/hello/libhello-0.1.0.tar.gz;
+    # Initial submission.
+    #
+    $* "file:///$~/tgt.git" $data_dir >>"EOO";
       : 1
       status: 200
       message: package submission is queued: libhello/0.1.0
@@ -489,8 +482,46 @@ pkg_ctl="$prj_ctl/hello.git"
 
     $g -C tgt pull;
 
-    test -f tgt/1/alpha/hello/libhello-0.1.0+1.tar.gz == 1;
-    test -f tgt/1/alpha/hello/libhello-0.1.0.tar.gz
+    test -f tgt/1/alpha/hello/libhello-0.1.0.tar.gz;
+
+    # Revision submission.
+    #
+    # Here we test that the handler removes the previous revision.
+    #
+    $clone_root_data_clean;
+
+    tar -xf $~/$data_dir/libhello-0.1.0.tar.gz;
+    sed -i -e 's/(version: 0.1.0)/\1+1/' libhello-0.1.0/manifest;
+    mv libhello-0.1.0 libhello-0.1.0+1;
+    tar cfz $~/$data_dir/libhello-0.1.0+1.tar.gz libhello-0.1.0+1;
+    rm -r libhello-0.1.0+1;
+    rm $~/$data_dir/libhello-0.1.0.tar.gz;
+    sed -i -e 's/(archive: libhello-0.1.0)(.tar.gz)/\1+1\2/' $data_dir/request.manifest;
+
+    $* "file:///$~/tgt.git" $data_dir >>"EOO" &tgt/1/alpha/hello/libhello-0.1.0+1.tar.gz;
+      : 1
+      status: 200
+      message: package submission is queued: libhello/0.1.0+1
+      reference: $checksum
+      EOO
+
+    $g -C tgt pull;
+
+    test -f tgt/1/alpha/hello/libhello-0.1.0.tar.gz == 1;
+    test -f tgt/1/alpha/hello/libhello-0.1.0+1.tar.gz;
+
+    # While at it, test the older revision submission.
+    #
+    $clone_root_data_clean;
+
+    $* "file:///$~/tgt.git" $data_dir >>"EOO";
+      : 1
+      status: 422
+      message: newer revision libhello/0.1.0+1 is present
+      reference: $checksum
+      EOO
+
+    test -f tgt/1/alpha/hello/libhello-0.1.0+1.tar.gz
   }
 
   : section-fallback
