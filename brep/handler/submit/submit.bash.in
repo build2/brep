@@ -63,3 +63,18 @@ function extract_package_manifest () # <archive> <manifest>
     exit_with_manifest 400 "archive is not a valid package (run bpkg pkg-verify for details)"
   fi
 }
+
+# Extract the revision part from the package version. Return 0 if the version
+# doesn't contain revision.
+#
+function version_revision () # version
+{
+  local r
+  r="$(sed -n -re 's%^(\+?[^+]+)(\+([0-9]+))?$%\3%p' <<<"$1")"
+
+  if [ -z "$r" ]; then
+    r="0"
+  fi
+
+  echo "$r"
+}

@@ -56,21 +56,6 @@ function owners_dir () # <repo-dir>
   echo "$r"
 }
 
-# Extract the revision part from the package version. Return 0 if the version
-# doesn't contain revision.
-#
-function version_revision () # version
-{
-  local r
-  r="$(sed -n -re 's%^(\+?[^+]+)(\+([0-9]+))?$%\3%p' <<<"$1")"
-
-  if [ -z "$r" ]; then
-    r="0"
-  fi
-
-  echo "$r"
-}
-
 # Check if a repository already contains the package. Respond with the
 # 'duplicate submission' result manifest and exit if that's the case.
 #

@@ -84,14 +84,8 @@ clone_root_rep = cp --no-cleanup -r $root_rep ./ &pkg-1/*** &?pkg.lock
     $clone_root_rep;
     ln -s pkg-1 pkg;
 
-    # Add the libhello/0.1.0+1 package revision to the repository.
+    # Initial submission.
     #
-    mkdir --no-cleanup pkg-1/1/hello;
-    tar -xf $~/$data_dir/libhello-0.1.0.tar.gz &libhello-0.1.0/***;
-    sed -i -e 's/(version: 0.1.0)/\1+1/' libhello-0.1.0/manifest;
-    mv libhello-0.1.0 libhello-0.1.0+1;
-    tar cfz pkg-1/1/hello/libhello-0.1.0+1.tar.gz libhello-0.1.0+1;
-
     $* $~/pkg $~/$data_dir &!pkg-1/*** &pkg-*/*** >>"EOO";
       : 1
       status: 200
@@ -99,7 +93,6 @@ clone_root_rep = cp --no-cleanup -r $root_rep ./ &pkg-1/*** &?pkg.lock
       reference: $checksum
       EOO
 
-    test -f pkg/1/hello/libhello-0.1.0+1.tar.gz == 1;
     test -f pkg/1/hello/libhello-0.1.0.tar.gz;
 
     # While at it, test the duplicate submission.
@@ -113,7 +106,42 @@ clone_root_rep = cp --no-cleanup -r $root_rep ./ &pkg-1/*** &?pkg.lock
       reference: $checksum
       EOO
 
-    test -f pkg/1/hello/libhello-0.1.0.tar.gz
+    test -f pkg/1/hello/libhello-0.1.0.tar.gz;
+
+    # Revision submission.
+    #
+    # Here we test that the handler removes the previous revision.
+    #
+    tar -xf $~/$data_dir/libhello-0.1.0.tar.gz;
+    sed -i -e 's/(version: 0.1.0)/\1+1/' libhello-0.1.0/manifest;
+    mv libhello-0.1.0 libhello-0.1.0+1;
+    tar cfz $~/$data_dir/libhello-0.1.0+1.tar.gz libhello-0.1.0+1;
+    rm -r libhello-0.1.0+1;
+    rm $~/$data_dir/libhello-0.1.0.tar.gz;
+    sed -i -e 's/(archive: libhello-0.1.0)(.tar.gz)/\1+1\2/' $data_dir/request.manifest;
+
+    $* $~/pkg $~/$data_dir >>"EOO";
+      : 1
+      status: 200
+      message: package is published: libhello/0.1.0+1
+      reference: $checksum
+      EOO
+
+    test -f pkg/1/hello/libhello-0.1.0.tar.gz == 1;
+    test -f pkg/1/hello/libhello-0.1.0+1.tar.gz;
+
+    # While at it, test the older revision submission.
+    #
+    $clone_root_data_clean;
+
+    $* $~/pkg $~/$data_dir >>"EOO";
+      : 1
+      status: 422
+      message: newer revision libhello/0.1.0+1 is present
+      reference: $checksum
+      EOO
+
+    test -f pkg/1/hello/libhello-0.1.0+1.tar.gz
   }
 
   : result-url

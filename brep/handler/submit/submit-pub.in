@@ -257,6 +257,8 @@ else
   message_suffix=": $name/$version"
 fi
 
+revision="$(version_revision "$version")"
+
 # Open the reading file descriptor and lock the repository. Fail if unable to
 # lock before timeout.
 #
@@ -330,7 +332,22 @@ run rsync -rtO --exclude 'packages.manifest' --link-dest="$repo_old" \
 # Remove the package version revision archives that may exist in the
 # repository.
 #
+# But first check if the repository contains newer revision of this package
+# version. Respond with the 'newer revision is present' result manifest and
+# exit if that's the case.
+#
 run pkg_find_archives "$name" "$version*" "$repo_new/1" | readarray -t arcs
+
+for f in "${arcs[@]}"; do
+  pkg_verify_archive "$f" | readarray -t p
+
+  v="${p[1]}"
+  rv="$(version_revision "$v")"
+
+  if [ "$rv" -gt "$revision" ]; then
+    exit_with_manifest 422 "newer revision $name/$v is present"
+  fi
+done
 
 for f in "${arcs[@]}"; do
   run rm "$f"
