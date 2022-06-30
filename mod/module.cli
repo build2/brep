@@ -1,6 +1,7 @@
 // file      : mod/options.cli -*- C++ -*-
 // license   : MIT; see accompanying LICENSE file
 
+include <map>;
 include <regex>;
 
 include <libbpkg/manifest.hxx>; // repository_location
@@ -462,6 +463,19 @@ namespace brep
          HTTP POST request body is cached to retry database transactions in the
          face of recoverable failures (deadlock, loss of connection, etc). The
          default is 10M."
+      }
+
+      std::map<string, bool> build-toolchain-email
+      {
+        "<name>=<bool>",
+        "Enable or disable package build notification emails. If \cb{true} is
+         specified for a toolchain name, then emails are sent according to the
+         \cb{build-*email} package manifest values when the package is built
+         with this toolchain. If \cb{false} is specified, then no emails are
+         sent for this toolchain name. By default build notification emails
+         are enabled. Repeat this option to enable/disable emails for multiple
+         toolchains. See \l{bpkg#manifest-package Package Manifest} for
+         details on \cb{build-*email} values."
       }
     };
 

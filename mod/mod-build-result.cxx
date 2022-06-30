@@ -525,6 +525,17 @@ handle (request& rq, response&)
   if (bld == nullptr)
     return true;
 
+  // Bail out if sending build notification emails is disabled for this
+  // toolchain.
+  //
+  {
+    const map<string, bool>& tes (options_->build_toolchain_email ());
+
+    auto i (tes.find (bld->id.toolchain_name));
+    if (i != tes.end () && !i->second)
+      return true;
+  }
+
   string subj ((unforced ? "build " : "rebuild ") +
                to_string (*bld->status) + ": " +
                bld->package_name.string () + '/' +
