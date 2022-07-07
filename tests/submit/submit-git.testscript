@@ -9,14 +9,14 @@
 #
 # test.redirects += 2>!
 
-g = git 2>! >&2
+g = [cmdline] git 2>! >&2
 
 # Create and clone the reference repository.
 #
 root_ref = $~/ref.git
 root_ref_dir = $~/ref
 
-clone_root_ref = cp --no-cleanup -r $root_ref ./ &ref.git/***
+clone_root_ref = [cmdline] cp --no-cleanup -r $root_ref ./ &ref.git/***
 
 +mkdir --no-cleanup $root_ref
 +$g -C $root_ref init --bare &ref.git/***
@@ -44,7 +44,7 @@ root_tgt_url = "file:///$~/tgt.git"
 
 +cp -r $root_ref $root_tgt
 
-clone_root_tgt = cp --no-cleanup -r $root_tgt ./ &tgt.git/***
+clone_root_tgt = [cmdline] cp --no-cleanup -r $root_tgt ./ &tgt.git/***
 
 # Extract the package repository.
 #

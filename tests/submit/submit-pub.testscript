@@ -17,7 +17,7 @@ root_rep=$~/pkg-1
 +echo ": 1" >=$root_rep/1/repositories.manifest
 +bpkg rep-create $root_rep/1 2>! &$root_rep/1/packages.manifest
 
-clone_root_rep = cp --no-cleanup -r $root_rep ./ &pkg-1/*** &?pkg.lock
+clone_root_rep = [cmdline] cp --no-cleanup -r $root_rep ./ &pkg-1/*** &?pkg.lock
 
 : args
 {
