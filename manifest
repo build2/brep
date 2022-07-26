@@ -27,8 +27,8 @@ depends: libapreq2
 depends: libcmark-gfm == 0.29.0-a.4
 depends: libcmark-gfm-extensions == 0.29.0-a.4
 depends: libstudxml ^1.1.0-b.10
-depends: libodb [2.5.0-b.22.1 2.5.0-b.23)
-depends: libodb-pgsql [2.5.0-b.22.1 2.5.0-b.23)
+depends: libodb ^2.5.0-b.23
+depends: libodb-pgsql ^2.5.0-b.23
 depends: libbutl [0.15.0-a.0.1 0.15.0-a.1)
 depends: libbpkg [0.15.0-a.0.1 0.15.0-a.1)
 depends: libbbot [0.15.0-a.0.1 0.15.0-a.1)
