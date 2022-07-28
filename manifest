@@ -1,6 +1,6 @@
 : 1
 name: brep
-version: 0.15.0-a.0.z
+version: 0.15.0
 project: build2
 summary: build2 package repository web interface
 license: MIT
@@ -18,8 +18,8 @@ builds: -linux -freebsd ; Requires system packages.
 requires: c++14
 requires: postgresql >= 9.0
 requires: apache2 ; Including development files (httpd.h header, etc).
-depends: * build2 >= 0.14.0-
-depends: * bpkg >= 0.14.0-
+depends: * build2 >= 0.15.0-
+depends: * bpkg >= 0.15.0-
 # @@ DEP Should probably become conditional dependency.
 #requires: ? cli ; Only required if changing .cli files.
 depends: libapr1
@@ -29,8 +29,8 @@ depends: libcmark-gfm-extensions == 0.29.0-a.4
 depends: libstudxml ^1.1.0-b.10
 depends: libodb ^2.5.0-b.23
 depends: libodb-pgsql ^2.5.0-b.23
-depends: libbutl [0.15.0-a.0.1 0.15.0-a.1)
-depends: libbpkg [0.15.0-a.0.1 0.15.0-a.1)
-depends: libbbot [0.15.0-a.0.1 0.15.0-a.1)
-depends: libbutl.bash [0.15.0-a.0.1 0.15.0-a.1)
-depends: bpkg-util [0.15.0-a.0.1 0.15.0-a.1)
+depends: libbutl ^0.15.0
+depends: libbpkg ^0.15.0
+depends: libbbot ^0.15.0
+depends: libbutl.bash ^0.15.0
+depends: bpkg-util ^0.15.0
