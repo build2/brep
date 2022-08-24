@@ -1,191 +1,5 @@
 <changelog xmlns="http://www.codesynthesis.com/xmlns/odb/changelog" database="pgsql" schema-name="package" version="1">
-  <changeset version="25">
-    <alter-table name="package_tests">
-      <add-column name="test_reflect" type="TEXT" null="true"/>
-    </alter-table>
-  </changeset>
-
-  <changeset version="24">
-    <alter-table name="package_dependencies">
-      <drop-column name="conditional"/>
-    </alter-table>
-    <alter-table name="package_dependency_alternatives">
-      <add-column name="reflect" type="TEXT" null="true"/>
-      <add-column name="prefer" type="TEXT" null="true"/>
-      <add-column name="accept" type="TEXT" null="true"/>
-      <add-column name="require" type="TEXT" null="true"/>
-    </alter-table>
-  </changeset>
-
-  <changeset version="23">
-    <alter-table name="package_requirements">
-      <drop-column name="conditional"/>
-    </alter-table>
-    <alter-table name="package_requirement_alternatives">
-      <add-column name="reflect" type="TEXT" null="true"/>
-    </alter-table>
-  </changeset>
-
-  <changeset version="22">
-    <alter-table name="package_dependency_alternatives">
-      <add-column name="enable" type="TEXT" null="true"/>
-      <drop-foreign-key name="dep_package_tenant_fk"/>
-      <drop-foreign-key name="dep_package_fk"/>
-      <drop-column name="dep_name"/>
-      <drop-column name="dep_min_version_epoch"/>
-      <drop-column name="dep_min_version_canonical_upstream"/>
-      <drop-column name="dep_min_version_canonical_release"/>
-      <drop-column name="dep_min_version_revision"/>
-      <drop-column name="dep_min_version_upstream"/>
-      <drop-column name="dep_min_version_release"/>
-      <drop-column name="dep_max_version_epoch"/>
-      <drop-column name="dep_max_version_canonical_upstream"/>
-      <drop-column name="dep_max_version_canonical_release"/>
-      <drop-column name="dep_max_version_revision"/>
-      <drop-column name="dep_max_version_upstream"/>
-      <drop-column name="dep_max_version_release"/>
-      <drop-column name="dep_min_open"/>
-      <drop-column name="dep_max_open"/>
-      <drop-column name="dep_package_tenant"/>
-      <drop-column name="dep_package_name"/>
-      <drop-column name="dep_package_version_epoch"/>
-      <drop-column name="dep_package_version_canonical_upstream"/>
-      <drop-column name="dep_package_version_canonical_release"/>
-      <drop-column name="dep_package_version_revision"/>
-    </alter-table>
-    <add-table name="package_dependency_alternative_dependencies" kind="container">
-      <column name="tenant" type="TEXT" null="false"/>
-      <column name="name" type="CITEXT" null="false"/>
-      <column name="version_epoch" type="INTEGER" null="false"/>
-      <column name="version_canonical_upstream" type="TEXT" null="false"/>
-      <column name="version_canonical_release" type="TEXT" null="false" options="COLLATE &quot;C&quot;"/>
-      <column name="version_revision" type="INTEGER" null="false"/>
-      <column name="dependency_index" type="BIGINT" null="false"/>
-      <column name="alternative_index" type="BIGINT" null="false"/>
-      <column name="index" type="BIGINT" null="false"/>
-      <column name="dep_name" type="CITEXT" null="false"/>
-      <column name="dep_min_version_epoch" type="INTEGER" null="true"/>
-      <column name="dep_min_version_canonical_upstream" type="TEXT" null="true"/>
-      <column name="dep_min_version_canonical_release" type="TEXT" null="true"/>
-      <column name="dep_min_version_revision" type="INTEGER" null="true"/>
-      <column name="dep_min_version_upstream" type="TEXT" null="true"/>
-      <column name="dep_min_version_release" type="TEXT" null="true"/>
-      <column name="dep_max_version_epoch" type="INTEGER" null="true"/>
-      <column name="dep_max_version_canonical_upstream" type="TEXT" null="true"/>
-      <column name="dep_max_version_canonical_release" type="TEXT" null="true"/>
-      <column name="dep_max_version_revision" type="INTEGER" null="true"/>
-      <column name="dep_max_version_upstream" type="TEXT" null="true"/>
-      <column name="dep_max_version_release" type="TEXT" null="true"/>
-      <column name="dep_min_open" type="BOOLEAN" null="true"/>
-      <column name="dep_max_open" type="BOOLEAN" null="true"/>
-      <column name="dep_package_tenant" type="TEXT" null="true"/>
-      <column name="dep_package_name" type="CITEXT" null="true"/>
-      <column name="dep_package_version_epoch" type="INTEGER" null="true"/>
-      <column name="dep_package_version_canonical_upstream" type="TEXT" null="true"/>
-      <column name="dep_package_version_canonical_release" type="TEXT" null="true" options="COLLATE &quot;C&quot;"/>
-      <column name="dep_package_version_revision" type="INTEGER" null="true"/>
-      <foreign-key name="tenant_fk" deferrable="DEFERRED">
-        <column name="tenant"/>
-        <references table="tenant">
-          <column name="id"/>
-        </references>
-      </foreign-key>
-      <foreign-key name="object_id_fk" on-delete="CASCADE">
-        <column name="tenant"/>
-        <column name="name"/>
-        <column name="version_epoch"/>
-        <column name="version_canonical_upstream"/>
-        <column name="version_canonical_release"/>
-        <column name="version_revision"/>
-        <references table="package">
-          <column name="tenant"/>
-          <column name="name"/>
-          <column name="version_epoch"/>
-          <column name="version_canonical_upstream"/>
-          <column name="version_canonical_release"/>
-          <column name="version_revision"/>
-        </references>
-      </foreign-key>
-      <index name="package_dependency_alternative_dependencies_object_id_i">
-        <column name="tenant"/>
-        <column name="name"/>
-        <column name="version_epoch"/>
-        <column name="version_canonical_upstream"/>
-        <column name="version_canonical_release"/>
-        <column name="version_revision"/>
-      </index>
-      <foreign-key name="dep_package_tenant_fk" deferrable="DEFERRED">
-        <column name="dep_package_tenant"/>
-        <references table="tenant">
-          <column name="id"/>
-        </references>
-      </foreign-key>
-      <foreign-key name="dep_package_fk" deferrable="DEFERRED">
-        <column name="dep_package_tenant"/>
-        <column name="dep_package_name"/>
-        <column name="dep_package_version_epoch"/>
-        <column name="dep_package_version_canonical_upstream"/>
-        <column name="dep_package_version_canonical_release"/>
-        <column name="dep_package_version_revision"/>
-        <references table="package">
-          <column name="tenant"/>
-          <column name="name"/>
-          <column name="version_epoch"/>
-          <column name="version_canonical_upstream"/>
-          <column name="version_canonical_release"/>
-          <column name="version_revision"/>
-        </references>
-      </foreign-key>
-    </add-table>
-    <alter-table name="package_requirement_alternatives">
-      <add-column name="enable" type="TEXT" null="true"/>
-      <drop-column name="id"/>
-    </alter-table>
-    <add-table name="package_requirement_alternative_requirements" kind="container">
-      <column name="tenant" type="TEXT" null="false"/>
-      <column name="name" type="CITEXT" null="false"/>
-      <column name="version_epoch" type="INTEGER" null="false"/>
-      <column name="version_canonical_upstream" type="TEXT" null="false"/>
-      <column name="version_canonical_release" type="TEXT" null="false" options="COLLATE &quot;C&quot;"/>
-      <column name="version_revision" type="INTEGER" null="false"/>
-      <column name="requirement_index" type="BIGINT" null="false"/>
-      <column name="alternative_index" type="BIGINT" null="false"/>
-      <column name="index" type="BIGINT" null="false"/>
-      <column name="id" type="TEXT" null="false"/>
-      <foreign-key name="tenant_fk" deferrable="DEFERRED">
-        <column name="tenant"/>
-        <references table="tenant">
-          <column name="id"/>
-        </references>
-      </foreign-key>
-      <foreign-key name="object_id_fk" on-delete="CASCADE">
-        <column name="tenant"/>
-        <column name="name"/>
-        <column name="version_epoch"/>
-        <column name="version_canonical_upstream"/>
-        <column name="version_canonical_release"/>
-        <column name="version_revision"/>
-        <references table="package">
-          <column name="tenant"/>
-          <column name="name"/>
-          <column name="version_epoch"/>
-          <column name="version_canonical_upstream"/>
-          <column name="version_canonical_release"/>
-          <column name="version_revision"/>
-        </references>
-      </foreign-key>
-      <index name="package_requirement_alternative_requirements_object_id_i">
-        <column name="tenant"/>
-        <column name="name"/>
-        <column name="version_epoch"/>
-        <column name="version_canonical_upstream"/>
-        <column name="version_canonical_release"/>
-        <column name="version_revision"/>
-      </index>
-    </add-table>
-  </changeset>
-
-  <model version="21">
+  <model version="25">
     <table name="tenant" kind="object">
       <column name="id" type="TEXT" null="false"/>
       <column name="private" type="BOOLEAN" null="false"/>
@@ -567,7 +381,6 @@
       <column name="version_canonical_release" type="TEXT" null="false" options="COLLATE &quot;C&quot;"/>
       <column name="version_revision" type="INTEGER" null="false"/>
       <column name="index" type="BIGINT" null="false"/>
-      <column name="conditional" type="BOOLEAN" null="false"/>
       <column name="buildtime" type="BOOLEAN" null="false"/>
       <column name="comment" type="TEXT" null="false"/>
       <foreign-key name="tenant_fk" deferrable="DEFERRED">
@@ -613,6 +426,52 @@
       <column name="version_revision" type="INTEGER" null="false"/>
       <column name="dependency_index" type="BIGINT" null="false"/>
       <column name="index" type="BIGINT" null="false"/>
+      <column name="enable" type="TEXT" null="true"/>
+      <column name="reflect" type="TEXT" null="true"/>
+      <column name="prefer" type="TEXT" null="true"/>
+      <column name="accept" type="TEXT" null="true"/>
+      <column name="require" type="TEXT" null="true"/>
+      <foreign-key name="tenant_fk" deferrable="DEFERRED">
+        <column name="tenant"/>
+        <references table="tenant">
+          <column name="id"/>
+        </references>
+      </foreign-key>
+      <foreign-key name="object_id_fk" on-delete="CASCADE">
+        <column name="tenant"/>
+        <column name="name"/>
+        <column name="version_epoch"/>
+        <column name="version_canonical_upstream"/>
+        <column name="version_canonical_release"/>
+        <column name="version_revision"/>
+        <references table="package">
+          <column name="tenant"/>
+          <column name="name"/>
+          <column name="version_epoch"/>
+          <column name="version_canonical_upstream"/>
+          <column name="version_canonical_release"/>
+          <column name="version_revision"/>
+        </references>
+      </foreign-key>
+      <index name="package_dependency_alternatives_object_id_i">
+        <column name="tenant"/>
+        <column name="name"/>
+        <column name="version_epoch"/>
+        <column name="version_canonical_upstream"/>
+        <column name="version_canonical_release"/>
+        <column name="version_revision"/>
+      </index>
+    </table>
+    <table name="package_dependency_alternative_dependencies" kind="container">
+      <column name="tenant" type="TEXT" null="false"/>
+      <column name="name" type="CITEXT" null="false"/>
+      <column name="version_epoch" type="INTEGER" null="false"/>
+      <column name="version_canonical_upstream" type="TEXT" null="false"/>
+      <column name="version_canonical_release" type="TEXT" null="false" options="COLLATE &quot;C&quot;"/>
+      <column name="version_revision" type="INTEGER" null="false"/>
+      <column name="dependency_index" type="BIGINT" null="false"/>
+      <column name="alternative_index" type="BIGINT" null="false"/>
+      <column name="index" type="BIGINT" null="false"/>
       <column name="dep_name" type="CITEXT" null="false"/>
       <column name="dep_min_version_epoch" type="INTEGER" null="true"/>
       <column name="dep_min_version_canonical_upstream" type="TEXT" null="true"/>
@@ -656,7 +515,7 @@
           <column name="version_revision"/>
         </references>
       </foreign-key>
-      <index name="package_dependency_alternatives_object_id_i">
+      <index name="package_dependency_alternative_dependencies_object_id_i">
         <column name="tenant"/>
         <column name="name"/>
         <column name="version_epoch"/>
@@ -695,7 +554,6 @@
       <column name="version_canonical_release" type="TEXT" null="false" options="COLLATE &quot;C&quot;"/>
       <column name="version_revision" type="INTEGER" null="false"/>
       <column name="index" type="BIGINT" null="false"/>
-      <column name="conditional" type="BOOLEAN" null="false"/>
       <column name="buildtime" type="BOOLEAN" null="false"/>
       <column name="comment" type="TEXT" null="false"/>
       <foreign-key name="tenant_fk" deferrable="DEFERRED">
@@ -741,7 +599,8 @@
       <column name="version_revision" type="INTEGER" null="false"/>
       <column name="requirement_index" type="BIGINT" null="false"/>
       <column name="index" type="BIGINT" null="false"/>
-      <column name="id" type="TEXT" null="false"/>
+      <column name="enable" type="TEXT" null="true"/>
+      <column name="reflect" type="TEXT" null="true"/>
       <foreign-key name="tenant_fk" deferrable="DEFERRED">
         <column name="tenant"/>
         <references table="tenant">
@@ -765,6 +624,48 @@
         </references>
       </foreign-key>
       <index name="package_requirement_alternatives_object_id_i">
+        <column name="tenant"/>
+        <column name="name"/>
+        <column name="version_epoch"/>
+        <column name="version_canonical_upstream"/>
+        <column name="version_canonical_release"/>
+        <column name="version_revision"/>
+      </index>
+    </table>
+    <table name="package_requirement_alternative_requirements" kind="container">
+      <column name="tenant" type="TEXT" null="false"/>
+      <column name="name" type="CITEXT" null="false"/>
+      <column name="version_epoch" type="INTEGER" null="false"/>
+      <column name="version_canonical_upstream" type="TEXT" null="false"/>
+      <column name="version_canonical_release" type="TEXT" null="false" options="COLLATE &quot;C&quot;"/>
+      <column name="version_revision" type="INTEGER" null="false"/>
+      <column name="requirement_index" type="BIGINT" null="false"/>
+      <column name="alternative_index" type="BIGINT" null="false"/>
+      <column name="index" type="BIGINT" null="false"/>
+      <column name="id" type="TEXT" null="false"/>
+      <foreign-key name="tenant_fk" deferrable="DEFERRED">
+        <column name="tenant"/>
+        <references table="tenant">
+          <column name="id"/>
+        </references>
+      </foreign-key>
+      <foreign-key name="object_id_fk" on-delete="CASCADE">
+        <column name="tenant"/>
+        <column name="name"/>
+        <column name="version_epoch"/>
+        <column name="version_canonical_upstream"/>
+        <column name="version_canonical_release"/>
+        <column name="version_revision"/>
+        <references table="package">
+          <column name="tenant"/>
+          <column name="name"/>
+          <column name="version_epoch"/>
+          <column name="version_canonical_upstream"/>
+          <column name="version_canonical_release"/>
+          <column name="version_revision"/>
+        </references>
+      </foreign-key>
+      <index name="package_requirement_alternative_requirements_object_id_i">
         <column name="tenant"/>
         <column name="name"/>
         <column name="version_epoch"/>
@@ -804,6 +705,7 @@
       <column name="test_package_version_revision" type="INTEGER" null="true"/>
       <column name="test_type" type="TEXT" null="false"/>
       <column name="test_buildtime" type="BOOLEAN" null="false"/>
+      <column name="test_reflect" type="TEXT" null="true"/>
       <foreign-key name="tenant_fk" deferrable="DEFERRED">
         <column name="tenant"/>
         <references table="tenant">

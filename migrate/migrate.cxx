@@ -208,6 +208,7 @@ create (database& db, bool extra_only) const
 
 // Register the data migration functions for the package database schema.
 //
+#if 0
 template <schema_version v>
 using package_migration_entry_base =
   data_migration_entry<v, LIBBREP_PACKAGE_SCHEMA_VERSION_BASE>;
@@ -219,109 +220,11 @@ struct package_migration_entry: package_migration_entry_base<v>
       : package_migration_entry_base<v> (f, "package") {}
 };
 
-static const package_migration_entry<22>
-package_migrate_v22 ([] (database& db)
+static const package_migration_entry<26>
+package_migrate_v26 ([] (database& db)
 {
-  // Note that for both dependency and requirement
-  // package_*_alternative_*s.alternative_index is copied from
-  // package_*_alternatives.index and package_*_alternative_*s.index is set to
-  // 0.
-  //
-
-  // Migrate dependencies.
-  //
-  db.execute (
-    "INSERT INTO \"package_dependency_alternative_dependencies\" "
-    "(\"tenant\", "
-    "\"name\", "
-    "\"version_epoch\", "
-    "\"version_canonical_upstream\", "
-    "\"version_canonical_release\", "
-    "\"version_revision\", "
-    "\"dependency_index\", "
-    "\"alternative_index\", "
-    "\"index\", "
-    "\"dep_name\", "
-    "\"dep_min_version_epoch\", "
-    "\"dep_min_version_canonical_upstream\", "
-    "\"dep_min_version_canonical_release\", "
-    "\"dep_min_version_revision\", "
-    "\"dep_min_version_upstream\", "
-    "\"dep_min_version_release\", "
-    "\"dep_max_version_epoch\", "
-    "\"dep_max_version_canonical_upstream\", "
-    "\"dep_max_version_canonical_release\", "
-    "\"dep_max_version_revision\", "
-    "\"dep_max_version_upstream\", "
-    "\"dep_max_version_release\", "
-    "\"dep_min_open\", "
-    "\"dep_max_open\", "
-    "\"dep_package_tenant\", "
-    "\"dep_package_name\", "
-    "\"dep_package_version_epoch\", "
-    "\"dep_package_version_canonical_upstream\", "
-    "\"dep_package_version_canonical_release\", "
-    "\"dep_package_version_revision\") "
-    "SELECT "
-    "\"tenant\", "
-    "\"name\", "
-    "\"version_epoch\", "
-    "\"version_canonical_upstream\", "
-    "\"version_canonical_release\", "
-    "\"version_revision\", "
-    "\"dependency_index\", "
-    "\"index\", "
-    "0, "
-    "\"dep_name\", "
-    "\"dep_min_version_epoch\", "
-    "\"dep_min_version_canonical_upstream\", "
-    "\"dep_min_version_canonical_release\", "
-    "\"dep_min_version_revision\", "
-    "\"dep_min_version_upstream\", "
-    "\"dep_min_version_release\", "
-    "\"dep_max_version_epoch\", "
-    "\"dep_max_version_canonical_upstream\", "
-    "\"dep_max_version_canonical_release\", "
-    "\"dep_max_version_revision\", "
-    "\"dep_max_version_upstream\", "
-    "\"dep_max_version_release\", "
-    "\"dep_min_open\", "
-    "\"dep_max_open\", "
-    "\"dep_package_tenant\", "
-    "\"dep_package_name\", "
-    "\"dep_package_version_epoch\", "
-    "\"dep_package_version_canonical_upstream\", "
-    "\"dep_package_version_canonical_release\", "
-    "\"dep_package_version_revision\" "
-    "FROM \"package_dependency_alternatives\"");
-
-  // Migrate requirements.
-  //
-  db.execute (
-    "INSERT INTO \"package_requirement_alternative_requirements\" "
-    "(\"tenant\", "
-    "\"name\", "
-    "\"version_epoch\", "
-    "\"version_canonical_upstream\", "
-    "\"version_canonical_release\", "
-    "\"version_revision\", "
-    "\"requirement_index\", "
-    "\"alternative_index\", "
-    "\"index\", "
-    "\"id\") "
-    "SELECT "
-    "\"tenant\", "
-    "\"name\", "
-    "\"version_epoch\", "
-    "\"version_canonical_upstream\", "
-    "\"version_canonical_release\", "
-    "\"version_revision\", "
-    "\"requirement_index\", "
-    "\"index\", "
-    "0, "
-    "\"id\" "
-    "FROM \"package_requirement_alternatives\"");
 });
+#endif
 
 // Register the data migration functions for the build database schema.
 //
@@ -337,8 +240,8 @@ struct build_migration_entry: build_migration_entry_base<v>
       : build_migration_entry_base<v> (f, "build") {}
 };
 
-static const build_migration_entry<16>
-build_migrate_v16 ([] (database& db)
+static const build_migration_entry<19>
+build_migrate_v19 ([] (database& db)
 {
 });
 #endif

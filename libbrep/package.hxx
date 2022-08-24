@@ -18,7 +18,7 @@
 
 // Used by the data migration entries.
 //
-#define LIBBREP_PACKAGE_SCHEMA_VERSION_BASE 21
+#define LIBBREP_PACKAGE_SCHEMA_VERSION_BASE 25
 
 #pragma db model version(LIBBREP_PACKAGE_SCHEMA_VERSION_BASE, 25, closed)
 
