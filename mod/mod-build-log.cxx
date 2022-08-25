@@ -68,7 +68,7 @@ handle (request& rq, response& rs)
   //
   // Note that the URL path must be in the following form:
   //
-  // <pkg-name>/<pkg-version>/log/<cfg-name>/<toolchain-name>/<toolchain-version>[/<operation>]
+  // <pkg-name>/<pkg-version>/log/<cfg-name>/<target>/<toolchain-name>/<toolchain-version>[/<operation>]
   //
   // Also note that the presence of the first 3 components is guaranteed by
   // the repository_root module.
@@ -132,6 +132,19 @@ handle (request& rq, response& rs)
       throw invalid_argument ("empty configuration name");
 
     if (i == lpath.end ())
+      throw invalid_argument ("no target");
+
+    target_triplet target;
+    try
+    {
+      target = target_triplet (*i++);
+    }
+    catch (const invalid_argument& e)
+    {
+      throw invalid_argument (string ("invalid target: ") + e.what ());
+    }
+
+    if (i == lpath.end ())
       throw invalid_argument ("no toolchain name");
 
     string toolchain_name (*i++);
@@ -146,6 +159,7 @@ handle (request& rq, response& rs)
 
     id = build_id (package_id (tenant, move (name), package_version),
                    move (config),
+                   move (target),
                    move (toolchain_name),
                    toolchain_version);
 
@@ -190,7 +204,7 @@ handle (request& rq, response& rs)
 
   // Make sure the build configuration still exists.
   //
-  if (build_conf_map_->find (id.configuration.c_str ()) ==
+  if (build_conf_map_->find (build_config_id {id.configuration, id.target}) ==
       build_conf_map_->end ())
     config_expired ("no configuration");
 
@@ -233,9 +247,9 @@ handle (request& rq, response& rs)
        << "toolchain: " << b->toolchain_name << '-' << b->toolchain_version
        << endl
        << "config:    " << b->configuration << endl
+       << "target:    " << b->target << endl
        << "machine:   " << b->machine << " (" << b->machine_summary << ")"
        << endl
-       << "target:    " << b->target.string () << endl
        << "timestamp: ";
 
     butl::to_stream (os,

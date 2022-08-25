@@ -24,6 +24,7 @@ namespace brep
                 mime_url_encode (b.package_name.string (), false) + '/' +
                 b.package_version.string () + "/log/" +
                 mime_url_encode (b.configuration, false /* query */) + '/' +
+                mime_url_encode (b.target.string (), false /* query */) + '/' +
                 mime_url_encode (b.toolchain_name, false /* query */) + '/' +
                 b.toolchain_version.string ());
 
@@ -48,6 +49,7 @@ namespace brep
       "?build-force&pn=" + mime_url_encode (b.package_name.string ()) +
       "&pv=" + b.package_version.string () +
       "&cf=" + mime_url_encode (b.configuration) +
+      "&tg=" + mime_url_encode (b.target.string ()) +
       "&tn=" + mime_url_encode (b.toolchain_name) +
       "&tv=" + b.toolchain_version.string () +
       "&reason=";

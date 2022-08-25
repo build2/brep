@@ -193,12 +193,28 @@ handle (request& rq, response&)
     p = s.find ('/', b); // End of configuration name.
 
     if (p == string::npos)
-      throw invalid_argument ("no toolchain name");
+      throw invalid_argument ("no target");
 
     string config (s, b, p - b);
 
     if (config.empty ())
       throw invalid_argument ("empty configuration name");
+
+    b = p + 1;           // Start of target.
+    p = s.find ('/', b); // End of target.
+
+    if (p == string::npos)
+      throw invalid_argument ("no toolchain name");
+
+    target_triplet target;
+    try
+    {
+      target = target_triplet (string (s, b, p - b));
+    }
+    catch (const invalid_argument& e)
+    {
+      throw invalid_argument (string ("invalid target: ") + e.what ());
+    }
 
     b = p + 1;           // Start of toolchain name.
     p = s.find ('/', b); // End of toolchain name.
@@ -221,6 +237,7 @@ handle (request& rq, response&)
 
     id = build_id (package_id (move (tenant), move (name), package_version),
                    move (config),
+                   move (target),
                    move (toolchain_name),
                    toolchain_version);
 
@@ -263,7 +280,8 @@ handle (request& rq, response&)
   //
   const bbot::build_config* cfg;
   {
-    auto i (build_conf_map_->find (id.configuration.c_str ()));
+    auto i (build_conf_map_->find (build_config_id {id.configuration,
+                                                    id.target}));
 
     if (i == build_conf_map_->end ())
     {
@@ -541,6 +559,7 @@ handle (request& rq, response&)
                bld->package_name.string () + '/' +
                bld->package_version.string () + '/' +
                bld->configuration + '/' +
+               bld->target.string () + '/' +
                bld->toolchain_name + '-' + bld->toolchain_version.string ());
 
   // Send notification emails to the interested parties.

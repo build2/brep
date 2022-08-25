@@ -568,10 +568,13 @@ handle (request& rq, response& rs)
         toolchains.emplace_back (move (t.name), move (t.version));
     }
 
-    // Collect configuration names and unbuilt configurations, skipping those
-    // that are hidden or excluded by the package.
+    // Compose the configuration filtering sub-query and collect unbuilt
+    // configurations, skipping those that are hidden or excluded by the
+    // package.
     //
-    cstrings conf_names;
+    using query = query<build>;
+
+    query sq (false);
     set<config_toolchain> unbuilt_configs;
 
     for (const auto& c: *build_conf_map_)
@@ -580,26 +583,24 @@ handle (request& rq, response& rs)
 
       if (belongs (cfg, "all") && !exclude (cfg))
       {
-        conf_names.push_back (c.first);
+        const build_config_id& id (c.first);
+
+        sq = sq || (query::id.configuration == id.name &&
+                    query::id.target == id.target);
 
         // Note: we will erase built configurations from the unbuilt
         // configurations set later (see below).
         //
         for (const auto& t: toolchains)
-          unbuilt_configs.insert ({cfg.name, t.first, t.second});
+          unbuilt_configs.insert (
+            config_toolchain {cfg.name, cfg.target, t.first, t.second});
       }
     }
 
     // Print the package built configurations in the time-descending order.
     //
-    using query = query<build>;
-
     for (auto& b: build_db_->query<build> (
-           (query::id.package == pkg->id &&
-
-            query::id.configuration.in_range (conf_names.begin (),
-                                              conf_names.end ())) +
-
+           (query::id.package == pkg->id && sq) +
            "ORDER BY" + query::timestamp + "DESC"))
     {
       string ts (butl::to_string (b.timestamp,
@@ -630,9 +631,10 @@ handle (request& rq, response& rs)
       // While at it, erase the built configuration from the unbuilt
       // configurations set.
       //
-      unbuilt_configs.erase ({b.id.configuration,
-                              b.toolchain_name,
-                              b.toolchain_version});
+      unbuilt_configs.erase (config_toolchain {b.configuration,
+                                               b.target,
+                                               b.toolchain_name,
+                                               b.toolchain_version});
     }
 
     // Print the package unbuilt configurations with the following sort
@@ -644,17 +646,13 @@ handle (request& rq, response& rs)
     //
     for (const auto& ct: unbuilt_configs)
     {
-      auto i (build_conf_map_->find (ct.configuration.c_str ()));
-      assert (i != build_conf_map_->end ());
-
       s << TABLE(CLASS="proplist build")
         <<   TBODY
         <<     TR_VALUE ("toolchain",
                          ct.toolchain_name + '-' +
                          ct.toolchain_version.string ())
         <<     TR_VALUE ("config",
-                         ct.configuration + " / " +
-                         i->second->target.string ())
+                         ct.configuration + " / " + ct.target.string ())
         <<     TR_VALUE ("result", "unbuilt")
         <<   ~TBODY
         << ~TABLE;

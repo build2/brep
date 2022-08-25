@@ -6,7 +6,7 @@
 
 #include <map>
 
-#include <libbutl/utility.hxx> // compare_c_string
+#include <libbutl/target-triplet.hxx>
 
 #include <libbpkg/manifest.hxx>
 
@@ -64,15 +64,16 @@ namespace brep
       return belongs (cfg, cls.c_str ());
     }
 
-    // Configuration/toolchain combination that, in particular, can be used as
-    // a set value.
+    // Configuration/target/toolchain combination that, in particular, can be
+    // used as a set value.
     //
-    // Note: contains shallow references to the configuration, toolchain name,
-    // and version.
+    // Note: contains shallow references to the configuration, target,
+    // toolchain name, and version.
     //
     struct config_toolchain
     {
       const string& configuration;
+      const butl::target_triplet& target;
       const string& toolchain_name;
       const bpkg::version& toolchain_version;
 
@@ -85,7 +86,10 @@ namespace brep
         if (toolchain_version != ct.toolchain_version)
           return toolchain_version > ct.toolchain_version;
 
-        return configuration.compare (ct.configuration) < 0;
+        if (int r = configuration.compare (ct.configuration))
+          return r < 0;
+
+        return target.compare (ct.target) < 0;
       }
     };
 
@@ -93,11 +97,9 @@ namespace brep
     // Build configurations.
     //
     shared_ptr<const bbot::build_configs> build_conf_;
-    shared_ptr<const cstrings>            build_conf_names_;
 
-    shared_ptr<const std::map<const char*,
-                              const bbot::build_config*,
-                              butl::compare_c_string>> build_conf_map_;
+    shared_ptr<const std::map<build_config_id, const bbot::build_config*>>
+    build_conf_map_;
 
     // Map of build bot agent public keys fingerprints to the key file paths.
     //

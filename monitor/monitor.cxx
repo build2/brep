@@ -14,7 +14,6 @@
 #include <odb/pgsql/database.hxx>
 
 #include <libbutl/pager.hxx>
-#include <libbutl/utility.hxx> // compare_c_string
 
 #include <libbbot/build-config.hxx>
 
@@ -52,9 +51,10 @@ namespace brep
   // 1: toolchain name
   // 2: toolchain version (descending)
   // 3: configuration name
-  // 4: tenant
-  // 5: package name
-  // 6: package version (descending)
+  // 4: configuration target
+  // 5: tenant
+  // 6: package name
+  // 7: package version (descending)
   //
   struct compare_delay
   {
@@ -69,6 +69,9 @@ namespace brep
         return r > 0;
 
       if (int r = x->configuration.compare (y->configuration))
+        return r < 0;
+
+      if (int r = x->target.compare (y->target))
         return r < 0;
 
       if (int r = x->tenant.compare (y->tenant))
@@ -137,25 +140,29 @@ namespace brep
 
     // Group the printed delays by toolchain and configuration.
     //
-    const string*  toolchain_name    (nullptr);
-    const version* toolchain_version (nullptr);
-    const string*  configuration     (nullptr);
+    const string*         toolchain_name    (nullptr);
+    const version*        toolchain_version (nullptr);
+    const string*         configuration     (nullptr);
+    const target_triplet* target            (nullptr);
 
     size_t config_reported_delay_count (0);
     size_t config_total_delay_count (0);
 
     auto brief_config = [&configuration,
+                         &target,
                          &config_reported_delay_count,
                          &config_total_delay_count,
                          total] ()
     {
       if (configuration != nullptr)
       {
+        assert (target != nullptr);
+
         // Only print configurations with delays that needs to be reported.
         //
         if (config_reported_delay_count != 0)
         {
-          cerr << "    " << *configuration << " ("
+          cerr << "    " << *configuration << '/' << *target << " ("
                << config_reported_delay_count;
 
           if (total)
@@ -200,23 +207,27 @@ namespace brep
         toolchain_name    = &d->toolchain_name;
         toolchain_version = &d->toolchain_version;
         configuration     = nullptr;
+        target            = nullptr;
       }
 
       // Print the configuration, if changed.
       //
-      if (configuration == nullptr || d->configuration != *configuration)
+      if (configuration == nullptr           ||
+          d->configuration != *configuration ||
+          d->target != *target)
       {
         if (full)
         {
           if (configuration != nullptr)
             cerr << endl;
 
-          cerr << "    " << d->configuration << endl;
+          cerr << "    " << d->configuration << '/' << d->target << endl;
         }
         else
           brief_config ();
 
         configuration = &d->configuration;
+        target        = &d->target;
       }
 
       // Print the delayed build package in the full report mode and count
@@ -494,13 +505,11 @@ namespace brep
     //
     if (ops.clean ())
     {
-      using config_map = map<const char*,
-                             const build_config*,
-                             compare_c_string>;
+      using config_map = map<build_config_id, const build_config*>;
 
       config_map conf_map;
       for (const build_config& c: configs)
-        conf_map[c.name.c_str ()] = &c;
+        conf_map[build_config_id {c.name, c.target}] = &c;
 
       // Prepare the build delay prepared query.
       //
@@ -524,6 +533,7 @@ namespace brep
                order_by_version (query::id.package.version,
                                  false /* first */) + "," +
                query::id.configuration + "," +
+               query::id.target + "," +
                query::id.toolchain_name +
                order_by_version (query::id.toolchain_version,
                                  false /* first */) +
@@ -569,7 +579,8 @@ namespace brep
               //
               // Check that the build configuration is still present.
               //
-              (ci = conf_map.find (d.configuration.c_str ())) ==
+              (ci = conf_map.find (build_config_id {d.configuration,
+                                                    d.target})) ==
               conf_map.end ());
 
             // Check that the package still present, is buildable and doesn't
@@ -647,10 +658,12 @@ namespace brep
       using prep_bquery = prepared_query<package_build>;
 
       build_id id;
+
       const auto& bid (bquery::build::id);
 
       bquery bq ((equal<package_build> (bid.package, id.package)       &&
                   bid.configuration == bquery::_ref (id.configuration) &&
+                  bid.target == bquery::_ref (id.target)               &&
                   bid.toolchain_name == bquery::_ref (id.toolchain_name)) +
                  "ORDER BY"                                               +
                  bquery::build::soft_timestamp + "DESC, "                 +
@@ -803,7 +816,7 @@ namespace brep
 
               for (const pair<string, version>& t: toolchains)
               {
-                id = build_id (p->id, c.name, t.first, t.second);
+                id = build_id (p->id, c.name, c.target, t.first, t.second);
 
                 // If the toolchain version is unspecified then search for the
                 // latest build across all toolchain versions and search for a
@@ -868,6 +881,7 @@ namespace brep
                                                 move (id.package.name),
                                                 p->version,
                                                 move (id.configuration),
+                                                move (id.target),
                                                 move (id.toolchain_name),
                                                 t.second,
                                                 pts);

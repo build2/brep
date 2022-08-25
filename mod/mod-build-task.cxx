@@ -13,7 +13,6 @@
 
 #include <libbutl/regex.hxx>
 #include <libbutl/sha256.hxx>
-#include <libbutl/utility.hxx>             // compare_c_string
 #include <libbutl/openssl.hxx>
 #include <libbutl/fdstream.hxx>            // nullfd
 #include <libbutl/process-io.hxx>
@@ -157,8 +156,7 @@ handle (request& rq, response& rs)
   task_response_manifest tsm;
 
   // Map build configurations to machines that are capable of building them.
-  // The first matching machine is selected for each configuration. Also
-  // create the configuration name list for use in database queries.
+  // The first matching machine is selected for each configuration.
   //
   struct config_machine
   {
@@ -166,10 +164,9 @@ handle (request& rq, response& rs)
     machine_header_manifest* machine;
   };
 
-  using config_machines = map<const char*, config_machine, compare_c_string>;
+  using config_machines = map<build_config_id, config_machine>;
 
-  cstrings cfg_names;
-  config_machines cfg_machines;
+  config_machines conf_machines;
 
   for (const auto& c: *build_conf_)
   {
@@ -182,10 +179,9 @@ handle (request& rq, response& rs)
         if (path_match (dash_components_to_path (m.name),
                         dash_components_to_path (c.machine_pattern),
                         dir_path () /* start */,
-                        path_match_flags::match_absent) &&
-            cfg_machines.insert (
-              make_pair (c.name.c_str (), config_machine ({&c, &m}))).second)
-          cfg_names.push_back (c.name.c_str ());
+                        path_match_flags::match_absent))
+          conf_machines.emplace (build_config_id {c.name, c.target},
+                                 config_machine  {&c, &m});
       }
       catch (const invalid_path&) {}
     }
@@ -203,7 +199,7 @@ handle (request& rq, response& rs)
   // rebuild. The rebuild preference is given in the following order: the
   // greater force state, the greater overall status, the lower timestamp.
   //
-  if (!cfg_machines.empty ())
+  if (!conf_machines.empty ())
   {
     vector<shared_ptr<build>> rebuilds;
 
@@ -223,6 +219,7 @@ handle (request& rq, response& rs)
                       b->package_name.string () + '/' +
                       b->package_version.string () + '/' +
                       b->configuration + '/' +
+                      b->target.string () + '/' +
                       b->toolchain_name + '/' +
                       b->toolchain_version.string () + '/' +
                       to_string (ts));
@@ -599,12 +596,14 @@ handle (request& rq, response& rs)
 
     package_id id;
 
+    bld_query sq (false);
+    for (const auto& cm: conf_machines)
+      sq = sq || (bld_query::id.configuration == cm.first.name &&
+                  bld_query::id.target == cm.first.target);
+
     bld_query bq (
       equal<build> (bld_query::id.package, id)                   &&
-
-      bld_query::id.configuration.in_range (cfg_names.begin (),
-                                            cfg_names.end ())    &&
-
+      sq                                                         &&
       bld_query::id.toolchain_name == tqm.toolchain_name         &&
 
       compare_version_eq (bld_query::id.toolchain_version,
@@ -714,12 +713,13 @@ handle (request& rq, response& rs)
         // Also save the built package configurations for which it's time to
         // be rebuilt.
         //
-        config_machines configs (cfg_machines); // Make a copy for this pkg.
+        config_machines configs (conf_machines); // Make a copy for this pkg.
         auto pkg_builds (bld_prep_query.execute ());
 
         for (auto i (pkg_builds.begin ()); i != pkg_builds.end (); ++i)
         {
-          auto j (configs.find (i->id.configuration.c_str ()));
+          auto j (configs.find (build_config_id {i->id.configuration,
+                                                 i->id.target}));
 
           // Outdated configurations are already excluded with the database
           // query.
@@ -758,6 +758,7 @@ handle (request& rq, response& rs)
 
             build_id bid (move (id),
                           cm.config->name,
+                          cm.config->target,
                           move (tqm.toolchain_name),
                           toolchain_version);
 
@@ -784,6 +785,7 @@ handle (request& rq, response& rs)
                                       move (bid.package.name),
                                       move (bp.version),
                                       move (bid.configuration),
+                                      move (bid.target),
                                       move (bid.toolchain_name),
                                       move (toolchain_version),
                                       move (login),
@@ -791,7 +793,6 @@ handle (request& rq, response& rs)
                                       move (cl),
                                       mh.name,
                                       move (mh.summary),
-                                      cm.config->target,
                                       controller_checksum (*cm.config),
                                       machine_checksum (*cm.machine));
 
@@ -823,7 +824,6 @@ handle (request& rq, response& rs)
               b->agent_challenge = move (cl);
               b->machine = mh.name;
               b->machine_summary = move (mh.summary);
-              b->target = cm.config->target;
 
               string ccs (controller_checksum (*cm.config));
               string mcs (machine_checksum (*cm.machine));
@@ -911,11 +911,12 @@ handle (request& rq, response& rs)
               b->state == build_state::built &&
               needs_rebuild (*b))
           {
-            auto i (cfg_machines.find (b->id.configuration.c_str ()));
+            auto i (conf_machines.find (build_config_id {b->configuration,
+                                                         b->target}));
 
             // Only actual package configurations are loaded (see above).
             //
-            assert (i != cfg_machines.end ());
+            assert (i != conf_machines.end ());
             const config_machine& cm (i->second);
 
             // Rebuild the package if still present, is buildable, doesn't
@@ -961,8 +962,6 @@ handle (request& rq, response& rs)
               const machine_header_manifest& mh (*cm.machine);
               b->machine = mh.name;
               b->machine_summary = mh.summary;
-
-              b->target = cm.config->target;
 
               // Issue the hard rebuild if the timeout expired, rebuild is
               // forced, or the configuration or machine has changed.

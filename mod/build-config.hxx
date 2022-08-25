@@ -6,6 +6,8 @@
 
 #include <map>
 
+#include <libbutl/target-triplet.hxx>
+
 #include <libbpkg/manifest.hxx>
 
 #include <libbbot/build-config.hxx>
@@ -44,6 +46,27 @@ namespace brep
   //
   path
   dash_components_to_path (const string&);
+
+  // Build configuration name/target combination that, in particular,
+  // identifies configurations in the buildtab and thus can be used as a
+  // set/map key.
+  //
+  // Note: contains shallow references to the configuration name and target.
+  //
+  struct build_config_id
+  {
+    reference_wrapper<const string> name;
+    reference_wrapper<const butl::target_triplet> target;
+
+    bool
+    operator< (const build_config_id& x) const
+    {
+      if (int r = name.get ().compare (x.name.get ()))
+        return r < 0;
+
+      return target.get ().compare (x.target.get ()) < 0;
+    }
+  };
 }
 
 #endif // MOD_BUILD_CONFIG

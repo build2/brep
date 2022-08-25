@@ -769,6 +769,10 @@ namespace brep
       //
       string configuration | cf;
 
+      // Package build target.
+      //
+      string target | tg;
+
       // Toolchain name.
       //
       string toolchain_name | tn;

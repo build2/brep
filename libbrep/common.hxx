@@ -11,6 +11,8 @@
 #include <odb/query.hxx>
 #include <odb/nested-container.hxx>
 
+#include <libbutl/target-triplet.hxx>
+
 #include <libbpkg/package-name.hxx>
 
 #include <libbrep/types.hxx>
@@ -228,6 +230,12 @@ namespace brep
   // greater than the stub version, we reuse it to signify a special case).
   //
   extern const version wildcard_version;
+
+  // target_triplet
+  //
+  using butl::target_triplet;
+
+  #pragma db value(target_triplet) type("TEXT")
 
   // package_name
   //

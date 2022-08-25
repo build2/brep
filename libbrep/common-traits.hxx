@@ -10,12 +10,50 @@
 
 #include <odb/pgsql/traits.hxx>
 
+#include <libbutl/target-triplet.hxx>
+
 #include <libbpkg/package-name.hxx>
 
 namespace odb
 {
   namespace pgsql
   {
+    // target_triplet
+    //
+    template <>
+    class value_traits<butl::target_triplet, id_string>:
+      value_traits<std::string, id_string>
+    {
+    public:
+      using value_type = butl::target_triplet;
+      using query_type = butl::target_triplet;
+      using image_type = details::buffer;
+
+      using base_type = value_traits<std::string, id_string>;
+
+      static void
+      set_value (value_type& v,
+                 const details::buffer& b,
+                 std::size_t n,
+                 bool is_null)
+      {
+        std::string s;
+        base_type::set_value (s, b, n, is_null);
+        v = !s.empty () ? value_type (s) : value_type ();
+      }
+
+      static void
+      set_image (details::buffer& b,
+                 std::size_t& n,
+                 bool& is_null,
+                 const value_type& v)
+      {
+        base_type::set_image (b, n, is_null, v.string ());
+      }
+    };
+
+    // package_name
+    //
     template <>
     class value_traits<bpkg::package_name, id_string>:
       value_traits<std::string, id_string>

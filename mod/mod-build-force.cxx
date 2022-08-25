@@ -120,6 +120,17 @@ handle (request& rq, response& rs)
     if (config.empty ())
       throw invalid_argument ("no configuration name");
 
+    target_triplet target;
+
+    try
+    {
+      target = target_triplet (params.target ());
+    }
+    catch (const invalid_argument& e)
+    {
+      throw invalid_argument (string ("invalid target: ") + e.what ());
+    }
+
     string& toolchain_name (params.toolchain_name ());
 
     if (toolchain_name.empty ())
@@ -130,6 +141,7 @@ handle (request& rq, response& rs)
 
     id = build_id (package_id (move (tenant), move (p), package_version),
                    move (config),
+                   move (target),
                    move (toolchain_name),
                    toolchain_version);
   }
@@ -149,7 +161,7 @@ handle (request& rq, response& rs)
 
   // Make sure the build configuration still exists.
   //
-  if (build_conf_map_->find (id.configuration.c_str ()) ==
+  if (build_conf_map_->find (build_config_id {id.configuration, id.target}) ==
       build_conf_map_->end ())
     config_expired ("no configuration");
 
@@ -177,7 +189,7 @@ handle (request& rq, response& rs)
       l1 ([&]{trace << "force rebuild for "
                     << b->tenant << ' '
                     << b->package_name << '/' << b->package_version << ' '
-                    << b->configuration << ' '
+                    << b->configuration << '/' << b->target << ' '
                     << b->toolchain_name << '-' << b->toolchain_version
                     << ": " << reason;});
     }

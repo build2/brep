@@ -137,22 +137,12 @@ namespace brep
       bot_agent_key_map_ =
         shared_bot_agent_keys (bo, bo.build_bot_agent_keys ());
 
-    cstrings conf_names;
-
-    using conf_map_type = map<const char*,
-                              const build_config*,
-                              compare_c_string>;
-
+    using conf_map_type = map<build_config_id, const build_config*>;
     conf_map_type conf_map;
 
     for (const auto& c: *build_conf_)
-    {
-      const char* cn (c.name.c_str ());
-      conf_map[cn] = &c;
-      conf_names.push_back (cn);
-    }
+      conf_map[build_config_id {c.name, c.target}] = &c;
 
-    build_conf_names_ = make_shared<cstrings> (move (conf_names));
     build_conf_map_ = make_shared<conf_map_type> (move (conf_map));
   }
 

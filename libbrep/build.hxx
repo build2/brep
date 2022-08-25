@@ -9,8 +9,6 @@
 #include <odb/core.hxx>
 #include <odb/section.hxx>
 
-#include <libbutl/target-triplet.hxx>
-
 #include <libbrep/types.hxx>
 #include <libbrep/utility.hxx>
 
@@ -28,14 +26,13 @@
 
 // Used by the data migration entries.
 //
-#define LIBBREP_BUILD_SCHEMA_VERSION_BASE 18
+#define LIBBREP_BUILD_SCHEMA_VERSION_BASE 19
 
-#pragma db model version(LIBBREP_BUILD_SCHEMA_VERSION_BASE, 18, closed)
+#pragma db model version(LIBBREP_BUILD_SCHEMA_VERSION_BASE, 19, closed)
 
-// We have to keep these mappings at the global scope instead of inside
-// the brep namespace because they need to be also effective in the
-// bbot namespace from which we "borrow" types (and some of them use the mapped
-// types).
+// We have to keep these mappings at the global scope instead of inside the
+// brep namespace because they need to be also effective in the bbot namespace
+// from which we "borrow" types (and some of them use the mapped types).
 //
 #pragma db map type(bbot::result_status) as(std::string) \
   to(to_string (?))                                      \
@@ -48,13 +45,19 @@ namespace brep
   {
     package_id package;
     string configuration;
+    target_triplet target;
     string toolchain_name;
     canonical_version toolchain_version;
 
     build_id () = default;
-    build_id (package_id p, string c, string n, const brep::version& v)
+    build_id (package_id p,
+              string c,
+              target_triplet t,
+              string n,
+              const brep::version& v)
         : package (move (p)),
           configuration (move (c)),
+          target (move (t)),
           toolchain_name (move (n)),
           toolchain_version (v) {}
   };
@@ -68,13 +71,16 @@ namespace brep
     if (int r = x.configuration.compare (y.configuration))
       return r < 0;
 
+    if (int r = x.target.compare (y.target))
+      return r < 0;
+
     if (int r = x.toolchain_name.compare (y.toolchain_name))
       return r < 0;
 
     return compare_version_lt (x.toolchain_version, y.toolchain_version, true);
   }
 
-  // These allow comparing objects that have package, configuration,
+  // These allow comparing objects that have package, configuration, target,
   // toolchain_name, and toolchain_version data members to build_id values.
   // The idea is that this works for both query members of build id types as
   // well as for values of the build_id type.
@@ -84,12 +90,14 @@ namespace brep
   operator== (const T& x, const build_id& y)
     -> decltype (x.package == y.package               &&
                  x.configuration == y.configuration   &&
+                 x.target == y.target                 &&
                  x.toolchain_name == y.toolchain_name &&
                  x.toolchain_version.epoch == y.toolchain_version.epoch)
   {
-    return x.package == y.package               &&
-           x.configuration == y.configuration   &&
-           x.toolchain_name == y.toolchain_name &&
+    return x.package == y.package                &&
+           x.configuration == y.configuration    &&
+           x.target == y.target                  &&
+           x.toolchain_name == y.toolchain_name  &&
            compare_version_eq (x.toolchain_version, y.toolchain_version, true);
   }
 
@@ -98,12 +106,14 @@ namespace brep
   operator!= (const T& x, const build_id& y)
     -> decltype (x.package == y.package               &&
                  x.configuration == y.configuration   &&
+                 x.target == y.target                 &&
                  x.toolchain_name == y.toolchain_name &&
                  x.toolchain_version.epoch == y.toolchain_version.epoch)
   {
-    return x.package != y.package               ||
-           x.configuration != y.configuration   ||
-           x.toolchain_name != y.toolchain_name ||
+    return x.package != y.package                ||
+           x.configuration != y.configuration    ||
+           x.target == y.target                  ||
+           x.toolchain_name != y.toolchain_name  ||
            compare_version_ne (x.toolchain_version, y.toolchain_version, true);
   }
 
@@ -162,12 +172,6 @@ namespace brep
          ? bbot::to_result_status (*(?))                          \
          : brep::optional_result_status ())
 
-  // target_triplet
-  //
-  #pragma db map type(butl::target_triplet) as(string) \
-    to((?).string ())                                  \
-    from(butl::target_triplet (?))
-
   // operation_results
   //
   using bbot::operation_result;
@@ -189,12 +193,12 @@ namespace brep
            package_name_type,
            version,
            string configuration,
+           target_triplet,
            string toolchain_name, version toolchain_version,
            optional<string> interactive,
            optional<string> agent_fingerprint,
            optional<string> agent_challenge,
            string machine, string machine_summary,
-           butl::target_triplet,
            string controller_checksum,
            string machine_checksum);
 
@@ -204,6 +208,7 @@ namespace brep
     package_name_type& package_name;    // Tracks id.package.name.
     upstream_version package_version;   // Original of id.package.version.
     string& configuration;              // Tracks id.configuration.
+    target_triplet& target;             // Tracks id.target.
     string& toolchain_name;             // Tracks id.toolchain_name.
     upstream_version toolchain_version; // Original of id.toolchain_version.
 
@@ -253,7 +258,6 @@ namespace brep
 
     string machine;
     string machine_summary;
-    butl::target_triplet target;
 
     // Note that the logs are stored as std::string/TEXT which is Ok since
     // they are UTF-8 and our database is UTF-8.
@@ -285,6 +289,7 @@ namespace brep
     #pragma db member(package_version) \
       set(this.package_version.init (this.id.package.version, (?)))
     #pragma db member(configuration) transient
+    #pragma db member(target) transient
     #pragma db member(toolchain_name) transient
     #pragma db member(toolchain_version) \
       set(this.toolchain_version.init (this.id.toolchain_version, (?)))
@@ -308,6 +313,7 @@ namespace brep
         : tenant (id.package.tenant),
           package_name (id.package.name),
           configuration (id.configuration),
+          target (id.target),
           toolchain_name (id.toolchain_name) {}
   };
 
@@ -403,6 +409,7 @@ namespace brep
     build_delay (string tenant,
                  package_name_type, version,
                  string configuration,
+                 target_triplet,
                  string toolchain_name, version toolchain_version,
                  timestamp package_timestamp);
 
@@ -412,6 +419,7 @@ namespace brep
     package_name_type& package_name;    // Tracks id.package.name.
     upstream_version package_version;   // Original of id.package.version.
     string& configuration;              // Tracks id.configuration.
+    target_triplet& target;             // Tracks id.target.
     string& toolchain_name;             // Tracks id.toolchain_name.
     upstream_version toolchain_version; // Original of id.toolchain_version.
 
@@ -440,6 +448,7 @@ namespace brep
     #pragma db member(package_version) \
       set(this.package_version.init (this.id.package.version, (?)))
     #pragma db member(configuration) transient
+    #pragma db member(target) transient
     #pragma db member(toolchain_name) transient
     #pragma db member(toolchain_version) \
       set(this.toolchain_version.init (this.id.toolchain_version, (?)))
@@ -451,6 +460,7 @@ namespace brep
         : tenant (id.package.tenant),
           package_name (id.package.name),
           configuration (id.configuration),
+          target (id.target),
           toolchain_name (id.toolchain_name) {}
   };
 }
