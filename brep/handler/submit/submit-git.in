@@ -405,7 +405,7 @@ function git_add () # <repo-dir> <path>...
   local d="$1"
   shift
 
-  run git -C "$d" add $gvo "$@" >&2
+  run git -C "$d" add --force $gvo "$@" >&2
 }
 
 # For now we make 10 re-tries to add the package and push to target. Push can
