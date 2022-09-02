@@ -1,6 +1,10 @@
 # file      : build/root.build
 # license   : MIT; see accompanying LICENSE file
 
+config [bool] config.brep.develop ?= false
+
+develop = $config.brep.develop
+
 cxx.std = latest
 
 using cxx
@@ -19,14 +23,6 @@ if ($cxx.id == 'gcc')
 
 cxx.poptions =+ "-I$out_root" "-I$src_root"
 
-# Load the cli module but only if it's available. This way a distribution
-# that includes pre-generated files can be built without installing cli.
-# This is also the reason why we need to explicitly spell out individual
-# source file prerequisites instead of using the cli.cxx{} group (it won't
-# be there unless the module is configured).
-#
-using? cli
-
 # Bash.
 #
 using bash
@@ -35,6 +31,9 @@ brep/bash{*}: install.subdirs = true
 
 # Define commonly used target types.
 #
+define cli: file
+cli{*}: extension = cli
+
 define css: file
 css{*}: extension = css
 
@@ -56,7 +55,10 @@ test.target = $cxx.target
 
 # Extract the copyright notice from the LICENSE file.
 #
-copyright = $process.run_regex(                                 \
-  cat $src_root/LICENSE,                                        \
-  'Copyright \(c\) (.+) \(see the AUTHORS and LEGAL files\)\.', \
-  '\1')
+# Note that cat is a builtin which means this is both portable and fast.
+#
+if ($build.mode != 'skeleton')
+  copyright = $process.run_regex(                                 \
+    cat $src_root/LICENSE,                                        \
+    'Copyright \(c\) (.+) \(see the AUTHORS and LEGAL files\)\.', \
+    '\1')

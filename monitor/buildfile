@@ -10,13 +10,78 @@ include ../libbrep/
 include ../mod/
 
 exe{brep-monitor}: {hxx ixx cxx}{*                   -*-options} \
-                   {hxx ixx cxx}{monitor-options module-options} \
                    ../mod/libue{mod} ../libbrep/lib{brep} $libs
 
-# Build options.
+## Consumption build ($develop == false).
+#
+
+# Use pregenerated versions in the consumption build.
+#
+exe{brep-monitor}: pregenerated/{hxx ixx cxx}{**}: include = (!$develop)
+
+if! $develop
+  cxx.poptions =+ "-I($src_base/pregenerated)"
+
+# Distribute pregenerated versions only in the consumption build.
+#
+pregenerated/{hxx ixx cxx}{*}: dist = (!$develop)
+
+#
+##
+
+## Development build ($develop == true).
+#
+
+exe{brep-monitor}: {hxx ixx cxx}{monitor-options module-options}: \
+  include = $develop
+
+if $develop
+  import! [metadata] cli = cli%exe{cli}
+
+# In the development build distribute regenerated {hxx ixx cxx}{*-options},
+# remapping their locations to the paths of the pregenerated versions (which
+# are only distributed in the consumption build; see above). This way we make
+# sure that the distributed files are always up-to-date.
+#
+# @@ TODO Make it an ad-hoc rule, but note that we need to add some options
+#         specific for monitor.cli and module.cli (see
+#         https://build2.org/release/0.14.0.xhtml#adhoc-rules).
+#
+<{hxx ixx cxx}{module-options}>: cli{module} $cli
+{
+  # Set option prefix to the empty value to handle all unknown request
+  # parameters uniformly with a single catch block.
+  #
+  options = --std c++11 -I $src_root --include-with-brackets \
+            --include-prefix monitor --guard-prefix MONITOR \
+            --generate-specifier --cli-namespace brep::cli \
+            --output-suffix "-options"
+}
+%
+if $develop
+{{
+  diag cli ($<[0])
+  ($<[1]) $options -o $out_base/ $path($<[0])
+
+  if diff $src_base/pregenerated/monitor/module-options.hxx $path($>[0]) >- && \
+     diff $src_base/pregenerated/monitor/module-options.ixx $path($>[1]) >- && \
+     diff $src_base/pregenerated/monitor/module-options.cxx $path($>[2]) >-
+    exit
+  end
+
+  cp $path($>[0]) $src_base/pregenerated/monitor/module-options.hxx
+  cp $path($>[1]) $src_base/pregenerated/monitor/module-options.ixx
+  cp $path($>[2]) $src_base/pregenerated/monitor/module-options.cxx
+}}
+
+#
+##
+
+# Pass the copyright notice extracted from the LICENSE file.
 #
 obj{monitor}: cxx.poptions += -DBREP_COPYRIGHT=\"$copyright\"
 
+#\
 # Generated options parser.
 #
 if $cli.configured
@@ -43,3 +108,4 @@ if $cli.configured
     clean = ($src_root != $out_root)
   }
 }
+#\
