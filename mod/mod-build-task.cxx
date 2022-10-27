@@ -534,7 +534,7 @@ handle (request& rq, response& rs)
       }
 
       if (!lc)
-        throw invalid_request (400, "unable to match login info '" + l + "'");
+        throw invalid_request (400, "unable to match login info '" + l + '\'');
 
       tqm.interactive_login = move (lc);
     }

@@ -115,7 +115,7 @@ schema (const char* s, string name)
 
         string kw;
         i >> kw;
-        statement += " " + kw;
+        statement += ' ' + kw;
 
         if (strcasecmp (kw.c_str (), "FUNCTION") == 0)
         {
@@ -133,7 +133,7 @@ schema (const char* s, string name)
         else if (strcasecmp (kw.c_str (), "FOREIGN") == 0)
         {
           i >> kw;
-          statement += " " + kw;
+          statement += ' ' + kw;
           valid = strcasecmp (kw.c_str (), "TABLE") == 0;
 
           // Fall through.

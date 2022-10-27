@@ -683,7 +683,7 @@ handle (request& rq, response& rs)
     sendmail sm (print_args,
                  2 /* stderr */,
                  options_->email (),
-                 "new package submission " + a.string () + " (" + ref + ")",
+                 "new package submission " + a.string () + " (" + ref + ')',
                  {options_->submit_email ()});
 
     // Write the submission request manifest.

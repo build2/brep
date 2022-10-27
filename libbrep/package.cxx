@@ -161,11 +161,11 @@ namespace brep
     //   Probably drop-box would be better as also tells what are
     //   the available internal repositories.
     //
-    string k (project.string () + " " + name.string () + " " +
-              version.string () + " " + version.string (true));
+    string k (project.string () + ' ' + name.string () + ' ' +
+              version.string () + ' ' + version.string (true));
 
     if (upstream_version)
-      k += " " + *upstream_version;
+      k += ' ' + *upstream_version;
 
     // Add licenses to search keywords.
     //
@@ -173,13 +173,13 @@ namespace brep
     {
       for (const auto& l: la)
       {
-        k += " " + l;
+        k += ' ' + l;
 
         // If license is say LGPLv2 then LGPL is also a search keyword.
         //
         size_t n (l.size ());
         if (n > 2 && l[n - 2] == 'v' && l[n - 1] >= '0' && l[n - 1] <= '9')
-          k += " " + string (l, 0, n - 2);
+          k += ' ' + string (l, 0, n - 2);
       }
     }
 
@@ -190,12 +190,12 @@ namespace brep
     // Add topics to the second-strongest search keywords.
     //
     for (const auto& t: topics)
-      k2 += " " + t;
+      k2 += ' ' + t;
 
     // Add keywords to the second-strongest search keywords.
     //
     for (const auto& k: keywords)
-      k2 += " " + k;
+      k2 += ' ' + k;
 
     return {move (k), move (k2), description ? *description : "", changes};
   }

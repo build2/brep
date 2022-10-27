@@ -24,7 +24,7 @@ namespace brep
   {
          if (s == "building") return build_state::building;
     else if (s == "built")    return build_state::built;
-    else throw invalid_argument ("invalid build state '" + s + "'");
+    else throw invalid_argument ("invalid build state '" + s + '\'');
   }
 
   // force_state
@@ -48,7 +48,7 @@ namespace brep
          if (s == "unforced") return force_state::unforced;
     else if (s == "forcing")  return force_state::forcing;
     else if (s == "forced")   return force_state::forced;
-    else throw invalid_argument ("invalid force state '" + s + "'");
+    else throw invalid_argument ("invalid force state '" + s + '\'');
   }
 
   // build

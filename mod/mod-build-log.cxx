@@ -196,7 +196,7 @@ handle (request& rq, response& rs)
   auto config_expired = [&trace, &lpath, this] (const string& d)
   {
     l2 ([&]{trace << "package build configuration for " << lpath
-                  << (!tenant.empty () ? "(" + tenant + ")" : "")
+                  << (!tenant.empty () ? '(' + tenant + ')' : "")
                   << " expired: " << d;});
 
     throw invalid_request (404, "package build configuration expired: " + d);

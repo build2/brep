@@ -316,7 +316,7 @@ namespace brep
         assert (e != nullptr);
 
         if (!(*e == '\0' && c >= 100 && c < 600))
-          bad_value ("invalid HTTP status '" + v + "'");
+          bad_value ("invalid HTTP status '" + v + '\'');
 
         // Save the HTTP status.
         //

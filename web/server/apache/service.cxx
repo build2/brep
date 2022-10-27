@@ -47,7 +47,7 @@ namespace web
       for (const auto& o: od)
       {
         auto i (
-          option_descriptions_.emplace (name_ + "-" + o.first, o.second));
+          option_descriptions_.emplace (name_ + '-' + o.first, o.second));
         assert (i.second);
 
         *d++ =

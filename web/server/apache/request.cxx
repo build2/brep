@@ -789,7 +789,7 @@ namespace web
           if (is != nullptr)
           {
             if (r != nullptr)
-              throw invalid_argument ("multiple uploads for '" + name + "'");
+              throw invalid_argument ("multiple uploads for '" + name + '\'');
 
             r = is;
           }

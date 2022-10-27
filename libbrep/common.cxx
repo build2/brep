@@ -30,6 +30,6 @@ namespace brep
     else if (r == "test")        return unbuildable_reason::test;
     else if (r == "external")    return unbuildable_reason::external;
     else if (r == "unbuildable") return unbuildable_reason::unbuildable;
-    else throw invalid_argument ("invalid unbuildable reason '" + r + "'");
+    else throw invalid_argument ("invalid unbuildable reason '" + r + '\'');
   }
 }

@@ -39,7 +39,7 @@ check_location (shared_ptr<package>& p)
 {
   if (p->internal ())
     return p->location && *p->location ==
-      path (p->name.string () + "-" + p->version.string () + ".tar.gz");
+      path (p->name.string () + '-' + p->version.string () + ".tar.gz");
   else
     return !p->location;
 }

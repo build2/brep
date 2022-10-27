@@ -653,7 +653,7 @@ handle (request& rq, response& rs)
                  },
                  2 /* stderr */,
                  options_->email (),
-                 "CI request submission (" + request_id + ")",
+                 "CI request submission (" + request_id + ')',
                  {options_->ci_email ()});
 
     // Write the CI request manifest.

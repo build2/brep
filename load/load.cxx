@@ -262,7 +262,7 @@ load_repositories (path p)
             bad_line ("invalid buildable option value");
         }
         else
-          bad_line ("invalid option '" + nv + "'");
+          bad_line ("invalid option '" + nv + '\'');
       }
 
       // For now cache option is mandatory.

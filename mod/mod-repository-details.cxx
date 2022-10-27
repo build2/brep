@@ -100,7 +100,7 @@ handle (request& rq, response& rs)
     //
     string id (html_id (r.canonical_name));
     s << H1(ID=id)
-      <<   A(HREF="#" + web::mime_url_encode (id, false))
+      <<   A(HREF='#' + web::mime_url_encode (id, false))
       <<     r.display_name
       <<   ~A
       << ~H1;

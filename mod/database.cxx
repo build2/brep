@@ -59,7 +59,7 @@ namespace brep
       // Change the connection current user to the execution user name.
       //
       if (!role_.empty ())
-        conn->execute ("SET ROLE '" + role_ + "'");
+        conn->execute ("SET ROLE '" + role_ + '\'');
 
       return conn;
     }

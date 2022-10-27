@@ -152,7 +152,7 @@ handle (request& rq, response& rs)
 
   const string& name (pkg->name.string ());
 
-  const string title (name + " " + sver);
+  const string title (name + ' ' + sver);
   xml::serializer s (rs.content (), title);
 
   s << HTML
@@ -220,7 +220,7 @@ handle (request& rq, response& rs)
   {
     assert (pkg->location);
 
-    s << TR_LINK (rl.url ().string () + "/" + pkg->location->string (),
+    s << TR_LINK (rl.url ().string () + '/' + pkg->location->string (),
                   pkg->location->leaf ().string (),
                   "download");
   }
@@ -292,7 +292,7 @@ handle (request& rq, response& rs)
 
         if (dcon)
           s << ' '
-            << A(HREF=u + "/" + p->version.string ()) << *dcon << ~A;
+            << A(HREF=u + '/' + p->version.string ()) << *dcon << ~A;
       }
       else if (p->internal ())
       {
