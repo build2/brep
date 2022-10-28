@@ -305,11 +305,12 @@ h1, h2, h3
 
 .build th
 {
-  width: 7.0em;
+  width: 7.3em;
 }
 
 .build tr.toolchain td .value,
-.build tr.config td .value,
+.build tr.tgt-config td .value,
+.build tr.pkg-config td .value,
 .build tr.timestamp td .value,
 .build tr.login td .value,
 .build tr.result td .value

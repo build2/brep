@@ -3,8 +3,6 @@
 
 #include <mod/mod-build-force.hxx>
 
-#include <algorithm> // replace()
-
 #include <odb/database.hxx>
 #include <odb/transaction.hxx>
 
@@ -16,7 +14,6 @@
 #include <mod/module-options.hxx>
 
 using namespace std;
-using namespace bbot;
 using namespace brep::cli;
 using namespace odb::core;
 
@@ -115,11 +112,6 @@ handle (request& rq, response& rs)
     version package_version (parse_version (params.version (),
                                             "package version"));
 
-    string& config (params.configuration ());
-
-    if (config.empty ())
-      throw invalid_argument ("no configuration name");
-
     target_triplet target;
 
     try
@@ -131,6 +123,16 @@ handle (request& rq, response& rs)
       throw invalid_argument (string ("invalid target: ") + e.what ());
     }
 
+    string& target_config (params.target_config ());
+
+    if (target_config.empty ())
+      throw invalid_argument ("no target configuration name");
+
+    string& package_config (params.package_config ());
+
+    if (package_config.empty ())
+      throw invalid_argument ("no package configuration name");
+
     string& toolchain_name (params.toolchain_name ());
 
     if (toolchain_name.empty ())
@@ -140,8 +142,9 @@ handle (request& rq, response& rs)
                                               "toolchain version"));
 
     id = build_id (package_id (move (tenant), move (p), package_version),
-                   move (config),
                    move (target),
+                   move (target_config),
+                   move (package_config),
                    move (toolchain_name),
                    toolchain_version);
   }
@@ -161,9 +164,11 @@ handle (request& rq, response& rs)
 
   // Make sure the build configuration still exists.
   //
-  if (build_conf_map_->find (build_config_id {id.configuration, id.target}) ==
-      build_conf_map_->end ())
-    config_expired ("no configuration");
+  if (target_conf_map_->find (
+        build_target_config_id {id.target,
+                                id.target_config_name}) ==
+      target_conf_map_->end ())
+    config_expired ("no target configuration");
 
   // Load the package build configuration (if present), set the force flag and
   // update the object's persistent state.
@@ -189,7 +194,8 @@ handle (request& rq, response& rs)
       l1 ([&]{trace << "force rebuild for "
                     << b->tenant << ' '
                     << b->package_name << '/' << b->package_version << ' '
-                    << b->configuration << '/' << b->target << ' '
+                    << b->target_config_name << '/' << b->target << ' '
+                    << b->package_config_name << ' '
                     << b->toolchain_name << '-' << b->toolchain_version
                     << ": " << reason;});
     }

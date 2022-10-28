@@ -3,8 +3,6 @@
 
 #include <mod/mod-build-log.hxx>
 
-#include <algorithm> // find_if()
-
 #include <odb/database.hxx>
 #include <odb/transaction.hxx>
 
@@ -18,7 +16,6 @@
 #include <mod/module-options.hxx>
 
 using namespace std;
-using namespace bbot;
 using namespace brep::cli;
 using namespace odb::core;
 
@@ -124,14 +121,6 @@ handle (request& rq, response& rs)
     assert (i != lpath.end () && *i == "log");
 
     if (++i == lpath.end ())
-      throw invalid_argument ("no configuration name");
-
-    string config (*i++);
-
-    if (config.empty ())
-      throw invalid_argument ("empty configuration name");
-
-    if (i == lpath.end ())
       throw invalid_argument ("no target");
 
     target_triplet target;
@@ -143,6 +132,22 @@ handle (request& rq, response& rs)
     {
       throw invalid_argument (string ("invalid target: ") + e.what ());
     }
+
+    if (i == lpath.end ())
+      throw invalid_argument ("no target configuration name");
+
+    string target_config (*i++);
+
+    if (target_config.empty ())
+      throw invalid_argument ("empty target configuration name");
+
+    if (i == lpath.end ())
+      throw invalid_argument ("no package configuration name");
+
+    string package_config (*i++);
+
+    if (package_config.empty ())
+      throw invalid_argument ("empty package configuration name");
 
     if (i == lpath.end ())
       throw invalid_argument ("no toolchain name");
@@ -158,8 +163,9 @@ handle (request& rq, response& rs)
     version toolchain_version (parse_version (*i++, "toolchain version"));
 
     id = build_id (package_id (tenant, move (name), package_version),
-                   move (config),
                    move (target),
+                   move (target_config),
+                   move (package_config),
                    move (toolchain_name),
                    toolchain_version);
 
@@ -204,9 +210,11 @@ handle (request& rq, response& rs)
 
   // Make sure the build configuration still exists.
   //
-  if (build_conf_map_->find (build_config_id {id.configuration, id.target}) ==
-      build_conf_map_->end ())
-    config_expired ("no configuration");
+  if (target_conf_map_->find (
+        build_target_config_id {id.target,
+                                id.target_config_name}) ==
+      target_conf_map_->end ())
+    config_expired ("no target configuration");
 
   // Load the package build configuration (if present).
   //
@@ -242,15 +250,14 @@ handle (request& rq, response& rs)
     if (!b->tenant.empty ())
       os << options_->tenant_name () << ": " << b->tenant << endl << endl;
 
-    os << "package:   " << b->package_name << endl
-       << "version:   " << b->package_version << endl
-       << "toolchain: " << b->toolchain_name << '-' << b->toolchain_version
-       << endl
-       << "config:    " << b->configuration << endl
-       << "target:    " << b->target << endl
-       << "machine:   " << b->machine << " (" << b->machine_summary << ")"
-       << endl
-       << "timestamp: ";
+    os << "package:    " << b->package_name << endl
+       << "version:    " << b->package_version << endl
+       << "toolchain:  " << b->toolchain_name << '-' << b->toolchain_version << endl
+       << "target:     " << b->target << endl
+       << "tgt config: " << b->target_config_name << endl
+       << "pkg config: " << b->package_config_name << endl
+       << "machine:    " << b->machine << " (" << b->machine_summary << ")" << endl
+       << "timestamp:  ";
 
     butl::to_stream (os,
                      b->timestamp,

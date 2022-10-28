@@ -528,15 +528,14 @@ handle (request& rq, response& rs)
 
   if (builds)
   {
-    using bbot::build_config;
-
     s << H3 << "Builds" << ~H3
       << DIV(ID="builds");
 
-    auto exclude = [&pkg, this] (const build_config& cfg,
-                                 string* reason = nullptr)
+    auto exclude = [&pkg, this] (const build_package_config& pc,
+                                 const build_target_config& tc,
+                                 string* rs = nullptr)
     {
-      return this->exclude (pkg->builds, pkg->build_constraints, cfg, reason);
+      return this->exclude (pc, pkg->builds, pkg->build_constraints, tc, rs);
     };
 
     timestamp now (system_clock::now ());
@@ -569,33 +568,45 @@ handle (request& rq, response& rs)
     }
 
     // Compose the configuration filtering sub-query and collect unbuilt
-    // configurations, skipping those that are hidden or excluded by the
-    // package.
+    // target configurations, skipping those that are hidden or excluded by
+    // the package configurations.
     //
     using query = query<build>;
 
     query sq (false);
     set<config_toolchain> unbuilt_configs;
 
-    for (const auto& c: *build_conf_map_)
+    for (const build_package_config& pc: pkg->build_configs)
     {
-      const build_config& cfg (*c.second);
-
-      if (belongs (cfg, "all") && !exclude (cfg))
+      for (const auto& bc: *target_conf_map_)
       {
-        const build_config_id& id (c.first);
+        const build_target_config& tc (*bc.second);
 
-        sq = sq || (query::id.configuration == id.name &&
-                    query::id.target == id.target);
+        if (belongs (tc, "all") && !exclude (pc, tc))
+        {
+          const build_target_config_id& id (bc.first);
 
-        // Note: we will erase built configurations from the unbuilt
-        // configurations set later (see below).
-        //
-        for (const auto& t: toolchains)
-          unbuilt_configs.insert (
-            config_toolchain {cfg.name, cfg.target, t.first, t.second});
+          sq = sq || (query::id.target == id.target             &&
+                      query::id.target_config_name == id.config &&
+                      query::id.package_config_name == pc.name);
+
+          // Note: we will erase built configurations from the unbuilt
+          // configurations set later (see below).
+          //
+          for (const auto& t: toolchains)
+            unbuilt_configs.insert (config_toolchain {tc.target,
+                                                      tc.name,
+                                                      pc.name,
+                                                      t.first,
+                                                      t.second});
+        }
       }
     }
+
+    // Let's not print the package configuration row if the default
+    // configuration is the only one.
+    //
+    bool ppc (pkg->build_configs.size () != 1); // Note: can't be empty.
 
     // Print the package built configurations in the time-descending order.
     //
@@ -617,9 +628,13 @@ handle (request& rq, response& rs)
         <<     TR_VALUE ("toolchain",
                          b.toolchain_name + '-' +
                          b.toolchain_version.string ())
-        <<     TR_VALUE ("config",
-                         b.configuration + " / " + b.target.string ())
-        <<     TR_VALUE ("timestamp", ts);
+        <<     TR_VALUE ("target", b.target.string ())
+        <<     TR_VALUE ("tgt config", b.target_config_name);
+
+      if (ppc)
+        s <<   TR_VALUE ("pkg config", b.package_config_name);
+
+      s  <<    TR_VALUE ("timestamp", ts);
 
       if (b.interactive) // Note: can only be present for the building state.
         s <<   TR_VALUE ("login", *b.interactive);
@@ -631,8 +646,9 @@ handle (request& rq, response& rs)
       // While at it, erase the built configuration from the unbuilt
       // configurations set.
       //
-      unbuilt_configs.erase (config_toolchain {b.configuration,
-                                               b.target,
+      unbuilt_configs.erase (config_toolchain {b.target,
+                                               b.target_config_name,
+                                               b.package_config_name,
                                                b.toolchain_name,
                                                b.toolchain_version});
     }
@@ -642,7 +658,9 @@ handle (request& rq, response& rs)
     //
     // 1: toolchain name
     // 2: toolchain version (descending)
-    // 3: configuration name
+    // 3: target
+    // 4: target configuration name
+    // 5: package configuration name
     //
     for (const auto& ct: unbuilt_configs)
     {
@@ -651,9 +669,13 @@ handle (request& rq, response& rs)
         <<     TR_VALUE ("toolchain",
                          ct.toolchain_name + '-' +
                          ct.toolchain_version.string ())
-        <<     TR_VALUE ("config",
-                         ct.configuration + " / " + ct.target.string ())
-        <<     TR_VALUE ("result", "unbuilt")
+        <<     TR_VALUE ("target", ct.target.string ())
+        <<     TR_VALUE ("tgt config", ct.target_config);
+
+      if (ppc)
+        s <<   TR_VALUE ("pkg config", ct.package_config);
+
+      s <<     TR_VALUE ("result", "unbuilt")
         <<   ~TBODY
         << ~TABLE;
     }
@@ -664,20 +686,28 @@ handle (request& rq, response& rs)
     //
     if (!tn->interactive)
     {
-      for (const auto& c: *build_conf_)
+      for (const build_package_config& pc: pkg->build_configs)
       {
-        string reason;
-        if (belongs (c, "default") && exclude (c, &reason))
+        for (const auto& tc: *target_conf_)
         {
-          s << TABLE(CLASS="proplist build")
-            <<   TBODY
-            <<     TR_VALUE ("config", c.name + " / " + c.target.string ())
-            <<     TR_VALUE ("result",
-                             !reason.empty ()
-                             ? "excluded (" + reason + ')'
-                             : "excluded")
-            <<   ~TBODY
-            << ~TABLE;
+          string reason;
+          if (belongs (tc, "default") && exclude (pc, tc, &reason))
+          {
+            s << TABLE(CLASS="proplist build")
+              <<   TBODY
+              <<     TR_VALUE ("target", tc.target.string ())
+              <<     TR_VALUE ("tgt config", tc.name);
+
+            if (ppc)
+              s <<   TR_VALUE ("pkg config", pc.name);
+
+            s <<     TR_VALUE ("result",
+                               !reason.empty ()
+                               ? "excluded (" + reason + ')'
+                               : "excluded")
+              <<   ~TBODY
+              << ~TABLE;
+          }
         }
       }
     }

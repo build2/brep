@@ -8,7 +8,6 @@
 #include <cmark-gfm-core-extensions.h>
 
 #include <sstream>
-#include <algorithm> // find()
 
 #include <web/server/module.hxx>
 

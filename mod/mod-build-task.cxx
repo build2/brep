@@ -21,7 +21,6 @@
 #include <libbutl/manifest-serializer.hxx>
 
 #include <libbbot/manifest.hxx>
-#include <libbbot/build-config.hxx>
 
 #include <web/server/module.hxx>
 
@@ -29,6 +28,8 @@
 #include <libbrep/build-odb.hxx>
 #include <libbrep/build-package.hxx>
 #include <libbrep/build-package-odb.hxx>
+
+#include <mod/build-target-config.hxx>
 
 #include <mod/module-options.hxx>
 
@@ -155,20 +156,20 @@ handle (request& rq, response& rs)
 
   task_response_manifest tsm;
 
-  // Map build configurations to machines that are capable of building them.
-  // The first matching machine is selected for each configuration.
+  // Map build target configurations to machines that are capable of building
+  // them. The first matching machine is selected for each configuration.
   //
   struct config_machine
   {
-    const build_config* config;
+    const build_target_config* config;
     machine_header_manifest* machine;
   };
 
-  using config_machines = map<build_config_id, config_machine>;
+  using config_machines = map<build_target_config_id, config_machine>;
 
   config_machines conf_machines;
 
-  for (const auto& c: *build_conf_)
+  for (const auto& c: *target_conf_)
   {
     for (auto& m: tqm.machines)
     {
@@ -180,24 +181,25 @@ handle (request& rq, response& rs)
                         dash_components_to_path (c.machine_pattern),
                         dir_path () /* start */,
                         path_match_flags::match_absent))
-          conf_machines.emplace (build_config_id {c.name, c.target},
+          conf_machines.emplace (build_target_config_id {c.target, c.name},
                                  config_machine  {&c, &m});
       }
       catch (const invalid_path&) {}
     }
   }
 
-  // Go through packages until we find one that has no build configuration
-  // present in the database, or is in the building state but expired
-  // (collectively called unbuilt). If such a package configuration is found
-  // then put it into the building state, set the current timestamp and respond
-  // with the task for building this package configuration.
+  // Go through package build configurations until we find one that has no
+  // build target configuration present in the database, or is in the building
+  // state but expired (collectively called unbuilt). If such a target
+  // configuration is found then put it into the building state, set the
+  // current timestamp and respond with the task for building this package
+  // configuration.
   //
   // While trying to find a non-built package configuration we will also
-  // collect the list of the built package configurations which it's time to
-  // rebuild. So if no unbuilt package is found, we will pickup one to
-  // rebuild. The rebuild preference is given in the following order: the
-  // greater force state, the greater overall status, the lower timestamp.
+  // collect the list of the built configurations which it's time to
+  // rebuild. So if no unbuilt package configuration is found, we will pickup
+  // one to rebuild. The rebuild preference is given in the following order:
+  // the greater force state, the greater overall status, the lower timestamp.
   //
   if (!conf_machines.empty ())
   {
@@ -208,6 +210,7 @@ handle (request& rq, response& rs)
     //
     auto task = [this] (shared_ptr<build>&& b,
                         shared_ptr<build_package>&& p,
+                        build_package_config&& pc,
                         shared_ptr<build_tenant>&& t,
                         const config_machine& cm) -> task_response_manifest
     {
@@ -215,12 +218,13 @@ handle (request& rq, response& rs)
         chrono::duration_cast<std::chrono::nanoseconds> (
           b->timestamp.time_since_epoch ()).count ());
 
-      string session (b->tenant + '/' +
-                      b->package_name.string () + '/' +
-                      b->package_version.string () + '/' +
-                      b->configuration + '/' +
-                      b->target.string () + '/' +
-                      b->toolchain_name + '/' +
+      string session (b->tenant + '/'                      +
+                      b->package_name.string () + '/'      +
+                      b->package_version.string () + '/'   +
+                      b->target.string () + '/'            +
+                      b->target_config_name + '/'          +
+                      b->package_config_name + '/'         +
+                      b->toolchain_name + '/'              +
                       b->toolchain_version.string () + '/' +
                       to_string (ts));
 
@@ -255,13 +259,24 @@ handle (request& rq, response& rs)
         {
           shared_ptr<build_package> p (td.package.load ());
 
+          // Use the default test package configuration.
+          //
+          // Note that potentially the test package default configuration may
+          // contain some (bpkg) arguments associated, but we currently don't
+          // provide build bot worker with such information. This, however, is
+          // probably too far fetched so let's keep it simple for now.
+          //
+          const build_package_config* pc (find ("default", p->configs));
+          assert (pc != nullptr); // Must always be present.
+
           // Use the `all` class as a least restrictive default underlying
           // build class set. Note that we should only apply the explicit
           // build restrictions to the external test packages (think about
           // the `builds: all` and `builds: -windows` manifest values for
           // the primary and external test packages, respectively).
           //
-          if (exclude (p->builds,
+          if (exclude (*pc,
+                       p->builds,
                        p->constraints,
                        *cm.config,
                        nullptr /* reason */,
@@ -290,6 +305,7 @@ handle (request& rq, response& rs)
                           cm.config->target,
                           cm.config->environment,
                           cm.config->args,
+                          move (pc.arguments),
                           belongs (*cm.config, module_pkg ? "build2" : "host"),
                           cm.config->warning_regexes,
                           move (t->interactive),
@@ -583,23 +599,26 @@ handle (request& rq, response& rs)
     // Prepare the build prepared query.
     //
     // Note that we can not query the database for configurations that a
-    // package was not built with, as the database contains only those package
+    // package was not built with, as the database contains only those build
     // configurations that have already been acted upon (initially empty).
     //
-    // This is why we query the database for package configurations that
-    // should not be built (in the built state, or in the building state and
-    // not expired). Having such a list we will select the first build
+    // This is why we query the database for configurations that should not be
+    // built (in the built state, or in the building state and not
+    // expired). Having such a list we will select the first build
     // configuration that is not in the list (if available) for the response.
     //
     using bld_query = query<build>;
     using prep_bld_query = prepared_query<build>;
 
     package_id id;
+    string pkg_config_name;
 
     bld_query sq (false);
     for (const auto& cm: conf_machines)
-      sq = sq || (bld_query::id.configuration == cm.first.name &&
-                  bld_query::id.target == cm.first.target);
+      sq = sq || (bld_query::id.target == cm.first.target             &&
+                  bld_query::id.target_config_name == cm.first.config &&
+                  bld_query::id.package_config_name ==
+                    bld_query::_ref (pkg_config_name));
 
     bld_query bq (
       equal<build> (bld_query::id.package, id)                   &&
@@ -658,7 +677,7 @@ handle (request& rq, response& rs)
     // target, environment, arguments, and warning-detecting regular
     // expressions.
     //
-    auto controller_checksum = [] (const build_config& c)
+    auto controller_checksum = [] (const build_target_config& c)
     {
       sha256 cs ("1"); // Hash the logic version.
 
@@ -705,149 +724,157 @@ handle (request& rq, response& rs)
       {
         id = move (bp.id);
 
-        // Iterate through the package configurations and erase those that
-        // don't need building from the build configuration map. All those
-        // configurations that remained can be built. We will take the first
-        // one, if present.
-        //
-        // Also save the built package configurations for which it's time to
-        // be rebuilt.
-        //
-        config_machines configs (conf_machines); // Make a copy for this pkg.
-        auto pkg_builds (bld_prep_query.execute ());
+        shared_ptr<build_package> p (build_db_->load<build_package> (id));
 
-        for (auto i (pkg_builds.begin ()); i != pkg_builds.end (); ++i)
+        for (build_package_config& pc: p->configs)
         {
-          auto j (configs.find (build_config_id {i->id.configuration,
-                                                 i->id.target}));
+          pkg_config_name = pc.name;
 
-          // Outdated configurations are already excluded with the database
-          // query.
+          // Iterate through the built configurations and erase them from the
+          // build configuration map. All those configurations that remained
+          // can be built. We will take the first one, if present.
           //
-          assert (j != configs.end ());
-          configs.erase (j);
+          // Also save the built configurations for which it's time to be
+          // rebuilt.
+          //
+          config_machines configs (conf_machines); // Make a copy for this pkg.
+          auto pkg_builds (bld_prep_query.execute ());
 
-          if (i->state == build_state::built)
+          for (auto i (pkg_builds.begin ()); i != pkg_builds.end (); ++i)
           {
-            assert (i->force != force_state::forcing);
+            auto j (
+              configs.find (build_target_config_id {i->id.target,
+                                                    i->id.target_config_name}));
 
-            if (needs_rebuild (*i))
-              rebuilds.emplace_back (i.load ());
+            // Outdated configurations are already excluded with the database
+            // query.
+            //
+            assert (j != configs.end ());
+            configs.erase (j);
+
+            if (i->state == build_state::built)
+            {
+              assert (i->force != force_state::forcing);
+
+              if (needs_rebuild (*i))
+                rebuilds.emplace_back (i.load ());
+            }
           }
-        }
 
-        if (!configs.empty ())
-        {
-          // Find the first build configuration that is not excluded by the
-          // package.
-          //
-          shared_ptr<build_package> p (build_db_->load<build_package> (id));
-
-          auto i (configs.begin ());
-          auto e (configs.end ());
-
-          for (;
-               i != e &&
-               exclude (p->builds, p->constraints, *i->second.config);
-               ++i) ;
-
-          if (i != e)
+          if (!configs.empty ())
           {
-            config_machine& cm (i->second);
-            machine_header_manifest& mh (*cm.machine);
-
-            build_id bid (move (id),
-                          cm.config->name,
-                          cm.config->target,
-                          move (tqm.toolchain_name),
-                          toolchain_version);
-
-            shared_ptr<build> b (build_db_->find<build> (bid));
-            optional<string> cl (challenge ());
-
-            shared_ptr<build_tenant> t (
-              build_db_->load<build_tenant> (bid.package.tenant));
-
-            // Move the interactive build login information into the build
-            // object, if the package to be built interactively.
+            // Find the first build configuration that is not excluded by the
+            // package configuration.
             //
-            optional<string> login (t->interactive
-                                    ? move (tqm.interactive_login)
-                                    : nullopt);
+            auto i (configs.begin ());
+            auto e (configs.end ());
 
-            // If build configuration doesn't exist then create the new one
-            // and persist. Otherwise put it into the building state, refresh
-            // the timestamp and update.
-            //
-            if (b == nullptr)
+            for (;
+                 i != e &&
+                 exclude (pc, p->builds, p->constraints, *i->second.config);
+                 ++i) ;
+
+            if (i != e)
             {
-              b = make_shared<build> (move (bid.package.tenant),
-                                      move (bid.package.name),
-                                      move (bp.version),
-                                      move (bid.configuration),
-                                      move (bid.target),
-                                      move (bid.toolchain_name),
-                                      move (toolchain_version),
-                                      move (login),
-                                      move (agent_fp),
-                                      move (cl),
-                                      mh.name,
-                                      move (mh.summary),
-                                      controller_checksum (*cm.config),
-                                      machine_checksum (*cm.machine));
+              config_machine& cm (i->second);
+              machine_header_manifest& mh (*cm.machine);
 
-              build_db_->persist (b);
+              build_id bid (move (id),
+                            cm.config->target,
+                            cm.config->name,
+                            move (pkg_config_name),
+                            move (tqm.toolchain_name),
+                            toolchain_version);
+
+              shared_ptr<build> b (build_db_->find<build> (bid));
+              optional<string> cl (challenge ());
+
+              shared_ptr<build_tenant> t (
+                build_db_->load<build_tenant> (bid.package.tenant));
+
+              // Move the interactive build login information into the build
+              // object, if the package to be built interactively.
+              //
+              optional<string> login (t->interactive
+                                      ? move (tqm.interactive_login)
+                                      : nullopt);
+
+              // If build configuration doesn't exist then create the new one
+              // and persist. Otherwise put it into the building state, refresh
+              // the timestamp and update.
+              //
+              if (b == nullptr)
+              {
+                b = make_shared<build> (move (bid.package.tenant),
+                                        move (bid.package.name),
+                                        move (bp.version),
+                                        move (bid.target),
+                                        move (bid.target_config_name),
+                                        move (bid.package_config_name),
+                                        move (bid.toolchain_name),
+                                        move (toolchain_version),
+                                        move (login),
+                                        move (agent_fp),
+                                        move (cl),
+                                        mh.name,
+                                        move (mh.summary),
+                                        controller_checksum (*cm.config),
+                                        machine_checksum (*cm.machine));
+
+                build_db_->persist (b);
+              }
+              else
+              {
+                // The build configuration is in the building state.
+                //
+                // Note that in both cases we keep the status intact to be
+                // able to compare it with the final one in the result request
+                // handling in order to decide if to send the notification
+                // email. The same is true for the forced flag (in the sense
+                // that we don't set the force state to unforced).
+                //
+                assert (b->state == build_state::building);
+
+                b->state = build_state::building;
+                b->interactive = move (login);
+
+                // Switch the force state not to reissue the task after the
+                // forced rebuild timeout. Note that the result handler will
+                // still recognize that the rebuild was forced.
+                //
+                if (b->force == force_state::forcing)
+                  b->force = force_state::forced;
+
+                b->agent_fingerprint = move (agent_fp);
+                b->agent_challenge = move (cl);
+                b->machine = mh.name;
+                b->machine_summary = move (mh.summary);
+
+                string ccs (controller_checksum (*cm.config));
+                string mcs (machine_checksum (*cm.machine));
+
+                // Issue the hard rebuild if it is forced or the configuration
+                // or machine has changed.
+                //
+                if (b->hard_timestamp <= hard_rebuild_expiration ||
+                    b->force == force_state::forced              ||
+                    b->controller_checksum != ccs                ||
+                    b->machine_checksum != mcs)
+                  convert_to_hard (b);
+
+                b->controller_checksum = move (ccs);
+                b->machine_checksum    = move (mcs);
+
+                b->timestamp = system_clock::now ();
+
+                build_db_->update (b);
+              }
+
+              // Finally, prepare the task response manifest.
+              //
+              tsm = task (move (b), move (p), move (pc), move (t), cm);
+              break; // Bail out from the package configurations loop.
             }
-            else
-            {
-              // The package configuration is in the building state.
-              //
-              // Note that in both cases we keep the status intact to be able
-              // to compare it with the final one in the result request
-              // handling in order to decide if to send the notification
-              // email. The same is true for the forced flag (in the sense
-              // that we don't set the force state to unforced).
-              //
-              assert (b->state == build_state::building);
-
-              b->state = build_state::building;
-              b->interactive = move (login);
-
-              // Switch the force state not to reissue the task after the
-              // forced rebuild timeout. Note that the result handler will
-              // still recognize that the rebuild was forced.
-              //
-              if (b->force == force_state::forcing)
-                b->force = force_state::forced;
-
-              b->agent_fingerprint = move (agent_fp);
-              b->agent_challenge = move (cl);
-              b->machine = mh.name;
-              b->machine_summary = move (mh.summary);
-
-              string ccs (controller_checksum (*cm.config));
-              string mcs (machine_checksum (*cm.machine));
-
-              // Issue the hard rebuild if it is forced or the configuration
-              // or machine has changed.
-              //
-              if (b->hard_timestamp <= hard_rebuild_expiration ||
-                  b->force == force_state::forced              ||
-                  b->controller_checksum != ccs                ||
-                  b->machine_checksum != mcs)
-                convert_to_hard (b);
-
-              b->controller_checksum = move (ccs);
-              b->machine_checksum    = move (mcs);
-
-              b->timestamp = system_clock::now ();
-
-              build_db_->update (b);
-            }
-
-            // Finally, prepare the task response manifest.
-            //
-            tsm = task (move (b), move (p), move (t), cm);
           }
         }
 
@@ -861,13 +888,12 @@ handle (request& rq, response& rs)
       t.commit ();
     }
 
-    // If we don't have an unbuilt package, then let's see if we have a
-    // package to rebuild.
+    // If we don't have an unbuilt package, then let's see if we have a build
+    // configuration to rebuild.
     //
     if (tsm.session.empty () && !rebuilds.empty ())
     {
-      // Sort the package configuration rebuild list with the following sort
-      // priority:
+      // Sort the configuration rebuild list with the following sort priority:
       //
       // 1: force state
       // 2: overall status
@@ -890,7 +916,7 @@ handle (request& rq, response& rs)
 
       optional<string> cl (challenge ());
 
-      // Pick the first package configuration from the ordered list.
+      // Pick the first build configuration from the ordered list.
       //
       // Note that the configurations and packages may not match the required
       // criteria anymore (as we have committed the database transactions that
@@ -911,8 +937,9 @@ handle (request& rq, response& rs)
               b->state == build_state::built &&
               needs_rebuild (*b))
           {
-            auto i (conf_machines.find (build_config_id {b->configuration,
-                                                         b->target}));
+            auto i (conf_machines.find (
+                      build_target_config_id {b->target,
+                                              b->target_config_name}));
 
             // Only actual package configurations are loaded (see above).
             //
@@ -934,12 +961,17 @@ handle (request& rq, response& rs)
               ? build_db_->load<build_tenant> (p->id.tenant)
               : nullptr);
 
-            if (p != nullptr                           &&
+            build_package_config* pc (p != nullptr
+                                      ? find (b->package_config_name,
+                                              p->configs)
+                                      : nullptr);
+
+            if (pc != nullptr                          &&
                 p->buildable                           &&
                 (imode == interactive_mode::both ||
                  (t->interactive.has_value () ==
                   (imode == interactive_mode::true_))) &&
-                !exclude (p->builds, p->constraints, *cm.config))
+                !exclude (*pc, p->builds, p->constraints, *cm.config))
             {
               assert (b->status);
 
@@ -985,7 +1017,7 @@ handle (request& rq, response& rs)
 
               build_db_->update (b);
 
-              tsm = task (move (b), move (p), move (t), cm);
+              tsm = task (move (b), move (p), move (*pc), move (t), cm);
             }
           }
 

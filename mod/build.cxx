@@ -20,13 +20,15 @@ namespace brep
     // needs to be url-encoded, and only in the query part of the URL. We embed
     // the package version into the URL path part and so don't encode it.
     //
-    string url (host + tenant_dir (root, b.tenant).representation () +
-                mime_url_encode (b.package_name.string (), false) + '/' +
-                b.package_version.string () + "/log/" +
-                mime_url_encode (b.configuration, false /* query */) + '/' +
-                mime_url_encode (b.target.string (), false /* query */) + '/' +
-                mime_url_encode (b.toolchain_name, false /* query */) + '/' +
-                b.toolchain_version.string ());
+    string url (
+      host + tenant_dir (root, b.tenant).representation ()             +
+      mime_url_encode (b.package_name.string (), false) + '/'          +
+      b.package_version.string () + "/log/"                            +
+      mime_url_encode (b.target.string (), false /* query */) + '/'    +
+      mime_url_encode (b.target_config_name, false /* query */) + '/'  +
+      mime_url_encode (b.package_config_name, false /* query */) + '/' +
+      mime_url_encode (b.toolchain_name, false /* query */) + '/'      +
+      b.toolchain_version.string ());
 
     if (op != nullptr)
     {
@@ -45,13 +47,14 @@ namespace brep
     // we embed the package version into the URL query part, where it is not
     // encoded by design.
     //
-    return host + tenant_dir (root, b.tenant).string () +
+    return host + tenant_dir (root, b.tenant).string ()               +
       "?build-force&pn=" + mime_url_encode (b.package_name.string ()) +
-      "&pv=" + b.package_version.string () +
-      "&cf=" + mime_url_encode (b.configuration) +
-      "&tg=" + mime_url_encode (b.target.string ()) +
-      "&tn=" + mime_url_encode (b.toolchain_name) +
-      "&tv=" + b.toolchain_version.string () +
+      "&pv=" + b.package_version.string ()                            +
+      "&tg=" + mime_url_encode (b.target.string ())                   +
+      "&tc=" + mime_url_encode (b.target_config_name)                 +
+      "&pc=" + mime_url_encode (b.package_config_name)                +
+      "&tn=" + mime_url_encode (b.toolchain_name)                     +
+      "&tv=" + b.toolchain_version.string ()                          +
       "&reason=";
   }
 }

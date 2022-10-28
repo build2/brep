@@ -7,9 +7,10 @@ import libs += libbutl%lib{butl}
 import libs += libbbot%lib{bbot}
 
 include ../libbrep/
+include ../mod/
 
 exe{brep-clean}: {hxx ixx cxx}{* -clean-options} {hxx ixx cxx}{clean-options} \
-                 ../libbrep/lib{brep} $libs
+                 ../mod/libue{mod} ../libbrep/lib{brep} $libs
 
 # Build options.
 #

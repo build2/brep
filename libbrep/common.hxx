@@ -4,6 +4,7 @@
 #ifndef LIBBREP_COMMON_HXX
 #define LIBBREP_COMMON_HXX
 
+#include <map>
 #include <ratio>
 #include <chrono>
 #include <type_traits> // static_assert
@@ -332,6 +333,104 @@ namespace brep
 
   #pragma db value(build_constraint) definition
 
+  // build_package_config
+  //
+  using build_package_config = bpkg::build_package_config;
+
+  #pragma db value(build_package_config) definition
+
+  // 1 for the default configuration which is always present.
+  //
+  using build_package_configs = small_vector<build_package_config, 1>;
+
+  // Return the address of the configuration object with the specified name,
+  // if present, and NULL otherwise.
+  //
+  build_package_config*
+  find (const string& name, build_package_configs&);
+
+  // Note that ODB doesn't support containers of value types which contain
+  // containers. Thus, we will persist/load
+  // package_build_config::{builds,constraint} via the separate nested
+  // containers using the adapter classes.
+  //
+  #pragma db member(build_package_config::builds) transient
+  #pragma db member(build_package_config::constraints) transient
+
+  using build_class_expr_key = odb::nested_key<build_class_exprs>;
+  using build_class_exprs_map = std::map<build_class_expr_key, build_class_expr>;
+
+  #pragma db value(build_class_expr_key)
+  #pragma db member(build_class_expr_key::outer) column("config_index")
+  #pragma db member(build_class_expr_key::inner) column("index")
+
+  // Adapter for build_package_config::builds.
+  //
+  class build_package_config_builds:
+    public small_vector<build_class_exprs, 1> // 1 as for build_package_configs.
+  {
+  public:
+    build_package_config_builds () = default;
+
+    explicit
+    build_package_config_builds (const build_package_configs& cs)
+    {
+      reserve (cs.size ());
+      for (const build_package_config& c: cs)
+        push_back (c.builds);
+    }
+
+    void
+    to_configs (build_package_configs& cs) &&
+    {
+      // Note that the empty trailing entries will be missing (see ODB's
+      // nested-container.hxx for details).
+      //
+      assert (size () <= cs.size ());
+
+      auto i (cs.begin ());
+      for (build_class_exprs& ces: *this)
+        i++->builds = move (ces);
+    }
+  };
+
+  using build_constraint_key = odb::nested_key<build_constraints>;
+  using build_constraints_map = std::map<build_constraint_key, build_constraint>;
+
+  #pragma db value(build_constraint_key)
+  #pragma db member(build_constraint_key::outer) column("config_index")
+  #pragma db member(build_constraint_key::inner) column("index")
+
+  // Adapter for build_package_config::constraints.
+  //
+  class build_package_config_constraints:
+    public small_vector<build_constraints, 1> // 1 as for build_package_configs.
+  {
+  public:
+    build_package_config_constraints () = default;
+
+    explicit
+    build_package_config_constraints (const build_package_configs& cs)
+    {
+      reserve (cs.size ());
+      for (const build_package_config& c: cs)
+        push_back (c.constraints);
+    }
+
+    void
+    to_configs (build_package_configs& cs) &&
+    {
+      // Note that the empty trailing entries will be missing (see ODB's
+      // nested-container.hxx for details).
+      //
+      assert (size () <= cs.size ());
+
+      auto i (cs.begin ());
+      for (build_constraints& bcs: *this)
+        i++->constraints = move (bcs);
+    }
+  };
+
   // The primary reason why a package is unbuildable by the build bot
   // controller service.
   //
@@ -398,6 +497,8 @@ namespace brep
     std::map<requirement_alternative_key, requirement_alternative>;
 
   #pragma db value(requirement_alternative_key)
+  #pragma db member(requirement_alternative_key::outer) column("requirement_index")
+  #pragma db member(requirement_alternative_key::inner) column("index")
 
   using requirement_key = odb::nested2_key<requirement_alternatives>;
 
@@ -405,6 +506,9 @@ namespace brep
     std::map<requirement_key, string>;
 
   #pragma db value(requirement_key)
+  #pragma db member(requirement_key::outer)  column("requirement_index")
+  #pragma db member(requirement_key::middle) column("alternative_index")
+  #pragma db member(requirement_key::inner)  column("index")
 
   // Version comparison operators.
   //

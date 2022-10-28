@@ -6,6 +6,12 @@
 -- package-extra.sql file for details.
 --
 
+DROP FOREIGN TABLE IF EXISTS build_package_config_constraints;
+
+DROP FOREIGN TABLE IF EXISTS build_package_config_builds;
+
+DROP FOREIGN TABLE IF EXISTS build_package_configs;
+
 DROP FOREIGN TABLE IF EXISTS build_package_constraints;
 
 DROP FOREIGN TABLE IF EXISTS build_package_builds;
@@ -60,7 +66,7 @@ CREATE FOREIGN TABLE build_package (
 SERVER package_server OPTIONS (table_name 'package');
 
 -- The foreign tables for the build_package object requirements member (that
--- is of a 2-dimensional container type).
+-- is of a 3-dimensional container type).
 --
 CREATE FOREIGN TABLE build_package_requirements (
   tenant TEXT NOT NULL,
@@ -168,3 +174,47 @@ CREATE FOREIGN TABLE build_package_constraints (
   target TEXT NULL,
   comment TEXT NOT NULL)
 SERVER package_server OPTIONS (table_name 'package_build_constraints');
+
+-- The foreign tables for the build_package object configs member (that is a
+-- container of values containing containers.
+--
+CREATE FOREIGN TABLE build_package_configs (
+  tenant TEXT NOT NULL,
+  name CITEXT NOT NULL,
+  version_epoch INTEGER NOT NULL,
+  version_canonical_upstream TEXT NOT NULL,
+  version_canonical_release TEXT NOT NULL COLLATE "C",
+  version_revision INTEGER NOT NULL,
+  index BIGINT NOT NULL,
+  config_name TEXT NOT NULL,
+  config_arguments TEXT NULL,
+  config_comment TEXT NOT NULL)
+SERVER package_server OPTIONS (table_name 'package_build_configs');
+
+CREATE FOREIGN TABLE build_package_config_builds (
+  tenant TEXT NOT NULL,
+  name CITEXT NOT NULL,
+  version_epoch INTEGER NOT NULL,
+  version_canonical_upstream TEXT NOT NULL,
+  version_canonical_release TEXT NOT NULL COLLATE "C",
+  version_revision INTEGER NOT NULL,
+  config_index BIGINT NOT NULL,
+  index BIGINT NOT NULL,
+  expression TEXT NOT NULL,
+  comment TEXT NOT NULL)
+SERVER package_server OPTIONS (table_name 'package_build_config_builds');
+
+CREATE FOREIGN TABLE build_package_config_constraints (
+  tenant TEXT NOT NULL,
+  name CITEXT NOT NULL,
+  version_epoch INTEGER NOT NULL,
+  version_canonical_upstream TEXT NOT NULL,
+  version_canonical_release TEXT NOT NULL COLLATE "C",
+  version_revision INTEGER NOT NULL,
+  config_index BIGINT NOT NULL,
+  index BIGINT NOT NULL,
+  exclusion BOOLEAN NOT NULL,
+  config TEXT NOT NULL,
+  target TEXT NULL,
+  comment TEXT NOT NULL)
+SERVER package_server OPTIONS (table_name 'package_build_config_constraints');

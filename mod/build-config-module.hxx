@@ -10,13 +10,11 @@
 
 #include <libbpkg/manifest.hxx>
 
-#include <libbbot/build-config.hxx>
-
 #include <libbrep/types.hxx>
 #include <libbrep/utility.hxx>
 
-#include <mod/build-config.hxx>
 #include <mod/module-options.hxx>
+#include <mod/build-target-config.hxx>
 
 // Base class for modules that utilize the build controller configuration.
 //
@@ -39,16 +37,18 @@ namespace brep
     init (const options::build&);
 
     bool
-    exclude (const small_vector<bpkg::build_class_expr, 1>& exprs,
-             const vector<bpkg::build_constraint>& constrs,
-             const bbot::build_config& cfg,
+    exclude (const build_package_config& pc,
+             const build_class_exprs& common_builds,
+             const build_constraints& common_constraints,
+             const build_target_config& tc,
              string* reason = nullptr,
              bool default_all_ucs = false) const
     {
-      return brep::exclude (exprs,
-                            constrs,
-                            cfg,
-                            build_conf_->class_inheritance_map,
+      return brep::exclude (pc,
+                            common_builds,
+                            common_constraints,
+                            tc,
+                            target_conf_->class_inheritance_map,
                             reason,
                             default_all_ucs);
     }
@@ -56,27 +56,30 @@ namespace brep
     // Check if the configuration belongs to the specified class.
     //
     bool
-    belongs (const bbot::build_config&, const char*) const;
+    belongs (const build_target_config&, const char*) const;
 
     bool
-    belongs (const bbot::build_config& cfg, const string& cls) const
+    belongs (const build_target_config& cfg, const string& cls) const
     {
       return belongs (cfg, cls.c_str ());
     }
 
-    // Configuration/target/toolchain combination that, in particular, can be
+    // Target/configuration/toolchain combination that, in particular, can be
     // used as a set value.
     //
-    // Note: contains shallow references to the configuration, target,
-    // toolchain name, and version.
+    // Note: all members are the shallow references.
     //
     struct config_toolchain
     {
-      const string& configuration;
       const butl::target_triplet& target;
+      const string& target_config;
+      const string& package_config;
       const string& toolchain_name;
       const bpkg::version& toolchain_version;
 
+      // Note: the comparison reflects the order of unbuilt configurations on
+      // the Builds page.
+      //
       bool
       operator< (const config_toolchain& ct) const
       {
@@ -86,20 +89,24 @@ namespace brep
         if (toolchain_version != ct.toolchain_version)
           return toolchain_version > ct.toolchain_version;
 
-        if (int r = configuration.compare (ct.configuration))
+        if (int r = target.compare (ct.target))
           return r < 0;
 
-        return target.compare (ct.target) < 0;
+        if (int r = target_config.compare (ct.target_config))
+          return r < 0;
+
+        return package_config.compare (ct.package_config) < 0;
       }
     };
 
   protected:
     // Build configurations.
     //
-    shared_ptr<const bbot::build_configs> build_conf_;
+    shared_ptr<const build_target_configs> target_conf_;
 
-    shared_ptr<const std::map<build_config_id, const bbot::build_config*>>
-    build_conf_map_;
+    shared_ptr<const std::map<build_target_config_id,
+                              const build_target_config*>>
+    target_conf_map_;
 
     // Map of build bot agent public keys fingerprints to the key file paths.
     //

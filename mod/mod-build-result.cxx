@@ -189,22 +189,11 @@ handle (request& rq, response&)
     if (package_version != rqm.result.version)
       throw invalid_argument ("package version mismatch");
 
-    b = p + 1;           // Start of configuration name.
-    p = s.find ('/', b); // End of configuration name.
-
-    if (p == string::npos)
-      throw invalid_argument ("no target");
-
-    string config (s, b, p - b);
-
-    if (config.empty ())
-      throw invalid_argument ("empty configuration name");
-
     b = p + 1;           // Start of target.
     p = s.find ('/', b); // End of target.
 
     if (p == string::npos)
-      throw invalid_argument ("no toolchain name");
+      throw invalid_argument ("no target configuration name");
 
     target_triplet target;
     try
@@ -215,6 +204,28 @@ handle (request& rq, response&)
     {
       throw invalid_argument (string ("invalid target: ") + e.what ());
     }
+
+    b = p + 1;           // Start of target configuration name.
+    p = s.find ('/', b); // End of target configuration name.
+
+    if (p == string::npos)
+      throw invalid_argument ("no package configuration name");
+
+    string target_config (s, b, p - b);
+
+    if (target_config.empty ())
+      throw invalid_argument ("empty target configuration name");
+
+    b = p + 1;           // Start of package configuration name.
+    p = s.find ('/', b); // End of package configuration name.
+
+    if (p == string::npos)
+      throw invalid_argument ("no toolchain name");
+
+    string package_config (s, b, p - b);
+
+    if (package_config.empty ())
+      throw invalid_argument ("empty package configuration name");
 
     b = p + 1;           // Start of toolchain name.
     p = s.find ('/', b); // End of toolchain name.
@@ -236,8 +247,9 @@ handle (request& rq, response&)
     version toolchain_version (parse_version ("toolchain version"));
 
     id = build_id (package_id (move (tenant), move (name), package_version),
-                   move (config),
                    move (target),
+                   move (target_config),
+                   move (package_config),
                    move (toolchain_name),
                    toolchain_version);
 
@@ -278,18 +290,18 @@ handle (request& rq, response&)
 
   // Make sure the build configuration still exists.
   //
-  const bbot::build_config* cfg;
+  const build_target_config* tc;
   {
-    auto i (build_conf_map_->find (build_config_id {id.configuration,
-                                                    id.target}));
+    auto i (target_conf_map_->find (
+              build_target_config_id {id.target, id.target_config_name}));
 
-    if (i == build_conf_map_->end ())
+    if (i == target_conf_map_->end ())
     {
       warn_expired ("no build configuration");
       return true;
     }
 
-    cfg = i->second;
+    tc = i->second;
   }
 
   // Load the built package (if present).
@@ -526,13 +538,23 @@ handle (request& rq, response&)
         // `skip`, the configuration is hidden, or is now excluded by the
         // package.
         //
-        if (rqm.result.status != result_status::skip && belongs (*cfg, "all"))
+        if (rqm.result.status != result_status::skip && belongs (*tc, "all"))
         {
           shared_ptr<build_package> p (
             build_db_->load<build_package> (b->id.package));
 
-          if (!exclude (p->builds, p->constraints, *cfg))
-            bld = move (b);
+          // The package configuration should be present (see mod-builds.cxx
+          // for details) but if it is not, let's log the warning.
+          //
+          if (const build_package_config* pc = find (b->package_config_name,
+                                                     p->configs))
+          {
+            if (!exclude (*pc, p->builds, p->constraints, *tc))
+              bld = move (b);
+          }
+          else
+            warn << "cannot find configuration '" << b->package_config_name
+                 << "' for package " << p->id.name << '/' << p->version;
         }
       }
     }
@@ -554,12 +576,13 @@ handle (request& rq, response&)
       return true;
   }
 
-  string subj ((unforced ? "build " : "rebuild ") +
-               to_string (*bld->status) + ": " +
-               bld->package_name.string () + '/' +
-               bld->package_version.string () + '/' +
-               bld->configuration + '/' +
-               bld->target.string () + '/' +
+  string subj ((unforced ? "build " : "rebuild ")   +
+               to_string (*bld->status) + ": "      +
+               bld->package_name.string () + '/'    +
+               bld->package_version.string () + ' ' +
+               bld->target_config_name + '/'        +
+               bld->target.string () + ' '          +
+               bld->package_config_name + ' '       +
                bld->toolchain_name + '-' + bld->toolchain_version.string ());
 
   // Send notification emails to the interested parties.

@@ -4,7 +4,6 @@
 #include <mod/mod-builds.hxx>
 
 #include <set>
-#include <algorithm> // find_if()
 
 #include <libstudxml/serializer.hxx>
 
@@ -32,7 +31,6 @@
 
 using namespace std;
 using namespace butl;
-using namespace bbot;
 using namespace web;
 using namespace odb::core;
 using namespace brep::cli;
@@ -138,7 +136,7 @@ match (const C qc, const string& pattern)
 //
 template <typename T>
 static inline query<T>
-build_query (const brep::vector<brep::build_config_id>* config_ids,
+build_query (const brep::vector<brep::build_target_config_id>* config_ids,
              const brep::params::builds& params,
              const brep::optional<brep::string>& tenant,
              const brep::optional<bool>& archived)
@@ -159,8 +157,8 @@ build_query (const brep::vector<brep::build_config_id>* config_ids,
   {
     query sq (false);
     for (const auto& id: *config_ids)
-      sq = sq || (qb::id.configuration == id.name &&
-                  qb::id.target == id.target);
+      sq = sq || (qb::id.target == id.target &&
+                  qb::id.target_config_name == id.config);
 
     q = q && sq;
   }
@@ -191,11 +189,11 @@ build_query (const brep::vector<brep::build_config_id>* config_ids,
 
     // Build toolchain name/version.
     //
-    const string& tc (params.toolchain ());
+    const string& th (params.toolchain ());
 
-    if (tc != "*")
+    if (th != "*")
     {
-      size_t p (tc.find ('-'));
+      size_t p (th.find ('-'));
       if (p == string::npos) // Invalid format.
         throw invalid_argument ("");
 
@@ -203,8 +201,8 @@ build_query (const brep::vector<brep::build_config_id>* config_ids,
       // the exact version revision, so an absent and zero revisions have the
       // same semantics and the zero revision is folded.
       //
-      string  tn (tc, 0, p);
-      version tv (string (tc, p + 1)); // May throw invalid_argument.
+      string  tn (th, 0, p);
+      version tv (string (th, p + 1)); // May throw invalid_argument.
 
       q = q                           &&
           qb::id.toolchain_name == tn &&
@@ -213,20 +211,20 @@ build_query (const brep::vector<brep::build_config_id>* config_ids,
                               true /* revision */);
     }
 
-    // Build configuration name.
-    //
-    if (!params.configuration ().empty ())
-      q = q && match<T> (qb::id.configuration, params.configuration ());
-
-    // Build machine name.
-    //
-    if (!params.machine ().empty ())
-      q = q && match<T> (qb::machine, params.machine ());
-
     // Build target.
     //
     if (!params.target ().empty ())
       q = q && match<T> (qb::id.target, params.target ());
+
+    // Build target configuration name.
+    //
+    if (!params.target_config ().empty ())
+      q = q && match<T> (qb::id.target_config_name, params.target_config ());
+
+    // Build package configuration name.
+    //
+    if (!params.package_config ().empty ())
+      q = q && match<T> (qb::id.package_config_name, params.package_config ());
 
     // Build result.
     //
@@ -244,7 +242,7 @@ build_query (const brep::vector<brep::build_config_id>* config_ids,
 
         // May throw invalid_argument.
         //
-        result_status st (to_result_status (rs));
+        result_status st (bbot::to_result_status (rs));
 
         if (st != result_status::success)
         {
@@ -364,11 +362,6 @@ handle (request& rq, response& rs)
     throw invalid_request (400, e.what ());
   }
 
-  // Override the name parameter for the old URL (see options.cli for details).
-  //
-  if (params.name_legacy_specified ())
-    params.name (params.name_legacy ());
-
   const char* title ("Builds");
 
   xml::serializer s (rs.content (), title);
@@ -430,16 +423,16 @@ handle (request& rq, response& rs)
       // the selected toolchain is still present in the database. Otherwise
       // fallback to the * wildcard selection.
       //
-      string ctc ("*");
+      string cth ("*");
       vector<pair<string, string>> toolchain_opts ({{"*", "*"}});
       {
         for (const auto& t: toolchains)
         {
-          string tc (t.first + '-' + t.second.string ());
-          toolchain_opts.emplace_back (tc, tc);
+          string th (t.first + '-' + t.second.string ());
+          toolchain_opts.emplace_back (th, th);
 
-          if (tc == params.toolchain ())
-            ctc = move (tc);
+          if (th == params.toolchain ())
+            cth = move (th);
         }
       }
 
@@ -455,34 +448,42 @@ handle (request& rq, response& rs)
         <<     TBODY
         <<       TR_INPUT  ("name", "builds", params.name (), "*", true)
         <<       TR_INPUT  ("version", "pv", params.version (), "*")
-        <<       TR_SELECT ("toolchain", "tc", ctc, toolchain_opts)
+        <<       TR_SELECT ("toolchain", "th", cth, toolchain_opts)
+        <<       TR_INPUT  ("target", "tg", params.target (), "*")
 
-        <<       TR(CLASS="config")
-        <<         TH << "config" << ~TH
+        <<       TR(CLASS="tgt-config")
+        <<         TH << "tgt config" << ~TH
         <<         TD
         <<           *INPUT(TYPE="text",
-                            NAME="cf",
-                            VALUE=params.configuration (),
+                            NAME="tc",
+                            VALUE=params.target_config (),
                             PLACEHOLDER="*",
-                            LIST="configs")
-        <<          DATALIST(ID="configs")
+                            LIST="target-configs")
+        <<          DATALIST(ID="target-configs")
         <<            *OPTION(VALUE="*");
 
-      // Print unique config names from the config map.
+      // Print unique config names from the target config map.
       //
       set<const char*, butl::compare_c_string> conf_names;
-      for (const auto& c: *build_conf_map_)
+      for (const auto& c: *target_conf_map_)
       {
-        if (conf_names.insert (c.first.name.get ().c_str ()).second)
-          s << *OPTION(VALUE=c.first.name.get ());
+        if (conf_names.insert (c.first.config.get ().c_str ()).second)
+          s << *OPTION(VALUE=c.first.config.get ());
       }
 
       s <<          ~DATALIST
         <<         ~TD
         <<       ~TR
 
-        <<       TR_INPUT  ("target", "tg", params.target (), "*")
-        <<       TR_INPUT  ("machine", "mn", params.machine (), "*")
+        <<       TR(CLASS="pkg-config")
+        <<         TH << "pkg config" << ~TH
+        <<         TD
+        <<           *INPUT(TYPE="text",
+                            NAME="pc",
+                            VALUE=params.package_config (),
+                            PLACEHOLDER="*")
+        <<         ~TD
+        <<       ~TR
         <<       TR_SELECT ("result", "rs", params.result (), build_results)
         <<     ~TBODY
         <<   ~TABLE
@@ -504,16 +505,19 @@ handle (request& rq, response& rs)
       s << DIV_COUNTER (build_count, "Build", "Builds");
   };
 
+  const string& tgt     (params.target ());
+  const string& tgt_cfg (params.target_config ());
+  const string& pkg_cfg (params.package_config ());
+
   // We will not display hidden configurations, unless the configuration is
   // specified explicitly.
   //
-  bool exclude_hidden (params.configuration ().empty () ||
-                       path_pattern (params.configuration ()));
+  bool exclude_hidden (tgt_cfg.empty () || path_pattern (tgt_cfg));
 
-  vector<build_config_id> conf_ids;
-  conf_ids.reserve (build_conf_map_->size ());
+  vector<build_target_config_id> conf_ids;
+  conf_ids.reserve (target_conf_map_->size ());
 
-  for (const auto& c: *build_conf_map_)
+  for (const auto& c: *target_conf_map_)
   {
     if (!exclude_hidden || belongs (*c.second, "all"))
       conf_ids.push_back (c.first);
@@ -600,17 +604,36 @@ handle (request& rq, response& rs)
         {
           shared_ptr<build>& b (pb.build);
 
-          auto i (build_conf_map_->find (build_config_id {b->configuration,
-                                                          b->target}));
-          assert (i != build_conf_map_->end ());
+          auto i (target_conf_map_->find (
+                    build_target_config_id {b->target,
+                                            b->target_config_name}));
 
-          // Match the configuration against the package build
-          // expressions/constraints.
+          assert (i != target_conf_map_->end ());
+
+          // Match the target configuration against the package build
+          // configuration expressions/constraints.
           //
           shared_ptr<build_package> p (
             build_db_->load<build_package> (b->id.package));
 
-          if (!exclude (p->builds, p->constraints, *i->second))
+          const build_package_config* pc (find (b->package_config_name,
+                                                p->configs));
+
+          // The package configuration should be present since the
+          // configurations set cannot change if the package version doesn't
+          // change. If that's not the case, then the database has probably
+          // been manually amended. In this case let's just skip such a build
+          // as if it excluded and log the warning.
+          //
+          if (pc == nullptr)
+          {
+            warn << "cannot find configuration '" << b->package_config_name
+                 << "' for package " << p->id.name << '/' << p->version;
+
+            continue;
+          }
+
+          if (!exclude (*pc, p->builds, p->constraints, *i->second))
           {
             if (skip != 0)
               --skip;
@@ -646,7 +669,7 @@ handle (request& rq, response& rs)
           }
         }
       }
-
+      //
       // Print the filter form after the build count is calculated. Note:
       // query_toolchains() must be called inside the build db transaction.
       //
@@ -680,9 +703,9 @@ handle (request& rq, response& rs)
         <<     TR_VALUE ("toolchain",
                          b.toolchain_name + '-' +
                          b.toolchain_version.string ())
-        <<     TR_VALUE ("config", b.configuration)
         <<     TR_VALUE ("target", b.target.string ())
-        <<     TR_VALUE ("machine", b.machine)
+        <<     TR_VALUE ("tgt config", b.target_config_name)
+        <<     TR_VALUE ("pkg config", b.package_config_name)
         <<     TR_VALUE ("timestamp", ts);
 
       if (b.interactive) // Note: can only be present for the building state.
@@ -704,47 +727,55 @@ handle (request& rq, response& rs)
   else // Print unbuilt package configurations.
   {
     // Parameters to use for package build configurations queries. Note that
-    // we cleanup the machine and the result filter arguments, as they are
-    // irrelevant for unbuilt configurations.
+    // we cleanup the result filter argument, as it is irrelevant for unbuilt
+    // configurations.
     //
     params::builds bld_params (params);
-    bld_params.machine ().clear ();
     bld_params.result () = "*";
 
-    // Query toolchains, filter build configurations and toolchains, and
-    // create the set of configuration/toolchain combinations, that we will
-    // print for packages. Also calculate the number of unbuilt package
-    // configurations.
+    // Query toolchains, filter build target configurations and toolchains,
+    // and create the set of target configuration/toolchain combinations, that
+    // we will print for package configurations. Also calculate the number of
+    // unbuilt package configurations.
     //
     toolchains toolchains;
 
-    // Note that config_toolchains contains shallow references to the
-    // toolchain names and versions.
+    // Target configuration/toolchain combination.
     //
-    set<config_toolchain> config_toolchains;
+    // Note: all members are the shallow references.
+    //
+    struct target_config_toolchain
+    {
+      const butl::target_triplet& target;
+      const string& target_config;
+      const string& toolchain_name;
+      const bpkg::version& toolchain_version;
+    };
+
+    vector<target_config_toolchain> config_toolchains;
     {
       transaction t (build_db_->begin ());
       toolchains = query_toolchains ();
 
-      string tc_name;
-      version tc_version;
-      const string& tc (params.toolchain ());
+      string th_name;
+      version th_version;
+      const string& th (params.toolchain ());
 
-      if (tc != "*")
+      if (th != "*")
       try
       {
-        size_t p (tc.find ('-'));
+        size_t p (th.find ('-'));
         if (p == string::npos)         // Invalid format.
           throw invalid_argument ("");
 
-        tc_name.assign (tc, 0, p);
+        th_name.assign (th, 0, p);
 
         // May throw invalid_argument.
         //
         // Note that an absent and zero revisions have the same semantics,
         // so the zero revision is folded (see above for details).
         //
-        tc_version = version (string (tc, p + 1));
+        th_version = version (string (th, p + 1));
       }
       catch (const invalid_argument&)
       {
@@ -754,63 +785,64 @@ handle (request& rq, response& rs)
         throw invalid_request (400, "invalid toolchain");
       }
 
-      const string& pc (params.configuration ());
-      const string& tg (params.target ());
-      vector<const build_config*> configs;
+      vector<const build_target_config*> target_configs;
 
-      for (const auto& c: *build_conf_)
+      for (const auto& c: *target_conf_)
       {
-        if ((pc.empty () || path_match (c.name, pc)) && // Filter by name.
+            // Filter by name.
+            //
+        if ((tgt_cfg.empty () || path_match (c.name, tgt_cfg)) &&
 
             // Filter by target.
             //
-            (tg.empty () || path_match (c.target.string (), tg)) &&
+            (tgt.empty () || path_match (c.target.string (), tgt)) &&
 
             (!exclude_hidden || belongs (c, "all"))) // Filter hidden.
         {
-          configs.push_back (&c);
+          target_configs.push_back (&c);
 
           for (const auto& t: toolchains)
           {
             // Filter by toolchain.
             //
-            if (tc == "*" || (t.first == tc_name && t.second == tc_version))
-              config_toolchains.insert (
-                config_toolchain {c.name, c.target, t.first, t.second});
+            if (th == "*" || (t.first == th_name && t.second == th_version))
+              config_toolchains.push_back (
+                target_config_toolchain {c.target, c.name, t.first, t.second});
           }
         }
       }
 
-      // Calculate the number of unbuilt package configurations as a
-      // difference between the maximum possible number of unbuilt
-      // configurations and the number of existing package builds.
-      //
-      // Note that we also need to deduct the package-excluded configurations
-      // count from the maximum possible number of unbuilt configurations. The
-      // only way to achieve this is to traverse through the packages and
-      // match their build expressions/constraints against our configurations.
-      //
-      // Also note that some existing builds can now be excluded by packages
-      // due to the build configuration target or class set change. We should
-      // deduct such builds count from the number of existing package builds.
-      //
-      size_t nmax (config_toolchains.size () *
-                   build_db_->query_value<buildable_package_count> (
-                     package_query<buildable_package_count> (
-                       params, tn, false /* archived */)));
-
-      size_t ncur = build_db_->query_value<package_build_count> (
-        build_query<package_build_count> (
-          &conf_ids, bld_params, tn, false /* archived */));
-
-      // From now we will be using specific package name and version for each
-      // build database query.
-      //
-      bld_params.name ().clear ();
-      bld_params.version ().clear ();
-
       if (!config_toolchains.empty ())
       {
+        // Calculate the number of unbuilt package configurations as a
+        // difference between the possible number of unbuilt configurations
+        // and the number of existing package builds.
+        //
+        // Note that some existing builds can now be excluded by package
+        // configurations due to the build target configuration class set
+        // change. We should deduct such builds count from the number of
+        // existing package configurations builds.
+        //
+        // The only way to calculate both numbers is to traverse through the
+        // package configurations and match their build
+        // expressions/constraints against our target configurations.
+        //
+        size_t npos (0);
+
+        size_t ncur = build_db_->query_value<package_build_count> (
+          build_query<package_build_count> (
+            &conf_ids, bld_params, tn, false /* archived */));
+
+        // From now we will be using specific values for the below filters for
+        // each build database query. Note that the toolchain is the only
+        // filter left in bld_params.
+        //
+        bld_params.name ().clear ();
+        bld_params.version ().clear ();
+        bld_params.target ().clear ();
+        bld_params.target_config ().clear ();
+        bld_params.package_config ().clear ();
+
         // Prepare the build count prepared query.
         //
         // For each package-excluded configuration we will query the number of
@@ -820,15 +852,17 @@ handle (request& rq, response& rs)
         using prep_bld_query = prepared_query<package_build_count>;
 
         package_id id;
-        string config;
         target_triplet target;
+        string target_config_name;
+        string package_config_name;
 
         const auto& bid (bld_query::build::id);
 
         bld_query bq (
-          equal<package_build_count> (bid.package, id)  &&
-          bid.configuration == bld_query::_ref (config) &&
-          bid.target == bld_query::_ref (target)        &&
+          equal<package_build_count> (bid.package, id)                     &&
+          bid.target == bld_query::_ref (target)                           &&
+          bid.target_config_name == bld_query::_ref (target_config_name)   &&
+          bid.package_config_name == bld_query::_ref (package_config_name) &&
 
           // Note that the query already constrains configurations via the
           // configuration name and target.
@@ -846,15 +880,16 @@ handle (request& rq, response& rs)
           build_db_->prepare_query<package_build_count> (
             "mod-builds-build-count-query", bq));
 
-        size_t nt (tc == "*" ? toolchains.size () : 1);
+        // Number of possible builds per package configuration.
+        //
+        size_t nt (th == "*" ? toolchains.size () : 1);
 
         // The number of packages can potentially be large, and we may
         // implement some caching in the future. However, the caching will not
         // be easy as the cached values depend on the filter form parameters.
         //
         query<buildable_package> q (
-          package_query<buildable_package> (
-            params, tn, false /* archived */));
+          package_query<buildable_package> (params, tn, false /* archived */));
 
         for (auto& bp: build_db_->query<buildable_package> (q))
         {
@@ -862,22 +897,33 @@ handle (request& rq, response& rs)
 
           shared_ptr<build_package> p (build_db_->load<build_package> (id));
 
-          for (const auto& c: configs)
+          for (const build_package_config& c: p->configs)
           {
-            if (exclude (p->builds, p->constraints, *c))
+            // Filter by package config name.
+            //
+            if (pkg_cfg.empty () || path_match (c.name, pkg_cfg))
             {
-              nmax -= nt;
-
-              config = c->name;
-              target = c->target;
-              ncur -= bld_prep_query.execute_value ();
+              for (const auto& tc: target_configs)
+              {
+                if (exclude (c, p->builds, p->constraints, *tc))
+                {
+                  target = tc->target;
+                  target_config_name = tc->name;
+                  package_config_name = c.name;
+                  ncur -= bld_prep_query.execute_value ();
+                }
+                else
+                  npos += nt;
+              }
             }
           }
         }
-      }
 
-      assert (nmax >= ncur);
-      count = nmax - ncur;
+        assert (npos >= ncur);
+        count = npos - ncur;
+      }
+      else
+        count = 0;
 
       t.commit ();
     }
@@ -893,8 +939,9 @@ handle (request& rq, response& rs)
     // 3: package tenant
     // 4: toolchain name
     // 5: toolchain version (descending)
-    // 6: configuration name
-    // 7: configuration target
+    // 6: target
+    // 7: target configuration name
+    // 8: package configuration name
     //
     // Prepare the build package prepared query.
     //
@@ -946,15 +993,14 @@ handle (request& rq, response& rs)
 
     package_id id;
 
-    bld_query bq (
-      equal<package_build> (bld_query::build::id.package, id) &&
+    bld_query bq (equal<package_build> (bld_query::build::id.package, id) &&
 
-      // Note that while the query already constrains the tenant via the build
-      // package id, we still need to pass the tenant not to erroneously
-      // filter out the private tenants.
-      //
-      build_query<package_build> (
-        &conf_ids, bld_params, tn, false /* archived */));
+                  // Note that while the query already constrains the tenant
+                  // via the build package id, we still need to pass the
+                  // tenant not to erroneously filter out the private tenants.
+                  //
+                  build_query<package_build> (
+                    &conf_ids, bld_params, tn, false /* archived */));
 
     prep_bld_query bld_prep_query (
       conn->prepare_query<package_build> ("mod-builds-build-query", bq));
@@ -986,22 +1032,35 @@ handle (request& rq, response& rs)
         {
           id = move (p.id);
 
+          shared_ptr<build_package> bp (build_db_->load<build_package> (id));
+
           // Copy configuration/toolchain combinations for this package,
           // skipping excluded configurations.
           //
           set<config_toolchain> unbuilt_configs;
+
+          for (const build_package_config& pc: bp->configs)
           {
-            shared_ptr<build_package> p (build_db_->load<build_package> (id));
-
-            for (const auto& ct: config_toolchains)
+            // Filter by package config name.
+            //
+            if (pkg_cfg.empty () || path_match (pc.name, pkg_cfg))
             {
-              auto i (build_conf_map_->find (build_config_id {ct.configuration,
-                                                              ct.target}));
+              for (const target_config_toolchain& ct: config_toolchains)
+              {
+                auto i (
+                  target_conf_map_->find (
+                    build_target_config_id {ct.target, ct.target_config}));
 
-              assert (i != build_conf_map_->end ());
+                assert (i != target_conf_map_->end ());
 
-              if (!exclude (p->builds, p->constraints, *i->second))
-                unbuilt_configs.insert (ct);
+                if (!exclude (pc, bp->builds, bp->constraints, *i->second))
+                  unbuilt_configs.insert (
+                    config_toolchain {ct.target,
+                                      ct.target_config,
+                                      pc.name,
+                                      ct.toolchain_name,
+                                      ct.toolchain_version});
+              }
             }
           }
 
@@ -1012,8 +1071,9 @@ handle (request& rq, response& rs)
           {
             const build& b (*pb.build);
 
-            unbuilt_configs.erase (config_toolchain {b.id.configuration,
-                                                     b.id.target,
+            unbuilt_configs.erase (config_toolchain {b.target,
+                                                     b.target_config_name,
+                                                     b.package_config_name,
                                                      b.toolchain_name,
                                                      b.toolchain_version});
           }
@@ -1035,8 +1095,9 @@ handle (request& rq, response& rs)
               <<     TR_VALUE ("toolchain",
                                string (ct.toolchain_name) + '-' +
                                ct.toolchain_version.string ())
-              <<     TR_VALUE ("config", ct.configuration)
-              <<     TR_VALUE ("target", ct.target.string ());
+              <<     TR_VALUE ("target", ct.target.string ())
+              <<     TR_VALUE ("tgt config", ct.target_config)
+              <<     TR_VALUE ("pkg config", ct.package_config);
 
             // In the global view mode add the tenant builds link. Note that
             // the global view (and the link) makes sense only in the
@@ -1084,10 +1145,10 @@ handle (request& rq, response& rs)
   };
 
   add_filter ("pv", params.version ());
-  add_filter ("tc", params.toolchain (), "*");
-  add_filter ("cf", params.configuration ());
-  add_filter ("mn", params.machine ());
-  add_filter ("tg", params.target ());
+  add_filter ("th", params.toolchain (), "*");
+  add_filter ("tg", tgt);
+  add_filter ("tc", tgt_cfg);
+  add_filter ("pc", pkg_cfg);
   add_filter ("rs", params.result (), "*");
 
   s <<       DIV_PAGER (page, count, page_configs, options_->build_pages (), u)

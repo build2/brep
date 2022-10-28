@@ -18,26 +18,25 @@ namespace brep
   using namespace std;
   using namespace butl;
   using namespace bpkg;
-  using namespace bbot;
 
-  // Return pointer to the shared build configurations instance, creating one
-  // on the first call. Throw tab_parsing on parsing error, io_error on the
-  // underlying OS error. Note: not thread-safe.
+  // Return pointer to the shared build target configurations instance,
+  // creating one on the first call. Throw tab_parsing on parsing error,
+  // io_error on the underlying OS error. Note: not thread-safe.
   //
-  static shared_ptr<const build_configs>
+  static shared_ptr<const build_target_configs>
   shared_build_config (const path& p)
   {
-    static map<path, weak_ptr<build_configs>> configs;
+    static map<path, weak_ptr<build_target_configs>> configs;
 
     auto i (configs.find (p));
     if (i != configs.end ())
     {
-      if (shared_ptr<build_configs> c = i->second.lock ())
+      if (shared_ptr<build_target_configs> c = i->second.lock ())
         return c;
     }
 
-    shared_ptr<build_configs> c (
-      make_shared<build_configs> (parse_buildtab (p)));
+    shared_ptr<build_target_configs> c (
+      make_shared<build_target_configs> (bbot::parse_buildtab (p)));
 
     configs[p] = c;
     return c;
@@ -122,7 +121,7 @@ namespace brep
   {
     try
     {
-      build_conf_ = shared_build_config (bo.build_config ());
+      target_conf_ = shared_build_config (bo.build_config ());
     }
     catch (const io_error& e)
     {
@@ -137,19 +136,21 @@ namespace brep
       bot_agent_key_map_ =
         shared_bot_agent_keys (bo, bo.build_bot_agent_keys ());
 
-    using conf_map_type = map<build_config_id, const build_config*>;
+    using conf_map_type = map<build_target_config_id,
+                              const build_target_config*>;
+
     conf_map_type conf_map;
 
-    for (const auto& c: *build_conf_)
-      conf_map[build_config_id {c.name, c.target}] = &c;
+    for (const auto& c: *target_conf_)
+      conf_map[build_target_config_id {c.target, c.name}] = &c;
 
-    build_conf_map_ = make_shared<conf_map_type> (move (conf_map));
+    target_conf_map_ = make_shared<conf_map_type> (move (conf_map));
   }
 
   bool build_config_module::
-  belongs (const bbot::build_config& cfg, const char* cls) const
+  belongs (const build_target_config& cfg, const char* cls) const
   {
-    const map<string, string>& im (build_conf_->class_inheritance_map);
+    const map<string, string>& im (target_conf_->class_inheritance_map);
 
     for (const string& c: cfg.classes)
     {

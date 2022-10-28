@@ -14,8 +14,6 @@
 
 #include <libbutl/pager.hxx>
 
-#include <libbbot/build-config.hxx>
-
 #include <libbrep/build.hxx>
 #include <libbrep/build-odb.hxx>
 #include <libbrep/package.hxx>
@@ -24,10 +22,11 @@
 #include <libbrep/build-package-odb.hxx>
 #include <libbrep/database-lock.hxx>
 
+#include <mod/build-target-config.hxx>
+
 #include <clean/clean-options.hxx>
 
 using namespace std;
-using namespace bbot;
 using namespace odb::core;
 
 namespace brep
@@ -205,18 +204,26 @@ namespace brep
       return 1;
     }
 
-    set<string> configs;
+    // Load build target configurations.
+    //
+    build_target_configs configs;
 
     try
     {
-      for (auto& c: parse_buildtab (cp))
-        configs.emplace (move (c.name));
+      configs = bbot::parse_buildtab (cp);
     }
     catch (const io_error& e)
     {
       cerr << "error: unable to read '" << cp << "': " << e << endl;
       return 1;
     }
+
+    // Note: contains shallow references to the configuration targets/names.
+    //
+    set<build_target_config_id> configs_set;
+
+    for (const build_target_config& c: configs)
+      configs_set.insert (build_target_config_id {c.target, c.name});
 
     // Parse timestamps.
     //
@@ -259,17 +266,25 @@ namespace brep
     //
     // Query package builds in chunks in order not to hold locks for too long.
     // Sort the result by package version to minimize number of queries to the
-    // package database.
+    // package database. Note that we still need to sort by configuration and
+    // toolchain to make sure that builds are sorted consistently across
+    // queries and we don't miss any of them.
     //
     using bld_query = query<build>;
     using prep_bld_query = prepared_query<build>;
 
     size_t offset (0);
     bld_query bq ("ORDER BY" +
-                  bld_query::id.package.tenant + "," +
-                  bld_query::id.package.name +
+                  bld_query::id.package.tenant + ","      +
+                  bld_query::id.package.name              +
                   order_by_version_desc (bld_query::id.package.version,
-                                         false) +
+                                         false)           +
+                  bld_query::id.target + ","              +
+                  bld_query::id.target_config_name + ","  +
+                  bld_query::id.package_config_name + "," +
+                  bld_query::id.toolchain_name            +
+                  order_by_version (bld_query::id.toolchain_version,
+                                    false /* first */)    +
                   "OFFSET" + bld_query::_ref (offset) + "LIMIT 100");
 
     connection_ptr conn (db.connection ());
@@ -332,7 +347,10 @@ namespace brep
             // Note that we unable to detect configuration changes and rely on
             // periodic rebuilds to take care of that.
             //
-            configs.find (b.configuration) == configs.end ());
+            configs_set.find (
+              build_target_config_id {b.target,
+                                      b.target_config_name}) ==
+            configs_set.end ());
 
           // Check that the build package still exists.
           //
@@ -349,7 +367,7 @@ namespace brep
             }
 
             cleanup = package_versions.find (b.package_version) ==
-              package_versions.end ();
+                      package_versions.end ();
           }
 
           if (cleanup)

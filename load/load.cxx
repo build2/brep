@@ -5,10 +5,9 @@
 
 #include <cerrno>
 #include <chrono>
-#include <thread>    // this_thread::sleep_for()
-#include <cstring>   // strncmp()
+#include <thread>   // this_thread::sleep_for()
+#include <cstring>  // strncmp()
 #include <iostream>
-#include <algorithm> // find(), find_if()
 
 #include <odb/session.hxx>
 #include <odb/database.hxx>
@@ -581,6 +580,8 @@ load_packages (const shared_ptr<repository>& rp,
           move (ts),
           move (pm.builds),
           move (pm.build_constraints),
+          build_package_configs (make_move_iterator (pm.build_configs.begin ()),
+                                 make_move_iterator (pm.build_configs.end ())),
           move (pm.location),
           move (pm.fragment),
           move (pm.sha256sum),

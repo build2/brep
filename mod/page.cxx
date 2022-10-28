@@ -7,10 +7,10 @@
 #include <cmark-gfm-extension_api.h>
 
 #include <set>
-#include <ios>       // hex, uppercase, right
+#include <ios>      // hex, uppercase, right
 #include <sstream>
-#include <iomanip>   // setw(), setfill()
-#include <algorithm> // min(), find()
+#include <iomanip>  // setw(), setfill()
+#include <iterator> // back_inserter()
 
 #include <libstudxml/serializer.hxx>
 
@@ -36,6 +36,20 @@ using namespace web::xhtml;
 //
 namespace brep
 {
+  static inline string
+  label_to_class (const string& label)
+  {
+    if (label.find (' ') == string::npos)
+      return label;
+
+    string r;
+    transform (label.begin (), label.end (),
+               back_inserter (r),
+               [] (char c) {return c != ' ' ? c : '-';});
+
+    return r;
+  }
+
   // CSS_LINKS
   //
   static const dir_path css_path ("@");
@@ -134,7 +148,8 @@ namespace brep
   void TR_VALUE::
   operator() (serializer& s) const
   {
-    s << TR(CLASS=label_)
+    string c (label_to_class (label_));
+    s << TR(CLASS=c)
       <<   TH << label_ << ~TH
       <<   TD << SPAN(CLASS="value") << value_ << ~SPAN << ~TD
       << ~TR;
@@ -145,7 +160,8 @@ namespace brep
   void TR_INPUT::
   operator() (serializer& s) const
   {
-    s << TR(CLASS=label_)
+    string c (label_to_class (label_));
+    s << TR(CLASS=c)
       <<   TH << label_ << ~TH
       <<   TD
       <<     INPUT(TYPE="text", NAME=name_);
@@ -169,7 +185,8 @@ namespace brep
   void TR_SELECT::
   operator() (serializer& s) const
   {
-    s << TR(CLASS=label_)
+    string c (label_to_class (label_));
+    s << TR(CLASS=c)
       <<   TH << label_ << ~TH
       <<   TD
       <<     SELECT(NAME=name_);
@@ -604,7 +621,8 @@ namespace brep
   void TR_URL::
   operator() (serializer& s) const
   {
-    s << TR(CLASS=label_)
+    string c (label_to_class (label_));
+    s << TR(CLASS=c)
       <<   TH << label_ << ~TH
       <<   TD
       <<     SPAN(CLASS="value");
@@ -634,7 +652,8 @@ namespace brep
   void TR_EMAIL::
   operator() (serializer& s) const
   {
-    s << TR(CLASS=label_)
+    string c (label_to_class (label_));
+    s << TR(CLASS=c)
       <<   TH << label_ << ~TH
       <<   TD
       <<     SPAN(CLASS="value")
@@ -698,7 +717,8 @@ namespace brep
   void TR_LINK::
   operator() (serializer& s) const
   {
-    s << TR(CLASS=label_)
+    string c (label_to_class (label_));
+    s << TR(CLASS=c)
       <<   TH << label_ << ~TH
       <<   TD
       <<     SPAN(CLASS="value") << A(HREF=url_) << text_ << ~A << ~SPAN

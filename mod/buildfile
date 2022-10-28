@@ -25,7 +25,7 @@ include ../web/server/
 
 ./: mod{brep} {libue libus}{mod}
 
-libu_src = options-types types-parsers build-config
+libu_src = options-types types-parsers build-target-config
 
 mod{brep}: {hxx ixx txx cxx}{* -module-options -{$libu_src}}               \
            libus{mod} ../libbrep/lib{brep} ../web/server/libus{web-server} \

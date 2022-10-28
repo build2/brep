@@ -19,15 +19,23 @@ builds: default legacy
 build-include: windows**d/x86_64**
 build-include: windows-vc_13**
 build-exclude: **; Only supported on Windows.
+bootstrap-build:\
+project = libexp
+
+\
 location: libexp-+2-1.2+1.tar.gz
-sha256sum: 317c8c6f45d9dfdfdef3a823411920cecd51729c7c4f58f9a0b0bbd681c07bd6
+sha256sum: d90cfe583890cd0c05cdfc204e69dd3b986c2da49851f7a87fa0ca870788ff79
 :
 name: libfoo
 version: +0-X.Y
 summary: The Foo Library
 license: MIT
+bootstrap-build:\
+project = libfoo
+
+\
 location: libfoo-+0-X.Y.tar.gz
-sha256sum: c994fd49f051ab7fb25f3a4e68ca878e484c5d3c2cb132b37d41224b0621b618
+sha256sum: c25e5cae2f72664a3961c3ef88a82e67150c4bcc2a5e1fb4d250e621c5574187
 :
 name: libfoo
 version: 1.0
@@ -37,8 +45,12 @@ build-email: foo-builds@example.com
 builds: default legacy; Stable configurations only.
 builds: -32; 64-bit targets only
 builds: &msvc_13_up; Not too old MSVC.
+bootstrap-build:\
+project = libfoo
+
+\
 location: libfoo-1.0.tar.gz
-sha256sum: e89c6d746f8b1ea3ec58d294946d2f683d133438d2ac8c88549ba24c19627e76
+sha256sum: 7382152bac5b4ce10215a5ecd6c94c490d0efc007031d3b03f407d068b74e624
 :
 name: libfoo
 version: 1.2.4+1
@@ -88,32 +100,69 @@ requires: host
 tests: * libfoo-tests == 1.2.4
 examples: libfoo-examples
 benchmarks: libfoo-benchmarks > 0.0.1
+builds: all
+network-build-config: config.libfoo.network=true; Enable networking API.
+network-build-include: windows-vc_14d/x86_64-microsoft-win32-msvc14.0
+network-build-exclude: **
+cache-build-config:\
+config.libfoo.cache=true
+config.libfoo.buffer=4096
+;
+Enable caching.
+\
+cache-builds: default
+cache-builds: -linux
+cache-build-include: windows-vc_14d/x86_64-microsoft-win32-msvc14.0
+cache-build-exclude: **
+bootstrap-build:\
+project = libfoo
+
+\
+root-build:\
+config [bool] config.libfoo.network ?= false
+
+config [bool] config.libfoo.cache ?= false
+config [uint64] config.libfoo.buffer ?= 1024
+
+\
 location: libfoo-1.2.4+1.tar.gz
-sha256sum: d23a7ff116ab7264c3d423af97e4830bdaa8c9101cd95b210b19a97bb8512b74
+sha256sum: fe07978d72ab65c2ad72b0325aa56944cf093248d39edcb472a2fe5835defa3d
 :
 name: libfoo-benchmarks
 version: 1.2.4
 summary: The Foo Math Library benchmarks
 license: MIT
 builds: 64; Fails building for 32 bits.
+bootstrap-build:\
+project = libfoo-benchmarks
+
+\
 location: libfoo-benchmarks-1.2.4.tar.gz
-sha256sum: ba664343db5b9bd574450175834b0dd39d038dcff7387477b6eff0d5783a8ac4
+sha256sum: 8392db99b1ea0c78fe2c73d8c0ae35f8a31d798c8ed26ebf09b4bf557b4e3ce0
 :
 name: libfoo-examples
 version: 1.2.4
 summary: The Foo Math Library examples
 license: MIT
 builds: 64; Fails building for 32 bits.
+bootstrap-build:\
+project = libfoo-examples
+
+\
 location: libfoo-examples-1.2.4.tar.gz
-sha256sum: 1343d1826c3ae5446ad965bc9aa7b1586e4238c7736c344e63a4a6bae3d57a88
+sha256sum: de1bf595994a63361262727594de94edbd77fff8234066da74672e44eb4349f2
 :
 name: libfoo-tests
 version: 1.2.4
 summary: The Foo Math Library tests
 license: MIT
 builds: 64; Fails building for 32 bits.
+bootstrap-build:\
+project = libfoo-tests
+
+\
 location: libfoo-tests-1.2.4.tar.gz
-sha256sum: c5c0520b4e612fa2f8948c42824f3e199926c2395bf2c2f898e83f9eb19261a4
+sha256sum: bff1e47ef4f9658072dd7f412e97f80179d4257323568c3fa77ce6adbf89ebd1
 :
 name: libpq
 version: 0
@@ -148,8 +197,12 @@ package-url: https://git.build2.org/cgit/packaging/postgresql/
 email: pgsql-general@postgresql.org; Mailing list.
 package-email: packaging@build2.org; Mailing list.
 requires: build2 >= 0.4.0
+bootstrap-build:\
+project = libpq
+
+\
 location: libpq-0.tar.gz
-sha256sum: 367e72c8cc4aca1cdb99aacfefb0117ca333031775ff7435b0fa1f4988e33a31
+sha256sum: 2aee2bb1d58d51c657903bbab6253c5d4566b6f3f299ba118da24c7756caebfd
 :
 name: libstudxml
 version: 1.0.0+1
@@ -164,5 +217,9 @@ build-warning-email: studxml-warnings@example.com
 build-error-email: studxml-errors@example.com
 depends: libexpat >= 2.0.0
 depends: libgenx
+bootstrap-build:\
+project = libstudxml
+
+\
 location: libstudxml-1.0.0+1.tar.gz
-sha256sum: 1833906dd93ccc0cda832d6a1b3ef9ed7877bb9958b46d9b2666033d4a7919c9
+sha256sum: aa52d5b49ee1bad825cd6bca554f72636e8451f93c74f9a443bafce3c2bf82c0

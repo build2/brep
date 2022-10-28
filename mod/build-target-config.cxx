@@ -1,7 +1,7 @@
-// file      : mod/build-config-module.cxx -*- C++ -*-
+// file      : mod/target-build-config.cxx -*- C++ -*-
 // license   : MIT; see accompanying LICENSE file
 
-#include <mod/build-config.hxx>
+#include <mod/build-target-config.hxx>
 
 #include <libbutl/utility.hxx>      // alpha(), etc.
 #include <libbutl/path-pattern.hxx>
@@ -11,7 +11,6 @@ namespace brep
   using namespace std;
   using namespace butl;
   using namespace bpkg;
-  using namespace bbot;
 
   // The default underlying class set expressions (see below).
   //
@@ -22,13 +21,17 @@ namespace brep
     {"all"}, '+', "All.");
 
   bool
-  exclude (const small_vector<build_class_expr, 1>& exprs,
-           const vector<build_constraint>& constrs,
-           const build_config& cfg,
+  exclude (const build_package_config& pc,
+           const build_class_exprs& cbs,
+           const build_constraints& ccs,
+           const build_target_config& tc,
            const map<string, string>& class_inheritance_map,
            string* reason,
            bool default_all_ucs)
   {
+    const build_class_exprs& exprs (pc.effective_builds (cbs));
+    const build_constraints& constrs (pc.effective_constraints (ccs));
+
     // Save the first sentence of the reason, lower-case the first letter if
     // the beginning looks like a word (all subsequent characters until a
     // whitespace are lower-case letters).
@@ -74,11 +77,11 @@ namespace brep
     // (changing the result from true to false) or non-including one (leaving
     // the false result) as an exclusion reason.
     //
-    auto match = [&cfg, &m, reason, &sanitize, &class_inheritance_map]
+    auto match = [&tc, &m, reason, &sanitize, &class_inheritance_map]
                  (const build_class_expr& e)
     {
       bool pm (m);
-      e.match (cfg.classes, class_inheritance_map, m);
+      e.match (tc.classes, class_inheritance_map, m);
 
       if (reason != nullptr)
       {
@@ -168,8 +171,8 @@ namespace brep
     if (!constrs.empty ())
     try
     {
-      path cn (dash_components_to_path (cfg.name));
-      path tg (dash_components_to_path (cfg.target.string ()));
+      path cn (dash_components_to_path (tc.name));
+      path tg (dash_components_to_path (tc.target.string ()));
 
       for (const build_constraint& c: constrs)
       {

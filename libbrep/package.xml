@@ -1,4 +1,138 @@
 <changelog xmlns="http://www.codesynthesis.com/xmlns/odb/changelog" database="pgsql" schema-name="package" version="1">
+  <changeset version="26">
+    <add-table name="package_build_configs" kind="container">
+      <column name="tenant" type="TEXT" null="false"/>
+      <column name="name" type="CITEXT" null="false"/>
+      <column name="version_epoch" type="INTEGER" null="false"/>
+      <column name="version_canonical_upstream" type="TEXT" null="false"/>
+      <column name="version_canonical_release" type="TEXT" null="false" options="COLLATE &quot;C&quot;"/>
+      <column name="version_revision" type="INTEGER" null="false"/>
+      <column name="index" type="BIGINT" null="false"/>
+      <column name="config_name" type="TEXT" null="false"/>
+      <column name="config_arguments" type="TEXT" null="false"/>
+      <column name="config_comment" type="TEXT" null="false"/>
+      <foreign-key name="tenant_fk" deferrable="DEFERRED">
+        <column name="tenant"/>
+        <references table="tenant">
+          <column name="id"/>
+        </references>
+      </foreign-key>
+      <foreign-key name="object_id_fk" on-delete="CASCADE">
+        <column name="tenant"/>
+        <column name="name"/>
+        <column name="version_epoch"/>
+        <column name="version_canonical_upstream"/>
+        <column name="version_canonical_release"/>
+        <column name="version_revision"/>
+        <references table="package">
+          <column name="tenant"/>
+          <column name="name"/>
+          <column name="version_epoch"/>
+          <column name="version_canonical_upstream"/>
+          <column name="version_canonical_release"/>
+          <column name="version_revision"/>
+        </references>
+      </foreign-key>
+      <index name="package_build_configs_object_id_i">
+        <column name="tenant"/>
+        <column name="name"/>
+        <column name="version_epoch"/>
+        <column name="version_canonical_upstream"/>
+        <column name="version_canonical_release"/>
+        <column name="version_revision"/>
+      </index>
+      <index name="package_build_configs_index_i">
+        <column name="index"/>
+      </index>
+    </add-table>
+    <add-table name="package_build_config_builds" kind="container">
+      <column name="tenant" type="TEXT" null="false"/>
+      <column name="name" type="CITEXT" null="false"/>
+      <column name="version_epoch" type="INTEGER" null="false"/>
+      <column name="version_canonical_upstream" type="TEXT" null="false"/>
+      <column name="version_canonical_release" type="TEXT" null="false" options="COLLATE &quot;C&quot;"/>
+      <column name="version_revision" type="INTEGER" null="false"/>
+      <column name="config_index" type="BIGINT" null="false"/>
+      <column name="index" type="BIGINT" null="false"/>
+      <column name="expression" type="TEXT" null="false"/>
+      <column name="comment" type="TEXT" null="false"/>
+      <foreign-key name="tenant_fk" deferrable="DEFERRED">
+        <column name="tenant"/>
+        <references table="tenant">
+          <column name="id"/>
+        </references>
+      </foreign-key>
+      <foreign-key name="object_id_fk" on-delete="CASCADE">
+        <column name="tenant"/>
+        <column name="name"/>
+        <column name="version_epoch"/>
+        <column name="version_canonical_upstream"/>
+        <column name="version_canonical_release"/>
+        <column name="version_revision"/>
+        <references table="package">
+          <column name="tenant"/>
+          <column name="name"/>
+          <column name="version_epoch"/>
+          <column name="version_canonical_upstream"/>
+          <column name="version_canonical_release"/>
+          <column name="version_revision"/>
+        </references>
+      </foreign-key>
+      <index name="package_build_config_builds_object_id_i">
+        <column name="tenant"/>
+        <column name="name"/>
+        <column name="version_epoch"/>
+        <column name="version_canonical_upstream"/>
+        <column name="version_canonical_release"/>
+        <column name="version_revision"/>
+      </index>
+    </add-table>
+    <add-table name="package_build_config_constraints" kind="container">
+      <column name="tenant" type="TEXT" null="false"/>
+      <column name="name" type="CITEXT" null="false"/>
+      <column name="version_epoch" type="INTEGER" null="false"/>
+      <column name="version_canonical_upstream" type="TEXT" null="false"/>
+      <column name="version_canonical_release" type="TEXT" null="false" options="COLLATE &quot;C&quot;"/>
+      <column name="version_revision" type="INTEGER" null="false"/>
+      <column name="config_index" type="BIGINT" null="false"/>
+      <column name="index" type="BIGINT" null="false"/>
+      <column name="exclusion" type="BOOLEAN" null="false"/>
+      <column name="config" type="TEXT" null="false"/>
+      <column name="target" type="TEXT" null="true"/>
+      <column name="comment" type="TEXT" null="false"/>
+      <foreign-key name="tenant_fk" deferrable="DEFERRED">
+        <column name="tenant"/>
+        <references table="tenant">
+          <column name="id"/>
+        </references>
+      </foreign-key>
+      <foreign-key name="object_id_fk" on-delete="CASCADE">
+        <column name="tenant"/>
+        <column name="name"/>
+        <column name="version_epoch"/>
+        <column name="version_canonical_upstream"/>
+        <column name="version_canonical_release"/>
+        <column name="version_revision"/>
+        <references table="package">
+          <column name="tenant"/>
+          <column name="name"/>
+          <column name="version_epoch"/>
+          <column name="version_canonical_upstream"/>
+          <column name="version_canonical_release"/>
+          <column name="version_revision"/>
+        </references>
+      </foreign-key>
+      <index name="package_build_config_constraints_object_id_i">
+        <column name="tenant"/>
+        <column name="name"/>
+        <column name="version_epoch"/>
+        <column name="version_canonical_upstream"/>
+        <column name="version_canonical_release"/>
+        <column name="version_revision"/>
+      </index>
+    </add-table>
+  </changeset>
+
   <model version="25">
     <table name="tenant" kind="object">
       <column name="id" type="TEXT" null="false"/>

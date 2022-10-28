@@ -9,8 +9,12 @@ build-email: foo-builds@example.com
 builds: default legacy; Stable configurations only.
 builds: -32; 64-bit targets only
 builds: &msvc_13_up; Not too old MSVC.
+bootstrap-build:\
+project = libfoo
+
+\
 location: libfoo-1.0.tar.gz
-sha256sum: e89c6d746f8b1ea3ec58d294946d2f683d133438d2ac8c88549ba24c19627e76
+sha256sum: 7382152bac5b4ce10215a5ecd6c94c490d0efc007031d3b03f407d068b74e624
 :
 name: libfoo
 version: 1.2.2-alpha.1
@@ -23,8 +27,12 @@ email: foo-users@example.com
 depends: libmisc [0.1 2.0-) | libmisc [2.0 5.0]
 depends: libgenx (0.2 3.0)
 depends: libexpat < 5.2 | libexpat (1 5.1]
+bootstrap-build:\
+project = libfoo
+
+\
 location: libfoo-1.2.2-alpha.1.tar.gz
-sha256sum: f5d3e9e6e8f9621a638b1375d31f0eb50e6279d8066170b25da21e84198cfd82
+sha256sum: 71321f6616036380ac5c9c5dc81efa04b23577ef9dc18f1ce413587bb57677c9
 :
 name: libfoo
 version: 1.2.2
@@ -35,8 +43,12 @@ url: http://www.example.com/foo/
 email: foo-users@example.com
 depends: libbar <= 2.4.0
 depends: libexp == +2-1.2
+bootstrap-build:\
+project = libfoo
+
+\
 location: libfoo-1.2.2.tar.gz
-sha256sum: 088068ea3d69542a153f829cf836013374763148fba0a43d8047974f58b5efd7
+sha256sum: 75d2a7d3eec62d63afd3d3a84d91bd02b05ecb16cd0907d5b0db1fc654e3753f
 :
 name: libfoo
 version: 1.2.3+4
@@ -47,8 +59,12 @@ keywords: c++ foo
 url: http://www.example.com/foo/
 email: foo-users@example.com
 depends: libmisc >= 2.0.0
+bootstrap-build:\
+project = libfoo
+
+\
 location: libfoo-1.2.3+4.tar.gz
-sha256sum: f2ebecac6cac8addd7c623bc1becf055e76b13a0d2dd385832b92c38c58956d8
+sha256sum: 24c53899bd4dbfdde6a727e07724984bfb4ca7f20142291c40e30304f15434c3
 :
 name: libfoo
 version: 1.2.4
@@ -62,5 +78,9 @@ changes: some changes 2
 url: http://www.example.com/foo/
 email: foo-users@example.com
 depends: libmisc >= 2.0.0
+bootstrap-build:\
+project = libfoo
+
+\
 location: libfoo-1.2.4.tar.gz
-sha256sum: aa1606323bfc59b70de642629dc5d8318cc5348e3646f90ed89406d975db1e1d
+sha256sum: 98f80ca0cd1c053fd45ab37f72a6a31f1a0304747c636822df8d573420284642

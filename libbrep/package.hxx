@@ -20,7 +20,7 @@
 //
 #define LIBBREP_PACKAGE_SCHEMA_VERSION_BASE 25
 
-#pragma db model version(LIBBREP_PACKAGE_SCHEMA_VERSION_BASE, 25, closed)
+#pragma db model version(LIBBREP_PACKAGE_SCHEMA_VERSION_BASE, 26, closed)
 
 namespace brep
 {
@@ -417,6 +417,9 @@ namespace brep
 
     // Create internal package object.
     //
+    // Note: adds the default build package config at the first position if it
+    // is not present yet.
+    //
     package (package_name,
              version_type,
              optional<string> upstream_version,
@@ -443,6 +446,7 @@ namespace brep
              small_vector<test_dependency, 1> tests,
              build_class_exprs,
              build_constraints_type,
+             build_package_configs,
              optional<path> location,
              optional<string> fragment,
              optional<string> sha256sum,
@@ -513,8 +517,14 @@ namespace brep
     requirements_type requirements;           // Note: foreign-mapped in build.
     small_vector<test_dependency, 1> tests;   // Note: foreign-mapped in build.
 
+    // Common build classes/constraints that apply to all configurations
+    // unless overridden.
+    //
     build_class_exprs builds;                 // Note: foreign-mapped in build.
     build_constraints_type build_constraints; // Note: foreign-mapped in build.
+
+    build_package_configs build_configs; // Note: foreign-mapped in build.
+
     odb::section build_section;
 
     // Note that it is foreign-mapped in build.
@@ -634,9 +644,6 @@ namespace brep
 
     // Container of the requirement_alternative values.
     //
-    #pragma db member(requirement_alternative_key::outer) column("requirement_index")
-    #pragma db member(requirement_alternative_key::inner) column("index")
-
     #pragma db member(requirement_alternatives)               \
       virtual(requirement_alternatives_map)                   \
       after(requirements)                                     \
@@ -646,10 +653,6 @@ namespace brep
 
     // Container of the requirement (string) values.
     //
-    #pragma db member(requirement_key::outer)  column("requirement_index")
-    #pragma db member(requirement_key::middle) column("alternative_index")
-    #pragma db member(requirement_key::inner)  column("index")
-
     #pragma db member(requirement_alternative_requirements)    \
       virtual(requirement_alternative_requirements_map)        \
       after(requirement_alternatives)                          \
@@ -669,6 +672,37 @@ namespace brep
     // build_constraints
     //
     #pragma db member(build_constraints) id_column("") value_column("") \
+      section(build_section)
+
+    // build_configs
+    //
+    // Note that build_package_config::{builds,constraints} are
+    // persisted/loaded via the separate nested containers (see commons.hxx
+    // for details).
+    //
+    #pragma db member(build_configs) id_column("") value_column("config_") \
+      section(build_section)
+
+    #pragma db member(build_config_builds)                           \
+      virtual(build_class_exprs_map)                                 \
+      after(build_configs)                                           \
+      get(odb::nested_get (                                          \
+            brep::build_package_config_builds (this.build_configs))) \
+      set(brep::build_package_config_builds bs;                      \
+          odb::nested_set (bs, std::move (?));                       \
+          move (bs).to_configs (this.build_configs))                 \
+      id_column("") key_column("") value_column("")                  \
+      section(build_section)
+
+    #pragma db member(build_config_constraints)                           \
+      virtual(build_constraints_map)                                      \
+      after(build_config_builds)                                          \
+      get(odb::nested_get (                                               \
+            brep::build_package_config_constraints (this.build_configs))) \
+      set(brep::build_package_config_constraints cs;                      \
+          odb::nested_set (cs, std::move (?));                            \
+          move (cs).to_configs (this.build_configs))                      \
+      id_column("") key_column("") value_column("")                       \
       section(build_section)
 
     #pragma db member(build_section) load(lazy) update(always)

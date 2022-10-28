@@ -26,9 +26,9 @@
 
 // Used by the data migration entries.
 //
-#define LIBBREP_BUILD_SCHEMA_VERSION_BASE 19
+#define LIBBREP_BUILD_SCHEMA_VERSION_BASE 20
 
-#pragma db model version(LIBBREP_BUILD_SCHEMA_VERSION_BASE, 19, closed)
+#pragma db model version(LIBBREP_BUILD_SCHEMA_VERSION_BASE, 20, closed)
 
 // We have to keep these mappings at the global scope instead of inside the
 // brep namespace because they need to be also effective in the bbot namespace
@@ -44,20 +44,23 @@ namespace brep
   struct build_id
   {
     package_id package;
-    string configuration;
     target_triplet target;
+    string target_config_name;
+    string package_config_name;
     string toolchain_name;
     canonical_version toolchain_version;
 
     build_id () = default;
     build_id (package_id p,
-              string c,
               target_triplet t,
+              string tc,
+              string pc,
               string n,
               const brep::version& v)
         : package (move (p)),
-          configuration (move (c)),
           target (move (t)),
+          target_config_name (move (tc)),
+          package_config_name (move (pc)),
           toolchain_name (move (n)),
           toolchain_version (v) {}
   };
@@ -68,10 +71,13 @@ namespace brep
     if (x.package != y.package)
       return x.package < y.package;
 
-    if (int r = x.configuration.compare (y.configuration))
+    if (int r = x.target.compare (y.target))
       return r < 0;
 
-    if (int r = x.target.compare (y.target))
+    if (int r = x.target_config_name.compare (y.target_config_name))
+      return r < 0;
+
+    if (int r = x.package_config_name.compare (y.package_config_name))
       return r < 0;
 
     if (int r = x.toolchain_name.compare (y.toolchain_name))
@@ -88,32 +94,36 @@ namespace brep
   template <typename T>
   inline auto
   operator== (const T& x, const build_id& y)
-    -> decltype (x.package == y.package               &&
-                 x.configuration == y.configuration   &&
-                 x.target == y.target                 &&
-                 x.toolchain_name == y.toolchain_name &&
+    -> decltype (x.package == y.package                         &&
+                 x.target == y.target                           &&
+                 x.target_config_name == y.target_config_name   &&
+                 x.package_config_name == y.package_config_name &&
+                 x.toolchain_name == y.toolchain_name           &&
                  x.toolchain_version.epoch == y.toolchain_version.epoch)
   {
-    return x.package == y.package                &&
-           x.configuration == y.configuration    &&
-           x.target == y.target                  &&
-           x.toolchain_name == y.toolchain_name  &&
+    return x.package == y.package                         &&
+           x.target == y.target                           &&
+           x.target_config_name == y.target_config_name   &&
+           x.package_config_name == y.package_config_name &&
+           x.toolchain_name == y.toolchain_name           &&
            compare_version_eq (x.toolchain_version, y.toolchain_version, true);
   }
 
   template <typename T>
   inline auto
   operator!= (const T& x, const build_id& y)
-    -> decltype (x.package == y.package               &&
-                 x.configuration == y.configuration   &&
-                 x.target == y.target                 &&
-                 x.toolchain_name == y.toolchain_name &&
+    -> decltype (x.package == y.package                         &&
+                 x.target == y.target                           &&
+                 x.target_config_name == y.target_config_name   &&
+                 x.package_config_name == y.package_config_name &&
+                 x.toolchain_name == y.toolchain_name           &&
                  x.toolchain_version.epoch == y.toolchain_version.epoch)
   {
-    return x.package != y.package                ||
-           x.configuration != y.configuration    ||
-           x.target == y.target                  ||
-           x.toolchain_name != y.toolchain_name  ||
+    return x.package != y.package                         ||
+           x.target != y.target                           ||
+           x.target_config_name != y.target_config_name   ||
+           x.package_config_name != y.package_config_name ||
+           x.toolchain_name != y.toolchain_name           ||
            compare_version_ne (x.toolchain_version, y.toolchain_version, true);
   }
 
@@ -190,10 +200,10 @@ namespace brep
     // the timestamp set to now, and the force state set to unforced.
     //
     build (string tenant,
-           package_name_type,
-           version,
-           string configuration,
+           package_name_type, version,
            target_triplet,
+           string target_config_name,
+           string package_config_name,
            string toolchain_name, version toolchain_version,
            optional<string> interactive,
            optional<string> agent_fingerprint,
@@ -207,8 +217,9 @@ namespace brep
     string& tenant;                     // Tracks id.package.tenant.
     package_name_type& package_name;    // Tracks id.package.name.
     upstream_version package_version;   // Original of id.package.version.
-    string& configuration;              // Tracks id.configuration.
     target_triplet& target;             // Tracks id.target.
+    string& target_config_name;         // Tracks id.target_config_name.
+    string& package_config_name;        // Tracks id.package_config_name.
     string& toolchain_name;             // Tracks id.toolchain_name.
     upstream_version toolchain_version; // Original of id.toolchain_version.
 
@@ -288,8 +299,9 @@ namespace brep
     #pragma db member(package_name) transient
     #pragma db member(package_version) \
       set(this.package_version.init (this.id.package.version, (?)))
-    #pragma db member(configuration) transient
     #pragma db member(target) transient
+    #pragma db member(target_config_name) transient
+    #pragma db member(package_config_name) transient
     #pragma db member(toolchain_name) transient
     #pragma db member(toolchain_version) \
       set(this.toolchain_version.init (this.id.toolchain_version, (?)))
@@ -312,8 +324,9 @@ namespace brep
     build ()
         : tenant (id.package.tenant),
           package_name (id.package.name),
-          configuration (id.configuration),
           target (id.target),
+          target_config_name (id.target_config_name),
+          package_config_name (id.package_config_name),
           toolchain_name (id.toolchain_name) {}
   };
 
@@ -408,8 +421,9 @@ namespace brep
     //
     build_delay (string tenant,
                  package_name_type, version,
-                 string configuration,
                  target_triplet,
+                 string target_config_name,
+                 string package_config_name,
                  string toolchain_name, version toolchain_version,
                  timestamp package_timestamp);
 
@@ -418,8 +432,9 @@ namespace brep
     string& tenant;                     // Tracks id.package.tenant.
     package_name_type& package_name;    // Tracks id.package.name.
     upstream_version package_version;   // Original of id.package.version.
-    string& configuration;              // Tracks id.configuration.
     target_triplet& target;             // Tracks id.target.
+    string& target_config_name;         // Tracks id.target_config_name.
+    string& package_config_name;        // Tracks id.package_config_name.
     string& toolchain_name;             // Tracks id.toolchain_name.
     upstream_version toolchain_version; // Original of id.toolchain_version.
 
@@ -447,8 +462,9 @@ namespace brep
     #pragma db member(package_name) transient
     #pragma db member(package_version) \
       set(this.package_version.init (this.id.package.version, (?)))
-    #pragma db member(configuration) transient
     #pragma db member(target) transient
+    #pragma db member(target_config_name) transient
+    #pragma db member(package_config_name) transient
     #pragma db member(toolchain_name) transient
     #pragma db member(toolchain_version) \
       set(this.toolchain_version.init (this.id.toolchain_version, (?)))
@@ -459,8 +475,9 @@ namespace brep
     build_delay ()
         : tenant (id.package.tenant),
           package_name (id.package.name),
-          configuration (id.configuration),
           target (id.target),
+          target_config_name (id.target_config_name),
+          package_config_name (id.package_config_name),
           toolchain_name (id.toolchain_name) {}
   };
 }

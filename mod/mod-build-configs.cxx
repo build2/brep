@@ -3,8 +3,6 @@
 
 #include <mod/mod-build-configs.hxx>
 
-#include <algorithm> // replace()
-
 #include <libstudxml/serializer.hxx>
 
 #include <web/server/module.hxx>
@@ -15,7 +13,6 @@
 #include <mod/module-options.hxx>
 
 using namespace std;
-using namespace bbot;
 using namespace brep::cli;
 
 // While currently the user-defined copy constructor is not required (we don't
@@ -49,7 +46,7 @@ handle (request& rq, response& rs)
 
   HANDLER_DIAG;
 
-  if (build_conf_ == nullptr)
+  if (target_conf_ == nullptr)
     throw invalid_request (501, "not implemented");
 
   const size_t page_configs (options_->build_config_page_entries ());
@@ -120,8 +117,8 @@ handle (request& rq, response& rs)
   //
   if (params.page () == 0)
   {
-    const strings& cls (build_conf_->classes);
-    const map<string, string>& im (build_conf_->class_inheritance_map);
+    const strings& cls (target_conf_->classes);
+    const map<string, string>& im (target_conf_->class_inheritance_map);
 
     s << DIV(ID="filter-heading") << "Build Configuration Classes" << ~DIV
       << P(ID="filter");
@@ -155,12 +152,12 @@ handle (request& rq, response& rs)
   // before printing the configurations.
   //
   size_t count (0);
-  vector<const build_config*> configs;
+  vector<const build_target_config*> configs;
   configs.reserve (page_configs);
 
   size_t skip (page * page_configs);
   size_t print (page_configs);
-  for (const build_config& c: *build_conf_)
+  for (const build_target_config& c: *target_conf_)
   {
     if (belongs (c, params.class_name ()))
     {
@@ -185,7 +182,7 @@ handle (request& rq, response& rs)
   // Enclose the subsequent tables to be able to use nth-child CSS selector.
   //
   s << DIV;
-  for (const build_config* c: configs)
+  for (const build_target_config* c: configs)
   {
     s << TABLE(CLASS="proplist config")
       <<   TBODY

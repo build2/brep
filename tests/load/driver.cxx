@@ -3,7 +3,6 @@
 
 #include <iostream>
 #include <exception>
-#include <algorithm> // sort(), find()
 
 #include <odb/session.hxx>
 #include <odb/transaction.hxx>
@@ -397,7 +396,7 @@ test_pkg_repos (const cstrings& loader_args,
     assert (check_location (fpvxy));
 
     assert (fpvxy->sha256sum && *fpvxy->sha256sum ==
-            "c994fd49f051ab7fb25f3a4e68ca878e484c5d3c2cb132b37d41224b0621b618");
+            "c25e5cae2f72664a3961c3ef88a82e67150c4bcc2a5e1fb4d250e621c5574187");
 
     assert (fpvxy->buildable);
 
@@ -433,7 +432,7 @@ test_pkg_repos (const cstrings& loader_args,
     assert (check_location (fpv1));
 
     assert (fpv1->sha256sum && *fpv1->sha256sum ==
-            "e89c6d746f8b1ea3ec58d294946d2f683d133438d2ac8c88549ba24c19627e76");
+            "7382152bac5b4ce10215a5ecd6c94c490d0efc007031d3b03f407d068b74e624");
 
     assert (fpv1->buildable);
 
@@ -478,7 +477,7 @@ test_pkg_repos (const cstrings& loader_args,
     assert (check_location (fpv2));
 
     assert (fpv2->sha256sum && *fpv2->sha256sum ==
-            "088068ea3d69542a153f829cf836013374763148fba0a43d8047974f58b5efd7");
+            "75d2a7d3eec62d63afd3d3a84d91bd02b05ecb16cd0907d5b0db1fc654e3753f");
 
     assert (!fpv2->buildable);
 
@@ -542,7 +541,7 @@ test_pkg_repos (const cstrings& loader_args,
     assert (check_location (fpv2a));
 
     assert (fpv2a->sha256sum && *fpv2a->sha256sum ==
-            "f5d3e9e6e8f9621a638b1375d31f0eb50e6279d8066170b25da21e84198cfd82");
+            "71321f6616036380ac5c9c5dc81efa04b23577ef9dc18f1ce413587bb57677c9");
 
     assert (!fpv2a->buildable);
 
@@ -580,7 +579,7 @@ test_pkg_repos (const cstrings& loader_args,
     assert (check_location (fpv3));
 
     assert (fpv3->sha256sum && *fpv3->sha256sum ==
-            "f2ebecac6cac8addd7c623bc1becf055e76b13a0d2dd385832b92c38c58956d8");
+            "24c53899bd4dbfdde6a727e07724984bfb4ca7f20142291c40e30304f15434c3");
 
     assert (!fpv3->buildable);
 
@@ -619,7 +618,7 @@ test_pkg_repos (const cstrings& loader_args,
     assert (check_location (fpv4));
 
     assert (fpv4->sha256sum && *fpv4->sha256sum ==
-            "aa1606323bfc59b70de642629dc5d8318cc5348e3646f90ed89406d975db1e1d");
+            "98f80ca0cd1c053fd45ab37f72a6a31f1a0304747c636822df8d573420284642");
 
     assert (!fpv4->buildable);
 
@@ -708,7 +707,7 @@ test_pkg_repos (const cstrings& loader_args,
     assert (check_location (xpv));
 
     assert (xpv->sha256sum && *xpv->sha256sum ==
-            "1833906dd93ccc0cda832d6a1b3ef9ed7877bb9958b46d9b2666033d4a7919c9");
+            "aa52d5b49ee1bad825cd6bca554f72636e8451f93c74f9a443bafce3c2bf82c0");
 
     assert (xpv->buildable);
 
@@ -844,7 +843,7 @@ test_pkg_repos (const cstrings& loader_args,
     assert (check_location (fpv5));
 
     assert (fpv5->sha256sum && *fpv5->sha256sum ==
-            "d23a7ff116ab7264c3d423af97e4830bdaa8c9101cd95b210b19a97bb8512b74");
+            "fe07978d72ab65c2ad72b0325aa56944cf093248d39edcb472a2fe5835defa3d");
 
     assert (fpv5->buildable);
 
@@ -903,7 +902,7 @@ test_pkg_repos (const cstrings& loader_args,
 
     assert (check_location (epv));
     assert (epv->sha256sum && *epv->sha256sum ==
-            "317c8c6f45d9dfdfdef3a823411920cecd51729c7c4f58f9a0b0bbd681c07bd6");
+            "d90cfe583890cd0c05cdfc204e69dd3b986c2da49851f7a87fa0ca870788ff79");
 
     // Verify libpq package version.
     //

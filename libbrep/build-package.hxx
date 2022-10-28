@@ -120,11 +120,12 @@ namespace brep
     lazy_shared_ptr<build_repository> internal_repository;
     bool buildable;
 
-    // Mapped to the package object builds and build_constraints members using
-    // the PostgreSQL foreign table mechanism.
+    // Mapped to the package object builds, build_constraints, and
+    // build_configs members using the PostgreSQL foreign table mechanism.
     //
-    build_class_exprs builds;
-    build_constraints constraints;
+    build_class_exprs     builds;
+    build_constraints     constraints;
+    build_package_configs configs;
 
     bool
     internal () const noexcept {return internal_repository != nullptr;}
@@ -146,9 +147,6 @@ namespace brep
 
     // Container of the requirement_alternative values.
     //
-    #pragma db member(requirement_alternative_key::outer) column("requirement_index")
-    #pragma db member(requirement_alternative_key::inner) column("index")
-
     #pragma db member(requirement_alternatives)               \
       virtual(requirement_alternatives_map)                   \
       after(requirements)                                     \
@@ -158,10 +156,6 @@ namespace brep
 
     // Container of the requirement (string) values.
     //
-    #pragma db member(requirement_key::outer)  column("requirement_index")
-    #pragma db member(requirement_key::middle) column("alternative_index")
-    #pragma db member(requirement_key::inner)  column("index")
-
     #pragma db member(requirement_alternative_requirements)    \
       virtual(requirement_alternative_requirements_map)        \
       after(requirement_alternatives)                          \
@@ -174,6 +168,34 @@ namespace brep
     #pragma db member(tests) id_column("") value_column("test_")
     #pragma db member(builds) id_column("") value_column("")
     #pragma db member(constraints) id_column("") value_column("")
+
+    // configs
+    //
+    // Note that build_package_config::{builds,constraints} are
+    // persisted/loaded via the separate nested containers (see commons.hxx
+    // for details).
+    //
+    #pragma db member(configs) id_column("") value_column("config_")
+
+    #pragma db member(config_builds)                           \
+      virtual(build_class_exprs_map)                           \
+      after(configs)                                           \
+      get(odb::nested_get (                                    \
+            brep::build_package_config_builds (this.configs))) \
+      set(brep::build_package_config_builds bs;                \
+          odb::nested_set (bs, std::move (?));                 \
+          move (bs).to_configs (this.configs))                 \
+      id_column("") key_column("") value_column("")
+
+    #pragma db member(config_constraints)                           \
+      virtual(build_constraints_map)                                \
+      after(config_builds)                                          \
+      get(odb::nested_get (                                         \
+            brep::build_package_config_constraints (this.configs))) \
+      set(brep::build_package_config_constraints cs;                \
+          odb::nested_set (cs, std::move (?));                      \
+          move (cs).to_configs (this.configs))                      \
+      id_column("") key_column("") value_column("")
 
   private:
     friend class odb::access;

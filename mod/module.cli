@@ -765,13 +765,17 @@ namespace brep
       //
       string version | pv;
 
-      // Package build configuration.
-      //
-      string configuration | cf;
-
       // Package build target.
       //
       string target | tg;
+
+      // Target build configuration.
+      //
+      string target_config | tc;
+
+      // Package build configuration.
+      //
+      string package_config | pc;
 
       // Toolchain name.
       //
@@ -805,13 +809,10 @@ namespace brep
       //
       // https://cppget.org/?builds=bbot
       //
-      // To support the already distributed URLs the name_legacy (pn) parameter
-      // overrides the name (builds) parameter, if present. Note that the
-      // builds parameter is renamed to '_' by the root handler (see the
-      // request_proxy class for details).
+      // Note that the builds parameter is renamed to '_' by the root handler
+      // (see the request_proxy class for details).
       //
       string name | _;
-      string name_legacy | pn;
 
       // Package version. If empty or *, then no version constraint is applied.
       // Otherwise the build package version must match the value exactly.
@@ -822,22 +823,22 @@ namespace brep
       // toolchain constraint is applied. Otherwise the build toolchain name
       // and version must match the value exactly.
       //
-      string toolchain | tc = "*";
-
-      // Package build configuration name wildcard. An empty value is treated
-      // the same way as *.
-      //
-      string configuration | cf;
-
-      // Package build machine name wildcard. An empty value is treated the
-      // same way as *.
-      //
-      string machine | mn;
+      string toolchain | th = "*";
 
       // Package build target wildcard. An empty value is treated the same way
       // as *.
       //
       string target | tg;
+
+      // Package build target configuration name wildcard. An empty value is
+      // treated the same way as *.
+      //
+      string target_config | tc;
+
+      // Package build package configuration name wildcard. An empty value is
+      // treated the same way as *.
+      //
+      string package_config | pc;
 
       // Package build result. If *, then no build result constraint is
       // applied. Otherwise the value is supposed to be the one of the

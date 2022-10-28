@@ -77,6 +77,7 @@ namespace brep
            small_vector<test_dependency, 1> ts,
            build_class_exprs bs,
            build_constraints_type bc,
+           build_package_configs bcs,
            optional<path> lc,
            optional<string> fr,
            optional<string> sh,
@@ -114,6 +115,24 @@ namespace brep
         fragment (move (fr)),
         sha256sum (move (sh))
   {
+    // Add the default build configuration at the beginning, unless it is
+    // specified explicitly.
+    //
+    if (find_if (bcs.begin (), bcs.end (),
+                 [] (const build_package_config& c)
+                 {return c.name == "default";}) != bcs.end ())
+    {
+      build_configs = move (bcs);
+    }
+    else
+    {
+      build_configs.reserve (bcs.size () + 1);
+      build_configs.emplace_back ("default");
+      build_configs.insert (build_configs.end (),
+                            make_move_iterator (bcs.begin ()),
+                            make_move_iterator (bcs.end ()));
+    }
+
     if (stub ())
       unbuildable_reason = brep::unbuildable_reason::stub;
     else if (!internal_repository->buildable)

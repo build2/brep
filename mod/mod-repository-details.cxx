@@ -3,8 +3,6 @@
 
 #include <mod/mod-repository-details.hxx>
 
-#include <algorithm> // max()
-
 #include <libstudxml/serializer.hxx>
 
 #include <odb/database.hxx>

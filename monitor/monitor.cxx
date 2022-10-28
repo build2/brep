@@ -5,7 +5,6 @@
 #include <set>
 #include <chrono>
 #include <iostream>
-#include <algorithm> // find_if()
 
 #include <odb/database.hxx>
 #include <odb/transaction.hxx>
@@ -15,8 +14,6 @@
 
 #include <libbutl/pager.hxx>
 
-#include <libbbot/build-config.hxx>
-
 #include <libbrep/build.hxx>
 #include <libbrep/common.hxx>
 #include <libbrep/build-odb.hxx>
@@ -24,14 +21,13 @@
 #include <libbrep/build-package-odb.hxx>
 #include <libbrep/database-lock.hxx>
 
-#include <mod/build-config.hxx>
+#include <mod/build-target-config.hxx>
 
 #include <monitor/module-options.hxx>
 #include <monitor/monitor-options.hxx>
 
 using namespace std;
 using namespace butl;
-using namespace bbot;
 using namespace odb::core;
 
 namespace brep
@@ -43,18 +39,19 @@ namespace brep
   // We will collect and report build delays as separate steps not to hold
   // database locks while printing to stderr. Also we need to order delays
   // properly, so while printing reports we could group delays by toolchain
-  // and configuration.
+  // and target configuration.
   //
   // To achieve that, we will iterate through all possible package builds
   // creating the list of delays with the following sort priority:
   //
   // 1: toolchain name
   // 2: toolchain version (descending)
-  // 3: configuration name
-  // 4: configuration target
+  // 3: target configuration name
+  // 4: target
   // 5: tenant
   // 6: package name
   // 7: package version (descending)
+  // 8: package configuration name
   //
   struct compare_delay
   {
@@ -68,7 +65,7 @@ namespace brep
       if (int r = x->toolchain_version.compare (y->toolchain_version))
         return r > 0;
 
-      if (int r = x->configuration.compare (y->configuration))
+      if (int r = x->target_config_name.compare (y->target_config_name))
         return r < 0;
 
       if (int r = x->target.compare (y->target))
@@ -80,7 +77,10 @@ namespace brep
       if (int r = x->package_name.compare (y->package_name))
         return r < 0;
 
-      return x->package_version.compare (y->package_version) > 0;
+      if (int r = x->package_version.compare (y->package_version))
+        return r > 0;
+
+      return x->package_config_name.compare (y->package_config_name) < 0;
     }
   };
 
@@ -90,21 +90,19 @@ namespace brep
   {
   public:
     // Note that in the brief mode we also need to print the total number of
-    // delays (reported or not) per configuration. Thus, we add all delays to
-    // the report object, marking them if we need to report them or not.
+    // delays (reported or not) per target configuration. Thus, we add all
+    // delays to the report object, marking them if we need to report them or
+    // not.
     //
     void
     add_delay (shared_ptr<build_delay>, bool report);
 
     bool
-    empty () const
-    {
-      return reported_delay_count_ == 0;
-    }
+    empty () const {return reported_delay_count_ == 0;}
 
     // In the brief mode (if full is false) print the number of reported/total
-    // (if total is true) delayed package builds per configuration rather than
-    // the packages themselves.
+    // (if total is true) delayed package configuration builds per target
+    // configuration rather than the package configurations themselves.
     //
     void
     print (const char* header, bool total, bool full) const;
@@ -138,23 +136,23 @@ namespace brep
 
     cerr << "):" << endl;
 
-    // Group the printed delays by toolchain and configuration.
+    // Group the printed delays by toolchain and target configuration.
     //
-    const string*         toolchain_name    (nullptr);
-    const version*        toolchain_version (nullptr);
-    const string*         configuration     (nullptr);
-    const target_triplet* target            (nullptr);
+    const string*         toolchain_name     (nullptr);
+    const version*        toolchain_version  (nullptr);
+    const string*         target_config_name (nullptr);
+    const target_triplet* target             (nullptr);
 
     size_t config_reported_delay_count (0);
     size_t config_total_delay_count (0);
 
-    auto brief_config = [&configuration,
+    auto brief_config = [&target_config_name,
                          &target,
                          &config_reported_delay_count,
                          &config_total_delay_count,
                          total] ()
     {
-      if (configuration != nullptr)
+      if (target_config_name != nullptr)
       {
         assert (target != nullptr);
 
@@ -162,7 +160,7 @@ namespace brep
         //
         if (config_reported_delay_count != 0)
         {
-          cerr << "    " << *configuration << '/' << *target << " ("
+          cerr << "    " << *target_config_name << '/' << *target << " ("
                << config_reported_delay_count;
 
           if (total)
@@ -204,44 +202,45 @@ namespace brep
 
         cerr << endl;
 
-        toolchain_name    = &d->toolchain_name;
-        toolchain_version = &d->toolchain_version;
-        configuration     = nullptr;
-        target            = nullptr;
+        toolchain_name     = &d->toolchain_name;
+        toolchain_version  = &d->toolchain_version;
+        target_config_name = nullptr;
+        target             = nullptr;
       }
 
       // Print the configuration, if changed.
       //
-      if (configuration == nullptr           ||
-          d->configuration != *configuration ||
+      if (target_config_name == nullptr                ||
+          d->target_config_name != *target_config_name ||
           d->target != *target)
       {
         if (full)
         {
-          if (configuration != nullptr)
+          if (target_config_name != nullptr)
             cerr << endl;
 
-          cerr << "    " << d->configuration << '/' << d->target << endl;
+          cerr << "    " << d->target_config_name << '/' << d->target << endl;
         }
         else
           brief_config ();
 
-        configuration = &d->configuration;
-        target        = &d->target;
+        target_config_name = &d->target_config_name;
+        target             = &d->target;
       }
 
-      // Print the delayed build package in the full report mode and count
-      // configuration builds otherwise.
+      // Print the delayed build package configuration in the full report mode
+      // and count configuration builds otherwise.
       //
       if (full)
       {
         // We can potentially extend this information with the archived flag
         // or the delay duration.
         //
-        cerr << "      " << d->package_name << "/" << d->package_version;
+        cerr << "      " << d->package_name << '/' << d->package_version
+             << ' ' << d->package_config_name;
 
         if (!d->tenant.empty ())
-          cerr << " " << d->tenant;
+          cerr << ' ' << d->tenant;
 
         cerr << endl;
       }
@@ -450,11 +449,11 @@ namespace brep
       return 0;
     }
 
-    build_configs configs;
+    build_target_configs configs;
 
     try
     {
-      configs = parse_buildtab (mod_ops.build_config ());
+      configs = bbot::parse_buildtab (mod_ops.build_config ());
     }
     catch (const tab_parsing& e)
     {
@@ -505,11 +504,12 @@ namespace brep
     //
     if (ops.clean ())
     {
-      using config_map = map<build_config_id, const build_config*>;
+      using config_map = map<build_target_config_id,
+                             const build_target_config*>;
 
       config_map conf_map;
-      for (const build_config& c: configs)
-        conf_map[build_config_id {c.name, c.target}] = &c;
+      for (const build_target_config& c: configs)
+        conf_map[build_target_config_id {c.target, c.name}] = &c;
 
       // Prepare the build delay prepared query.
       //
@@ -528,15 +528,16 @@ namespace brep
       size_t offset (0);
 
       query q ("ORDER BY" +
-               query::id.package.tenant + "," +
-               query::id.package.name +
+               query::id.package.tenant + ","             +
+               query::id.package.name                     +
                order_by_version (query::id.package.version,
                                  false /* first */) + "," +
-               query::id.configuration + "," +
-               query::id.target + "," +
-               query::id.toolchain_name +
+               query::id.target + ","                     +
+               query::id.target_config_name + ","         +
+               query::id.package_config_name + ","        +
+               query::id.toolchain_name                   +
                order_by_version (query::id.toolchain_version,
-                                 false /* first */) +
+                                 false /* first */)       +
                "OFFSET" + query::_ref (offset) + "LIMIT 100");
 
       connection_ptr conn (db.connection ());
@@ -579,8 +580,9 @@ namespace brep
               //
               // Check that the build configuration is still present.
               //
-              (ci = conf_map.find (build_config_id {d.configuration,
-                                                    d.target})) ==
+              (ci = conf_map.find (
+                build_target_config_id {d.target,
+                                        d.target_config_name})) ==
               conf_map.end ());
 
             // Check that the package still present, is buildable and doesn't
@@ -594,9 +596,15 @@ namespace brep
                 p = db.find<build_package> (pid);
               }
 
-              cleanup = (p == nullptr  ||
+              const build_package_config* pc (p != nullptr
+                                              ? find (d.package_config_name,
+                                                      p->configs)
+                                              : nullptr);
+
+              cleanup = (pc == nullptr ||
                          !p->buildable ||
-                         exclude (p->builds,
+                         exclude (*pc,
+                                  p->builds,
                                   p->constraints,
                                   *ci->second,
                                   configs.class_inheritance_map));
@@ -642,7 +650,7 @@ namespace brep
         conn->prepare_query<buildable_package> ("buildable-package-query",
                                                 pq));
 
-      // Prepare the package build prepared query.
+      // Prepare the package configuration build prepared query.
       //
       // This query will only be used for toolchains that have no version
       // specified on the command line to obtain the latest completed build
@@ -658,12 +666,16 @@ namespace brep
       using prep_bquery = prepared_query<package_build>;
 
       build_id id;
+      string package_config_name;
 
       const auto& bid (bquery::build::id);
 
-      bquery bq ((equal<package_build> (bid.package, id.package)       &&
-                  bid.configuration == bquery::_ref (id.configuration) &&
-                  bid.target == bquery::_ref (id.target)               &&
+      bquery bq ((equal<package_build> (bid.package, id.package) &&
+                  bid.target == bquery::_ref (id.target)         &&
+                  bid.target_config_name ==
+                    bquery::_ref (id.target_config_name)         &&
+                  bid.package_config_name ==
+                    bquery::_ref (package_config_name)           &&
                   bid.toolchain_name == bquery::_ref (id.toolchain_name)) +
                  "ORDER BY"                                               +
                  bquery::build::soft_timestamp + "DESC, "                 +
@@ -806,175 +818,184 @@ namespace brep
           {
             shared_ptr<build_package> p (db.load<build_package> (bp.id));
 
-            for (const build_config& c: configs)
+            for (const build_package_config& pc: p->configs)
             {
-              if (exclude (p->builds,
-                           p->constraints,
-                           c,
-                           configs.class_inheritance_map))
-                continue;
-
-              for (const pair<string, version>& t: toolchains)
+              for (const build_target_config& tc: configs)
               {
-                id = build_id (p->id, c.name, c.target, t.first, t.second);
+                if (exclude (pc,
+                             p->builds,
+                             p->constraints,
+                             tc,
+                             configs.class_inheritance_map))
+                  continue;
 
-                // If the toolchain version is unspecified then search for the
-                // latest build across all toolchain versions and search for a
-                // specific build otherwise.
-                //
-                shared_ptr<build> b;
-
-                if (id.toolchain_version.empty ())
+                for (const pair<string, version>& t: toolchains)
                 {
-                  auto pbs (pbq.execute ());
+                  id = build_id (p->id,
+                                 tc.target, tc.name,
+                                 pc.name,
+                                 t.first, t.second);
 
-                  if (!pbs.empty ())
-                    b = move (pbs.begin ()->build);
-                }
-                else
-                  b = db.find<build> (id);
-
-                // Note that we consider a build as delayed if it is not
-                // completed in the expected timeframe. So even if the build
-                // task have been issued recently we may still consider the
-                // build as delayed.
-                //
-                timestamp bht (b != nullptr
-                               ? b->hard_timestamp
-                               : timestamp_nonexistent);
-
-                timestamp bst (b != nullptr
-                               ? b->soft_timestamp
-                               : timestamp_nonexistent);
-
-                // Create the delay object to record a timestamp when the
-                // package build could have potentially been started, unless
-                // it already exists.
-                //
-                shared_ptr<build_delay> d (db.find<build_delay> (id));
-
-                if (d == nullptr)
-                {
-                  // If the archived package has no build nor build delay
-                  // for this configuration, then we assume that the
-                  // configuration was added after the package tenant has
-                  // been archived and so the package could have never been
-                  // built for this configuration. Thus, we don't consider
-                  // this build as delayed and so skip it.
+                  // If the toolchain version is unspecified then search for
+                  // the latest build across all toolchain versions and search
+                  // for a specific build otherwise.
                   //
-                  if (bp.archived && b == nullptr)
-                    continue;
+                  shared_ptr<build> b;
 
-                  // Use the build hard, soft, or status change timestamp (see
-                  // the timestamps description for their ordering
-                  // information) as the build delay tracking starting point
-                  // and fallback to the current time if there is no build
-                  // yet.
-                  //
-                  timestamp pts (
-                    b == nullptr                 ? now :
-                    bht != timestamp_nonexistent ? bht :
-                    bst != timestamp_nonexistent ? bst :
-                                                   b->timestamp);
-
-                  d = make_shared<build_delay> (move (id.package.tenant),
-                                                move (id.package.name),
-                                                p->version,
-                                                move (id.configuration),
-                                                move (id.target),
-                                                move (id.toolchain_name),
-                                                t.second,
-                                                pts);
-                  db.persist (d);
-                }
-
-                // Handle package builds differently based on their tenant's
-                // archive status.
-                //
-                // If the package is not archived then consider it as delayed
-                // if it is not (re-)built by the expiration time. Otherwise,
-                // consider it as delayed if it is unbuilt.
-                //
-                // We also don't need to report an unbuilt archived package
-                // twice, as both soft and hard build delays.
-                //
-                bool hard_delayed;
-                bool soft_delayed;
-
-                if (!bp.archived)
-                {
-                  auto delayed = [&d] (timestamp bt, timestamp be)
+                  if (id.toolchain_version.empty ())
                   {
-                    timestamp t (bt != timestamp_nonexistent
-                                 ? bt
-                                 : d->package_timestamp);
-                    return t <= be;
-                  };
+                    package_config_name = pc.name;
 
-                  hard_delayed = delayed (bht, hard_rebuild_expiration);
-                  soft_delayed = delayed (bst, soft_rebuild_expiration);
-                }
-                else
-                {
-                  hard_delayed = (bst == timestamp_nonexistent);
-                  soft_delayed = false;
-                }
+                    auto pbs (pbq.execute ());
 
-                // Add hard/soft delays to the respective reports and collect
-                // the delay for update, if it is reported.
-                //
-                // Note that we update the delay objects persistent state
-                // later, after we successfully print the reports.
-                //
-                bool reported (false);
+                    if (!pbs.empty ())
+                      b = move (pbs.begin ()->build);
+                  }
+                  else
+                    b = db.find<build> (id);
 
-                if (hard_delayed)
-                {
-                  // If the report timeout is zero then report the delay
-                  // unconditionally. Otherwise, report the active package
-                  // build delay if the report timeout is expired and the
-                  // archived package build delay if it was never reported.
-                  // Note that fixing the building infrastructure won't help
-                  // building an archived package, so reporting its build
-                  // delays repeatedly is meaningless.
+                  // Note that we consider a build as delayed if it is not
+                  // completed in the expected timeframe. So even if the build
+                  // task have been issued recently we may still consider the
+                  // build as delayed.
                   //
-                  bool report (
-                    ops.report_timeout () == 0 ||
-                    (!bp.archived
-                     ? d->report_hard_timestamp <= report_expiration
-                     : d->report_hard_timestamp == timestamp_nonexistent));
+                  timestamp bht (b != nullptr
+                                 ? b->hard_timestamp
+                                 : timestamp_nonexistent);
 
-                  if (report)
+                  timestamp bst (b != nullptr
+                                 ? b->soft_timestamp
+                                 : timestamp_nonexistent);
+
+                  // Create the delay object to record a timestamp when the
+                  // package configuration build could have potentially been
+                  // started, unless it already exists.
+                  //
+                  shared_ptr<build_delay> d (db.find<build_delay> (id));
+
+                  if (d == nullptr)
                   {
-                    d->report_hard_timestamp = now;
-                    reported = true;
+                    // If the archived package has no build nor build delay
+                    // for this configuration, then we assume that the
+                    // configuration was added after the package tenant has
+                    // been archived and so the package could have never been
+                    // built for this configuration. Thus, we don't consider
+                    // this build as delayed and so skip it.
+                    //
+                    if (bp.archived && b == nullptr)
+                      continue;
+
+                    // Use the build hard, soft, or status change timestamp
+                    // (see the timestamps description for their ordering
+                    // information) as the build delay tracking starting point
+                    // and fallback to the current time if there is no build
+                    // yet.
+                    //
+                    timestamp pts (b == nullptr                 ? now :
+                                   bht != timestamp_nonexistent ? bht :
+                                   bst != timestamp_nonexistent ? bst :
+                                                                  b->timestamp);
+
+                    d = make_shared<build_delay> (move (id.package.tenant),
+                                                  move (id.package.name),
+                                                  p->version,
+                                                  move (id.target),
+                                                  move (id.target_config_name),
+                                                  move (id.package_config_name),
+                                                  move (id.toolchain_name),
+                                                  t.second,
+                                                  pts);
+                    db.persist (d);
                   }
 
-                  hard_delays_report.add_delay (d, report);
-                }
+                  // Handle package builds differently based on their tenant's
+                  // archive status.
+                  //
+                  // If the package is not archived then consider it as
+                  // delayed if it is not (re-)built by the expiration
+                  // time. Otherwise, consider it as delayed if it is unbuilt.
+                  //
+                  // We also don't need to report an unbuilt archived package
+                  // twice, as both soft and hard build delays.
+                  //
+                  bool hard_delayed;
+                  bool soft_delayed;
 
-                if (soft_delayed)
-                {
-                  bool report (ops.report_timeout () == 0 ||
-                               d->report_soft_timestamp <= report_expiration);
-
-                  if (report)
+                  if (!bp.archived)
                   {
-                    d->report_soft_timestamp = now;
-                    reported = true;
+                    auto delayed = [&d] (timestamp bt, timestamp be)
+                    {
+                      timestamp t (bt != timestamp_nonexistent
+                                   ? bt
+                                   : d->package_timestamp);
+                      return t <= be;
+                    };
+
+                    hard_delayed = delayed (bht, hard_rebuild_expiration);
+                    soft_delayed = delayed (bst, soft_rebuild_expiration);
+                  }
+                  else
+                  {
+                    hard_delayed = (bst == timestamp_nonexistent);
+                    soft_delayed = false;
                   }
 
-                  soft_delays_report.add_delay (d, report);
-                }
+                  // Add hard/soft delays to the respective reports and
+                  // collect the delay for update, if it is reported.
+                  //
+                  // Note that we update the delay objects persistent state
+                  // later, after we successfully print the reports.
+                  //
+                  bool reported (false);
 
-                // If we don't consider the report timestamps for reporting
-                // delays, it seems natural not to update these timestamps
-                // either. Note that reporting all delays and still updating
-                // the report timestamps can be achieved by specifying the
-                // zero report timeout.
-                //
-                if (reported && ops.report_timeout_specified ())
-                  update_delays.insert (move (d));
+                  if (hard_delayed)
+                  {
+                    // If the report timeout is zero then report the delay
+                    // unconditionally. Otherwise, report the active package
+                    // build delay if the report timeout is expired and the
+                    // archived package build delay if it was never reported.
+                    // Note that fixing the building infrastructure won't help
+                    // building an archived package, so reporting its build
+                    // delays repeatedly is meaningless.
+                    //
+                    bool report (
+                      ops.report_timeout () == 0 ||
+                      (!bp.archived
+                       ? d->report_hard_timestamp <= report_expiration
+                       : d->report_hard_timestamp == timestamp_nonexistent));
+
+                    if (report)
+                    {
+                      d->report_hard_timestamp = now;
+                      reported = true;
+                    }
+
+                    hard_delays_report.add_delay (d, report);
+                  }
+
+                  if (soft_delayed)
+                  {
+                    bool report (ops.report_timeout () == 0 ||
+                                 d->report_soft_timestamp <= report_expiration);
+
+                    if (report)
+                    {
+                      d->report_soft_timestamp = now;
+                      reported = true;
+                    }
+
+                    soft_delays_report.add_delay (d, report);
+                  }
+
+                  // If we don't consider the report timestamps for reporting
+                  // delays, it seems natural not to update these timestamps
+                  // either. Note that reporting all delays and still updating
+                  // the report timestamps can be achieved by specifying the
+                  // zero report timeout.
+                  //
+                  if (reported && ops.report_timeout_specified ())
+                    update_delays.insert (move (d));
+                }
               }
             }
           }
