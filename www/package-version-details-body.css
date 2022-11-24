@@ -309,6 +309,7 @@ h1, h2, h3
 }
 
 .build tr.toolchain td .value,
+.build tr.target td .value,
 .build tr.tgt-config td .value,
 .build tr.pkg-config td .value,
 .build tr.timestamp td .value,
