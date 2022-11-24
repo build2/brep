@@ -278,7 +278,7 @@ namespace brep
                   bld_query::id.package.tenant + ","      +
                   bld_query::id.package.name              +
                   order_by_version_desc (bld_query::id.package.version,
-                                         false)           +
+                                         false) + ","     +
                   bld_query::id.target + ","              +
                   bld_query::id.target_config_name + ","  +
                   bld_query::id.package_config_name + "," +
