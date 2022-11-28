@@ -359,7 +359,20 @@ being applied. Currently, only the following value groups can be overridden:
 \
 build-email build-{warning,error}-email
 builds build-{include,exclude}
+*-builds *-build-{include,exclude}
 \
+
+Note that the build constraints group values (both common and build package
+configuration-specific) are overridden hierarchically so that the
+\c{[\b{*-}]\b{build-}{\b{include},\b{exclude}\}} overrides don't affect the
+respective \c{[\b{*-}]\b{builds}} values.
+
+Note also that the common and build package configuration-specific build
+constraints group value overrides are mutually exclusive. If the common build
+constraints are overridden, then all the configuration-specific constraints
+are removed. Otherwise, if any configuration-specific constraints are
+overridden, then for the remaining configurations the build constraints are
+reset to \cb{builds:\ none}.
 
 See \l{bpkg#manifest-package Package Manifest} for details on these values.
 

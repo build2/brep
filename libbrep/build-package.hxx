@@ -25,7 +25,7 @@ namespace brep
   //
   // Foreign object that is mapped to a subset of the tenant object.
   //
-  #pragma db object table("build_tenant") pointer(shared_ptr) readonly
+  #pragma db object table("build_tenant") pointer(shared_ptr)
   class build_tenant
   {
   public:

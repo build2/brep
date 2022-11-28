@@ -368,7 +368,8 @@ load_packages (const shared_ptr<repository>& rp,
                const repository_location& cl,
                database& db,
                bool ignore_unknown,
-               const manifest_name_values& overrides)
+               const manifest_name_values& overrides,
+               const string& overrides_name)
 {
   // packages_timestamp other than timestamp_nonexistent signals the
   // repository packages are already loaded.
@@ -434,15 +435,17 @@ load_packages (const shared_ptr<repository>& rp,
     {
       if (rp->internal)
       {
+        if (!overrides.empty ())
         try
         {
-          pm.override (overrides, "" /* name */);
+          pm.override (overrides, overrides_name);
         }
-        catch (const manifest_parsing&)
+        catch (const manifest_parsing& e)
         {
-          // Overrides are already validated (see below).
-          //
-          assert (false);
+          cerr << "error: unable to override " << p << " manifest: " << e
+               << endl;
+
+          throw failed ();
         }
 
         // Create internal package object.
@@ -580,8 +583,7 @@ load_packages (const shared_ptr<repository>& rp,
           move (ts),
           move (pm.builds),
           move (pm.build_constraints),
-          build_package_configs (make_move_iterator (pm.build_configs.begin ()),
-                                 make_move_iterator (pm.build_configs.end ())),
+          move (pm.build_configs),
           move (pm.location),
           move (pm.fragment),
           move (pm.sha256sum),
@@ -979,7 +981,8 @@ load_repositories (const options& lo,
                    !pr->cache_location.empty () ? pr->cache_location : cl,
                    db,
                    ignore_unknown,
-                   manifest_name_values () /* overrides */);
+                   manifest_name_values () /* overrides */,
+                   "" /* overrides_name */);
 
     load_repositories (lo,
                        pr,
@@ -1453,6 +1456,10 @@ try
 
   // Parse and validate overrides, if specified.
   //
+  // Note that here we make sure that the overrides manifest is valid.
+  // Applying overrides to a specific package manifest may still fail (see
+  // package_manifest::validate_overrides() for details).
+  //
   manifest_name_values overrides;
 
   if (ops.overrides_file_specified ())
@@ -1579,7 +1586,8 @@ try
                      r->cache_location,
                      db,
                      ops.ignore_unknown (),
-                     overrides);
+                     overrides,
+                     ops.overrides_file ().string ());
     }
 
     // On the second pass over the internal repositories we load their

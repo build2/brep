@@ -182,7 +182,7 @@ handle (request& rq, response& rs)
                         dir_path () /* start */,
                         path_match_flags::match_absent))
           conf_machines.emplace (build_target_config_id {c.target, c.name},
-                                 config_machine  {&c, &m});
+                                 config_machine {&c, &m});
       }
       catch (const invalid_path&) {}
     }
@@ -603,9 +603,9 @@ handle (request& rq, response& rs)
     // configurations that have already been acted upon (initially empty).
     //
     // This is why we query the database for configurations that should not be
-    // built (in the built state, or in the building state and not
-    // expired). Having such a list we will select the first build
-    // configuration that is not in the list (if available) for the response.
+    // built (in the built state, or in the building state and not expired).
+    // Having such a list we will select the first build configuration that is
+    // not in the list (if available) for the response.
     //
     using bld_query = query<build>;
     using prep_bld_query = prepared_query<build>;
@@ -725,6 +725,139 @@ handle (request& rq, response& rs)
         id = move (bp.id);
 
         shared_ptr<build_package> p (build_db_->load<build_package> (id));
+
+        // Note that a request to interactively build a package in multiple
+        // configurations is most likely a mistake than a deliberate choice.
+        // Thus, for the interactive tenant let's check if the package can be
+        // built in multiple configurations. If that's the case then we will
+        // put all the potential builds into the aborted state and continue
+        // iterating looking for another package. Otherwise, just proceed for
+        // this package normally.
+        //
+        // It also feels like a good idea to archive an interactive tenant
+        // after a build object is created for it, regardless if the build
+        // task is issued or not. This way we make sure that an interactive
+        // build is never performed multiple times for such a tenant for any
+        // reason (multiple toolchains, buildtab change, etc). Note that the
+        // build result will still be accepted for an archived build.
+        //
+        shared_ptr<build_tenant> t (build_db_->load<build_tenant> (id.tenant));
+
+        if (t->interactive)
+        {
+          // Note that the tenant can be archived via some other package on
+          // some previous iteration. Skip the package if that's the case.
+          //
+          if (t->archived)
+            continue;
+
+          // Collect the potential build configurations as all combinations of
+          // the tenant's packages build configurations and the non-excluded
+          // (by the packages) build target configurations. Note that here we
+          // ignore the machines from the task request.
+          //
+          struct build_config
+          {
+            package_id                 pid;
+            string                     pc;
+            const build_target_config* tc;
+          };
+
+          small_vector<build_config, 1> build_configs;
+
+          // Note that we don't bother creating a prepared query here, since
+          // its highly unlikely to encounter multiple interactive tenants per
+          // task request. Given that we archive such tenants immediately, as
+          // a common case there will be none.
+          //
+          pkg_query pq (pkg_query::build_tenant::id == t->id);
+          for (auto& tp: build_db_->query<buildable_package> (pq))
+          {
+            shared_ptr<build_package> p (
+              build_db_->load<build_package> (tp.id));
+
+            for (build_package_config& pc: p->configs)
+            {
+              for (const auto& tc: *target_conf_)
+              {
+                if (!exclude (pc, p->builds, p->constraints, tc))
+                  build_configs.push_back (build_config {p->id, pc.name, &tc});
+              }
+            }
+          }
+
+          // If multiple build configurations are collected, then abort all
+          // the potential builds and continue iterating over the packages.
+          //
+          if (build_configs.size () > 1)
+          {
+            // Abort the builds.
+            //
+            for (build_config& c: build_configs)
+            {
+              const string& pc (c.pc);
+              const build_target_config& tc (*c.tc);
+
+              build_id bid (c.pid,
+                            tc.target,
+                            tc.name,
+                            pc,
+                            tqm.toolchain_name,
+                            toolchain_version);
+
+              // Can there be any existing builds for such a tenant? Doesn't
+              // seem so, unless due to some manual intervention into the
+              // database. Anyway, let's just leave such a build alone.
+              //
+              shared_ptr<build> b (build_db_->find<build> (bid));
+
+              if (b == nullptr)
+              {
+                b = make_shared<build> (
+                  move (bid.package.tenant),
+                  move (bid.package.name),
+                  bp.version,
+                  move (bid.target),
+                  move (bid.target_config_name),
+                  move (bid.package_config_name),
+                  move (bid.toolchain_name),
+                  toolchain_version,
+                  nullopt             /* interactive */,
+                  nullopt             /* agent_fp */,
+                  nullopt             /* agent_challenge */,
+                  "brep"              /* machine */,
+                  "build task module" /* machine_summary */,
+                  ""                  /* controller_checksum */,
+                  ""                  /* machine_checksum */);
+
+                b->state  = build_state::built;
+                b->status = result_status::abort;
+
+                b->soft_timestamp = b->timestamp;
+                b->hard_timestamp = b->soft_timestamp;
+
+                // Mark the section as loaded, so results are updated.
+                //
+                b->results_section.load ();
+
+                b->results.push_back (
+                  operation_result {
+                    "configure",
+                      result_status::abort,
+                      "error: multiple configurations for interactive build\n"});
+
+                build_db_->persist (b);
+              }
+            }
+
+            // Archive the tenant.
+            //
+            t->archived = true;
+            build_db_->update (t);
+
+            continue; // Skip the package.
+          }
+        }
 
         for (build_package_config& pc: p->configs)
         {
@@ -868,6 +1001,14 @@ handle (request& rq, response& rs)
                 b->timestamp = system_clock::now ();
 
                 build_db_->update (b);
+              }
+
+              // Archive an interactive tenant.
+              //
+              if (t->interactive)
+              {
+                t->archived = true;
+                build_db_->update (t);
               }
 
               // Finally, prepare the task response manifest.
