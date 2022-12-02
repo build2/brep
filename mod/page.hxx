@@ -474,14 +474,18 @@ namespace brep
   class TR_BUILD_RESULT
   {
   public:
-    TR_BUILD_RESULT (const build& b, const string& h, const dir_path& r):
-        build_ (b), host_ (h), root_ (r) {}
+    TR_BUILD_RESULT (const build& b,
+                     bool a,
+                     const string& h,
+                     const dir_path& r):
+        build_ (b), archived_ (a), host_ (h), root_ (r) {}
 
     void
     operator() (xml::serializer&) const;
 
   private:
     const build& build_;
+    bool archived_;
     const string& host_;
     const dir_path& root_;
   };

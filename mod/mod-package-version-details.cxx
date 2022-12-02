@@ -639,7 +639,7 @@ handle (request& rq, response& rs)
       if (b.interactive) // Note: can only be present for the building state.
         s <<   TR_VALUE ("login", *b.interactive);
 
-      s <<     TR_BUILD_RESULT (b, host, root)
+      s <<     TR_BUILD_RESULT (b, tn->archived, host, root)
         <<   ~TBODY
         << ~TABLE;
 

@@ -787,9 +787,11 @@ namespace brep
       }
     }
 
-    if (build_.force == (build_.state == build_state::building
-                         ? force_state::forcing
-                         : force_state::forced))
+    if (archived_)
+      s << SPAN(CLASS="archived") << "archived" << ~SPAN;
+    else if (build_.force == (build_.state == build_state::building
+                              ? force_state::forcing
+                              : force_state::forced))
       s << SPAN(CLASS="pending") << "pending" << ~SPAN;
     else
       s << A

@@ -388,6 +388,7 @@ namespace brep
   struct package_build
   {
     shared_ptr<brep::build> build;
+    bool archived; // True if the tenant the build belongs to is archived.
   };
 
   #pragma db view                                                      \

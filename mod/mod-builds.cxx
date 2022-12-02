@@ -538,7 +538,7 @@ handle (request& rq, response& rs)
     // printing the builds.
     //
     count = 0;
-    vector<shared_ptr<build>> builds;
+    vector<package_build> builds;
     builds.reserve (page_configs);
 
     // Prepare the package build prepared query.
@@ -644,9 +644,9 @@ handle (request& rq, response& rs)
               // we don't increment the counter in this case.
               //
               if (find_if (builds.begin (), builds.end (),
-                           [&b] (const shared_ptr<build>& pb)
+                           [&b] (const package_build& pb)
                            {
-                             return b->id == pb->id;
+                             return b->id == pb.build->id;
                            }) != builds.end ())
                 continue;
 
@@ -660,7 +660,7 @@ handle (request& rq, response& rs)
                   r.log.clear ();
               }
 
-              builds.push_back (move (b));
+              builds.push_back (move (pb));
 
               --print;
             }
@@ -686,9 +686,9 @@ handle (request& rq, response& rs)
     // Enclose the subsequent tables to be able to use nth-child CSS selector.
     //
     s << DIV;
-    for (const shared_ptr<build>& pb: builds)
+    for (const package_build& pb: builds)
     {
-      const build& b (*pb);
+      const build& b (*pb.build);
 
       string ts (butl::to_string (b.timestamp,
                                   "%Y-%m-%d %H:%M:%S %Z",
@@ -711,7 +711,7 @@ handle (request& rq, response& rs)
       if (b.interactive) // Note: can only be present for the building state.
         s <<   TR_VALUE ("login", *b.interactive);
 
-      s <<     TR_BUILD_RESULT (b, host, root);
+      s <<     TR_BUILD_RESULT (b, pb.archived, host, root);
 
       // In the global view mode add the tenant builds link. Note that the
       // global view (and the link) makes sense only in the multi-tenant mode.
