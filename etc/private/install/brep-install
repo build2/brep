@@ -303,7 +303,7 @@ CREATE EXTENSION postgres_fdw;
 
 CREATE SERVER package_server
 FOREIGN DATA WRAPPER postgres_fdw
-OPTIONS (dbname 'brep_package', updatable 'false');
+OPTIONS (dbname 'brep_package', updatable 'true');
 
 GRANT USAGE ON FOREIGN SERVER package_server to brep;
 
