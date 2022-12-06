@@ -360,7 +360,16 @@ being applied. Currently, only the following value groups can be overridden:
 build-email build-{warning,error}-email
 builds build-{include,exclude}
 *-builds *-build-{include,exclude}
+*-build-config
 \
+
+For the package configuration-specific build constraint overrides the
+corresponding configuration must exist in the package manifest. In contrast,
+the package configuration override (\cb{*-build-config}) adds a new
+configuration if it doesn't exist and updates the arguments of the existing
+configuration otherwise. In the former case, all the potential build
+constraint overrides for such a newly added configuration must follow the
+corresponding \cb{*-build-config} override.
 
 Note that the build constraints group values (both common and build package
 configuration-specific) are overridden hierarchically so that the
