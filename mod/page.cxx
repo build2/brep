@@ -747,10 +747,27 @@ namespace brep
       <<   TD
       <<     SPAN(CLASS="value");
 
+    // Print the ' | ' separator if this is not the first item and reset the
+    // `first` flag to false otherwise.
+    //
+    bool first (true);
+    auto separate = [&s, &first] ()
+    {
+      if (first)
+        first = false;
+      else
+        s << " | ";
+    };
+
     if (build_.state == build_state::building)
-      s << SPAN(CLASS="building") << "building" << ~SPAN << " | ";
+    {
+      separate ();
+
+      s << SPAN(CLASS="building") << "building" << ~SPAN;
+    }
     else
     {
+
       // If no unsuccessful operation results available, then print the
       // overall build status. If there are any operation results available,
       // then also print unsuccessful operation statuses with the links to the
@@ -761,7 +778,10 @@ namespace brep
       if (build_.results.empty () || *build_.status == result_status::success)
       {
         assert (build_.status);
-        s << SPAN_BUILD_RESULT_STATUS (*build_.status) << " | ";
+
+        separate ();
+
+        s << SPAN_BUILD_RESULT_STATUS (*build_.status);
       }
 
       if (!build_.results.empty ())
@@ -769,6 +789,9 @@ namespace brep
         for (const auto& r: build_.results)
         {
           if (r.status != result_status::success)
+          {
+            separate ();
+
             s << SPAN_BUILD_RESULT_STATUS (r.status) << " ("
               << A
               <<   HREF
@@ -776,28 +799,33 @@ namespace brep
               <<   ~HREF
               <<   r.operation
               << ~A
-              << ") | ";
+              << ")";
+          }
         }
+
+        separate ();
 
         s << A
           <<   HREF << build_log_url (host_, root_, build_) << ~HREF
           <<   "log"
-          << ~A
-          << " | ";
+          << ~A;
       }
     }
 
-    if (archived_)
-      s << SPAN(CLASS="archived") << "archived" << ~SPAN;
-    else if (build_.force == (build_.state == build_state::building
-                              ? force_state::forcing
-                              : force_state::forced))
-      s << SPAN(CLASS="pending") << "pending" << ~SPAN;
-    else
-      s << A
-        <<   HREF << build_force_url (host_, root_, build_) << ~HREF
-        <<   "rebuild"
-        << ~A;
+    if (!archived_)
+    {
+      separate ();
+
+      if (build_.force == (build_.state == build_state::building
+                           ? force_state::forcing
+                           : force_state::forced))
+        s << SPAN(CLASS="pending") << "pending" << ~SPAN;
+      else
+        s << A
+          <<   HREF << build_force_url (host_, root_, build_) << ~HREF
+          <<   "rebuild"
+          << ~A;
+    }
 
     s <<     ~SPAN
       <<   ~TD

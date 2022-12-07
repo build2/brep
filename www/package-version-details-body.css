@@ -321,7 +321,6 @@ h1, h2, h3
   font-size: 0.94em;
 }
 
-.build .archived {color: #6c6c6c;}
 .build .pending  {color: #d1943c;}
 .build .building {color: #d1943c;}
 .build .success  {color: #00bb00;}

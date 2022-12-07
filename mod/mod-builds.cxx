@@ -694,7 +694,12 @@ handle (request& rq, response& rs)
                                   "%Y-%m-%d %H:%M:%S %Z",
                                   true /* special */,
                                   true /* local */) +
-                 " (" + butl::to_string (now - b.timestamp, false) + " ago)");
+                 " (" + butl::to_string (now - b.timestamp, false) + " ago");
+
+      if (pb.archived)
+        ts += ", archived";
+
+      ts += ')';
 
       s << TABLE(CLASS="proplist build")
         <<   TBODY

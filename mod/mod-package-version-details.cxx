@@ -618,7 +618,12 @@ handle (request& rq, response& rs)
                                   "%Y-%m-%d %H:%M:%S %Z",
                                   true /* special */,
                                   true /* local */) +
-                 " (" + butl::to_string (now - b.timestamp, false) + " ago)");
+                 " (" + butl::to_string (now - b.timestamp, false) + " ago");
+
+      if (tn->archived)
+        ts += ", archived";
+
+      ts += ')';
 
       if (b.state == build_state::built)
         build_db_->load (b, b.results_section);
