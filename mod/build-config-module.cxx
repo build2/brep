@@ -71,7 +71,7 @@ namespace brep
 
     try
     {
-      for (const dir_entry& de: dir_iterator (d, false /* ignore_dangling */))
+      for (const dir_entry& de: dir_iterator (d, dir_iterator::no_follow))
       {
         if (de.path ().extension () == "pem" &&
             de.type () == entry_type::regular)
