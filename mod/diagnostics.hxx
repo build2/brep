@@ -109,7 +109,7 @@ namespace brep
         uncaught_ (r.uncaught_),
 #endif
         data_ (move (r.data_)),
-        os_ (move (r.os_)),
+        os_ (move (r.os_)),     // Note: can throw.
         epilogue_ (r.epilogue_)
     {
       r.data_.clear (); // Empty.
