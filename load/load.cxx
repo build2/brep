@@ -405,8 +405,8 @@ load_packages (const shared_ptr<repository>& rp,
           mp,
           move (nv),
           ignore_unknown,
-          false /* complete_depends */,
-          package_manifest_flags::forbid_incomplete_dependencies);
+          false /* complete_values */,
+          package_manifest_flags::forbid_incomplete_values);
     }
     else
       pms = pkg_package_manifests (mp, ignore_unknown);
