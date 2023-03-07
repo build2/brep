@@ -138,8 +138,7 @@ template <typename T>
 static inline query<T>
 build_query (const brep::vector<brep::build_target_config_id>* config_ids,
              const brep::params::builds& params,
-             const brep::optional<brep::string>& tenant,
-             const brep::optional<bool>& archived)
+             const brep::optional<brep::string>& tenant)
 {
   using namespace brep;
   using query = query<T>;
@@ -149,9 +148,6 @@ build_query (const brep::vector<brep::build_target_config_id>* config_ids,
   const auto& pid (qb::id.package);
 
   query q (tenant ? pid.tenant == *tenant : !qt::private_);
-
-  if (archived)
-    q = q && qt::archived == *archived;
 
   if (config_ids != nullptr)
   {
@@ -279,8 +275,7 @@ build_query (const brep::vector<brep::build_target_config_id>* config_ids,
 template <typename T>
 static inline query<T>
 package_query (const brep::params::builds& params,
-               const brep::optional<brep::string>& tenant,
-               const brep::optional<bool>& archived)
+               const brep::optional<brep::string>& tenant)
 {
   using namespace brep;
   using query = query<T>;
@@ -288,9 +283,6 @@ package_query (const brep::params::builds& params,
   using qt = typename query::build_tenant;
 
   query q (tenant ? qp::id.tenant == *tenant : !qt::private_);
-
-  if (archived)
-    q = q && qt::archived == *archived;
 
   // Note that there is no error reported if the filter parameters parsing
   // fails. Instead, it is considered that no packages match such a query.
@@ -546,8 +538,7 @@ handle (request& rq, response& rs)
     using query = query<package_build>;
     using prep_query = prepared_query<package_build>;
 
-    query q (build_query<package_build> (
-               &conf_ids, params, tn, nullopt /* archived */));
+    query q (build_query<package_build> (&conf_ids, params, tn));
 
     // Specify the portion. Note that we will be querying builds in chunks,
     // not to hold locks for too long.
@@ -835,8 +826,7 @@ handle (request& rq, response& rs)
         size_t npos (0);
 
         size_t ncur = build_db_->query_value<package_build_count> (
-          build_query<package_build_count> (
-            &conf_ids, bld_params, tn, false /* archived */));
+          build_query<package_build_count> (&conf_ids, bld_params, tn));
 
         // From now we will be using specific values for the below filters for
         // each build database query. Note that the toolchain is the only
@@ -878,8 +868,7 @@ handle (request& rq, response& rs)
           //
           build_query<package_build_count> (nullptr /* config_ids */,
                                             bld_params,
-                                            tn,
-                                            false /* archived */));
+                                            tn));
 
         prep_bld_query bld_prep_query (
           build_db_->prepare_query<package_build_count> (
@@ -894,7 +883,7 @@ handle (request& rq, response& rs)
         // be easy as the cached values depend on the filter form parameters.
         //
         query<buildable_package> q (
-          package_query<buildable_package> (params, tn, false /* archived */));
+          package_query<buildable_package> (params, tn));
 
         for (auto& bp: build_db_->query<buildable_package> (q))
         {
@@ -965,8 +954,7 @@ handle (request& rq, response& rs)
     using pkg_query = query<buildable_package>;
     using prep_pkg_query = prepared_query<buildable_package>;
 
-    pkg_query pq (
-      package_query<buildable_package> (params, tn, false /* archived */));
+    pkg_query pq (package_query<buildable_package> (params, tn));
 
     // Specify the portion. Note that we will still be querying packages in
     // chunks, not to hold locks for too long. For each package we will query
@@ -1004,8 +992,7 @@ handle (request& rq, response& rs)
                   // via the build package id, we still need to pass the
                   // tenant not to erroneously filter out the private tenants.
                   //
-                  build_query<package_build> (
-                    &conf_ids, bld_params, tn, false /* archived */));
+                  build_query<package_build> (&conf_ids, bld_params, tn));
 
     prep_bld_query bld_prep_query (
       conn->prepare_query<package_build> ("mod-builds-build-query", bq));

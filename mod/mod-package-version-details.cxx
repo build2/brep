@@ -547,13 +547,7 @@ handle (request& rq, response& rs)
     // Query toolchains seen for the package tenant to produce a list of the
     // unbuilt configuration/toolchain combinations.
     //
-    // Note that it only make sense to print those unbuilt configurations that
-    // may still be built. That's why we leave the toolchains list empty if
-    // the package tenant is achieved.
-    //
     vector<pair<string, version>> toolchains;
-
-    if (!tn->archived)
     {
       using query = query<toolchain>;
 
