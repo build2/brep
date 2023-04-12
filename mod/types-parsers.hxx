@@ -84,6 +84,13 @@ namespace brep
       static void
       parse (pair<std::regex, string>&, bool&, scanner&);
     };
+
+    template <>
+    struct parser<build_order>
+    {
+      static void
+      parse (build_order&, bool&, scanner&);
+    };
   }
 }
 

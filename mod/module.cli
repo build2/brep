@@ -105,14 +105,14 @@ namespace brep
       {
         "<user>",
         "Package database login user name. If not specified, then operating
-         system (login) name is used. See also \c{package-db-role}."
+         system (login) name is used. See also \cb{package-db-role}."
       }
 
       string package-db-role = "brep"
       {
         "<user>",
         "Package database execution user name. If not empty then the login
-         user will be switched (with \c{SET ROLE}) to this user prior to
+         user will be switched (with \cb{SET ROLE}) to this user prior to
          executing any statements. If not specified, then \cb{brep} is used."
       }
 
@@ -214,9 +214,9 @@ namespace brep
          \cb{build-alt-soft-rebuild-start} and
          \cb{build-alt-soft-rebuild-stop} options. Must be specified in
          seconds. Default is the time interval length plus
-         \c{(\b{build-soft-rebuild-timeout} - 24h)} if soft rebuild timeout is
-         greater than 24 hours (thus the rebuild is only triggered within the
-         last 24 hours of the \cb{build-soft-rebuild-timeout} expiration)."
+         \c{(\b{build-soft-rebuild-timeout} - 24h)} if soft rebuild timeout
+         is greater than 24 hours (thus the rebuild is only triggered within
+         the last 24 hours of the \cb{build-soft-rebuild-timeout} expiration)."
       }
 
       duration build-alt-soft-rebuild-start
@@ -286,14 +286,14 @@ namespace brep
       {
         "<user>",
         "Build database login user name. If not specified, then operating
-         system (login) name is used. See also \c{build-db-role}."
+         system (login) name is used. See also \cb{build-db-role}."
       }
 
       string build-db-role = "brep"
       {
         "<user>",
         "Build database execution user name. If not empty then the login
-         user will be switched (with \c{SET ROLE}) to this user prior to
+         user will be switched (with \cb{SET ROLE}) to this user prior to
          executing any statements. If not specified, then \cb{brep} is used."
       }
 
@@ -451,6 +451,15 @@ namespace brep
          for the transformation. If no expression matches, then the task
          request is considered invalid, unless no expressions are specified.
          Repeat this option to specify multiple expressions."
+      }
+
+      build_order build-package-order = build_order::stable
+      {
+        "<order>",
+        "Order in which packages are considered for build. The valid <order>
+         values are \cb{stable} and \cb{random}. If not specified, then
+         \cb{stable} is assumed. Note that interactive builds are always
+         preferred."
       }
     };
 
@@ -663,8 +672,8 @@ namespace brep
       {
         "<service>",
         "The default view to display for the global repository root. The
-         <service> argument is one of the supported services (\c{packages},
-         \c{builds}, \c{submit}, \c{ci}, etc). The default service is
+         <service> argument is one of the supported services (\cb{packages},
+         \cb{builds}, \cb{submit}, \cb{ci}, etc). The default service is
          packages."
       }
 
@@ -672,8 +681,8 @@ namespace brep
       {
         "<service>",
         "The default view to display for the tenant repository root. The
-         <service> argument is one of the supported services (\c{packages},
-         \c{builds}, \c{submit}, \c{ci}, etc). The default service is
+         <service> argument is one of the supported services (\cb{packages},
+         \cb{builds}, \cb{submit}, \cb{ci}, etc). The default service is
          packages."
       }
     };

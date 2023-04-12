@@ -217,5 +217,25 @@ namespace brep
         throw invalid_value (o, v, os.str ());
       }
     }
+
+    // Parse build_order.
+    //
+    void parser<build_order>::
+    parse (build_order& x, bool& xs, scanner& s)
+    {
+      xs = true;
+      const char* o (s.next ());
+
+      if (!s.more ())
+        throw missing_value (o);
+
+      const string v (s.next ());
+      if (v == "stable")
+        x = build_order::stable;
+      else if (v == "random")
+        x = build_order::random;
+      else
+        throw invalid_value (o, v);
+    }
   }
 }

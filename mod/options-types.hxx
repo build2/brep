@@ -25,6 +25,12 @@ namespace brep
     page_menu () = default;
     page_menu (string b, string l): label (move (b)), link (move (l)) {}
   };
+
+  enum class build_order
+  {
+    stable,
+    random
+  };
 }
 
 #endif // MOD_OPTIONS_TYPES_HXX

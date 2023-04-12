@@ -825,8 +825,8 @@ handle (request& rq, response& rs)
         //
         size_t npos (0);
 
-        size_t ncur = build_db_->query_value<package_build_count> (
-          build_query<package_build_count> (&conf_ids, bld_params, tn));
+        size_t ncur (build_db_->query_value<package_build_count> (
+          build_query<package_build_count> (&conf_ids, bld_params, tn)));
 
         // From now we will be using specific values for the below filters for
         // each build database query. Note that the toolchain is the only
