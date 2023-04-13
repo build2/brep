@@ -720,25 +720,19 @@ handle (request& rq, response& rs)
         b.hard_timestamp <= hard_rebuild_expiration;
       };
 
-      // Convert a build to the hard rebuild, resetting the agent checksum and
-      // dropping the previous build task result.
+      // Convert a build to the hard rebuild, resetting the agent checksum.
       //
       // Note that since the checksums are hierarchical, the agent checksum
       // reset will trigger resets of the "subordinate" checksums up to the
       // dependency checksum and so the package will be rebuilt.
       //
-      // Also note that there is no sense to keep the build task result since we
-      // don't accept the skip result for the hard rebuild task. We, however,
-      // keep the status intact (see below for the reasoning).
+      // Also note that we keep the previous build task result and status
+      // intact since we may still need to revert the build into the built
+      // state if the task execution is interrupted.
       //
       auto convert_to_hard = [] (const shared_ptr<build>& b)
       {
         b->agent_checksum = nullopt;
-
-        // Mark the section as loaded, so results are updated.
-        //
-        b->results_section.load ();
-        b->results.clear ();
       };
 
       // Return SHA256 checksum of the controller logic and the configuration
@@ -1051,8 +1045,9 @@ handle (request& rq, response& rs)
                   // Note that in both cases we keep the status intact to be
                   // able to compare it with the final one in the result
                   // request handling in order to decide if to send the
-                  // email. The same is true for the forced flag (in the sense
-                  // that we don't set the force state to unforced).
+                  // notification email or to revert it to the built state if
+                  // interrupted. The same is true for the forced flag (in
+                  // the sense that we don't set the force state to unforced).
                   //
                   assert (b->state == build_state::building);
 
@@ -1139,7 +1134,13 @@ handle (request& rq, response& rs)
           if (x->status != y->status)
             return x->status > y->status;     // Larger status goes first.
 
-          return x->timestamp < y->timestamp; // Older goes first.
+          // Older build completion goes first.
+          //
+          // Note that a completed build can have the state change timestamp
+          // (timestamp member) newer than the completion timestamp
+          // (soft_timestamp member) if the build was interrupted.
+          //
+          return x->soft_timestamp < y->soft_timestamp;
         };
 
         sort (rebuilds.begin (), rebuilds.end (), cmp);
