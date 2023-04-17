@@ -607,10 +607,122 @@ handle (request& rq, response& rs)
     // starting from the random offset and wrapping around when reaching the
     // end.
     //
+    // Note, however, that since there can be some packages which are already
+    // built for all configurations and are not archived yet, picking an
+    // unbuilt package this way may not work as desired. Think of the
+    // following case with 5 packages in 3 non-archived tenants:
+    //
+    // 0: A - unbuilt, tenant 1
+    // 1: B - built,   tenant 2
+    // 2: C - built,   tenant 2
+    // 3: D - built,   tenant 2
+    // 4: E - unbuilt, tenant 3
+    //
+    // If we just pick a random starting offset in the [0, 4] range, then we
+    // will build A package with probability 0.2 and E with probability 0.8.
+    //
+    // To fix that we will only try to build a package from a tenant that the
+    // random starting offset refers to. Failed that, we will randomly pick
+    // new starting offset and retry. To make sure we don't retry indefinitely
+    // when there are no more packages to build (and also for the sake of
+    // optimization; see below), we will track positions of packages which we
+    // (unsuccessfully) have already tried to build and skip them while
+    // generating the random starting offsets and while iterating over
+    // packages.
+    //
+    // Also note that since we iterate over packages in chunks, each queried
+    // in a separate transaction, the number of packages may potentially
+    // increase or decrease while iterating over them. Thus, to keep things
+    // consistent, we may need to update our tried positions tracking state
+    // accordingly (not to cycle, not to refer to an entry out of the list
+    // boundaries, etc). Generally, regardless whether the number of packages
+    // has changed or not, the offsets and position statuses may now refer to
+    // some different packages. The only sensible thing we can do in such
+    // cases (without trying to detect this situation and restart from
+    // scratch) is to serve the request and issue some build task, if
+    // possible.
+    //
+    bool random (options_->build_package_order () == build_order::random);
     size_t start_offset (0);
-    optional<size_t> package_count;
 
-    if (options_->build_package_order () == build_order::random)
+    // List of "tried to build" package statuses. True entries denote
+    // positions of packages which we have tried to build. Initially all
+    // entries are false.
+    //
+    vector<bool> tried_positions;
+
+    // Number of false entries in the above vector. Used merely as an
+    // optimization to bail out.
+    //
+    size_t untried_positions_count (0);
+
+    // Return a random position of a package that we have not yet tried to
+    // build, if present, and nullopt otherwise.
+    //
+    auto rand_position = [&tried_positions,
+                          &untried_positions_count] () -> optional<size_t>
+    {
+      assert (untried_positions_count <= tried_positions.size ());
+
+      if (untried_positions_count == 0)
+        return nullopt;
+
+      size_t r;
+      while (tried_positions[r = rand (0, tried_positions.size () - 1)]) ;
+      return r;
+    };
+
+    // Mark the package at specified position as tried to build. Assume that
+    // it is not yet been tried to build.
+    //
+    auto position_tried = [&tried_positions,
+                           &untried_positions_count] (size_t i)
+    {
+      assert (i < tried_positions.size () &&
+              !tried_positions[i]         &&
+              untried_positions_count != 0);
+
+      tried_positions[i] = true;
+      --untried_positions_count;
+    };
+
+    // Resize the tried positions list and update the untried positions
+    // counter accordingly if the package number has changed.
+    //
+    // For simplicity, assume that packages are added/removed to/from the end
+    // of the list. Note that misguessing in such a rare cases are possible
+    // but not harmful (see above for the reasoning).
+    //
+    auto resize_tried_positions = [&tried_positions, &untried_positions_count]
+                                  (size_t n)
+    {
+      if (n > tried_positions.size ())      // Packages added?
+      {
+        untried_positions_count += n - tried_positions.size ();
+        tried_positions.resize (n, false);
+      }
+      else if (n < tried_positions.size ()) // Packages removed?
+      {
+        for (size_t i (n); i != tried_positions.size (); ++i)
+        {
+          if (!tried_positions[i])
+          {
+            assert (untried_positions_count != 0);
+            --untried_positions_count;
+          }
+        }
+
+        tried_positions.resize (n);
+      }
+      else
+      {
+        // Not supposed to be called if the number of packages didn't change.
+        //
+        assert (false);
+      }
+    };
+
+    if (random)
     {
       using query = query<buildable_package_count>;
 
@@ -618,25 +730,45 @@ handle (request& rq, response& rs)
 
       transaction t (build_db_->begin ());
 
-      // If there are any non-archived interactive build tennants, then we
-      // need to start from one of packages they contain. Note that packages
-      // from the interactive build tenants appear first (see below for the
-      // package ordering details).
+      // If there are any non-archived interactive build tenants, then the
+      // chosen randomization approach doesn't really work since interactive
+      // tenants must be preferred over non-interactive ones, which is
+      // achieved by proper ordering of the package query result (see
+      // below). Thus, we just disable randomization if there are any
+      // interactive tenants.
       //
-      package_count =
+      // But shouldn't we randomize the order between packages in multiple
+      // interactive tenants? Given that such a tenant may only contain a
+      // single package and can only be built in a single configuration that
+      // is probably not important. However, we may assume that the
+      // randomization still happens naturally due to the random nature of the
+      // tenant id, which is used as a primary sorting criteria (see below).
+      //
+      size_t interactive_package_count (
         build_db_->query_value<buildable_package_count> (
-          q && query::build_tenant::interactive.is_not_null ());
+          q && query::build_tenant::interactive.is_not_null ()));
 
-      if (*package_count == 0)
-        package_count = build_db_->query_value<buildable_package_count> (q);
+      if (interactive_package_count == 0)
+      {
+        untried_positions_count =
+          build_db_->query_value<buildable_package_count> (q);
+      }
+      else
+        random = false;
 
       t.commit ();
 
-      if (*package_count != 0)
-        start_offset = rand (0, *package_count - 1);
+      if (untried_positions_count != 0)
+      {
+        tried_positions.resize (untried_positions_count, false);
+
+        optional<size_t> so (rand_position ());
+        assert (so); // Wouldn't be here otherwise.
+        start_offset = *so;
+      }
     }
 
-    if (!package_count || *package_count != 0)
+    if (!random || !tried_positions.empty ())
     {
       // Specify the portion.
       //
@@ -762,6 +894,10 @@ handle (request& rq, response& rs)
         return m.id;
       };
 
+      // Tenant that the start offset refers to.
+      //
+      optional<string> start_tenant;
+
       for (bool done (false); tsm.session.empty () && !done; )
       {
         transaction t (conn->begin ());
@@ -780,10 +916,24 @@ handle (request& rq, response& rs)
         //
         auto packages (pkg_prep_query.execute ());
 
+        size_t chunk_size (packages.size ());
+        size_t next_offset (offset + chunk_size);
+
+        // If we are in the random package ordering mode, then also check if
+        // the package number has changed and, if that's the case, resize the
+        // tried positions list accordingly.
+        //
+        if (random &&
+            (next_offset > tried_positions.size () ||
+             (next_offset < tried_positions.size () && chunk_size < limit)))
+        {
+          resize_tried_positions (next_offset);
+        }
+
         // Bail out if there is nothing left, unless we need to wrap around in
         // the random package ordering mode.
         //
-        if (packages.empty ())
+        if (chunk_size == 0)
         {
           t.commit ();
 
@@ -795,13 +945,58 @@ handle (request& rq, response& rs)
           continue;
         }
 
-        offset += packages.size ();
+        size_t position (offset); // Current package position.
+        offset = next_offset;
 
-        // Iterate over packages until we find one that needs building.
+        // Iterate over packages until we find one that needs building or have
+        // to bail out in the random package ordering mode for some reason (no
+        // more untried positions, need to restart, etc).
         //
         for (auto& bp: packages)
         {
           id = move (bp.id);
+
+          // If we are in the random package ordering mode, then cache the
+          // tenant the start offset refers to, if not cached yet, and check
+          // if we are still iterating over packages from this tenant
+          // otherwise. If the latter is not the case, then restart from a new
+          // random untried offset, if present, and bail out otherwise.
+          //
+          if (random)
+          {
+            if (!start_tenant)
+            {
+              start_tenant = id.tenant;
+            }
+            else if (*start_tenant != id.tenant)
+            {
+              if (optional<size_t> so = rand_position ())
+              {
+                start_offset = *so;
+                offset = start_offset;
+                start_tenant = nullopt;
+                limit = 50;
+                done = false;
+              }
+              else
+                done = true;
+
+              break;
+            }
+
+            size_t pos (position++);
+
+            // Should have been resized, if required.
+            //
+            assert (pos < tried_positions.size ());
+
+            // Skip the position if it has already been tried.
+            //
+            if (tried_positions[pos])
+              continue;
+
+            position_tried (pos);
+          }
 
           shared_ptr<build_package> p (build_db_->load<build_package> (id));
 
