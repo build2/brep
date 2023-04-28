@@ -3,12 +3,13 @@
 
 # Pre-created submission data directory that will be copied by subsequent
 # tests and scope setup commands. The common approach will be that group
-# scopes copy and modify the parent scope submission directory as required by
-# the nested tests and scopes. Tests will also clone the parent scope
-# submission data directory to optionally modify it, use and cleanup at the
-# end. Note that configuration can not be shared between multiple submission
-# handler processes. Also we need to make sure that submission data
-# directories are not cloned while being used by submission handler scripts.
+# scopes copy and modify the parent scope submission data directory as
+# required by the nested tests and scopes. Tests will also clone the parent
+# scope submission data directory to optionally modify it, use and cleanup at
+# the end. Note that submission data directory can not be shared between
+# multiple submission handler processes. Also we need to make sure that
+# submission data directories are not cloned while being used by submission
+# handler scripts.
 #
 data_dir = $regex.replace($path_search('*/request.manifest', $src_base), \
                           '(.*)/.*', \

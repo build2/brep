@@ -1,0 +1,34 @@
+# file      : tests/upload/data.testscript
+# license   : MIT; see accompanying LICENSE file
+
+# Pre-created upload data directory that will be copied by subsequent tests
+# and scope setup commands. The common approach will be that group scopes copy
+# and modify the parent scope upload data directory as required by the nested
+# tests and scopes. Tests will also clone the parent scope upload data
+# directory to optionally modify it, use and cleanup at the end. Note that
+# upload data directory can not be shared between multiple upload handler
+# processes. Also we need to make sure that upload data directories are not
+# cloned while being used by upload handler scripts.
+#
+data_dir = $regex.replace($path_search('*/request.manifest', $src_base), \
+                          '(.*)/.*', \
+                          '\1')
+
+request_id = "$data_dir"
+
+# Copy the original upload data directory to the root scope.
+#
++cp -r $src_base/$data_dir ./
+
+root_data_dir = $~/$data_dir
+
+# The most commonly used upload data directory cloning command that copies it
+# from the parent scope working directory.
+#
+clone_data       = [cmdline] cp --no-cleanup -r ../$data_dir ./
+clone_data_clean = [cmdline] cp --no-cleanup -r ../$data_dir ./ &$data_dir/***
+
+# Clones the original upload data directory.
+#
+clone_root_data       = [cmdline] cp --no-cleanup -r $root_data_dir ./
+clone_root_data_clean = [cmdline] cp --no-cleanup -r $root_data_dir ./ &$data_dir/***

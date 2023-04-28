@@ -12,7 +12,7 @@
 #
 # Specifically, the handler performs the following steps:
 #
-# - Lock the repository directory for the duraton of the package submission.
+# - Lock the repository directory for the duration of the package submission.
 #
 # - Check for the package duplicate.
 #

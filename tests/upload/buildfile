@@ -1,0 +1,13 @@
+# file      : tests/upload/buildfile
+# license   : MIT; see accompanying LICENSE file
+
+dir = ../../brep/handler/upload/
+
+include $dir
+
+commons = data
+
+./: testscript{* -{$commons}} common_testscript{$commons} {*/ -test/}{**} \
+    $dir/exe{brep-upload-bindist}
+
+testscript{upload-bindist}@./: test = $out_base/$dir/brep-upload-bindist

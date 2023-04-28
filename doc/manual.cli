@@ -121,7 +121,6 @@ reference: <abbrev-checksum>
 
 |
 
-
 \li|Send the submission email.
 
 If \c{submit-email} is configured, send an email to this address containing
@@ -393,6 +392,184 @@ optionally followed by additional values if returned by the handler program.
 If the CI request is successful, then the \c{reference} value must be present
 and contain a string that can be used to identify this request (for example,
 the CI request id).
+
+\
+status: <http-code>
+message: <string>
+[reference]: <string>
+\
+
+
+\h1#upload|Build Artifacts Upload|
+
+The build artifacts upload functionality allows uploading archives of files
+generated as a byproduct of the package builds. Such archives as well as
+additional, repository-specific information can optionally be uploaded by the
+automated build bots via the HTTP \c{POST} method using the
+\c{multipart/form-data} content type (see the \l{bbot \c{bbot} documentation}
+for details). The implementation in \c{brep} only handles uploading as well as
+basic actions and verification (build session resolution, agent
+authentication, checksum verification) expecting the rest of the upload logic
+to be handled by a separate entity according to the repository policy. Such an
+entity can be notified by \c{brep} about a new upload as an invocation of the
+\i{handler program} (as part of the HTTP request) and/or via email. It could
+also be a separate process that monitors the upload data directory.
+
+For each upload request \c{brep} performs the following steps.
+
+\ol|
+
+\li|Determine upload type.
+
+The upload type must be passed via the \c{upload} parameter in the query
+component of the request URL.|
+
+\li|Verify upload size limit.
+
+The upload form-data payload size must not exceed \c{upload-max-size} specific
+for this upload type.|
+
+\li|Verify the required \c{session}, \c{instance}, \c{archive}, and
+\c{sha256sum} parameters are present. If \c{brep} is configured to perform
+agent authentication, then verify that the \c{challenge} parameter is also
+present. See the \l{bbot#arch-result-req Result Request Manifest} for
+semantics of the \c{session} and \c{challenge} parameters.
+
+The \c{archive} parameter must be the build artifacts archive upload while
+\c{sha256sum} must be its 64 characters SHA256 checksum calculated in the
+binary mode.|
+
+\li|Verify other parameters are valid manifest name/value pairs.
+
+The value can only contain UTF-8 encoded Unicode graphic characters as well as
+tab (\c{\\t}), carriage return (\c{\\r}), and line feed (\c{\\n}).|
+
+\li|Resolve the session.
+
+Resolve the \c{session} parameter value to the actual package build
+information.|
+
+\li| Authenticate the build bot agent.
+
+Use the \c{challenge} parameter value and the resolved package build
+information to authenticate the agent, if configured to do so.|
+
+\li|Generate upload request id and create request directory.
+
+For each upload request a unique id (UUID) is generated and a request
+subdirectory is created in the \c{upload-data} directory with this id as its
+name.|
+
+\li|Save the upload archive into the request directory and verify its
+checksum.
+
+The archive is saved using the submitted name, and its checksum is calculated
+and compared to the submitted checksum.|
+
+\li|Save the upload request manifest into the request directory.
+
+The upload request manifest is saved as \c{request.manifest} into the request
+subdirectory next to the archive.|
+
+\li|Invoke the upload handler program.
+
+If \c{upload-handler} is configured, invoke the handler program passing to it
+additional arguments specified with \c{upload-handler-argument} (if any)
+followed by the absolute path to the upload request directory.
+
+The handler program is expected to write the upload result manifest to
+\c{stdout} and terminate with the zero exit status. A non-zero exit status is
+treated as an internal error. The handler program's \c{stderr} is logged.
+
+Note that the handler program should report temporary server errors (service
+overload, network connectivity loss, etc.) via the upload result manifest
+status values in the [500-599] range (HTTP server error) rather than via a
+non-zero exit status.
+
+The handler program assumes ownership of the upload request directory and can
+move/remove it. If after the handler program terminates the request directory
+still exists, then it is handled by \c{brep} depending on the handler process
+exit status and the upload result manifest status value. If the process has
+terminated abnormally or with a non-zero exit status or the result manifest
+status is in the [500-599] range (HTTP server error), then the directory is
+saved for troubleshooting by appending the \c{.fail} extension to its name.
+Otherwise, if the status is in the [400-499] range (HTTP client error), then
+the directory is removed. If the directory is left in place by the handler or
+is saved for troubleshooting, then the upload result manifest is saved as
+\c{result.manifest} into this directory, next to the request manifest.
+
+If \c{upload-handler-timeout} is configured and the handler program does not
+exit in the allotted time, then it is killed and its termination is treated as
+abnormal.
+
+If the handler program is not specified, then the following upload result
+manifest is implied:
+
+\
+status: 200
+message: <upload-type> upload is queued
+reference: <request-id>
+\
+
+|
+
+\li|Send the upload email.
+
+If \c{upload-email} is configured, send an email to this address containing
+the upload request manifest and the upload result manifest.|
+
+\li|Respond to the client.
+
+Respond to the client with the upload result manifest and its \c{status} value
+as the HTTP status code.|
+
+|
+
+Check violations (max size, etc) that are explicitly mentioned above are
+always reported with the upload result manifest. Other errors (for example,
+internal server errors) might be reported with unformatted text, including
+HTML.
+
+
+\h#upload-request-manifest|Upload Request Manifest|
+
+The upload request manifest starts with the below values and in that order
+optionally followed by additional values in the unspecified order
+corresponding to the custom request parameters.
+
+\
+id: <request-id>
+session: <session-id>
+instance: <name>
+archive: <name>
+sha256sum: <sum>
+timestamp: <date-time>
+
+name: <name>
+version: <version>
+project: <name>
+target-config: <name>
+package-config: <name>
+target: <target-triplet>
+[tenant]: <tenant-id>
+toolchain-name: <name>
+toolchain-version: <standard-version>
+repository-name: <canonical-name>
+machine-name: <name>
+machine-summary: <text>
+\
+
+The \c{timestamp} value is in the ISO-8601
+\c{<YYYY>-<MM>-<DD>T<hh>:<mm>:<ss>Z} form (always UTC).
+
+
+\h#upload-result-manifest|Upload Result Manifest|
+
+The upload result manifest starts with the below values and in that order
+optionally followed by additional values if returned by the handler program.
+If the upload request is successful, then the \c{reference} value must be
+present and contain a string that can be used to identify this request (for
+example, the upload request id).
 
 \
 status: <http-code>

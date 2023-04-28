@@ -343,6 +343,82 @@ namespace brep
       }
     };
 
+    class build_upload
+    {
+      std::map<string, dir_path> upload-data
+      {
+        "<type>=<dir>",
+        "The directory to save upload data to for the specified upload type.
+         If unspecified, the build artifacts upload functionality will be
+         disabled for this type. See \l{brep The \cb{build2} Repository
+         Interface Manual} for more information on build artifacts upload.
+
+         Note that the directory path must be absolute and the directory
+         itself must exist and have read, write, and execute permissions
+         granted to the user that runs the web server."
+      }
+
+      std::map<string, size_t> upload-max-size
+      {
+        "<type>=<bytes>",
+        "The maximum size of the upload data accepted for the specified upload
+         type. Note that currently the entire upload request is read into
+         memory. The default is 10M."
+      }
+
+      std::map<string, string> upload-email
+      {
+        "<type>=<email>",
+        "The build artifacts upload email. If specified, the upload request
+         and result manifests will be sent to this address. See \l{brep The
+         \cb{build2} Repository Interface Manual} for more information."
+      }
+
+      std::map<string, path> upload-handler
+      {
+        "<type>=<path>",
+        "The handler program to be executed on build artifacts upload of the
+         specified type. The handler is executed as part of the HTTP request
+         and is passed additional arguments that can be specified with
+         \cb{upload-handler-argument} followed by the absolute path to the
+         upload directory (\cb{upload-data}). See \l{brep The \cb{build2}
+         Repository Interface Manual} for more information. Note that the
+         program path must be absolute."
+      }
+
+      std::multimap<string, string> upload-handler-argument
+      {
+        "<type>=<arg>",
+        "Additional arguments to be passed to the upload handler program for
+         the specified upload type (see \cb{upload-handler} for details).
+         Repeat this option to specify multiple arguments."
+      }
+
+      std::map<string, size_t> upload-handler-timeout
+      {
+        "<type>=<seconds>",
+        "The upload handler program timeout in seconds for the specified
+         upload type. If specified and the handler does not exit in the
+         allotted time, then it is killed and its termination is treated as
+         abnormal."
+      }
+
+      std::multimap<string, string> upload-toolchain-exclude
+      {
+        "<type>=<name>",
+        "Disable upload of the specified type for the specified toolchain
+         name. Repeat this option to disable uploads for multiple toolchains."
+      }
+
+      std::multimap<string, string> upload-repository-exclude
+      {
+        "<type>=<name>",
+        "Disable upload of the specified type for packages from the repository
+         with the specified canonical name. Repeat this option to disable
+         uploads for multiple repositories."
+      }
+    };
+
     class page
     {
       web::xhtml::fragment logo
@@ -416,13 +492,36 @@ namespace brep
                                    page,
                                    handler
     {
+      dir_path bindist-root
+      {
+        "<dir>",
+        "The root directory where the uploaded binary distribution packages
+         are saved to under the following directory hierarchy:
+
+         \
+         [<tenant>/]<distribution>/<os-release>/<project>/<package>/<version>/<package-config>
+         \
+
+         The package configuration directory symlinks that match these paths
+         are mapped to web URLs based on the \cb{bindist-url} value and
+         displayed on the package version details page. If this option is
+         specified, then \cb{bindist-url} must be specified as well."
+      }
+
+      string bindist-url
+      {
+        "<url>",
+        "The root URL of the directory specified with the \cb{bindist-root}
+         option. This option must be specified if \cb{bindist-root} is
+         specified."
+      }
     };
 
     class repository_details: package_db, page, handler
     {
     };
 
-    class build_task: build, build_db, handler
+    class build_task: build, build_db, build_upload, handler
     {
       size_t build-task-request-max-size = 102400
       {
@@ -664,6 +763,10 @@ namespace brep
          handler does not exit in the allotted time, then it is killed and
          its termination is treated as abnormal."
       }
+    };
+
+    class upload: build, build_db, build_upload, handler
+    {
     };
 
     class repository_root: handler
@@ -929,6 +1032,46 @@ namespace brep
       // Submission simulation outcome.
       //
       string simulate;
+    };
+
+    // Parameters other than challenge must be all present.
+    //
+    // Note also that besides these parameters there can be others. We don't
+    // recognize their semantics and just save them to the upload request
+    // manifest.
+    //
+    class upload
+    {
+      // Upload type.
+      //
+      // Note that the upload parameter is renamed to '_' by the root handler
+      // (see the request_proxy class for details).
+      //
+      string type | _;
+
+      // Session id as returned by brep in the task response.
+      //
+      string session;
+
+      // Answer to the private key challenge as posed by brep in the task
+      // response. It must be present only if the challenge value was present
+      // in the task response.
+      //
+      string challenge;
+
+      // Upload instance name.
+      //
+      string instance;
+
+      // Package archive file name. Must be <input type="file"/>.
+      //
+      // Note that it can potentially be not just a name but a file path.
+      //
+      string archive;
+
+      // Package archive file SHA256 checksum.
+      //
+      string sha256sum;
     };
   }
 }

@@ -286,15 +286,14 @@ handle (request& rq, response& rs)
                       b->toolchain_version.string () + '/' +
                       to_string (ts));
 
-      string result_url (options_->host () +
-                         tenant_dir (options_->root (), b->tenant).string () +
-                         "?build-result");
+      string tenant (tenant_dir (options_->root (), b->tenant).string ());
+      string result_url (options_->host () + tenant + "?build-result");
 
       assert (transaction::has_current ());
 
       assert (p->internal ()); // The package is expected to be buildable.
 
-      lazy_shared_ptr<build_repository> r (p->internal_repository.load ());
+      shared_ptr<build_repository> r (p->internal_repository.load ());
 
       strings fps;
       if (r->certificate_fingerprint)
@@ -369,9 +368,43 @@ handle (request& rq, response& rs)
                           move (t->interactive),
                           move (b->worker_checksum));
 
+      // Collect the build artifacts upload URLs, skipping those which are
+      // excluded with the upload-*-exclude configuration options.
+      //
+      vector<upload_url> upload_urls;
+
+      for (const auto& ud: options_->upload_data ())
+      {
+        const string& t (ud.first);
+
+        auto exclude = [&t] (const multimap<string, string>& mm,
+                             const string& v)
+        {
+          auto range (mm.equal_range (t));
+
+          for (auto i (range.first); i != range.second; ++i)
+          {
+            if (i->second == v)
+              return true;
+          }
+
+          return false;
+        };
+
+        if (!exclude (options_->upload_toolchain_exclude (),
+                      b->toolchain_name) &&
+            !exclude (options_->upload_repository_exclude (),
+                      r->canonical_name))
+        {
+          upload_urls.emplace_back (options_->host () + tenant + "?upload=" + t,
+                                    t);
+        }
+      }
+
       return task_response_manifest (move (session),
                                      move (b->agent_challenge),
                                      move (result_url),
+                                     move (upload_urls),
                                      move (b->agent_checksum),
                                      move (task));
     };

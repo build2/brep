@@ -1,8 +1,8 @@
-// file      : mod/mod-build-result.hxx -*- C++ -*-
+// file      : mod/mod-upload.hxx -*- C++ -*-
 // license   : MIT; see accompanying LICENSE file
 
-#ifndef MOD_MOD_BUILD_RESULT_HXX
-#define MOD_MOD_BUILD_RESULT_HXX
+#ifndef MOD_MOD_UPLOAD_HXX
+#define MOD_MOD_UPLOAD_HXX
 
 #include <libbrep/types.hxx>
 #include <libbrep/utility.hxx>
@@ -12,30 +12,30 @@
 
 namespace brep
 {
-  class build_result: public build_result_module
+  class upload: public build_result_module
   {
   public:
-    build_result () = default;
+    upload () = default;
 
     // Create a shallow copy (handling instance) if initialized and a deep
     // copy (context exemplar) otherwise.
     //
     explicit
-    build_result (const build_result&);
+    upload (const upload&);
 
     virtual bool
     handle (request&, response&);
 
     virtual const cli::options&
-    cli_options () const {return options::build_result::description ();}
+    cli_options () const {return options::upload::description ();}
 
   private:
     virtual void
     init (cli::scanner&);
 
   private:
-    shared_ptr<options::build_result> options_;
+    shared_ptr<options::upload> options_;
   };
 }
 
-#endif // MOD_MOD_BUILD_RESULT_HXX
+#endif // MOD_MOD_UPLOAD_HXX

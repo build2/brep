@@ -1,0 +1,22 @@
+: 1
+id: 545f1f78-63ea-4acf-bcb8-37b2513a78c8
+session: 4d4c8b36-56c5-42e0-91d1-58bfd1228002/libhello/1.1.0+10/x86_64-linux-\
+gnu/linux_fedora_37-gcc_12.2-bindist/default/queue/0.3.0/1683122318585120886
+instance: archive
+archive: archive.tar
+sha256sum: 4fa79e4e11a03db321514800806a2b0a3a8eef9375dc22963f4e5a16764c0d5e
+timestamp: 2023-05-08T09:18:20Z
+name: libhello
+version: 1.1.0+10
+project: hello
+target-config: linux_fedora_37-gcc_12.2-bindist
+package-config: default
+target: x86_64-linux-gnu
+tenant: 4d4c8b36-56c5-42e0-91d1-58bfd1228002
+toolchain-name: queue
+toolchain-version: 0.3.0
+repository-name: git:build2.org/var/scm/hello/libhello#master@7f62790591b66bd\
+a248140013bdbd12bf078c2a2
+machine-name: linux_fedora_37-bindist-gcc_12.2
+machine-summary: Fedora Linux 37 with system-default GCC 12.2.1 and bpkg-pkg-\
+bindist prerequisites

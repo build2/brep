@@ -111,6 +111,8 @@ namespace brep
     package_id id;
     upstream_version version;
 
+    package_name project;
+
     // Mapped to the package object requirements and tests members using the
     // PostgreSQL foreign table mechanism.
     //

@@ -1,5 +1,5 @@
 [Unit]
-Description=brep build database cleaner service
+Description=brep build database and artifacts cleaner service
 
 [Service]
 Type=oneshot
@@ -7,9 +7,12 @@ Type=oneshot
 #Group=brep
 
 # Run both tenants and builds cleaners if CI request functionality is enabled.
+# Also run outdated build artifacts cleaners if build artifacts upload
+# functionality is enabled.
 #
 #ExecStart=/home/brep/install/bin/brep-clean tenants 240
 ExecStart=/home/brep/install/bin/brep-clean builds /home/brep/config/buildtab
+#ExecStart=/home/brep/install/bin/brep-upload-bindist-clean /var/bindist 2880
 
 [Install]
 WantedBy=default.target

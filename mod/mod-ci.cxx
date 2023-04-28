@@ -498,10 +498,6 @@ handle (request& rq, response& rs)
   // it's the 4XX (HTTP client error) status value, then we remove the
   // directory.
   //
-  // Note that leaving the directory in place in case of a submission error
-  // would have prevent the user from re-submitting until we research the
-  // issue and manually remove the directory.
-  //
   auto stash_submit_dir = [&dd, error] ()
   {
     if (dir_exists (dd))
@@ -520,7 +516,7 @@ handle (request& rq, response& rs)
 
   // Run the submission handler, if specified, reading the result manifest
   // from its stdout and caching it as a name/value pair list for later use
-  // (forwarding to the client, sending via email, etc.). Otherwise, create
+  // (forwarding to the client, sending via email, etc). Otherwise, create
   // implied result manifest.
   //
   status_code sc;
@@ -598,8 +594,10 @@ handle (request& rq, response& rs)
     // Remove the directory if the client error is detected.
     //
     if (sc >= 400 && sc < 500)
+    {
       rmdir_r (dd);
-
+    }
+    //
     // Otherwise, save the result manifest, into the directory. Also stash the
     // directory for troubleshooting in case of the server error.
     //

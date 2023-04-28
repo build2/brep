@@ -62,6 +62,7 @@ function compile ()
 --man-epilogue-file man-epilogue.1 \
 --link-regex '%bpkg(#.+)?%$1%' \
 --link-regex '%brep(#.+)?%$1%' \
+--link-regex '%bbot(#.+)?%$1%' \
 ../$n.cli
 }
 
@@ -100,6 +101,7 @@ cli -I .. \
 --link-regex '%b([-.].+)%../../build2/doc/b$1%' \
 --link-regex '%bpkg([-.].+)%../../bpkg/doc/bpkg$1%' \
 --link-regex '%bpkg(#.+)?%../../bpkg/doc/build2-package-manager-manual.xhtml$1%' \
+--link-regex '%bbot(#.+)?%../../bbot/doc/build2-build-bot-manual.xhtml$1%' \
 --output-prefix build2-repository-interface- \
 manual.cli
 

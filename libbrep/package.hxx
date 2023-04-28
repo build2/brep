@@ -494,7 +494,7 @@ namespace brep
     // Matches the package name if the project name is not specified in
     // the manifest.
     //
-    package_name project;
+    package_name project; // Note: foreign-mapped in build.
 
     priority_type priority;
     string summary;

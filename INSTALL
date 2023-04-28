@@ -99,7 +99,7 @@ $ bpkg create                                   \
 
 $ bpkg add https://pkg.cppget.org/1/alpha
 $ bpkg fetch
-$ bpkg build brep ?sys:libapr1 ?sys:libapreq2 ?sys:libpq
+$ bpkg build brep ?sys:libapr1/* ?sys:libapreq2/* ?sys:libpq/*
 $ bpkg install brep
 
 $ cd .. # Back to brep home.
@@ -218,7 +218,21 @@ $ cp install/share/brep/etc/brep-module.conf config/
 $ edit config/brep-module.conf # Adjust default values if required.
 
 To enable the build2 build bot controller functionality you will need to set
-the build-config option in brep-module.conf.
+the build-config option in brep-module.conf. To also enable the build
+artifacts upload functionality you will need to specify the upload-data
+directory for the desired upload types in brep-module.conf. For example, for
+generated binary distribution packages it can be as follows:
+
+upload-data bindist=/home/brep/bindist-data
+
+Note that this directory must exist and have read, write, and execute
+permissions granted to the www-data user. This, for example, can be achieved
+with the following commands:
+
+$ mkdir /home/brep/bindist-data
+$ setfacl -m g:www-data:rwx /home/brep/bindist-data
+
+For sample upload handler implementations see brep/handler/upload/.
 
 To enable the package submission functionality you will need to specify the
 submit-data and submit-temp directories in brep-module.conf. Note that these
@@ -330,8 +344,12 @@ user/group. Otherwise, a cron job is a natural choice.
 
 Note that the builds cleaner execution is optional and is only required if the
 build2 build bot functionality is enabled (see the build bot documentation for
-details). If it is disabled in you setup, then skip the cleaner-related
-parts in the subsequent subsections.
+details). If it is disabled in you setup, then skip the cleaner-related parts
+in the subsequent subsections.
+
+If the build artifacts upload functionality is enabled in addition to the
+build2 build bot functionality you most likely will want to additionally setup
+the cleanup of the outdated build artifacts.
 
 If the CI request functionality is enabled you most likely will want to
 additionally setup the tenants cleanup.
@@ -346,8 +364,9 @@ infrastructure.
 8.a Setup Periodic Loader, Cleaner, and Monitor Execution with cron
 
 The following crontab entries will execute the loader every five minutes, the
-tenants and builds cleaners once a day at midnight, and the monitor every hour
-(all shifted by a few minutes in order not to clash with other jobs):
+tenants, builds, and binary distribution cleaners once a day at midnight, and
+the monitor every hour (all shifted by a few minutes in order not to clash
+with other jobs):
 
 $ crontab -l
 MAILTO=<brep-admin-email>
@@ -355,7 +374,8 @@ PATH=/usr/local/bin:/bin:/usr/bin
 */5 * * * * $HOME/install/bin/brep-load $HOME/config/loadtab
 1 0 * * * $HOME/install/bin/brep-clean tenants 240
 2 0 * * * $HOME/install/bin/brep-clean builds $HOME/config/buildtab
-3 * * * * $HOME/install/bin/brep-monitor --report-timeout 86400 --clean $HOME/config/brep-module.conf public
+3 0 * * * $HOME/install/bin/brep-upload-bindist-clean /var/bindist 2880
+4 * * * * $HOME/install/bin/brep-monitor --report-timeout 86400 --clean $HOME/config/brep-module.conf public
 ^D
 
 Note that here we assume that bpkg (which is executed by brep-load) is in one

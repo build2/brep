@@ -1,0 +1,40 @@
+# file      : brep/handler/upload/upload.bash.in
+# license   : MIT; see accompanying LICENSE file
+
+# Utility functions useful for implementing upload handlers.
+
+if [ "$brep_handler_upload" ]; then
+  return 0
+else
+  brep_handler_upload=true
+fi
+
+@import brep/handler/handler@
+
+# Serialize the upload result manifest to stdout and exit the (sub-)shell with
+# the zero status.
+#
+reference= # Should be assigned later by the handler, when becomes available.
+
+function exit_with_manifest () # <status> <message>
+{
+  trace_func "$@"
+
+  local sts="$1"
+  local msg="$2"
+
+  manifest_serializer_start
+
+  manifest_serialize ""        "1"    # Start of manifest.
+  manifest_serialize "status"  "$sts"
+  manifest_serialize "message" "$msg"
+
+  if [ -n "$reference" ]; then
+    manifest_serialize "reference" "$reference"
+  elif [ "$sts" == "200" ]; then
+    error "no reference for code $sts"
+  fi
+
+  manifest_serializer_finish
+  run exit 0
+}

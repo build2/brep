@@ -1,0 +1,212 @@
+#!/usr/bin/env bash
+
+# file      : brep/handler/upload/upload-bindist-clean.in
+# license   : MIT; see accompanying LICENSE file
+
+# Remove expired package configuration directories created by the
+# upload-bindist handler.
+#
+# Specifically, perform the following steps:
+#
+# - Recursively scan the specified root directory and collect the package
+#   configuration directories with age older than the specified timeout (in
+#   minutes). Recognize the package configuration directories by matching the
+#   *-????-??-??T??:??:??Z* pattern and calculate their age based on the
+#   modification time of the packages.sha256 file they may contain. If
+#   packages.sha256 doesn't exist in the configuration directory, then
+#   consider it as still being prepared and skip.
+#
+# - Iterate over the expired package configuration directories and for each of
+#   them:
+#
+#   - Lock the root directory.
+#
+#   - Re-check the expiration criteria.
+#
+#   - Remove the package configuration symlink if it refers to this directory.
+#
+#   - Remove this directory.
+#
+#   - Remove all the the parent directories of this directory which become
+#     empty, up to (but excluding) the root directory.
+#
+#   - Unlock the root directory.
+#
+usage="usage: $0 <root> <timeout>"
+
+# Diagnostics.
+#
+verbose= #true
+
+# The root directory lock timeout (in seconds).
+#
+lock_timeout=60
+
+trap "{ exit 1; }" ERR
+set -o errtrace     # Trap in functions and subshells.
+set -o pipefail     # Fail if any pipeline command fails.
+shopt -s lastpipe   # Execute last pipeline command in the current shell.
+shopt -s nullglob   # Expand no-match globs to nothing rather than themselves.
+
+function info () { echo "$*" 1>&2; }
+function error () { info "$*"; exit 1; }
+function trace () { if [ "$verbose" ]; then info "$*"; fi }
+
+# Trace a command line, quoting empty arguments as well as those that contain
+# spaces.
+#
+function trace_cmd () # <cmd> <arg>...
+{
+  if [[ "$verbose" ]]; then
+    local s="+"
+    while [ $# -gt 0 ]; do
+      if [ -z "$1" -o -z "${1##* *}" ]; then
+        s="$s '$1'"
+      else
+        s="$s $1"
+      fi
+
+      shift
+    done
+
+    info "$s"
+  fi
+}
+
+# Trace and run a command.
+#
+function run () # <cmd> <arg>...
+{
+  trace_cmd "$@"
+  "$@"
+}
+
+if [[ "$#" -ne 2 ]]; then
+  error "$usage"
+fi
+
+# Package configurations root directory.
+#
+root_dir="${1%/}"
+shift
+
+if [[ -z "$root_dir" ]]; then
+  error "$usage"
+fi
+
+if [[ ! -d "$root_dir" ]]; then
+  error "'$root_dir' does not exist or is not a directory"
+fi
+
+# Package configuration directories timeout.
+#
+timeout="$1"
+shift
+
+if [[ ! "$timeout" =~ ^[0-9]+$ ]]; then
+  error "$usage"
+fi
+
+# Note that while the '%s' date format is not POSIX, it is supported on both
+# Linux and FreeBSD.
+#
+expiration=$(($(date -u +"%s") - $timeout * 60))
+
+# Collect the list of expired package configuration directories.
+#
+expired_dirs=()
+
+run find "$root_dir" -type d -name "*-????-??-??T??:??:??Z*" | while read d; do
+  f="$d/packages.sha256"
+
+  # Note that while the -r date option is not POSIX, it is supported on both
+  # Linux and FreeBSD.
+  #
+  trace_cmd date -u -r "$f" +"%s"
+  if t="$(date -u -r "$f" +"%s" 2>/dev/null)" && (($t <= $expiration)); then
+    expired_dirs+=("$d")
+  fi
+done
+
+if [[ "${#expired_dirs[@]}" -eq 0 ]]; then
+  exit 0 # Nothing to do.
+fi
+
+# Make sure the root directory lock file exists.
+#
+lock="$root_dir/upload.lock"
+run touch "$lock"
+
+# Remove the expired package configuration directories, symlinks which refer
+# to them, and the parent directories which become empty.
+#
+for d in "${expired_dirs[@]}"; do
+  # Deduce the path of the potential package configuration symlink that may
+  # refer to this package configuration directory by stripping the
+  # -<timestamp>[-<number>] suffix.
+  #
+  l="$(sed -n -re 's/^(.+)-[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z(-[0-9]+)?$/\1/p' <<<"$d")"
+  if [[ -z "$l" ]]; then
+    error "invalid name '$d' for package configuration directory"
+  fi
+
+  f="$d/packages.sha256"
+
+  # Open the reading file descriptor and lock the root directory. Fail if
+  # unable to lock before timeout.
+  #
+  trace "+ exec {lfd}<$lock"
+  exec {lfd}<"$lock"
+
+  if ! run flock -w "$lock_timeout" "$lfd"; then
+    error "unable to lock root directory"
+  fi
+
+  # Now, as the lock is acquired, recheck the package configuration directory
+  # expiration criteria (see above) and, if it still holds, remove this
+  # directory, the package configuration symlink if it refers to it, and all
+  # the parent directories which become empty up to (but excluding) the root
+  # directory.
+  #
+  trace_cmd date -u -r "$f" +"%s"
+  if t="$(date -u -r "$f" +"%s" 2>/dev/null)" && (($t <= $expiration)); then
+    # Remove the package configuration symlink.
+    #
+    # Do this first to avoid dangling symlinks which may potentially be
+    # exposed by brep.
+    #
+    # Note that while the realpath utility is not POSIX, it is present on
+    # both Linux and FreeBSD.
+    #
+    if [[ -L "$l" ]]; then
+      p="$(realpath "$l")"
+      if [[ "$p" == "$d" ]]; then
+        run rm "$l"
+      fi
+    fi
+
+    # Remove the package configuration directory.
+    #
+    run rm -r "$d"
+
+    # Remove the empty parent directories.
+    #
+    # Note that we iterate until the rmdir command fails, presumably because a
+    # directory is not empty.
+    #
+    d="$(dirname "$d")"
+    while [[ "$d" != "$root_dir" ]]; do
+      trace_cmd rmdir "$d"
+      if rmdir "$d" 2>/dev/null; then
+        d="$(dirname "$d")"
+      else
+        break
+      fi
+    done
+  fi
+
+  # Close the file descriptor and unlock the root directory.
+  #
+  trace "+ exec {lfd}<&-"
+  exec {lfd}<&-
+done

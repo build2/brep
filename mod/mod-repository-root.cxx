@@ -16,6 +16,7 @@
 
 #include <mod/mod-ci.hxx>
 #include <mod/mod-submit.hxx>
+#include <mod/mod-upload.hxx>
 #include <mod/mod-builds.hxx>
 #include <mod/mod-packages.hxx>
 #include <mod/mod-build-log.hxx>
@@ -118,7 +119,8 @@ namespace brep
         builds_ (make_shared<builds> ()),
         build_configs_ (make_shared<build_configs> ()),
         submit_ (make_shared<submit> ()),
-        ci_ (make_shared<ci> ())
+        ci_ (make_shared<ci> ()),
+        upload_ (make_shared<upload> ())
   {
   }
 
@@ -178,6 +180,10 @@ namespace brep
           r.initialized_
           ? r.ci_
           : make_shared<ci> (*r.ci_)),
+        upload_ (
+          r.initialized_
+          ? r.upload_
+          : make_shared<upload> (*r.upload_)),
         options_ (
           r.initialized_
           ? r.options_
@@ -204,6 +210,7 @@ namespace brep
     append (r, build_configs_->options ());
     append (r, submit_->options ());
     append (r, ci_->options ());
+    append (r, upload_->options ());
     return r;
   }
 
@@ -249,6 +256,7 @@ namespace brep
     sub_init (*build_configs_, "build_configs");
     sub_init (*submit_, "submit");
     sub_init (*ci_, "ci");
+    sub_init (*upload_, "upload");
 
     // Parse own configuration options.
     //
@@ -443,6 +451,13 @@ namespace brep
             handler_.reset (new ci (*ci_));
 
           return handle ("ci", param);
+        }
+        else if (func == "upload")
+        {
+          if (handler_ == nullptr)
+            handler_.reset (new upload (*upload_));
+
+          return handle ("upload", param);
         }
         else
           return nullopt;

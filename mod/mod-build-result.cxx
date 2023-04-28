@@ -6,7 +6,6 @@
 #include <odb/database.hxx>
 #include <odb/transaction.hxx>
 
-#include <libbutl/openssl.hxx>
 #include <libbutl/sendmail.hxx>
 #include <libbutl/fdstream.hxx>
 #include <libbutl/process-io.hxx>
@@ -38,10 +37,8 @@ using namespace odb::core;
 //
 brep::build_result::
 build_result (const build_result& r)
-    : database_module (r),
-      build_config_module (r),
-      options_ (r.initialized_ ? r.options_  : nullptr),
-      use_openssl_pkeyutl_ (r.initialized_ ? r.use_openssl_pkeyutl_ : false)
+    : build_result_module (r),
+      options_ (r.initialized_ ? r.options_  : nullptr)
 {
 }
 
@@ -53,34 +50,12 @@ init (scanner& s)
   options_ = make_shared<options::build_result> (
     s, unknown_mode::fail, unknown_mode::fail);
 
-  database_module::init (static_cast<const options::package_db&> (*options_),
-                         options_->package_db_retry ());
-
   if (options_->build_config_specified ())
   {
-    database_module::init (static_cast<const options::build_db&> (*options_),
-                           options_->build_db_retry ());
+    build_result_module::init (*options_, *options_);
 
-    build_config_module::init (*options_);
-  }
-
-  try
-  {
-    optional<openssl_info> oi (
-      openssl::info ([&trace, this] (const char* args[], size_t n)
-                     {
-                       l2 ([&]{trace << process_args {args, n};});
-                     },
-                     2,
-                     options_->openssl ()));
-
-    use_openssl_pkeyutl_ = oi                    &&
-                           oi->name == "OpenSSL" &&
-                           oi->version >= semantic_version {3, 0, 0};
-  }
-  catch (const system_error& e)
-  {
-    fail << "unable to obtain openssl version: " << e;
+    database_module::init (static_cast<const options::package_db&> (*options_),
+                           options_->package_db_retry ());
   }
 
   if (options_->root ().empty ())
@@ -129,149 +104,23 @@ handle (request& rq, response&)
     throw invalid_request (400, e.what ());
   }
 
-  // Parse the task response session to obtain the build id and the timestamp,
-  // and to make sure the session matches tenant and the result manifest's
-  // package name, and version.
+  // Parse the task response session and make sure the session matches tenant
+  // and the result manifest's package name, and version.
   //
-  build_id id;
-  timestamp session_timestamp;
+  parse_session_result session;
+  const build_id& id (session.id);
 
   try
   {
-    const string& s (rqm.session);
-
-    size_t p (s.find ('/')); // End of tenant.
-
-    if (p == string::npos)
-      throw invalid_argument ("no package name");
-
-    if (tenant.compare (0, tenant.size (), s, 0, p) != 0)
-      throw invalid_argument ("tenant mismatch");
-
-    size_t b (p + 1);    // Start of package name.
-    p = s.find ('/', b); // End of package name.
-
-    if (p == b)
-      throw invalid_argument ("empty package name");
-
-    if (p == string::npos)
-      throw invalid_argument ("no package version");
-
-    package_name& name (rqm.result.name);
-    {
-      const string& n (name.string ());
-      if (n.compare (0, n.size (), s, b, p - b) != 0)
-        throw invalid_argument ("package name mismatch");
-    }
-
-    b = p + 1;           // Start of version.
-    p = s.find ('/', b); // End of version.
-
-    if (p == string::npos)
-      throw invalid_argument ("no configuration name");
-
-    auto parse_version = [&s, &b, &p] (const char* what) -> version
-    {
-      // Intercept exception handling to add the parsing error attribution.
-      //
-      try
-      {
-        return brep::version (string (s, b, p - b));
-      }
-      catch (const invalid_argument& e)
-      {
-        throw invalid_argument (string ("invalid ") + what + ": " + e.what ());
-      }
-    };
-
-    version package_version (parse_version ("package version"));
-
-    if (package_version != rqm.result.version)
-      throw invalid_argument ("package version mismatch");
-
-    b = p + 1;           // Start of target.
-    p = s.find ('/', b); // End of target.
-
-    if (p == string::npos)
-      throw invalid_argument ("no target configuration name");
-
-    target_triplet target;
-    try
-    {
-      target = target_triplet (string (s, b, p - b));
-    }
-    catch (const invalid_argument& e)
-    {
-      throw invalid_argument (string ("invalid target: ") + e.what ());
-    }
-
-    b = p + 1;           // Start of target configuration name.
-    p = s.find ('/', b); // End of target configuration name.
-
-    if (p == string::npos)
-      throw invalid_argument ("no package configuration name");
-
-    string target_config (s, b, p - b);
-
-    if (target_config.empty ())
-      throw invalid_argument ("empty target configuration name");
-
-    b = p + 1;           // Start of package configuration name.
-    p = s.find ('/', b); // End of package configuration name.
-
-    if (p == string::npos)
-      throw invalid_argument ("no toolchain name");
-
-    string package_config (s, b, p - b);
-
-    if (package_config.empty ())
-      throw invalid_argument ("empty package configuration name");
-
-    b = p + 1;           // Start of toolchain name.
-    p = s.find ('/', b); // End of toolchain name.
-
-    if (p == string::npos)
-      throw invalid_argument ("no toolchain version");
-
-    string toolchain_name (s, b, p - b);
-
-    if (toolchain_name.empty ())
-      throw invalid_argument ("empty toolchain name");
-
-    b = p + 1;           // Start of toolchain version.
-    p = s.find ('/', b); // End of toolchain version.
-
-    if (p == string::npos)
-      throw invalid_argument ("no timestamp");
-
-    version toolchain_version (parse_version ("toolchain version"));
-
-    id = build_id (package_id (move (tenant), move (name), package_version),
-                   move (target),
-                   move (target_config),
-                   move (package_config),
-                   move (toolchain_name),
-                   toolchain_version);
-
-    try
-    {
-      size_t tsn;
-      string ts (s, p + 1);
-
-      session_timestamp = timestamp (
-        chrono::duration_cast<timestamp::duration> (
-          chrono::nanoseconds (stoull (ts, &tsn))));
-
-      if (tsn != ts.size ())
-        throw invalid_argument ("trailing junk");
-    }
-    // Handle invalid_argument or out_of_range (both derive from logic_error),
-    // that can be thrown by stoull().
+    // Note: also verifies that the tenant matches the session.
     //
-    catch (const logic_error& e)
-    {
-      throw invalid_argument (string ("invalid timestamp: ") + e.what ());
-    }
+    session = parse_session (rqm.session);
+
+    if (rqm.result.name != id.package.name)
+      throw invalid_argument ("package name mismatch");
+
+    if (rqm.result.version != session.package_version)
+      throw invalid_argument ("package version mismatch");
   }
   catch (const invalid_argument& e)
   {
@@ -341,6 +190,12 @@ handle (request& rq, response&)
   bool build_notify (false);
   bool unforced (true);
 
+  // Note that if the session authentication fails (probably due to the
+  // authentication settings change), then we log this case with the warning
+  // severity and respond with the 200 HTTP code as if the challenge is
+  // valid. The thinking is that we shouldn't alarm a law-abaiding agent and
+  // shouldn't provide any information to a malicious one.
+  //
   {
     transaction t (build_db_->begin ());
 
@@ -348,194 +203,33 @@ handle (request& rq, response&)
     shared_ptr<build> b;
     if (!build_db_->query_one<package_build> (
           query<package_build>::build::id == id, pb))
-      warn_expired ("no package build");
-    else if ((b = move (pb.build))->state != build_state::building)
-      warn_expired ("package configuration state is " + to_string (b->state));
-    else if (b->timestamp != session_timestamp)
-      warn_expired ("non-matching timestamp");
-    else
     {
-      // Check the challenge.
+      warn_expired ("no package build");
+    }
+    else if ((b = move (pb.build))->state != build_state::building)
+    {
+      warn_expired ("package configuration state is " + to_string (b->state));
+    }
+    else if (b->timestamp != session.timestamp)
+    {
+      warn_expired ("non-matching timestamp");
+    }
+    else if (authenticate_session (*options_, rqm.challenge, *b, rqm.session))
+    {
+      // If the build is interrupted, then revert it to the original built
+      // state if this is a rebuild and delete it from the database otherwise.
       //
-      // If the challenge doesn't match expectations (probably due to the
-      // authentication settings change), then we log this case with the
-      // warning severity and respond with the 200 HTTP code as if the
-      // challenge is valid. The thinking is that we shouldn't alarm a
-      // law-abaiding agent and shouldn't provide any information to a
-      // malicious one.
-      //
-      auto warn_auth = [&rqm, &warn] (const string& d)
+      if (rqm.result.status == result_status::interrupt)
       {
-        warn << "session '" << rqm.session << "' authentication failed: " << d;
-      };
-
-      bool auth (false);
-
-      // Must both be present or absent.
-      //
-      if (!b->agent_challenge != !rqm.challenge)
-        warn_auth (rqm.challenge
-                   ? "unexpected challenge"
-                   : "challenge is expected");
-      else if (bot_agent_key_map_ == nullptr) // Authentication is disabled.
-        auth = true;
-      else if (!b->agent_challenge) // Authentication is recently enabled.
-        warn_auth ("challenge is required now");
-      else
-      {
-        assert (b->agent_fingerprint && rqm.challenge);
-        auto i (bot_agent_key_map_->find (*b->agent_fingerprint));
-
-        // The agent's key is recently replaced.
-        //
-        if (i == bot_agent_key_map_->end ())
-          warn_auth ("agent's public key not found");
-        else
+        if (b->status) // Is this a rebuild?
         {
-          try
-          {
-            openssl os (print_args,
-                        path ("-"), fdstream_mode::text, 2,
-                        process_env (options_->openssl (),
-                                     options_->openssl_envvar ()),
-                        use_openssl_pkeyutl_ ? "pkeyutl" : "rsautl",
-                        options_->openssl_option (),
-                        use_openssl_pkeyutl_ ? "-verifyrecover" : "-verify",
-                        "-pubin",
-                        "-inkey",
-                        i->second);
+          b->state = build_state::built;
 
-            for (const auto& c: *rqm.challenge)
-              os.out.put (c); // Sets badbit on failure.
-
-            os.out.close ();
-
-            string s;
-            getline (os.in, s);
-
-            bool v (os.in.eof ());
-            os.in.close ();
-
-            if (os.wait () && v)
-            {
-              auth = s == *b->agent_challenge;
-
-              if (!auth)
-                warn_auth ("challenge mismatched");
-            }
-            else // The signature is presumably meaningless.
-              warn_auth ("unable to verify challenge");
-          }
-          catch (const system_error& e)
-          {
-            fail << "unable to verify challenge: " << e;
-          }
-        }
-      }
-
-      if (auth)
-      {
-        // If the build is interrupted, then revert it to the original built
-        // state if this is a rebuild and delete it from the database
-        // otherwise.
-        //
-        if (rqm.result.status == result_status::interrupt)
-        {
-          if (b->status) // Is this a rebuild?
-          {
-            b->state = build_state::built;
-
-            // Keep the force rebuild indication. Note that the forcing state
-            // is only valid for the building state.
-            //
-            if (b->force == force_state::forcing)
-              b->force = force_state::forced;
-
-            // Cleanup the interactive build login information.
-            //
-            b->interactive = nullopt;
-
-            // Cleanup the authentication data.
-            //
-            b->agent_fingerprint = nullopt;
-            b->agent_challenge = nullopt;
-
-            // Note that we are unable to restore the pre-rebuild timestamp
-            // since it has been overwritten when the build task was issued.
-            // That, however, feels ok and we just keep it unchanged.
-
-            build_db_->update (b);
-          }
-          else
-            build_db_->erase (b);
-        }
-        else
-        {
-          // Verify the result status/checksums.
+          // Keep the force rebuild indication. Note that the forcing state is
+          // only valid for the building state.
           //
-          // Specifically, if the result status is skip, then it can only be
-          // in response to the soft rebuild task (all checksums are present
-          // in the build object) and the result checksums must match the
-          // build object checksums. On verification failure respond with the
-          // bad request HTTP code (400).
-          //
-          if (rqm.result.status == result_status::skip)
-          {
-            if (!b->agent_checksum  ||
-                !b->worker_checksum ||
-                !b->dependency_checksum)
-              throw invalid_request (400, "unexpected skip result status");
-
-            // Can only be absent for initial build, in which case the
-            // checksums are also absent and we would end up with the above
-            // 400 response.
-            //
-            assert (b->status);
-
-            // Verify that the result checksum matches the build checksum and
-            // throw invalid_request(400) if that's not the case.
-            //
-            auto verify = [] (const string& build_checksum,
-                              const optional<string>& result_checksum,
-                              const char* what)
-            {
-              if (!result_checksum)
-                throw invalid_request (
-                  400,
-                  string (what) +
-                  " checksum is expected for skip result status");
-
-              if (*result_checksum != build_checksum)
-                throw invalid_request (
-                  400,
-                  string (what) + " checksum '" + build_checksum  +
-                  "' is expected instead of '" + *result_checksum +
-                  "' for skip result status");
-            };
-
-            verify (*b->agent_checksum, rqm.agent_checksum, "agent");
-
-            verify (*b->worker_checksum,
-                    rqm.result.worker_checksum,
-                    "worker");
-
-            verify (*b->dependency_checksum,
-                    rqm.result.dependency_checksum,
-                    "dependency");
-          }
-
-          unforced = b->force == force_state::unforced;
-
-          // Don't send email to the build-email address for the
-          // success-to-success status change, unless the build was forced.
-          //
-          build_notify = !(rqm.result.status == result_status::success &&
-                           b->status                                   &&
-                           *b->status == rqm.result.status             &&
-                           unforced);
-
-          b->state  = build_state::built;
-          b->force  = force_state::unforced;
+          if (b->force == force_state::forcing)
+            b->force = force_state::forced;
 
           // Cleanup the interactive build login information.
           //
@@ -546,53 +240,137 @@ handle (request& rq, response&)
           b->agent_fingerprint = nullopt;
           b->agent_challenge = nullopt;
 
-          b->timestamp = system_clock::now ();
-          b->soft_timestamp = b->timestamp;
-
-          // If the result status is other than skip, then save the status,
-          // results, and checksums and update the hard timestamp.
-          //
-          if (rqm.result.status != result_status::skip)
-          {
-            b->status = rqm.result.status;
-            b->hard_timestamp = b->soft_timestamp;
-
-            // Mark the section as loaded, so results are updated.
-            //
-            b->results_section.load ();
-            b->results = move (rqm.result.results);
-
-            // Save the checksums.
-            //
-            b->agent_checksum      = move (rqm.agent_checksum);
-            b->worker_checksum     = move (rqm.result.worker_checksum);
-            b->dependency_checksum = move (rqm.result.dependency_checksum);
-          }
+          // Note that we are unable to restore the pre-rebuild timestamp
+          // since it has been overwritten when the build task was issued.
+          // That, however, feels ok and we just keep it unchanged.
 
           build_db_->update (b);
+        }
+        else
+          build_db_->erase (b);
+      }
+      else
+      {
+        // Verify the result status/checksums.
+        //
+        // Specifically, if the result status is skip, then it can only be in
+        // response to the soft rebuild task (all checksums are present in the
+        // build object) and the result checksums must match the build object
+        // checksums. On verification failure respond with the bad request
+        // HTTP code (400).
+        //
+        if (rqm.result.status == result_status::skip)
+        {
+          if (!b->agent_checksum  ||
+              !b->worker_checksum ||
+              !b->dependency_checksum)
+            throw invalid_request (400, "unexpected skip result status");
 
-          // Don't send the build notification email if the task result is
-          // `skip`, the configuration is hidden, or is now excluded by the
-          // package.
+          // Can only be absent for initial build, in which case the
+          // checksums are also absent and we would end up with the above
+          // 400 response.
           //
-          if (rqm.result.status != result_status::skip && belongs (*tc, "all"))
-          {
-            shared_ptr<build_package> p (
-              build_db_->load<build_package> (b->id.package));
+          assert (b->status);
 
-            // The package configuration should be present (see mod-builds.cxx
-            // for details) but if it is not, let's log the warning.
-            //
-            if (const build_package_config* pc = find (b->package_config_name,
-                                                       p->configs))
-            {
-              if (!exclude (*pc, p->builds, p->constraints, *tc))
-                bld = move (b);
-            }
-            else
-              warn << "cannot find configuration '" << b->package_config_name
-                   << "' for package " << p->id.name << '/' << p->version;
+          // Verify that the result checksum matches the build checksum and
+          // throw invalid_request(400) if that's not the case.
+          //
+          auto verify = [] (const string& build_checksum,
+                            const optional<string>& result_checksum,
+                            const char* what)
+          {
+            if (!result_checksum)
+              throw invalid_request (
+                400,
+                string (what) + " checksum is expected for skip result status");
+
+            if (*result_checksum != build_checksum)
+              throw invalid_request (
+                400,
+                string (what) + " checksum '" + build_checksum  +
+                "' is expected instead of '" + *result_checksum +
+                "' for skip result status");
+          };
+
+          verify (*b->agent_checksum, rqm.agent_checksum, "agent");
+
+          verify (*b->worker_checksum,
+                  rqm.result.worker_checksum,
+                  "worker");
+
+          verify (*b->dependency_checksum,
+                  rqm.result.dependency_checksum,
+                  "dependency");
+        }
+
+        unforced = b->force == force_state::unforced;
+
+        // Don't send email to the build-email address for the
+        // success-to-success status change, unless the build was forced.
+        //
+        build_notify = !(rqm.result.status == result_status::success &&
+                         b->status                                   &&
+                         *b->status == rqm.result.status             &&
+                         unforced);
+
+        b->state  = build_state::built;
+        b->force  = force_state::unforced;
+
+        // Cleanup the interactive build login information.
+        //
+        b->interactive = nullopt;
+
+        // Cleanup the authentication data.
+        //
+        b->agent_fingerprint = nullopt;
+        b->agent_challenge = nullopt;
+
+        b->timestamp = system_clock::now ();
+        b->soft_timestamp = b->timestamp;
+
+        // If the result status is other than skip, then save the status,
+        // results, and checksums and update the hard timestamp.
+        //
+        if (rqm.result.status != result_status::skip)
+        {
+          b->status = rqm.result.status;
+          b->hard_timestamp = b->soft_timestamp;
+
+          // Mark the section as loaded, so results are updated.
+          //
+          b->results_section.load ();
+          b->results = move (rqm.result.results);
+
+          // Save the checksums.
+          //
+          b->agent_checksum      = move (rqm.agent_checksum);
+          b->worker_checksum     = move (rqm.result.worker_checksum);
+          b->dependency_checksum = move (rqm.result.dependency_checksum);
+        }
+
+        build_db_->update (b);
+
+        // Don't send the build notification email if the task result is
+        // `skip`, the configuration is hidden, or is now excluded by the
+        // package.
+        //
+        if (rqm.result.status != result_status::skip && belongs (*tc, "all"))
+        {
+          shared_ptr<build_package> p (
+            build_db_->load<build_package> (b->id.package));
+
+          // The package configuration should be present (see mod-builds.cxx
+          // for details) but if it is not, let's log the warning.
+          //
+          if (const build_package_config* pc = find (b->package_config_name,
+                                                     p->configs))
+          {
+            if (!exclude (*pc, p->builds, p->constraints, *tc))
+              bld = move (b);
           }
+          else
+            warn << "cannot find configuration '" << b->package_config_name
+                 << "' for package " << p->id.name << '/' << p->version;
         }
       }
     }

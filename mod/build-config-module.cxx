@@ -108,7 +108,7 @@ namespace brep
     catch (const system_error& e)
     {
       ostringstream os;
-      os<< "unable to iterate over agents keys directory '" << d << "'";
+      os << "unable to iterate over agents keys directory '" << d << "'";
       throw_generic_error (e.code ().value (), os.str ().c_str ());
     }
 

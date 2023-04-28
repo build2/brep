@@ -163,7 +163,7 @@ handle (request& rq, response& rs)
   if (!options_->submit_data_specified ())
     return respond_manifest (404, "submission disabled");
 
-  // Parse the request form data and verifying the submission size limit.
+  // Parse the request form data and verify the submission size limit.
   //
   // Note that if it is exceeded, then there are parameters and this is the
   // submission rather than the form request, and so we respond with the
@@ -292,8 +292,8 @@ handle (request& rq, response& rs)
     // However, using the abbreviated checksum can be helpful for
     // troubleshooting.
     //
-    td = dir_path (options_->submit_temp () /
-                   dir_path (path::traits_type::temp_name (ref)));
+    td = options_->submit_temp () /
+         dir_path (path::traits_type::temp_name (ref));
 
     // It's highly unlikely but still possible that the temporary directory
     // already exists. This can only happen due to the unclean web server
@@ -553,7 +553,7 @@ handle (request& rq, response& rs)
 
   // Run the submission handler, if specified, reading the result manifest
   // from its stdout and caching it as a name/value pair list for later use
-  // (forwarding to the client, sending via email, etc.). Otherwise, create
+  // (forwarding to the client, sending via email, etc). Otherwise, create
   // implied result manifest.
   //
   status_code sc;

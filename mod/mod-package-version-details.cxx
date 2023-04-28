@@ -9,6 +9,8 @@
 #include <odb/database.hxx>
 #include <odb/transaction.hxx>
 
+#include <libbutl/filesystem.hxx> // dir_iterator, dir_entry
+
 #include <web/server/module.hxx>
 #include <web/server/mime-url-encoding.hxx>
 
@@ -46,6 +48,12 @@ init (scanner& s)
 
   options_ = make_shared<options::package_version_details> (
     s, unknown_mode::fail, unknown_mode::fail);
+
+  // Verify that the bindist-url option is specified when necessary.
+  //
+  if (options_->bindist_root_specified () &&
+      !options_->bindist_url_specified ())
+    fail << "bindist-url must be specified if bindist-root is specified";
 
   database_module::init (static_cast<const options::package_db&> (*options_),
                          options_->package_db_retry ());
@@ -187,8 +195,8 @@ handle (request& rq, response& rs)
     const string what (title + " description");
 
     s << (full
-          ? DIV_TEXT (*d, *
-                      pkg->description_type,
+          ? DIV_TEXT (*d,
+                      *pkg->description_type,
                       true /* strip_title */,
                       id,
                       what,
@@ -525,6 +533,168 @@ handle (request& rq, response& rs)
   shared_ptr<brep::tenant> tn (package_db_->load<brep::tenant> (tenant));
 
   t.commit ();
+
+  // Display the binary distribution packages for this tenant, package, and
+  // version, if present. Print the archive distributions last.
+  //
+  if (options_->bindist_root_specified ())
+  {
+    // Collect all the available package configurations by iterating over the
+    // <distribution> and <os-release> subdirectories and the <package-config>
+    // symlinks in the following filesystem hierarchy:
+    //
+    // [<tenant>/]<distribution>/<os-release>/<project>/<package>/<version>/<package-config>
+    //
+    // Note that it is possible that new directories and symlinks are created
+    // and/or removed while we iterate over the filesystem entries in the
+    // above hierarchy, which may result with system_error exceptions. If that
+    // happens, we just ignore such exceptions, trying to collect what we can.
+    //
+    const dir_path& br (options_->bindist_root ());
+
+    dir_path d (br);
+
+    if (!tenant.empty ())
+      d /= tenant;
+
+    // Note that distribution and os_release are simple paths and the
+    // config_symlink and config_dir are relative to the bindist root
+    // directory.
+    //
+    struct bindist_config
+    {
+      dir_path distribution; // debian, fedora, archive
+      dir_path os_release;   // fedora37, windows10
+      path     symlink;      // .../default, .../release
+      dir_path directory;    // .../default-2023-05-11T10:13:43Z
+
+      bool
+      operator< (const bindist_config& v)
+      {
+        if (int r = distribution.compare (v.distribution))
+          return   distribution.string () == "archive" ? false :
+                 v.distribution.string () == "archive" ? true  :
+                 r < 0;
+
+        if (int r = os_release.compare (v.os_release))
+          return r < 0;
+
+        return symlink < v.symlink;
+      }
+    };
+
+    vector<bindist_config> configs;
+
+    if (dir_exists (d))
+    try
+    {
+      for (const dir_entry& de: dir_iterator (d, dir_iterator::ignore_dangling))
+      {
+        if (de.type () != entry_type::directory)
+          continue;
+
+        // Distribution directory.
+        //
+        dir_path dd (path_cast<dir_path> (de.path ()));
+
+        try
+        {
+          dir_path fdd (d / dd);
+
+          for (const dir_entry& re:
+                 dir_iterator (fdd, dir_iterator::ignore_dangling))
+          {
+            if (re.type () != entry_type::directory)
+              continue;
+
+            // OS release directory.
+            //
+            dir_path rd (path_cast<dir_path> (re.path ()));
+
+            // Package version directory.
+            //
+            dir_path vd (fdd                               /
+                         rd                                /
+                         dir_path (pkg->project.string ()) /
+                         dir_path (pn.string ()) /
+                         dir_path (sver));
+
+            try
+            {
+              for (const dir_entry& ce:
+                     dir_iterator (vd, dir_iterator::ignore_dangling))
+              {
+                if (ce.ltype () != entry_type::symlink)
+                  continue;
+
+                // Skip symlinks which have extensions. Note that upload
+                // handlers may add an extension to a newly created symlink to
+                // atomically replace an old symlink with the new one.
+                //
+                const path& cl (ce.path ());
+                if (cl.extension_cstring () != nullptr)
+                  continue;
+
+                try
+                {
+                  path fcl (vd / cl);
+                  dir_path cd (path_cast<dir_path> (followsymlink (fcl)));
+
+                  if (cd.sub (br))
+                    configs.push_back (
+                      bindist_config {dd, rd, fcl.leaf (br), cd.leaf (br)});
+                }
+                catch (const system_error&) {}
+              }
+            }
+            catch (const system_error&) {}
+          }
+        }
+        catch (const system_error&) {}
+      }
+    }
+    catch (const system_error&) {}
+
+    // Sort and print collected package configurations, if any.
+    //
+    if (!configs.empty ())
+    {
+      sort (configs.begin (), configs.end ());
+
+      s << H3 << "Binaries" << ~H3
+        << TABLE(ID="binaries")
+        <<   TBODY;
+
+      for (const bindist_config& c: configs)
+      {
+        s << TR(CLASS="binaries")
+          <<   TD << SPAN(CLASS="value") << c.distribution << ~SPAN << ~TD
+          <<   TD << SPAN(CLASS="value") << c.os_release << ~SPAN << ~TD
+          <<   TD
+          <<     SPAN(CLASS="value")
+          <<       A
+          <<         HREF
+          <<           options_->bindist_url () << '/' << c.symlink
+          <<         ~HREF
+          <<         c.symlink.leaf ()
+          <<       ~A
+          <<       " ("
+          <<       A
+          <<         HREF
+          <<           options_->bindist_url () << '/' << c.directory
+          <<         ~HREF
+          <<         "snapshot"
+          <<       ~A
+          <<       ")"
+          <<     ~SPAN
+          <<   ~TD
+          << ~TR;
+      }
+
+      s <<   ~TBODY
+        << ~TABLE;
+    }
+  }
 
   if (builds)
   {

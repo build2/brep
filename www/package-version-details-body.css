@@ -289,6 +289,54 @@ h1, h2, h3
 }
 
 /*
+ * Binaries.
+ */
+#binaries
+{
+  width: calc(100% + .8rem);
+  margin-left: -.4rem;
+  border: none;
+  border-spacing: 0 0;
+
+  margin-top: .4em;
+  margin-bottom: 1em;
+  border-collapse: collapse;
+}
+
+#binaries tr:nth-child(even) td {background-color: rgba(0, 0, 0, 0.07);}
+
+#binaries td
+{
+  padding: .08em .4rem;
+}
+
+#binaries td:last-child {width: 100%;}
+
+#binaries td .value
+{
+  display: inline-block;
+  white-space: nowrap;
+
+  /* <code> style. */
+  font-family: monospace;
+  font-size: 0.94em;
+}
+
+/* Re-styling for full page variant. */
+
+.full #binaries td
+{
+  vertical-align: top;
+}
+
+.full #binaries td .value
+{
+  margin-right: 1em;
+
+  white-space: normal;
+}
+
+/*
  * Builds.
  */
 #builds {margin-bottom: 1em;}

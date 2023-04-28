@@ -60,6 +60,7 @@ CREATE FOREIGN TABLE build_package (
   version_revision INTEGER NOT NULL,
   version_upstream TEXT NOT NULL,
   version_release TEXT NULL,
+  project CITEXT NOT NULL,
   internal_repository_tenant TEXT NULL,
   internal_repository_canonical_name TEXT NULL,
   buildable BOOLEAN NOT NULL)

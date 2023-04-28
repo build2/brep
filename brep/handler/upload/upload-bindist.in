@@ -1,0 +1,531 @@
+#!/usr/bin/env bash
+
+# file      : brep/handler/upload/upload-bindist.in
+# license   : MIT; see accompanying LICENSE file
+
+# Binary distribution packages upload handler which places the uploaded
+# packages under the following filesystem hierarchy:
+#
+# <root>/[<tenant>/]<instance>/<os-release-name-id><os-release-version-id>/<project>/<package>/<version>/<package-config>
+#
+# The overall idea behind this handler is to create a uniquely named package
+# configuration directory for each upload and maintain the package
+# configuration symlink at the above path to refer to the directory of the
+# latest upload.
+#
+# The root directory is passed as an argument (via upload-handler-argument).
+# All the remaining directory components are retrieved from the respective
+# manifest values of request.manifest created by brep and
+# bindist-result.manifest contained in the uploaded archive.
+#
+# Note that the leaf component of the package configuration symlink path is
+# sanitized, having the "bindist", <instance>, <os-release-name-id>, and
+# <os-release-name-id><os-release-version-id> dash-separated sub-components
+# removed. If the component becomes empty as a result of the sanitization,
+# then "default" is assumed. For example, the following symlink paths:
+#
+# .../archive/windows10/foo/libfoo/1.0.0/bindist-archive-windows10-release
+# .../archive/windows10/foo/libfoo/1.0.0/bindist-archive-windows10
+#
+# are reduced to:
+#
+# .../archive/windows10/foo/libfoo/1.0.0/release
+# .../archive/windows10/foo/libfoo/1.0.0/default
+#
+# To achieve this the handler performs the following steps (<dir> is passed as
+# last argument by brep and is a subdirectory of upload-data):
+#
+# - Parse <dir>/request.manifest to retrieve the upload archive path,
+#   timestamp, and the values which are required to compose the package
+#   configuration symlink path.
+#
+# - Extract files from the upload archive.
+#
+# - Parse <dir>/<instance>/bindist-result.manifest to retrieve the values
+#   required to compose the package configuration symlink path and the package
+#   file paths.
+#
+# - Compose the package configuration symlink path.
+#
+# - Compose the package configuration directory path by appending the
+#   -<timestamp>[-<number>] suffix to the package configuration symlink path.
+#
+# - Create the package configuration directory.
+#
+# - Copy the uploaded package files into the package configuration directory.
+#
+# - Generate the packages.sha256 file in the package configuration directory,
+#   which lists the SHA256 checksums of the files contained in this directory.
+#
+# - Switch the package configuration symlink to refer to the newly created
+#   package configuration directory.
+#
+# - If the --keep-previous option is not specified, then remove the previous
+#   target of the package configuration symlink, if exists.
+#
+# Notes:
+#
+# - There could be a race both with upload-bindist-clean and other
+#   upload-bindist instances while creating the package version/configuration
+#   directories, querying the package configuration symlink target, switching
+#   the symlink, and removing the symlink's previous target. To avoid it, the
+#   root directory needs to be locked for the duration of these operations.
+#   This, however, needs to be done granularly to perform the time consuming
+#   operations (files copying, etc) while not holding the lock.
+#
+# - The brep module doesn't acquire the root directory lock. Thus, the package
+#   configuration symlink during its lifetime should always refer to a
+#   valid/complete package configuration directory.
+#
+# - Filesystem entries that exist or are created in the data directory:
+#
+#   <archive>           saved by brep
+#   request.manifest    created by brep
+#   <instance>/*        extracted by the handler (bindist-result.manifest, etc)
+#   result.manifest     saved by brep
+#
+# Options:
+#
+# --keep-previous
+#
+#   Don't remove the previous target of the package configuration symlink.
+#
+usage="usage: $0 [<options>] <root> <dir>"
+
+# Diagnostics.
+#
+verbose= #true
+
+# The root directory lock timeout (in seconds).
+#
+lock_timeout=60
+
+# If the package configuration directory already exists (may happen due to the
+# low timestamp resolution), then re-try creating the configuration directory
+# by adding the -<number> suffix and incrementing it until the creation
+# succeeds or the retries limit is reached.
+#
+create_dir_retries=99
+
+trap "{ exit 1; }" ERR
+set -o errtrace     # Trap in functions and subshells.
+set -o pipefail     # Fail if any pipeline command fails.
+shopt -s lastpipe   # Execute last pipeline command in the current shell.
+shopt -s nullglob   # Expand no-match globs to nothing rather than themselves.
+
+@import brep/handler/handler@
+@import brep/handler/upload/upload@
+
+# Parse the command line options.
+#
+keep_previous=
+
+while [[ "$#" -gt 0 ]]; do
+  case $1 in
+    --keep-previous)
+      shift
+      keep_previous=true
+      ;;
+    *)
+      break
+      ;;
+  esac
+done
+
+if [[ "$#" -ne 2 ]]; then
+  error "$usage"
+fi
+
+# Destination root directory.
+#
+root_dir="${1%/}"
+shift
+
+if [[ -z "$root_dir" ]]; then
+  error "$usage"
+fi
+
+if [[ ! -d "$root_dir" ]]; then
+  error "'$root_dir' does not exist or is not a directory"
+fi
+
+# Upload data directory.
+#
+data_dir="${1%/}"
+shift
+
+if [[ -z "$data_dir" ]]; then
+  error "$usage"
+fi
+
+if [[ ! -d "$data_dir" ]]; then
+  error "'$data_dir' does not exist or is not a directory"
+fi
+
+reference="$(basename "$data_dir")" # Upload request reference.
+
+# Parse the upload request manifest.
+#
+manifest_parser_start "$data_dir/request.manifest"
+
+archive=
+instance=
+timestamp=
+name=
+version=
+project=
+package_config=
+tenant=
+
+while IFS=: read -ru "$manifest_parser_ofd" -d '' n v; do
+  case "$n" in
+    archive)        archive="$v"        ;;
+    instance)       instance="$v"       ;;
+    timestamp)      timestamp="$v"      ;;
+    name)           name="$v"           ;;
+    version)        version="$v"        ;;
+    project)        project="$v"        ;;
+    package-config) package_config="$v" ;;
+    tenant)         tenant="$v"         ;;
+  esac
+done
+
+manifest_parser_finish
+
+if [[ -z "$archive" ]]; then
+  error "archive manifest value expected"
+fi
+
+if [[ -z "$instance" ]]; then
+  error "instance manifest value expected"
+fi
+
+if [[ -z "$timestamp" ]]; then
+  error "timestamp manifest value expected"
+fi
+
+if [[ -z "$name" ]]; then
+  error "name manifest value expected"
+fi
+
+if [[ -z "$version" ]]; then
+  error "version manifest value expected"
+fi
+
+if [[ -z "$project" ]]; then
+  error "project manifest value expected"
+fi
+
+if [[ -z "$package_config" ]]; then
+  error "package-config manifest value expected"
+fi
+
+# Let's disallow dots in the package-config manifest value since the latter
+# serves as the package configuration symlink name and the dot can be
+# misinterpreted by brep as an extension separator, which the implementation
+# relies upon.
+#
+if [[ "$package_config" == *"."* ]]; then
+  exit_with_manifest 400 "package-config manifest value may not contain dot"
+fi
+
+# Unpack the archive.
+#
+run tar -xf "$data_dir/$archive" -C "$data_dir"
+
+# Parse the bindist result manifest list.
+#
+f="$data_dir/$instance/bindist-result.manifest"
+
+if [[ ! -f "$f" ]]; then
+  exit_with_manifest 400 "$instance/bindist-result.manifest not found"
+fi
+
+manifest_parser_start "$f"
+
+# Parse the distribution manifest.
+#
+# Note that we need to skip the first manifest version value and parse until
+# the next one is encountered, which introduces the first package file
+# manifest.
+#
+os_release_name_id=
+os_release_version_id=
+
+first=true
+more=
+while IFS=: read -ru "$manifest_parser_ofd" -d '' n v; do
+  case "$n" in
+    "") if [[ "$first" ]]; then # Start of the first (distribution) manifest?
+          first=
+        else                    # Start of the second (package file) manifest.
+          more=true
+          break
+        fi
+        ;;
+
+    os-release-name-id)    os_release_name_id="$v"    ;;
+    os-release-version-id) os_release_version_id="$v" ;;
+  esac
+done
+
+if [[ -z "$os_release_name_id" ]]; then
+  exit_with_manifest 400 "os-release-name-id bindist result manifest value expected"
+fi
+
+if [[ -z "$os_release_version_id" ]]; then
+  exit_with_manifest 400 "os-release-version-id bindist result manifest value expected"
+fi
+
+if [[ ! "$more" ]]; then
+  exit_with_manifest 400 "no package file manifests in bindist result manifest list"
+fi
+
+# Parse the package file manifest list and cache the file paths.
+#
+# Note that while we currently only need the package file paths, we can make
+# use of their types and system names in the future. Thus, let's verify that
+# all the required package file values are present and, while at it, cache
+# them all in the parallel arrays.
+#
+package_file_paths=()
+package_file_types=()
+package_file_system_names=()
+
+# The outer loop iterates over package file manifests while the inner loop
+# iterates over manifest values in each such manifest.
+#
+while [[ "$more" ]]; do
+  more=
+  type=
+  path=
+  system_name=
+
+  while IFS=: read -ru "$manifest_parser_ofd" -d '' n v; do
+    case "$n" in
+      "") # Start of the next package file manifest.
+        more=true
+        break
+        ;;
+
+      package-file-path)        path="$v"        ;;
+      package-file-type)        type="$v"        ;;
+      package-file-system-name) system_name="$v" ;;
+    esac
+  done
+
+  if [[ -z "$path" ]]; then
+    exit_with_manifest 400 "package-file-path bindist result manifest value expected"
+  fi
+
+  if [[ -z "$type" ]]; then
+    exit_with_manifest 400 "package-file-type bindist result manifest value expected"
+  fi
+
+  package_file_paths+=("$path")
+  package_file_types+=("$type")
+  package_file_system_names+=("$system_name") # Note: system name can be empty.
+done
+
+manifest_parser_finish
+
+# Sanitize the package configuration name.
+#
+config=
+for c in $(sed 's/-/ /g' <<<"$package_config"); do
+  if [[ "$c" != "bindist"             &&
+        "$c" != "$instance"           &&
+        "$c" != "$os_release_name_id" &&
+        "$c" != "$os_release_name_id$os_release_version_id" ]]; then
+    if [[ -z "$config" ]]; then
+      config="$c"
+    else
+      config="$config-$c"
+    fi
+  fi
+done
+
+if [[ -z "$config" ]]; then
+  config="default"
+fi
+
+# Compose the package configuration symlink path.
+#
+config_link="$root_dir"
+
+if [[ -n "$tenant" ]]; then
+  config_link="$config_link/$tenant"
+fi
+
+config_link="$config_link/$instance/$os_release_name_id$os_release_version_id"
+config_link="$config_link/$project/$name/$version/$config"
+
+# Compose the package configuration directory path.
+#
+config_dir="$config_link-$timestamp"
+
+# Create the package configuration directory.
+#
+# Note that it is highly unlikely that multiple uploads for the same package
+# configuration/distribution occur at the same time (with the seconds
+# resolution) making the directory name not unique. If that still happens,
+# lets retry for some reasonable number of times to create the directory,
+# while adding the -<number> suffix to its path on each iteration. If
+# that also fails, then we assume that there is some issue with the handler
+# setup and fail, printing the cached mkdir diagnostics to stderr.
+#
+# Note that we need to prevent removing of the potentially empty package
+# version directory by the upload-bindist-clean script before we create
+# configuration directory. To achieve that, we lock the root directory for the
+# duration of the package version/configuration directories creation.
+#
+# Open the reading file descriptor and lock the root directory. Fail if
+# unable to lock before timeout.
+#
+lock="$root_dir/upload.lock"
+run touch "$lock"
+trace "+ exec {lfd}<$lock"
+exec {lfd}<"$lock"
+
+if ! run flock -w "$lock_timeout" "$lfd"; then
+  exit_with_manifest 503 "upload service is busy"
+fi
+
+# Create parent (doesn't fail if directory exists).
+#
+run mkdir -p "$(dirname "$config_dir")"
+
+created=
+
+trace_cmd mkdir "$config_dir"
+if ! e="$(mkdir "$config_dir" 2>&1)"; then # Note: fails if directory exists.
+  for ((i=0; i != $create_dir_retries; ++i)); do
+    d="$config_dir-$i"
+    trace_cmd mkdir "$d"
+    if e="$(mkdir "$d" 2>&1)"; then
+      config_dir="$d"
+      created=true
+      break
+    fi
+  done
+else
+  created=true
+fi
+
+# Close the file descriptor and unlock the root directory.
+#
+trace "+ exec {lfd}<&-"
+exec {lfd}<&-
+
+if [[ ! "$created" ]]; then
+  echo "$e" 1>&2
+  error "unable to create package configuration directory"
+fi
+
+# On exit, remove the newly created package configuration directory, unless
+# its removal is canceled (for example, the symlink is switched to refer to
+# it). Also remove the new symlink, if already created.
+#
+# Make sure we don't fail if the entries are already removed, for example, by
+# the upload-bindist-clean script.
+#
+config_link_new=
+function exit_trap ()
+{
+  if [[ -n "$config_dir" && -d "$config_dir" ]]; then
+    if [[ -n "$config_link_new" && -L "$config_link_new" ]]; then
+      run rm -f "$config_link_new"
+    fi
+    run rm -rf "$config_dir"
+  fi
+}
+
+trap exit_trap EXIT
+
+# Copy all the extracted package files to the package configuration directory.
+#
+for ((i=0; i != "${#package_file_paths[@]}"; ++i)); do
+  run cp "$data_dir/$instance/${package_file_paths[$i]}" "$config_dir"
+done
+
+# Generate the packages.sha256 file.
+#
+# Note that since we don't hold the root directory lock at this time, we
+# temporary "hide" the resulting file from the upload-bindist-clean script
+# (which uses it for the upload age calculation) by adding the leading dot to
+# its name. Not doing so we may potentially end up with upload-bindist-clean
+# removing the half-cooked directory and so breaking the upload handling.
+#
+trace "+ (cd $config_dir && exec sha256sum -b ${package_file_paths[@]} >.packages.sha256)"
+(cd "$config_dir" && exec sha256sum -b "${package_file_paths[@]}" >".packages.sha256")
+
+# Create the new package configuration symlink.
+#
+config_link_new="$config_dir.symlink"
+run ln -s $(basename "$config_dir") "$config_link_new"
+
+# Switch the package configuration symlink atomically. But first, cache the
+# previous package configuration symlink target if the --keep-previous option
+# is not specified and "unhide" the packages.sha256 file.
+#
+# Note that to avoid a race with upload-bindist-clean and other upload-bindist
+# instances, we need to perform all the mentioned operations as well as
+# removing the previous package configuration directory while holding the root
+# directory lock.
+
+# Lock the root directory.
+#
+trace "+ exec {lfd}<$lock"
+exec {lfd}<"$lock"
+
+if ! run flock -w "$lock_timeout" "$lfd"; then
+  exit_with_manifest 503 "upload service is busy"
+fi
+
+# Note that while the realpath utility is not POSIX, it is present on both
+# Linux and FreeBSD.
+#
+config_dir_prev=
+if [[ ! "$keep_previous" && -L "$config_link" ]]; then
+  config_dir_prev="$(realpath "$config_link")"
+fi
+
+# "Unhide" the packages.sha256 file.
+#
+run mv "$config_dir/.packages.sha256" "$config_dir/packages.sha256"
+
+# Note that since brep doesn't acquire the root directory lock, we need to
+# switch the symlink as the final step, when the package directory is fully
+# prepared and can be exposed.
+#
+# @@ Also note that the -T option is Linux-specific. To add support for
+#    FreeBSD we need to use -h option there (but maybe -T also works,
+#    who knows).
+#
+run mv -T "$config_link_new" "$config_link"
+
+# Now, when the package configuration symlink is switched, disable removal of
+# the newly created package configuration directory.
+#
+# Note that we still can respond with an error status. However, the remaining
+# operations are all cleanups and thus unlikely to fail.
+#
+config_dir=
+
+# Remove the previous package configuration directory, if requested.
+#
+if [[ -n "$config_dir_prev" ]]; then
+  run rm -r "$config_dir_prev"
+fi
+
+# Unlock the root directory.
+#
+trace "+ exec {lfd}<&-"
+exec {lfd}<&-
+
+# Remove the no longer needed upload data directory.
+#
+run rm -r "$data_dir"
+
+trace "binary distribution packages are published"
+exit_with_manifest 200 "binary distribution packages are published"
