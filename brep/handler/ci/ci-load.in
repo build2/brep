@@ -277,7 +277,7 @@ run mv "$cache_dir/packages.manifest" "$cache_dir/packages.manifest.orig"
 #
 manifest_serializer_start "$cache_dir/packages.manifest"
 
-for ((i=0; i <= "${#packages_manifest_names[@]}"; ++i)); do
+for ((i=0; i != "${#packages_manifest_names[@]}"; ++i)); do
   manifest_serialize "${packages_manifest_names[$i]}" \
                      "${packages_manifest_values[$i]}"
 done
