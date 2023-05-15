@@ -13,6 +13,7 @@
 using namespace std;
 using namespace butl;
 using namespace bpkg;
+using namespace bbot;
 using namespace web::xhtml;
 
 namespace brep
@@ -107,6 +108,29 @@ namespace brep
       try
       {
         x = repository_location (v);
+      }
+      catch (const invalid_argument&)
+      {
+        throw invalid_value (o, v);
+      }
+    }
+
+    // Parse interactive_mode.
+    //
+    void parser<interactive_mode>::
+    parse (interactive_mode& x, bool& xs, scanner& s)
+    {
+      xs = true;
+      const char* o (s.next ());
+
+      if (!s.more ())
+        throw missing_value (o);
+
+      const string v (s.next ());
+
+      try
+      {
+        x = to_interactive_mode (v);
       }
       catch (const invalid_argument&)
       {

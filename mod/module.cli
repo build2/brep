@@ -5,6 +5,7 @@ include <map>;
 include <regex>;
 
 include <libbpkg/manifest.hxx>; // repository_location
+include <libbbot/manifest.hxx>; // interactive_mode
 
 include <web/xhtml/fragment.hxx>;
 
@@ -842,9 +843,14 @@ namespace brep
 
     class build_task
     {
-      // Package repository canonical name (note: including pkg: type).
+      // Only consider packages from repositories with these canonical names
+      // (note: including pkg: type).
       //
       vector<string> repository | r;
+
+      // Only consider tenants with this interactive build mode.
+      //
+      bbot::interactive_mode interactive = bbot::interactive_mode::both;
     };
 
     class build_result

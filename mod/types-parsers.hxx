@@ -10,6 +10,7 @@
 #include <regex>
 
 #include <libbpkg/manifest.hxx> // repository_location
+#include <libbbot/manifest.hxx> // interactive_mode
 
 #include <web/xhtml/fragment.hxx>
 
@@ -55,6 +56,13 @@ namespace brep
     {
       static void
       parse (bpkg::repository_location&, bool&, scanner&);
+    };
+
+    template <>
+    struct parser<bbot::interactive_mode>
+    {
+      static void
+      parse (bbot::interactive_mode&, bool&, scanner&);
     };
 
     template <>

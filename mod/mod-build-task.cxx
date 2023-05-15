@@ -214,6 +214,40 @@ handle (request& rq, response& rs)
 
   task_response_manifest tsm;
 
+  auto serialize_task_response_manifest = [&tsm, &rs] ()
+  {
+    // @@ Probably it would be a good idea to also send some cache control
+    //    headers to avoid caching by HTTP proxies. That would require
+    //    extension of the web::response interface.
+    //
+
+    manifest_serializer s (rs.content (200, "text/manifest;charset=utf-8"),
+                           "task_response_manifest");
+    tsm.serialize (s);
+  };
+
+  interactive_mode imode (tqm.effective_interactive_mode ());
+
+  // Restict the interactive mode (specified by the task request manifest) if
+  // the interactive parameter is specified and is other than "both". If
+  // values specified by the parameter and manifest are incompatible (false vs
+  // true), then just bail out responding with the manifest with an empty
+  // session.
+  //
+  if (params.interactive () != interactive_mode::both)
+  {
+    if (imode != interactive_mode::both)
+    {
+      if (params.interactive () != imode)
+      {
+        serialize_task_response_manifest ();
+        return true;
+      }
+    }
+    else
+      imode = params.interactive (); // Can only change both to true or false.
+  }
+
   // Map build target configurations to machines that are capable of building
   // them. The first matching machine is selected for each configuration.
   //
@@ -604,7 +638,6 @@ handle (request& rq, response& rs)
     using pkg_query = query<buildable_package>;
     using prep_pkg_query = prepared_query<buildable_package>;
 
-    interactive_mode imode (tqm.effective_interactive_mode ());
     pkg_query pq (package_query<buildable_package> (params, imode));
 
     // Transform (in-place) the interactive login information into the actual
@@ -1495,14 +1528,6 @@ handle (request& rq, response& rs)
     }
   }
 
-  // @@ Probably it would be a good idea to also send some cache control
-  //    headers to avoid caching by HTTP proxies. That would require extension
-  //    of the web::response interface.
-  //
-
-  manifest_serializer s (rs.content (200, "text/manifest;charset=utf-8"),
-                         "task_response_manifest");
-  tsm.serialize (s);
-
+  serialize_task_response_manifest ();
   return true;
 }
