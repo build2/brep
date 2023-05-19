@@ -349,7 +349,17 @@ in the subsequent subsections.
 
 If the build artifacts upload functionality is enabled in addition to the
 build2 build bot functionality you most likely will want to additionally setup
-the cleanup of the outdated build artifacts.
+the cleanup of the outdated build artifacts. For example, for binary
+distribution package uploads handled by brep-upload-bindist the cleanup needs
+to be performed by periodic execution of brep-upload-bindist-clean script.
+Note that the directory where the uploads are saved to must exist and have
+read, write, and execute permissions granted to the brep user. This, for
+example, can be achieved with the following commands:
+
+# mkdir /var/bindist
+# chown www-data:www-data /var/bindist
+# setfacl -m u:brep:rwx /var/bindist
+# setfacl -dm u:brep:rwx /var/bindist
 
 If the CI request functionality is enabled you most likely will want to
 additionally setup the tenants cleanup.

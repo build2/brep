@@ -187,7 +187,19 @@ for d in "${expired_dirs[@]}"; do
 
     # Remove the package configuration directory.
     #
-    run rm -r "$d"
+    # Note that this directory contains files copied from a subdirectory of
+    # upload-data. These files are normally owned by the Apache2 user/group
+    # and have rw-r--r-- permissions. This script is normally executed as the
+    # brep user/group and thus the uploads root directory and all its
+    # subdirectories must have read, write, and execute permissions granted to
+    # the brep user, for example, by using ACL (see INSTALL file for
+    # details). Since cp preserves the file permissions by default, these
+    # files effective permissions will normally be r-- (read-only) for this
+    # script. In this case rm pops up the 'remove write-protected regular
+    # file' prompt by default prior to removing these files. To suppress the
+    # prompt we will pass the -f option to rm.
+    #
+    run rm -rf "$d"
 
     # Remove the empty parent directories.
     #
