@@ -591,16 +591,14 @@ namespace brep
   public:
     // Generate a full text element.
     //
-    DIV_TEXT (const string& t,
-              text_type tp,
+    DIV_TEXT (const typed_text& t,
               bool st,
               const string& id,
               const string& what,
               const basic_mark& diag)
         : text_ (t),
-          type_ (tp),
           strip_title_ (st),
-          length_ (t.size ()),
+          length_ (t.text.size ()),
           url_ (nullptr),
           id_ (id),
           what_ (what),
@@ -610,8 +608,7 @@ namespace brep
 
     // Generate a brief text element.
     //
-    DIV_TEXT (const string& t,
-              text_type tp,
+    DIV_TEXT (const typed_text& t,
               bool st,
               size_t l,
               const string& u,
@@ -619,7 +616,6 @@ namespace brep
               const string& what,
               const basic_mark& diag)
         : text_ (t),
-          type_ (tp),
           strip_title_ (st),
           length_ (l),
           url_ (&u),
@@ -633,8 +629,7 @@ namespace brep
     operator() (xml::serializer&) const;
 
   private:
-    const string& text_;
-    text_type type_;
+    const typed_text& text_;
     bool strip_title_;
     size_t length_;
     const string* url_; // Full page url.

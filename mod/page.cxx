@@ -953,14 +953,16 @@ namespace brep
   void DIV_TEXT::
   operator() (serializer& s) const
   {
-    switch (type_)
+    const string& t (text_.text);
+
+    switch (text_.type)
     {
     case text_type::plain:
       {
         // To keep things regular we wrap the preformatted text into <div>.
         //
         s << DIV(ID=id_, CLASS="plain");
-        serialize_pre_text (s, text_, length_, url_, "" /* id */);
+        serialize_pre_text (s, t, length_, url_, "" /* id */);
         s << ~DIV;
         break;
       }
@@ -980,9 +982,9 @@ namespace brep
         // calls to fail is the inability to allocate memory. Unfortunately,
         // instead of reporting the failure to the caller, the API issues
         // diagnostics to stderr and aborts the process. Let's decrease the
-        // probability of such an event by limiting the text size to 64K.
+        // probability of such an event by limiting the text size to 1M.
         //
-        if (text_.size () > 64 * 1024)
+        if (t.size () > 1024 * 1024)
         {
           print_error (what_ + " is too long");
           return;
@@ -1006,7 +1008,7 @@ namespace brep
 
             // Enable GitHub extensions in the parser, if requested.
             //
-            if (type_ == text_type::github_mark)
+            if (text_.type == text_type::github_mark)
             {
               auto add = [&parser] (const char* ext)
               {
@@ -1025,7 +1027,7 @@ namespace brep
               add ("autolink");
             }
 
-            cmark_parser_feed (parser.get (), text_.c_str (), text_.size ());
+            cmark_parser_feed (parser.get (), t.c_str (), t.size ());
 
             unique_ptr<cmark_node, void (*)(cmark_node*)> doc (
               cmark_parser_finish (parser.get ()),

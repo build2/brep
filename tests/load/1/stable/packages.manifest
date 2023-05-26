@@ -75,6 +75,7 @@ description: Very good foo library.
 description-type: text/plain
 changes: some changes 1
 changes: some changes 2
+changes-type: text/plain
 url: http://www.example.com/foo/
 email: foo-users@example.com
 depends: libmisc >= 2.0.0

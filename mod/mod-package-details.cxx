@@ -183,20 +183,20 @@ handle (request& rq, response& rs)
     //
     s << H2 << pkg->summary << ~H2;
 
-    if (const optional<string>& d = pkg->description)
+    if (const optional<typed_text>& d = pkg->package_description
+                                        ? pkg->package_description
+                                        : pkg->description)
     {
       const string id ("description");
       const string what (name.string () + " description");
 
       s << (full
             ? DIV_TEXT (*d,
-                        *pkg->description_type,
                         true /* strip_title */,
                         id,
                         what,
                         error)
             : DIV_TEXT (*d,
-                        *pkg->description_type,
                         true /* strip_title */,
                         options_->package_description (),
                         url (!full, squery, page, id),

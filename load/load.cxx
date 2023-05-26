@@ -450,50 +450,87 @@ load_packages (const shared_ptr<repository>& rp,
 
         // Create internal package object.
         //
-        optional<string> dsc;
-        optional<text_type> dst;
-
-        if (pm.description)
+        // Return nullopt if the text is in a file (can happen if the
+        // repository is of a type other than pkg) or if the type is not
+        // recognized (can only happen in the "ignore unknown" mode).
+        //
+        auto to_typed_text = [&cl, &p, ignore_unknown] (typed_text_file&& v)
         {
+          optional<typed_text> r;
+
           // The description value should not be of the file type if the
           // package manifest comes from the pkg repository.
           //
-          assert (!pm.description->file || cl.type () != repository_type::pkg);
+          assert (!v.file || cl.type () != repository_type::pkg);
 
-          if (!pm.description->file)
+          if (!v.file)
           {
-            dst = pm.effective_description_type (ignore_unknown);
+            // Cannot throw since the manifest parser has already verified the
+            // effective type in the same "ignore unknown" mode.
+            //
+            optional<text_type> t (v.effective_type (ignore_unknown));
 
             // If the description type is unknown (which may be the case for
             // some "transitional" period and only if --ignore-unknown is
             // specified) we just silently drop the description.
             //
-            assert (dst || ignore_unknown);
+            assert (t || ignore_unknown);
 
-            if (dst)
-              dsc = move (pm.description->text);
+            if (t)
+              r = typed_text {move (v.text), *t};
           }
-        }
 
-        string chn;
+          return r;
+        };
+
+        // Convert descriptions.
+        //
+        optional<typed_text> ds (
+          pm.description
+          ? to_typed_text (move (*pm.description))
+          : optional<typed_text> ());
+
+        optional<typed_text> pds (
+          pm.package_description
+          ? to_typed_text (move (*pm.package_description))
+          : optional<typed_text> ());
+
+        // Merge changes into a single typed text object.
+        //
+        // If the text type is not recognized for any changes entry or some
+        // entry refers to a file, then assume that no changes are specified.
+        //
+        optional<typed_text> chn;
+
         for (auto& c: pm.changes)
         {
-          // The changes value should not be of the file type if the package
-          // manifest comes from the pkg repository.
-          //
-          assert (!c.file || cl.type () != repository_type::pkg);
+          optional<typed_text> tc (to_typed_text (move (c)));
 
-          if (!c.file)
+          if (!tc)
           {
-            if (chn.empty ())
-              chn = move (c.text);
-            else
-            {
-              if (chn.back () != '\n')
-                chn += '\n'; // Always have a blank line as a separator.
+            chn = nullopt;
+            break;
+          }
 
-              chn += "\n" + c.text;
-            }
+          if (!chn)
+          {
+            chn = move (*tc);
+          }
+          else
+          {
+            // Should have failed while parsing the manifest otherwise.
+            //
+            assert (tc->type == chn->type);
+
+            string& v (chn->text);
+
+            assert (!v.empty ()); // Changes manifest value cannot be empty.
+
+            if (v.back () != '\n')
+              v += '\n'; // Always have a blank line as a separator.
+
+            v += '\n';
+            v += tc->text;
           }
         }
 
@@ -566,8 +603,8 @@ load_packages (const shared_ptr<repository>& rp,
           move (pm.license_alternatives),
           move (pm.topics),
           move (pm.keywords),
-          move (dsc),
-          move (dst),
+          move (ds),
+          move (pds),
           move (chn),
           move (pm.url),
           move (pm.doc_url),

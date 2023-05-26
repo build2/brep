@@ -18,9 +18,9 @@
 
 // Used by the data migration entries.
 //
-#define LIBBREP_PACKAGE_SCHEMA_VERSION_BASE 26
+#define LIBBREP_PACKAGE_SCHEMA_VERSION_BASE 27
 
-#pragma db model version(LIBBREP_PACKAGE_SCHEMA_VERSION_BASE, 26, closed)
+#pragma db model version(LIBBREP_PACKAGE_SCHEMA_VERSION_BASE, 27, closed)
 
 namespace brep
 {
@@ -49,9 +49,12 @@ namespace brep
   using bpkg::text_type;
   using bpkg::to_text_type;
 
+  // Note that here we assume that the saved string representation of a type
+  // is always recognized later.
+  //
   #pragma db map type(text_type) as(string) \
     to(to_string (?))                       \
-    from(brep::to_text_type (?))
+    from(*brep::to_text_type (?))
 
   using optional_text_type = optional<text_type>;
 
@@ -396,6 +399,15 @@ namespace brep
     string d;
   };
 
+  #pragma db value
+  struct typed_text
+  {
+    string text;
+    text_type type;
+
+    #pragma db member(text) column("")
+  };
+
   // Tweak package_id mapping to include a constraint (this only affects the
   // database schema).
   //
@@ -429,9 +441,9 @@ namespace brep
              license_alternatives_type,
              small_vector<string, 5> topics,
              small_vector<string, 5> keywords,
-             optional<string> description,
-             optional<text_type> description_type,
-             string changes,
+             optional<typed_text> description,
+             optional<typed_text> package_description,
+             optional<typed_text> changes,
              optional<manifest_url> url,
              optional<manifest_url> doc_url,
              optional<manifest_url> src_url,
@@ -501,9 +513,14 @@ namespace brep
     license_alternatives_type license_alternatives;
     small_vector<string, 5> topics;
     small_vector<string, 5> keywords;
-    optional<string> description;         // Absent if type is unknown.
-    optional<text_type> description_type; // Present if description is present.
-    string changes;
+
+    // Note that the descriptions and changes are absent if the respective
+    // type is unknown.
+    //
+    optional<typed_text> description;
+    optional<typed_text> package_description;
+    optional<typed_text> changes;
+
     optional<manifest_url> url;
     optional<manifest_url> doc_url;
     optional<manifest_url> src_url;
@@ -723,9 +740,9 @@ namespace brep
     friend class odb::access;
     package (): tenant (id.tenant), name (id.name) {}
 
-    // Save keywords, summary, description, and changes to weighted_text
-    // a, b, c, d members, respectively. So a word found in keywords will
-    // have a higher weight than if it's found in the summary.
+    // Save keywords, summary, descriptions, and changes to weighted_text a,
+    // b, c, d members, respectively. So a word found in keywords will have a
+    // higher weight than if it's found in the summary.
     //
     weighted_text
     search_text () const;

@@ -15,6 +15,7 @@ depends: libfoo
 depends: libmath >= 2.0.0
 requires: linux | windows | macosx
 changes: some changes
+changes-type: text/plain
 location: libbar-2.4.0+3.tar.gz
 sha256sum: 70ccba3da34dd0296866027a26b6bacf08cacc80f54516d3b8d8eeccbe31ab93
 :

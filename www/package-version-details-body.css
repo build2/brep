@@ -378,13 +378,51 @@ h1, h2, h3
 .build .abnormal {color: #ff0000;}
 
 /*
- * Changes.
+ * Changes (plain text).
  *
  * This is a <pre> block that fits lines up to 80 characters long and
  * wraps longer ones.
  */
-#changes
+#changes.plain pre
 {
   font-size: 0.85em;
-  margin: .5em 0 .5em 0;
 }
+
+/*
+ * Changes (Markdown).
+ *
+ * These are descendants of the <div> block containing the result of
+ * Markdown-to-HTML translation.
+ *
+ * Note that the Markdown code blocks are translated into the
+ * <pre><code>...<code/></pre> element construct.
+ */
+#changes.markdown h1,
+#changes.markdown h2
+{
+  white-space: normal;
+}
+
+/* code-box.css */
+#changes.markdown :not(pre) > code
+{
+  background-color: rgba(0, 0, 0, 0.05);
+  border-radius: 0.2em;
+  padding: .2em .32em .18em .32em;
+}
+
+/* pre-box.css */
+#changes.markdown pre
+{
+  background-color: rgba(0, 0, 0, 0.05);
+  border-radius: 0.2em;
+  padding: .8em .4em .8em .4em;
+  margin: 2em -.4em 2em -.4em; /* Use paddings of #content. */
+}
+
+#changes.markdown pre > code
+{
+  font-size: inherit;
+}
+
+#changes.markdown .error {color: #ff0000;}

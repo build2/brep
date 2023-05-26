@@ -60,9 +60,9 @@ namespace brep
            license_alternatives_type la,
            small_vector<string, 5> tp,
            small_vector<string, 5> kw,
-           optional<string> ds,
-           optional<text_type> dt,
-           string ch,
+           optional<typed_text> ds,
+           optional<typed_text> pds,
+           optional<typed_text> ch,
            optional<manifest_url> ur,
            optional<manifest_url> du,
            optional<manifest_url> su,
@@ -94,7 +94,7 @@ namespace brep
         topics (move (tp)),
         keywords (move (kw)),
         description (move (ds)),
-        description_type (move (dt)),
+        package_description (move (pds)),
         changes (move (ch)),
         url (move (ur)),
         doc_url (move (du)),
@@ -216,7 +216,17 @@ namespace brep
     for (const auto& k: keywords)
       k2 += ' ' + k;
 
-    return {move (k), move (k2), description ? *description : "", changes};
+    string d (description ? description->text : "");
+
+    if (package_description)
+    {
+      if (description)
+        d += ' ';
+
+      d += package_description->text;
+    }
+
+    return {move (k), move (k2), move (d), changes ? changes->text : ""};
   }
 
   // repository

@@ -71,14 +71,28 @@ Useful for conversion of research code into production environments.
 [^mathlab]: MATLAB Capabilities: TODO
 \
 description-type: text/markdown
+package-description:\
+This project builds and defines the build2 package for the libfoo library.
+
+A modern C++ library with easy to use linear algebra and lot of optimization
+tools.
+
+There are over 100 functions in total with an extensive test suite. The API is
+similar to ~~mathlab~~ **MATLAB**.[^mathlab]
+
+Useful for conversion of research code into production environments.
+[^mathlab]: MATLAB Capabilities: TODO
+\
+package-description-type: text/markdown
 changes:\
-1.2.4+1
+**1.2.4+1**
  * applied patch for critical bug-219
  * regenerated documentation
 
-1.2.4
+**1.2.4**
  * test suite extended significantly
 \
+changes-type: text/markdown
 url: http://www.example.com/foo/; Project home page.
 doc-url: http://www.example.org/projects/libfoo/man.xhtml; Documentation page.
 src-url: http://scm.example.com/?p=odb/libodb.git\;a=tree; Source tree url.
@@ -126,7 +140,7 @@ config [uint64] config.libfoo.buffer ?= 1024
 
 \
 location: libfoo-1.2.4+1.tar.gz
-sha256sum: fe07978d72ab65c2ad72b0325aa56944cf093248d39edcb472a2fe5835defa3d
+sha256sum: 072386bc75b026889d2992374609a2b4fa18ee59c00f664d5bb21fb86a090671
 :
 name: libfoo-benchmarks
 version: 1.2.4

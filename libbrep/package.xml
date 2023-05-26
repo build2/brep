@@ -1,5 +1,5 @@
 <changelog xmlns="http://www.codesynthesis.com/xmlns/odb/changelog" database="pgsql" schema-name="package" version="1">
-  <model version="26">
+  <model version="27">
     <table name="tenant" kind="object">
       <column name="id" type="TEXT" null="false"/>
       <column name="private" type="BOOLEAN" null="false"/>
@@ -144,7 +144,10 @@
       <column name="summary" type="TEXT" null="false"/>
       <column name="description" type="TEXT" null="true"/>
       <column name="description_type" type="TEXT" null="true"/>
-      <column name="changes" type="TEXT" null="false"/>
+      <column name="package_description" type="TEXT" null="true"/>
+      <column name="package_description_type" type="TEXT" null="true"/>
+      <column name="changes" type="TEXT" null="true"/>
+      <column name="changes_type" type="TEXT" null="true"/>
       <column name="url" type="TEXT" null="true"/>
       <column name="url_comment" type="TEXT" null="true"/>
       <column name="doc_url" type="TEXT" null="true"/>

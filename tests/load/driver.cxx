@@ -57,7 +57,7 @@ check_external (const package& p)
          !p.internal ()                   &&
          p.other_repositories.size () > 0 &&
          p.priority == priority ()        &&
-         p.changes.empty ()               &&
+         !p.changes                       &&
          p.license_alternatives.empty ()  &&
          p.dependencies.empty ()          &&
          p.requirements.empty ()          &&
@@ -384,7 +384,7 @@ test_pkg_repos (const cstrings& loader_args,
     assert (fpvxy->other_repositories.empty ());
 
     assert (fpvxy->priority == priority::low);
-    assert (fpvxy->changes.empty ());
+    assert (!fpvxy->changes);
 
     assert (fpvxy->license_alternatives.size () == 1);
     assert (fpvxy->license_alternatives[0].size () == 1);
@@ -420,7 +420,7 @@ test_pkg_repos (const cstrings& loader_args,
     assert (fpv1->other_repositories[1].load () == cr);
 
     assert (fpv1->priority == priority::low);
-    assert (fpv1->changes.empty ());
+    assert (!fpv1->changes);
 
     assert (fpv1->license_alternatives.size () == 1);
     assert (fpv1->license_alternatives[0].size () == 1);
@@ -454,7 +454,7 @@ test_pkg_repos (const cstrings& loader_args,
     assert (fpv2->internal_repository.load () == sr);
     assert (fpv2->other_repositories.empty ());
     assert (fpv2->priority == priority::low);
-    assert (fpv2->changes.empty ());
+    assert (!fpv2->changes);
 
     assert (fpv2->license_alternatives.size () == 1);
     assert (fpv2->license_alternatives[0].size () == 1);
@@ -500,7 +500,7 @@ test_pkg_repos (const cstrings& loader_args,
     assert (fpv2a->internal_repository.load () == sr);
     assert (fpv2a->other_repositories.empty ());
     assert (fpv2a->priority == priority::security);
-    assert (fpv2a->changes.empty ());
+    assert (!fpv2a->changes);
 
     assert (fpv2a->license_alternatives.size () == 1);
     assert (fpv2a->license_alternatives[0].size () == 1);
@@ -563,7 +563,7 @@ test_pkg_repos (const cstrings& loader_args,
     assert (fpv3->other_repositories.empty ());
     assert (fpv3->priority == priority::medium);
 
-    assert (fpv3->changes.empty ());
+    assert (!fpv3->changes);
 
     assert (fpv3->license_alternatives.size () == 1);
     assert (fpv3->license_alternatives[0].size () == 1);
@@ -591,7 +591,7 @@ test_pkg_repos (const cstrings& loader_args,
 
     assert (fpv4->summary == "The Foo Library");
     assert (fpv4->keywords == labels ({"c++", "foo"}));
-    assert (*fpv4->description == "Very good foo library.");
+    assert (fpv4->description->text == "Very good foo library.");
     assert (fpv4->url && fpv4->url->string () == "http://www.example.com/foo/");
     assert (!fpv4->package_url);
     assert (fpv4->email && *fpv4->email == "foo-users@example.com");
@@ -600,7 +600,10 @@ test_pkg_repos (const cstrings& loader_args,
     assert (fpv4->internal_repository.load () == sr);
     assert (fpv4->other_repositories.empty ());
     assert (fpv4->priority == priority::low);
-    assert (fpv4->changes == "some changes 1\n\nsome changes 2");
+
+    assert (fpv4->changes &&
+            fpv4->changes->text == "some changes 1\n\nsome changes 2" &&
+            fpv4->changes->type == text_type::plain);
 
     assert (fpv4->license_alternatives.size () == 1);
     assert (fpv4->license_alternatives[0].comment ==
@@ -686,7 +689,7 @@ test_pkg_repos (const cstrings& loader_args,
     assert (xpv->internal_repository.load () == mr);
     assert (xpv->other_repositories.empty ());
     assert (xpv->priority == priority::low);
-    assert (xpv->changes.empty ());
+    assert (!xpv->changes);
 
     assert (xpv->license_alternatives.size () == 1);
     assert (xpv->license_alternatives[0].size () == 1);
@@ -724,13 +727,27 @@ test_pkg_repos (const cstrings& loader_args,
             labels ({"math library", "math API", "libbaz fork"}));
     assert (fpv5->keywords == labels ({"c++", "foo", "math", "best"}));
 
-    assert (*fpv5->description ==
+    assert (fpv5->description->text ==
             "A modern C++ library with easy to use linear algebra and lot "
             "of optimization\ntools.\n\nThere are over 100 functions in "
             "total with an extensive test suite. The API is\nsimilar to "
             "~~mathlab~~ **MATLAB**.[^mathlab]\n\nUseful for conversion of "
             "research code into production environments.\n"
             "[^mathlab]: MATLAB Capabilities: TODO");
+
+    assert (fpv5->description->type == text_type::github_mark);
+
+    assert (fpv5->package_description->text ==
+            "This project builds and defines the build2 package for the "
+            "libfoo library.\n\n"
+            "A modern C++ library with easy to use linear algebra and lot "
+            "of optimization\ntools.\n\nThere are over 100 functions in "
+            "total with an extensive test suite. The API is\nsimilar to "
+            "~~mathlab~~ **MATLAB**.[^mathlab]\n\nUseful for conversion of "
+            "research code into production environments.\n"
+            "[^mathlab]: MATLAB Capabilities: TODO");
+
+    assert (fpv5->package_description->type == text_type::github_mark);
 
     assert (fpv5->url && fpv5->url->string () == "http://www.example.com/foo/");
 
@@ -756,14 +773,16 @@ test_pkg_repos (const cstrings& loader_args,
     assert (fpv5->priority.comment ==
             "Critical bug fixes, performance improvement.");
 
-    const char ch[] = R"DLM(1.2.4+1
+    const char ch[] = R"DLM(**1.2.4+1**
  * applied patch for critical bug-219
  * regenerated documentation
 
-1.2.4
+**1.2.4**
  * test suite extended significantly)DLM";
 
-    assert (fpv5->changes == ch);
+    assert (fpv5->changes             &&
+            fpv5->changes->text == ch &&
+            fpv5->changes->type == text_type::github_mark);
 
     assert (fpv5->license_alternatives.size () == 2);
     assert (fpv5->license_alternatives[0].comment ==
@@ -843,7 +862,7 @@ test_pkg_repos (const cstrings& loader_args,
     assert (check_location (fpv5));
 
     assert (fpv5->sha256sum && *fpv5->sha256sum ==
-            "fe07978d72ab65c2ad72b0325aa56944cf093248d39edcb472a2fe5835defa3d");
+            "072386bc75b026889d2992374609a2b4fa18ee59c00f664d5bb21fb86a090671");
 
     assert (fpv5->buildable);
 
@@ -859,7 +878,7 @@ test_pkg_repos (const cstrings& loader_args,
     assert (epv->project == "mathLab");
     assert (epv->summary == "The exponent");
     assert (epv->keywords == labels ({"mathlab", "c++", "exponent"}));
-    assert (epv->description && *epv->description ==
+    assert (epv->description && epv->description->text ==
             "The exponent math function.");
     assert (epv->url && epv->url->string () == "http://exp.example.com");
     assert (!epv->package_url);
@@ -870,7 +889,7 @@ test_pkg_repos (const cstrings& loader_args,
     assert (epv->internal_repository.load () == mr);
     assert (epv->other_repositories.empty ());
     assert (epv->priority == priority (priority::low));
-    assert (epv->changes.empty ());
+    assert (!epv->changes);
 
     assert (epv->license_alternatives.size () == 1);
     assert (epv->license_alternatives[0].size () == 1);

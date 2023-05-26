@@ -189,20 +189,20 @@ handle (request& rq, response& rs)
 
   s << H2 << pkg->summary << ~H2;
 
-  if (const optional<string>& d = pkg->description)
+  if (const optional<typed_text>& d = pkg->package_description
+                                      ? pkg->package_description
+                                      : pkg->description)
   {
     const string id ("description");
     const string what (title + " description");
 
     s << (full
           ? DIV_TEXT (*d,
-                      *pkg->description_type,
                       true /* strip_title */,
                       id,
                       what,
                       error)
           : DIV_TEXT (*d,
-                      *pkg->description_type,
                       true /* strip_title */,
                       options_->package_description (),
                       url (!full, id),
@@ -886,19 +886,25 @@ handle (request& rq, response& rs)
     s << ~DIV;
   }
 
-  const string& ch (pkg->changes);
-
-  if (!ch.empty ())
+  if (const optional<typed_text>& c = pkg->changes)
   {
     const string id ("changes");
+    const string what (title + " changes");
 
     s << H3 << "Changes" << ~H3
       << (full
-          ? PRE_TEXT (ch, id)
-          : PRE_TEXT (ch,
+          ? DIV_TEXT (*c,
+                      false /* strip_title */,
+                      id,
+                      what,
+                      error)
+          : DIV_TEXT (*c,
+                      false /* strip_title */,
                       options_->package_changes (),
-                      url (!full, "changes"),
-                      id));
+                      url (!full, id),
+                      id,
+                      what,
+                      error));
   }
 
   s <<     ~DIV
