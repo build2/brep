@@ -36,6 +36,8 @@ namespace brep
     void
     init (const options::build&, const options::build_db&);
 
+    using handler::init; // Unhide.
+
     // Parse the build task session and verify that the session matches the
     // tenant. Throw invalid_argument on errors.
     //
