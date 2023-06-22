@@ -517,16 +517,24 @@ handle (request& rq, response& rs)
   {
     package_db_->load (*pkg, pkg->build_section);
 
-    // If the package has a singe build configuration class expression with
-    // exactly one underlying class and the class is none, then we just drop
-    // the page builds section altogether.
+    // If all package build configurations has a singe effective build
+    // configuration class expression with exactly one underlying class and
+    // the class is none, then we just drop the page builds section
+    // altogether.
     //
-    if (pkg->builds.size () == 1)
-    {
-      const build_class_expr& be (pkg->builds[0]);
+    builds = false;
 
-      builds = be.underlying_classes.size () != 1 ||
-               be.underlying_classes[0] != "none";
+    for (const build_package_config& pc: pkg->build_configs)
+    {
+      const build_class_exprs& exprs (pc.effective_builds (pkg->builds));
+
+      if (exprs.size () != 1                       ||
+          exprs[0].underlying_classes.size () != 1 ||
+          exprs[0].underlying_classes[0] != "none")
+      {
+        builds = true;
+        break;
+      }
     }
   }
 
@@ -728,7 +736,9 @@ handle (request& rq, response& rs)
              "ORDER BY" + query::build::id.toolchain_name +
              order_by_version_desc (query::build::id.toolchain_version,
                                     false /* first */)))
+      {
         toolchains.emplace_back (move (t.name), move (t.version));
+      }
     }
 
     // Compose the configuration filtering sub-query and collect unbuilt
