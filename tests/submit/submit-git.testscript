@@ -21,7 +21,11 @@ clone_root_ref = [cmdline] cp --no-cleanup -r $root_ref ./ &ref.git/***
 +mkdir --no-cleanup $root_ref
 +$g -C $root_ref init --bare &ref.git/***
 
-+$g clone $root_ref $root_ref_dir &ref/***
+# Convert specific warnings to infos as we expect them to appear. This, in
+# particular, prevents bbot workers to set task result status to warning.
+#
++git clone $root_ref $root_ref_dir &ref/*** 2>&1 | \
+ sed -e 's/warning: (.*cloned an empty repository.*)/info: \1/' >&2 2>!
 
 +cat <<EOI >=$root_ref_dir/submit.config.bash
   sections[alpha]=1/alpha

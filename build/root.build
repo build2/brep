@@ -1,6 +1,10 @@
 # file      : build/root.build
 # license   : MIT; see accompanying LICENSE file
 
+config [bool] config.brep.develop ?= false
+
+develop = $config.brep.develop
+
 cxx.std = latest
 
 using cxx
@@ -54,9 +58,26 @@ tests/{libue libul}{*}: bin.whole = false
 #
 test.target = $cxx.target
 
-# Extract the copyright notice from the LICENSE file.
+# Omit the rest during the skeleton load.
 #
-copyright = $process.run_regex(                                 \
-  cat $src_root/LICENSE,                                        \
-  'Copyright \(c\) (.+) \(see the AUTHORS and LEGAL files\)\.', \
-  '\1')
+if ($build.mode != 'skeleton')
+{
+  # Unless we are in the develop mode, detect the Apache2 headers location
+  # automatically and add the respective preprocessor option.
+  #
+  if! $develop
+  {
+    apache2_includedir = [dir_path] $process.run(apxs -q 'INCLUDEDIR')
+
+    config [config.report] apache2_includedir
+
+    cxx.poptions += "-I$apache2_includedir"
+  }
+
+  # Extract the copyright notice from the LICENSE file.
+  #
+  copyright = $process.run_regex(                                 \
+    cat $src_root/LICENSE,                                        \
+    'Copyright \(c\) (.+) \(see the AUTHORS and LEGAL files\)\.', \
+    '\1')
+}

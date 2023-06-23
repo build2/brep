@@ -77,32 +77,36 @@ d) Unless you already have the build2 toolchain, install it by following
 
 3. Build and Install brep
 
-Normally the only extra information that you need to provide on this step is
-the location of the Apache2 headers (httpd.h, etc). Below are their locations
-for some distributions:
+$ mkdir brep
+$ cd brep
+
+$ bpkg create                         \
+   cc                                 \
+   config.bin.rpath=$HOME/install/lib \
+   config.install.root=$HOME/install
+
+$ bpkg add https://pkg.cppget.org/1/alpha
+$ bpkg fetch
+$ bpkg build brep ?sys:libapr1 ?sys:libapreq2 ?sys:libpq
+$ bpkg install brep
+
+$ cd .. # Back to brep home.
+
+Note that by default the location of the Apache2 headers (httpd.h, etc) is
+detected automatically, using the Apache2 apxs utility. Below are their
+locations for some distributions:
 
 Debian/Ubuntu: /usr/include/apache2
 Fedora/RHEL:   /usr/include/httpd
 FreeBSD:       /usr/local/include/apache24
 
-You can also use the Apache2 apxs utility to obtain this information as shown
-below.
+To disable this functionality and specify the location explicitly, you can
+configure brep in the development mode and specify the respective preprocessor
+option by, for example, adding the following configuration variables to the
+above bpkg-build command:
 
-$ mkdir brep
-$ cd brep
-
-$ bpkg create                                   \
-   cc                                           \
-   config.cc.poptions="-I$(apxs -q includedir)" \
-   config.bin.rpath=$HOME/install/lib           \
-   config.install.root=$HOME/install
-
-$ bpkg add https://pkg.cppget.org/1/alpha
-$ bpkg fetch
-$ bpkg build brep ?sys:libapr1/* ?sys:libapreq2/* ?sys:libpq/*
-$ bpkg install brep
-
-$ cd .. # Back to brep home.
+config.brep.develop=true
+config.cc.poptions="-I..."
 
 
 4. Create PostgreSQL User and Databases

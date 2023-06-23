@@ -13,8 +13,6 @@ doc-url: https://build2.org/doc.xhtml
 src-url: https://git.build2.org/cgit/brep/tree/
 email: users@build2.org
 build-warning-email: builds@build2.org
-builds: linux freebsd   ; Only supports Linux and FreeBSD.
-builds: -linux -freebsd ; Requires system packages.
 requires: c++14
 requires: postgresql >= 9.0
 requires: apache2 ; Including development files (httpd.h header, etc).
@@ -34,3 +32,21 @@ depends: libbpkg [0.16.0-a.0.1 0.16.0-a.1)
 depends: libbbot [0.16.0-a.0.1 0.16.0-a.1)
 depends: libbutl.bash [0.16.0-a.0.1 0.16.0-a.1)
 depends: bpkg-util [0.16.0-a.0.1 0.16.0-a.1)
+
+# This package dependens on platform-specific implementation libraries that
+# are (currently) not packaged and need to come from the system package
+# manager. It also requires rsync for tests.
+#
+builds: none
+
+debian-builds: sys
+debian-build-exclude: linux_debian_12-** ; libapreq2 not available
+debian-build-include: linux_debian*-**
+debian-build-include: linux_ubuntu*-**
+debian-build-exclude: **
+debian-build-config: sys:apache2-dev ?sys:libapr1 ?sys:libapreq2 ?sys:libpq sys:rsync
+
+fedora-builds: sys
+fedora-build-include: linux_fedora*-**
+fedora-build-exclude: **
+fedora-build-config: sys:httpd-devel ?sys:libapr1 ?sys:libapreq2 ?sys:libpq sys:rsync
