@@ -1,6 +1,17 @@
 Version 0.16.0
 
-  * Note that no brep_build schema migration from version 18 is supported.
+  * Note: brep_build database schema migration from version 18 is unsupported.
+
+  * Support for build artifact upload.
+
+  * Support for *-package-config package manifest value functionality.
+
+  * Support for interrupted build results.
+
+  * Support for random package ordering when issuing build tasks.
+
+  * Support for package-description, package-description-{file,type} package
+    manifest values.
 
 Version 0.15.0
 
