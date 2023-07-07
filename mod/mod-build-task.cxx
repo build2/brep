@@ -273,8 +273,11 @@ handle (request& rq, response& rs)
                         dash_components_to_path (c.machine_pattern),
                         dir_path () /* start */,
                         path_match_flags::match_absent))
+        {
           conf_machines.emplace (build_target_config_id {c.target, c.name},
                                  config_machine {&c, &m});
+          break;
+        }
       }
       catch (const invalid_path&) {}
     }
@@ -303,7 +306,7 @@ handle (request& rq, response& rs)
     auto task = [this] (shared_ptr<build>&& b,
                         shared_ptr<build_package>&& p,
                         build_package_config&& pc,
-                        shared_ptr<build_tenant>&& t,
+                        optional<string>&& interactive,
                         const config_machine& cm) -> task_response_manifest
     {
       uint64_t ts (
@@ -403,7 +406,7 @@ handle (request& rq, response& rs)
                           move (pc.arguments),
                           belongs (*cm.config, module_pkg ? "build2" : "host"),
                           cm.config->warning_regexes,
-                          move (t->interactive),
+                          move (interactive),
                           move (b->worker_checksum));
 
       // Collect the build artifacts upload URLs, skipping those which are
@@ -1068,8 +1071,6 @@ handle (request& rq, response& rs)
             position_tried (pos);
           }
 
-          shared_ptr<build_package> p (build_db_->load<build_package> (id));
-
           // Note that a request to interactively build a package in multiple
           // configurations is most likely a mistake than a deliberate choice.
           // Thus, for the interactive tenant let's check if the package can
@@ -1087,17 +1088,24 @@ handle (request& rq, response& rs)
           //
           if (bp.interactive)
           {
+            shared_ptr<build_tenant> t;
+
             // Note that the tenant can be archived via some other package on
             // some previous iteration. Skip the package if that's the case.
             //
-            // Also note that we need to (re-)load the tenant object rather
-            // than to refer to bp.archived.
+            // Also note that if bp.archived is false, then we need to
+            // (re-)load the tenant object to re-check the archived flag.
             //
-            shared_ptr<build_tenant> t (
-              build_db_->load<build_tenant> (id.tenant));
+            if (!bp.archived)
+            {
+              t = build_db_->load<build_tenant> (id.tenant);
+              bp.archived = t->archived;
+            }
 
-            if (t->archived)
+            if (bp.archived)
               continue;
+
+            assert (t != nullptr); // Wouldn't be here otherwise.
 
             // Collect the potential build configurations as all combinations
             // of the tenant's packages build configurations and the
@@ -1211,6 +1219,8 @@ handle (request& rq, response& rs)
             }
           }
 
+          shared_ptr<build_package> p (build_db_->load<build_package> (id));
+
           for (build_package_config& pc: p->configs)
           {
             pkg_config_name = pc.name;
@@ -1276,13 +1286,10 @@ handle (request& rq, response& rs)
                 shared_ptr<build> b (build_db_->find<build> (bid));
                 optional<string> cl (challenge ());
 
-                shared_ptr<build_tenant> t (
-                  build_db_->load<build_tenant> (bid.package.tenant));
-
                 // Move the interactive build login information into the build
                 // object, if the package to be built interactively.
                 //
-                optional<string> login (t->interactive
+                optional<string> login (bp.interactive
                                         ? move (tqm.interactive_login)
                                         : nullopt);
 
@@ -1360,15 +1367,20 @@ handle (request& rq, response& rs)
 
                 // Archive an interactive tenant.
                 //
-                if (t->interactive)
+                if (bp.interactive)
                 {
+                  shared_ptr<build_tenant> t (
+                    build_db_->load<build_tenant> (b->id.package.tenant));
+
                   t->archived = true;
                   build_db_->update (t);
                 }
 
                 // Finally, prepare the task response manifest.
                 //
-                tsm = task (move (b), move (p), move (pc), move (t), cm);
+                tsm = task (
+                  move (b), move (p), move (pc), move (bp.interactive), cm);
+
                 break; // Bail out from the package configurations loop.
               }
             }
@@ -1524,7 +1536,8 @@ handle (request& rq, response& rs)
 
                   build_db_->update (b);
 
-                  tsm = task (move (b), move (p), move (*pc), move (t), cm);
+                  tsm = task (
+                    move (b), move (p), move (*pc), move (t->interactive), cm);
                 }
               }
             }
