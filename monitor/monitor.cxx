@@ -601,13 +601,18 @@ namespace brep
                                                       p->configs)
                                               : nullptr);
 
-              cleanup = (pc == nullptr ||
-                         !p->buildable ||
-                         exclude (*pc,
-                                  p->builds,
-                                  p->constraints,
-                                  *ci->second,
-                                  configs.class_inheritance_map));
+              cleanup = (pc == nullptr || !p->buildable);
+
+              if (!cleanup)
+              {
+                db.load (*p, p->constraints_section);
+
+                cleanup = exclude (*pc,
+                                   p->builds,
+                                   p->constraints,
+                                   *ci->second,
+                                   configs.class_inheritance_map);
+              }
             }
 
             if (cleanup)
@@ -817,6 +822,8 @@ namespace brep
           for (auto& bp: bps)
           {
             shared_ptr<build_package> p (db.load<build_package> (bp.id));
+
+            db.load (*p, p->constraints_section);
 
             for (const build_package_config& pc: p->configs)
             {

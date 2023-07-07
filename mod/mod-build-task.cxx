@@ -338,6 +338,8 @@ handle (request& rq, response& rs)
       //
       small_vector<bpkg::test_dependency, 1> tests;
 
+      build_db_->load (*p, p->requirements_tests_section);
+
       for (const build_test_dependency& td: p->tests)
       {
         // Don't exclude unresolved external tests.
@@ -366,6 +368,8 @@ handle (request& rq, response& rs)
           // the `builds: all` and `builds: -windows` manifest values for
           // the primary and external test packages, respectively).
           //
+          build_db_->load (*p, p->constraints_section);
+
           if (exclude (*pc,
                        p->builds,
                        p->constraints,
@@ -1081,14 +1085,17 @@ handle (request& rq, response& rs)
           // reason (multiple toolchains, buildtab change, etc). Note that the
           // build result will still be accepted for an archived build.
           //
-          shared_ptr<build_tenant> t (
-            build_db_->load<build_tenant> (id.tenant));
-
-          if (t->interactive)
+          if (bp.interactive)
           {
             // Note that the tenant can be archived via some other package on
             // some previous iteration. Skip the package if that's the case.
             //
+            // Also note that we need to (re-)load the tenant object rather
+            // than to refer to bp.archived.
+            //
+            shared_ptr<build_tenant> t (
+              build_db_->load<build_tenant> (id.tenant));
+
             if (t->archived)
               continue;
 
@@ -1112,11 +1119,13 @@ handle (request& rq, response& rs)
             // per task request. Given that we archive such tenants
             // immediately, as a common case there will be none.
             //
-            pkg_query pq (pkg_query::build_tenant::id == t->id);
+            pkg_query pq (pkg_query::build_tenant::id == id.tenant);
             for (auto& tp: build_db_->query<buildable_package> (pq))
             {
               shared_ptr<build_package> p (
                 build_db_->load<build_package> (tp.id));
+
+              build_db_->load (*p, p->constraints_section);
 
               for (build_package_config& pc: p->configs)
               {
@@ -1219,8 +1228,8 @@ handle (request& rq, response& rs)
             for (auto i (pkg_builds.begin ()); i != pkg_builds.end (); ++i)
             {
               auto j (
-                configs.find (build_target_config_id {i->id.target,
-                      i->id.target_config_name}));
+                configs.find (build_target_config_id {
+                    i->id.target, i->id.target_config_name}));
 
               // Outdated configurations are already excluded with the
               // database query.
@@ -1244,6 +1253,8 @@ handle (request& rq, response& rs)
               //
               auto i (configs.begin ());
               auto e (configs.end ());
+
+              build_db_->load (*p, p->constraints_section);
 
               for (;
                    i != e &&
@@ -1459,58 +1470,62 @@ handle (request& rq, response& rs)
                                                 p->configs)
                                         : nullptr);
 
-              if (pc != nullptr                          &&
-                  p->buildable                           &&
+              if (pc != nullptr &&
+                  p->buildable  &&
                   (imode == interactive_mode::both ||
                    (t->interactive.has_value () ==
-                    (imode == interactive_mode::true_))) &&
-                  !exclude (*pc, p->builds, p->constraints, *cm.config))
+                    (imode == interactive_mode::true_))))
               {
-                assert (b->status);
+                build_db_->load (*p, p->constraints_section);
 
-                b->state = build_state::building;
+                if (!exclude (*pc, p->builds, p->constraints, *cm.config))
+                {
+                  assert (b->status);
 
-                // Save the interactive build login information into the build
-                // object, if the package to be built interactively.
-                //
-                // Can't move from, as may need it on the next iteration.
-                //
-                b->interactive = t->interactive
-                  ? tqm.interactive_login
-                  : nullopt;
+                  b->state = build_state::building;
 
-                // Can't move from, as may need them on the next iteration.
-                //
-                b->agent_fingerprint = agent_fp;
-                b->agent_challenge = cl;
+                  // Save the interactive build login information into the
+                  // build object, if the package to be built interactively.
+                  //
+                  // Can't move from, as may need it on the next iteration.
+                  //
+                  b->interactive = t->interactive
+                    ? tqm.interactive_login
+                    : nullopt;
 
-                const machine_header_manifest& mh (*cm.machine);
-                b->machine = mh.name;
-                b->machine_summary = mh.summary;
+                  // Can't move from, as may need them on the next iteration.
+                  //
+                  b->agent_fingerprint = agent_fp;
+                  b->agent_challenge = cl;
 
-                // Issue the hard rebuild if the timeout expired, rebuild is
-                // forced, or the configuration or machine has changed.
-                //
-                // Note that we never reset the build status (see above for
-                // the reasoning).
-                //
-                string ccs (controller_checksum (*cm.config));
-                string mcs (machine_checksum (*cm.machine));
+                  const machine_header_manifest& mh (*cm.machine);
+                  b->machine = mh.name;
+                  b->machine_summary = mh.summary;
 
-                if (b->hard_timestamp <= hard_rebuild_expiration ||
-                    b->force == force_state::forced              ||
-                    b->controller_checksum != ccs                ||
-                    b->machine_checksum != mcs)
-                  convert_to_hard (b);
+                  // Issue the hard rebuild if the timeout expired, rebuild is
+                  // forced, or the configuration or machine has changed.
+                  //
+                  // Note that we never reset the build status (see above for
+                  // the reasoning).
+                  //
+                  string ccs (controller_checksum (*cm.config));
+                  string mcs (machine_checksum (*cm.machine));
 
-                b->controller_checksum = move (ccs);
-                b->machine_checksum    = move (mcs);
+                  if (b->hard_timestamp <= hard_rebuild_expiration ||
+                      b->force == force_state::forced              ||
+                      b->controller_checksum != ccs                ||
+                      b->machine_checksum != mcs)
+                    convert_to_hard (b);
 
-                b->timestamp = system_clock::now ();
+                  b->controller_checksum = move (ccs);
+                  b->machine_checksum    = move (mcs);
 
-                build_db_->update (b);
+                  b->timestamp = system_clock::now ();
 
-                tsm = task (move (b), move (p), move (*pc), move (t), cm);
+                  build_db_->update (b);
+
+                  tsm = task (move (b), move (p), move (*pc), move (t), cm);
+                }
               }
             }
 

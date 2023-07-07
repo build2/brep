@@ -365,6 +365,8 @@ handle (request& rq, response&)
           if (const build_package_config* pc = find (b->package_config_name,
                                                      p->configs))
           {
+            build_db_->load (*p, p->constraints_section);
+
             if (!exclude (*pc, p->builds, p->constraints, *tc))
               bld = move (b);
           }

@@ -624,6 +624,8 @@ handle (request& rq, response& rs)
             continue;
           }
 
+          build_db_->load (*p, p->constraints_section);
+
           if (!exclude (*pc, p->builds, p->constraints, *i->second))
           {
             if (skip != 0)
@@ -891,6 +893,8 @@ handle (request& rq, response& rs)
 
           shared_ptr<build_package> p (build_db_->load<build_package> (id));
 
+          // Note: load the constrains section lazily.
+          //
           for (const build_package_config& c: p->configs)
           {
             // Filter by package config name.
@@ -899,6 +903,9 @@ handle (request& rq, response& rs)
             {
               for (const auto& tc: target_configs)
               {
+                if (!p->constraints_section.loaded ())
+                  build_db_->load (*p, p->constraints_section);
+
                 if (exclude (c, p->builds, p->constraints, *tc))
                 {
                   target = tc->target;
@@ -1031,6 +1038,8 @@ handle (request& rq, response& rs)
           //
           set<config_toolchain> unbuilt_configs;
 
+          // Load the constrains section lazily.
+          //
           for (const build_package_config& pc: bp->configs)
           {
             // Filter by package config name.
@@ -1044,6 +1053,9 @@ handle (request& rq, response& rs)
                     build_target_config_id {ct.target, ct.target_config}));
 
                 assert (i != target_conf_map_->end ());
+
+                if (!bp->constraints_section.loaded ())
+                  build_db_->load (*bp, bp->constraints_section);
 
                 if (!exclude (pc, bp->builds, bp->constraints, *i->second))
                   unbuilt_configs.insert (

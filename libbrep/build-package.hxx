@@ -5,6 +5,7 @@
 #define LIBBREP_BUILD_PACKAGE_HXX
 
 #include <odb/core.hxx>
+#include <odb/section.hxx>
 #include <odb/nested-container.hxx>
 
 #include <libbrep/types.hxx>
@@ -119,6 +120,8 @@ namespace brep
     requirements_type requirements;
     small_vector<build_test_dependency, 1> tests;
 
+    odb::section requirements_tests_section;
+
     lazy_shared_ptr<build_repository> internal_repository;
     bool buildable;
 
@@ -128,6 +131,12 @@ namespace brep
     build_class_exprs     builds;
     build_constraints     constraints;
     build_package_configs configs;
+
+    // Group the builds and constraints members of this object as well as of
+    // the nested configs entries for an explicit load. Note that the configs
+    // top-level members are loaded implicitly.
+    //
+    odb::section constraints_section;
 
     bool
     internal () const noexcept {return internal_repository != nullptr;}
@@ -145,7 +154,8 @@ namespace brep
 
     // Container of the requirement_alternatives values.
     //
-    #pragma db member(requirements) id_column("") value_column("")
+    #pragma db member(requirements) id_column("") value_column("") \
+      section(requirements_tests_section)
 
     // Container of the requirement_alternative values.
     //
@@ -154,7 +164,8 @@ namespace brep
       after(requirements)                                     \
       get(odb::nested_get (this.requirements))                \
       set(odb::nested_set (this.requirements, std::move (?))) \
-      id_column("") key_column("") value_column("")
+      id_column("") key_column("") value_column("")           \
+      section(requirements_tests_section)
 
     // Container of the requirement (string) values.
     //
@@ -163,13 +174,23 @@ namespace brep
       after(requirement_alternatives)                          \
       get(odb::nested2_get (this.requirements))                \
       set(odb::nested2_set (this.requirements, std::move (?))) \
-      id_column("") key_column("") value_column("id")
+      id_column("") key_column("") value_column("id")          \
+      section(requirements_tests_section)
 
-    // tests, builds, and constraints
+    // tests
     //
-    #pragma db member(tests) id_column("") value_column("test_")
-    #pragma db member(builds) id_column("") value_column("")
-    #pragma db member(constraints) id_column("") value_column("")
+    #pragma db member(tests) id_column("") value_column("test_") \
+      section(requirements_tests_section)
+
+    #pragma db member(requirements_tests_section) load(lazy) update(always)
+
+    // builds and constraints
+    //
+    #pragma db member(builds) id_column("") value_column("") \
+      section(constraints_section)
+
+    #pragma db member(constraints) id_column("") value_column("") \
+      section(constraints_section)
 
     // configs
     //
@@ -187,7 +208,8 @@ namespace brep
       set(brep::build_package_config_builds bs;                \
           odb::nested_set (bs, std::move (?));                 \
           move (bs).to_configs (this.configs))                 \
-      id_column("") key_column("") value_column("")
+      id_column("") key_column("") value_column("")            \
+      section(constraints_section)
 
     #pragma db member(config_constraints)                           \
       virtual(build_constraints_map)                                \
@@ -197,7 +219,10 @@ namespace brep
       set(brep::build_package_config_constraints cs;                \
           odb::nested_set (cs, std::move (?));                      \
           move (cs).to_configs (this.configs))                      \
-      id_column("") key_column("") value_column("")
+      id_column("") key_column("") value_column("")                 \
+      section(constraints_section)
+
+    #pragma db member(constraints_section) load(lazy) update(always)
 
   private:
     friend class odb::access;
@@ -222,6 +247,10 @@ namespace brep
     upstream_version version;
 
     bool archived; // True if the tenant the package belongs to is archived.
+
+    // Present if the tenant the package belongs to is interactive.
+    //
+    optional<string> interactive;
 
     // Database mapping.
     //
