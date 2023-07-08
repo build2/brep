@@ -821,7 +821,7 @@ namespace brep
 
           for (auto& bp: bps)
           {
-            shared_ptr<build_package> p (db.load<build_package> (bp.id));
+            shared_ptr<build_package>& p (bp.package);
 
             db.load (*p, p->constraints_section);
 

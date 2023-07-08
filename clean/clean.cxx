@@ -299,19 +299,19 @@ namespace brep
     // be made once per tenant package name due to the builds query sorting
     // criteria (see above).
     //
-    using pkg_query = query<buildable_package>;
-    using prep_pkg_query = prepared_query<buildable_package>;
+    using pkg_query = query<build_package_version>;
+    using prep_pkg_query = prepared_query<build_package_version>;
 
     string tnt;
     package_name pkg_name;
     set<version> package_versions;
 
-    pkg_query pq (
-      pkg_query::build_package::id.tenant == pkg_query::_ref (tnt) &&
-      pkg_query::build_package::id.name == pkg_query::_ref (pkg_name));
+    pkg_query pq (pkg_query::buildable                          &&
+                  pkg_query::id.tenant == pkg_query::_ref (tnt) &&
+                  pkg_query::id.name == pkg_query::_ref (pkg_name));
 
     prep_pkg_query pkg_prep_query (
-      conn->prepare_query<buildable_package> ("package-query", pq));
+      conn->prepare_query<build_package_version> ("package-query", pq));
 
     for (bool ne (true); ne; )
     {
@@ -331,11 +331,16 @@ namespace brep
                         ? i->second
                         : default_timeout);
 
-          // @@ Note that this approach doesn't consider the case when both
-          //    the configuration and the package still exists but the package
-          //    now excludes the configuration (configuration is now of the
-          //    legacy class instead of the default class, etc). We should
-          //    probably re-implement it in a way brep-monitor does it.
+          // Note that we don't consider the case when both the configuration
+          // and the package still exist but the package now excludes the
+          // configuration (configuration is now of the legacy class instead
+          // of the default class, etc). Should we handle this case and
+          // re-implement in a way brep-monitor does it? Probably not since
+          // the described situation is not very common and storing some extra
+          // builds which sooner or later will be wiped out due to the timeout
+          // is harmless. The current implementation, however, is simpler and
+          // consumes less resources in runtime (doesn't load build package
+          // objects, etc).
           //
           bool cleanup (
             // Check that the build is not stale.

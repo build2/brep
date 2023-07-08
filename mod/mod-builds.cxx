@@ -889,9 +889,9 @@ handle (request& rq, response& rs)
 
         for (auto& bp: build_db_->query<buildable_package> (q))
         {
-          id = move (bp.id);
+          shared_ptr<build_package>& p (bp.package);
 
-          shared_ptr<build_package> p (build_db_->load<build_package> (id));
+          id = p->id;
 
           // Note: load the constrains section lazily.
           //
@@ -1027,11 +1027,11 @@ handle (request& rq, response& rs)
         // Iterate over packages and print unbuilt configurations. Skip the
         // appropriate number of them first (for page number greater than one).
         //
-        for (auto& p: packages)
+        for (auto& bp: packages)
         {
-          id = move (p.id);
+          shared_ptr<build_package>& p (bp.package);
 
-          shared_ptr<build_package> bp (build_db_->load<build_package> (id));
+          id = p->id;
 
           // Copy configuration/toolchain combinations for this package,
           // skipping excluded configurations.
@@ -1040,7 +1040,7 @@ handle (request& rq, response& rs)
 
           // Load the constrains section lazily.
           //
-          for (const build_package_config& pc: bp->configs)
+          for (const build_package_config& pc: p->configs)
           {
             // Filter by package config name.
             //
@@ -1054,10 +1054,10 @@ handle (request& rq, response& rs)
 
                 assert (i != target_conf_map_->end ());
 
-                if (!bp->constraints_section.loaded ())
-                  build_db_->load (*bp, bp->constraints_section);
+                if (!p->constraints_section.loaded ())
+                  build_db_->load (*p, p->constraints_section);
 
-                if (!exclude (pc, bp->builds, bp->constraints, *i->second))
+                if (!exclude (pc, p->builds, p->constraints, *i->second))
                   unbuilt_configs.insert (
                     config_toolchain {ct.target,
                                       ct.target_config,
@@ -1095,7 +1095,7 @@ handle (request& rq, response& rs)
             s << TABLE(CLASS="proplist build")
               <<   TBODY
               <<     TR_NAME (id.name, string (), root, id.tenant)
-              <<     TR_VERSION (id.name, p.version, root, id.tenant)
+              <<     TR_VERSION (id.name, p->version, root, id.tenant)
               <<     TR_VALUE ("toolchain",
                                string (ct.toolchain_name) + '-' +
                                ct.toolchain_version.string ())

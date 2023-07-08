@@ -1027,7 +1027,9 @@ handle (request& rq, response& rs)
         //
         for (auto& bp: packages)
         {
-          id = move (bp.id);
+          shared_ptr<build_package>& p (bp.package);
+
+          id = p->id;
 
           // If we are in the random package ordering mode, then cache the
           // tenant the start offset refers to, if not cached yet, and check
@@ -1130,8 +1132,7 @@ handle (request& rq, response& rs)
             pkg_query pq (pkg_query::build_tenant::id == id.tenant);
             for (auto& tp: build_db_->query<buildable_package> (pq))
             {
-              shared_ptr<build_package> p (
-                build_db_->load<build_package> (tp.id));
+              shared_ptr<build_package>& p (tp.package);
 
               build_db_->load (*p, p->constraints_section);
 
@@ -1176,7 +1177,7 @@ handle (request& rq, response& rs)
                   b = make_shared<build> (
                     move (bid.package.tenant),
                     move (bid.package.name),
-                    bp.version,
+                    p->version,
                     move (bid.target),
                     move (bid.target_config_name),
                     move (bid.package_config_name),
@@ -1218,8 +1219,6 @@ handle (request& rq, response& rs)
               continue; // Skip the package.
             }
           }
-
-          shared_ptr<build_package> p (build_db_->load<build_package> (id));
 
           for (build_package_config& pc: p->configs)
           {
@@ -1301,7 +1300,7 @@ handle (request& rq, response& rs)
                 {
                   b = make_shared<build> (move (bid.package.tenant),
                                           move (bid.package.name),
-                                          move (bp.version),
+                                          p->version,
                                           move (bid.target),
                                           move (bid.target_config_name),
                                           move (bid.package_config_name),

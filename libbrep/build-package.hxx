@@ -229,6 +229,17 @@ namespace brep
     build_package () = default;
   };
 
+  #pragma db view object(build_package)
+  struct build_package_version
+  {
+    package_id id;
+    upstream_version version;
+
+    // Database mapping.
+    //
+    #pragma db member(version) set(this.version.init (this.id.version, (?)))
+  };
+
   // Packages that can potentially be built.
   //
   // Note that ADL can't find the equal operator, so we use the function call
@@ -243,18 +254,13 @@ namespace brep
     object(build_tenant: build_package::id.tenant == build_tenant::id)
   struct buildable_package
   {
-    package_id id;
-    upstream_version version;
+    shared_ptr<build_package> package;
 
     bool archived; // True if the tenant the package belongs to is archived.
 
     // Present if the tenant the package belongs to is interactive.
     //
     optional<string> interactive;
-
-    // Database mapping.
-    //
-    #pragma db member(version) set(this.version.init (this.id.version, (?)))
   };
 
   #pragma db view                                                      \
