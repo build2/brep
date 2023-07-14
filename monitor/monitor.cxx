@@ -853,6 +853,11 @@ namespace brep
                   {
                     package_config_name = pc.name;
 
+                    // @@ TMP Check if we can optimize this query by adding
+                    //        index for soft_timestamp and/or by setting
+                    //        enable_nestloop=off (or some such) as we do in
+                    //        mod/mod-builds.cxx.
+                    //
                     auto pbs (pbq.execute ());
 
                     if (!pbs.empty ())

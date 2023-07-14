@@ -624,7 +624,7 @@ handle (request& rq, response& rs)
             dir_path vd (fdd                               /
                          rd                                /
                          dir_path (pkg->project.string ()) /
-                         dir_path (pn.string ()) /
+                         dir_path (pn.string ())           /
                          dir_path (sver));
 
             try
@@ -799,6 +799,10 @@ handle (request& rq, response& rs)
 
       ts += ')';
 
+      // @@ Note that here we also load result logs which we don't need.
+      //    Probably we should invent some table view to only load operation
+      //    names and statuses.
+      //
       if (b.state == build_state::built)
         build_db_->load (b, b.results_section);
 

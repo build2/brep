@@ -24,10 +24,10 @@ namespace brep
   operator< (const db_key& x, const db_key& y)
   {
     int r;
-    if ((r = x.user.compare (y.user)) != 0 ||
-        (r = x.role.compare (y.role)) != 0 ||
+    if ((r = x.user.compare (y.user)) != 0         ||
+        (r = x.role.compare (y.role)) != 0         ||
         (r = x.password.compare (y.password)) != 0 ||
-        (r = x.name.compare (y.name)) != 0 ||
+        (r = x.name.compare (y.name)) != 0         ||
         (r = x.host.compare (y.host)))
       return r < 0;
 

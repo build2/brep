@@ -533,32 +533,18 @@ handle (request& rq, response& rs)
     vector<package_build> builds;
     builds.reserve (page_configs);
 
-    // Prepare the package build prepared query.
+    // Prepare the package build query.
     //
     using query = query<package_build>;
-    using prep_query = prepared_query<package_build>;
 
     query q (build_query<package_build> (&conf_ids, params, tn));
-
-    // Specify the portion. Note that we will be querying builds in chunks,
-    // not to hold locks for too long.
-    //
-    // Also note that for each build we also load the corresponding
-    // package. Nevertheless, we use a fairly large portion to speed-up the
-    // builds traversal but also cache the package objects (see below).
-    //
-    size_t offset (0);
 
     // Print package build configurations ordered by the timestamp (later goes
     // first).
     //
-    q += "ORDER BY" + query::build::timestamp + "DESC" +
-         "OFFSET" + query::_ref (offset) + "LIMIT 500";
+    q += "ORDER BY" + query::build::timestamp + "DESC";
 
     connection_ptr conn (build_db_->connection ());
-
-    prep_query pq (
-      conn->prepare_query<package_build> ("mod-builds-query", q));
 
     // Note that we can't skip the proper number of builds in the database
     // query for a page numbers greater than one. So we will query builds from
@@ -575,102 +561,101 @@ handle (request& rq, response& rs)
     //
     session sn;
 
-    for (bool ne (true); ne; )
+    transaction t (conn->begin ());
+
+    // For some reason PostgreSQL (as of 9.4) picks the nested loop join
+    // strategy for the below package_build query, which executes quite slow
+    // even for reasonably small number of builds. Thus, we just discourage
+    // PostgreSQL from using this strategy in the current transaction.
+    //
+    // @@ TMP Re-check for the later PostgreSQL versions if we can drop this
+    //        hint. If drop, then also grep for other places where this hint
+    //        is used.
+    //
+    conn->execute ("SET LOCAL enable_nestloop=off");
+
+    // Iterate over builds and cache build objects that should be printed.
+    // Skip the appropriate number of them (for page number greater than
+    // one).
+    //
+    for (auto& pb: build_db_->query<package_build> (q))
     {
-      transaction t (conn->begin ());
+      shared_ptr<build>& b (pb.build);
 
-      // Query package builds (and cache the result).
+      auto i (
+        target_conf_map_->find (
+          build_target_config_id {b->target, b->target_config_name}));
+
+      assert (i != target_conf_map_->end ());
+
+      // Match the target configuration against the package build
+      // configuration expressions/constraints.
       //
-      auto bs (pq.execute ());
+      shared_ptr<build_package> p (
+        build_db_->load<build_package> (b->id.package));
 
-      if ((ne = !bs.empty ()))
+      const build_package_config* pc (find (b->package_config_name,
+                                            p->configs));
+
+      // The package configuration should be present since the configurations
+      // set cannot change if the package version doesn't change. If that's
+      // not the case, then the database has probably been manually amended.
+      // In this case let's just skip such a build as if it excluded and log
+      // the warning.
+      //
+      if (pc == nullptr)
       {
-        offset += bs.size ();
+        warn << "cannot find configuration '" << b->package_config_name
+             << "' for package " << p->id.name << '/' << p->version;
 
-        // Iterate over builds and cache build objects that should be printed.
-        // Skip the appropriate number of them (for page number greater than
-        // one).
-        //
-        for (auto& pb: bs)
-        {
-          shared_ptr<build>& b (pb.build);
-
-          auto i (target_conf_map_->find (
-                    build_target_config_id {b->target,
-                                            b->target_config_name}));
-
-          assert (i != target_conf_map_->end ());
-
-          // Match the target configuration against the package build
-          // configuration expressions/constraints.
-          //
-          shared_ptr<build_package> p (
-            build_db_->load<build_package> (b->id.package));
-
-          const build_package_config* pc (find (b->package_config_name,
-                                                p->configs));
-
-          // The package configuration should be present since the
-          // configurations set cannot change if the package version doesn't
-          // change. If that's not the case, then the database has probably
-          // been manually amended. In this case let's just skip such a build
-          // as if it excluded and log the warning.
-          //
-          if (pc == nullptr)
-          {
-            warn << "cannot find configuration '" << b->package_config_name
-                 << "' for package " << p->id.name << '/' << p->version;
-
-            continue;
-          }
-
-          build_db_->load (*p, p->constraints_section);
-
-          if (!exclude (*pc, p->builds, p->constraints, *i->second))
-          {
-            if (skip != 0)
-              --skip;
-            else if (print != 0)
-            {
-              // As we query builds in multiple transactions we may see the
-              // same build multiple times. Let's skip the duplicates. Note:
-              // we don't increment the counter in this case.
-              //
-              if (find_if (builds.begin (), builds.end (),
-                           [&b] (const package_build& pb)
-                           {
-                             return b->id == pb.build->id;
-                           }) != builds.end ())
-                continue;
-
-              if (b->state == build_state::built)
-              {
-                build_db_->load (*b, b->results_section);
-
-                // Let's clear unneeded result logs for builds being cached.
-                //
-                for (operation_result& r: b->results)
-                  r.log.clear ();
-              }
-
-              builds.push_back (move (pb));
-
-              --print;
-            }
-
-            ++count;
-          }
-        }
+        continue;
       }
-      //
-      // Print the filter form after the build count is calculated. Note:
-      // query_toolchains() must be called inside the build db transaction.
-      //
-      else
-        print_form (query_toolchains (), count);
 
-      t.commit ();
+      if (!p->constraints_section.loaded ())
+        build_db_->load (*p, p->constraints_section);
+
+      if (!exclude (*pc, p->builds, p->constraints, *i->second))
+      {
+        if (skip != 0)
+          --skip;
+        else if (print != 0)
+        {
+          // As we query builds in multiple transactions we may see the same
+          // build multiple times. Let's skip the duplicates. Note: we don't
+          // increment the counter in this case.
+          //
+          if (find_if (builds.begin (), builds.end (),
+                       [&b] (const package_build& pb)
+                       {
+                         return b->id == pb.build->id;
+                       }) != builds.end ())
+            continue;
+
+          if (b->state == build_state::built)
+          {
+            build_db_->load (*b, b->results_section);
+
+            // Let's clear unneeded result logs for builds being cached.
+            //
+            for (operation_result& r: b->results)
+              r.log.clear ();
+          }
+
+          builds.push_back (move (pb));
+
+          --print;
+        }
+
+        ++count;
+      }
     }
+
+    // Print the filter form after the build count is calculated. Note:
+    // query_toolchains() must be called inside the build db transaction.
+    //
+    print_form (query_toolchains (), count);
+
+    t.commit ();
 
     // Finally, print the cached package build configurations.
     //
@@ -750,9 +735,27 @@ handle (request& rq, response& rs)
       const bpkg::version& toolchain_version;
     };
 
+    // Cache the build package objects that would otherwise be loaded twice:
+    // first time during calculating the builds count and then during printing
+    // the builds. Note that the build package is a subset of the package
+    // object and normally has a small memory footprint.
+    //
+    // @@ TMP It feels that we can try to combine the mentioned steps and
+    //        improve the performance a bit. We won't need the session in this
+    //        case.
+    //
+    session sn;
+
+    connection_ptr conn (build_db_->connection ());
+    transaction t (conn->begin ());
+
+    // Discourage PostgreSQL from using the nested loop join strategy in the
+    // current transaction (see above for details).
+    //
+    conn->execute ("SET LOCAL enable_nestloop=off");
+
     vector<target_config_toolchain> config_toolchains;
     {
-      transaction t (build_db_->begin ());
       toolchains = query_toolchains ();
 
       string th_name;
@@ -925,8 +928,6 @@ handle (request& rq, response& rs)
       }
       else
         count = 0;
-
-      t.commit ();
     }
 
     // Print the filter form.
@@ -944,7 +945,7 @@ handle (request& rq, response& rs)
     // 7: target configuration name
     // 8: package configuration name
     //
-    // Prepare the build package prepared query.
+    // Prepare the build package query.
     //
     // Note that we can't skip the proper number of packages in the database
     // query for a page numbers greater than one. So we will query packages
@@ -959,27 +960,14 @@ handle (request& rq, response& rs)
     // URL query parameter. Alternatively, we can invent the page number cap.
     //
     using pkg_query = query<buildable_package>;
-    using prep_pkg_query = prepared_query<buildable_package>;
 
     pkg_query pq (package_query<buildable_package> (params, tn));
-
-    // Specify the portion. Note that we will still be querying packages in
-    // chunks, not to hold locks for too long. For each package we will query
-    // its builds, so let's keep the portion small.
-    //
-    size_t offset (0);
 
     pq += "ORDER BY" +
       pkg_query::build_package::id.name +
       order_by_version_desc (pkg_query::build_package::id.version,
                              false /* first */) + "," +
-      pkg_query::build_package::id.tenant +
-      "OFFSET" + pkg_query::_ref (offset) + "LIMIT 50";
-
-    connection_ptr conn (build_db_->connection ());
-
-    prep_pkg_query pkg_prep_query (
-      conn->prepare_query<buildable_package> ("mod-builds-package-query", pq));
+      pkg_query::build_package::id.tenant;
 
     // Prepare the build prepared query.
     //
@@ -1010,120 +998,115 @@ handle (request& rq, response& rs)
     // Enclose the subsequent tables to be able to use nth-child CSS selector.
     //
     s << DIV;
-    while (print != 0)
+
+    // Query (and cache) buildable packages.
+    //
+    auto packages (build_db_->query<buildable_package> (pq));
+
+    if (packages.empty ())
+      print = 0;
+    else
     {
-      transaction t (conn->begin ());
-
-      // Query (and cache) buildable packages.
+      // Iterate over packages and print unbuilt configurations. Skip the
+      // appropriate number of them first (for page number greater than one).
       //
-      auto packages (pkg_prep_query.execute ());
-
-      if (packages.empty ())
-        print = 0;
-      else
+      for (auto& bp: packages)
       {
-        offset += packages.size ();
+        shared_ptr<build_package>& p (bp.package);
 
-        // Iterate over packages and print unbuilt configurations. Skip the
-        // appropriate number of them first (for page number greater than one).
+        id = p->id;
+
+        // Copy configuration/toolchain combinations for this package,
+        // skipping excluded configurations.
         //
-        for (auto& bp: packages)
+        set<config_toolchain> unbuilt_configs;
+
+        // Load the constrains section lazily.
+        //
+        for (const build_package_config& pc: p->configs)
         {
-          shared_ptr<build_package>& p (bp.package);
-
-          id = p->id;
-
-          // Copy configuration/toolchain combinations for this package,
-          // skipping excluded configurations.
+          // Filter by package config name.
           //
-          set<config_toolchain> unbuilt_configs;
-
-          // Load the constrains section lazily.
-          //
-          for (const build_package_config& pc: p->configs)
+          if (pkg_cfg.empty () || path_match (pc.name, pkg_cfg))
           {
-            // Filter by package config name.
-            //
-            if (pkg_cfg.empty () || path_match (pc.name, pkg_cfg))
+            for (const target_config_toolchain& ct: config_toolchains)
             {
-              for (const target_config_toolchain& ct: config_toolchains)
-              {
-                auto i (
-                  target_conf_map_->find (
-                    build_target_config_id {ct.target, ct.target_config}));
+              auto i (
+                target_conf_map_->find (
+                  build_target_config_id {ct.target, ct.target_config}));
 
-                assert (i != target_conf_map_->end ());
+              assert (i != target_conf_map_->end ());
 
-                if (!p->constraints_section.loaded ())
-                  build_db_->load (*p, p->constraints_section);
+              if (!p->constraints_section.loaded ())
+                build_db_->load (*p, p->constraints_section);
 
-                if (!exclude (pc, p->builds, p->constraints, *i->second))
-                  unbuilt_configs.insert (
-                    config_toolchain {ct.target,
-                                      ct.target_config,
-                                      pc.name,
-                                      ct.toolchain_name,
-                                      ct.toolchain_version});
-              }
+              if (!exclude (pc, p->builds, p->constraints, *i->second))
+                unbuilt_configs.insert (
+                  config_toolchain {ct.target,
+                      ct.target_config,
+                      pc.name,
+                      ct.toolchain_name,
+                      ct.toolchain_version});
             }
           }
+        }
 
-          // Iterate through the package configuration builds and erase them
-          // from the unbuilt configurations set.
-          //
-          for (const auto& pb: bld_prep_query.execute ())
+        // Iterate through the package configuration builds and erase them
+        // from the unbuilt configurations set.
+        //
+        for (const auto& pb: bld_prep_query.execute ())
+        {
+          const build& b (*pb.build);
+
+          unbuilt_configs.erase (config_toolchain {b.target,
+                                                   b.target_config_name,
+                                                   b.package_config_name,
+                                                   b.toolchain_name,
+                                                   b.toolchain_version});
+        }
+
+        // Print unbuilt package configurations.
+        //
+        for (const auto& ct: unbuilt_configs)
+        {
+          if (skip != 0)
           {
-            const build& b (*pb.build);
-
-            unbuilt_configs.erase (config_toolchain {b.target,
-                                                     b.target_config_name,
-                                                     b.package_config_name,
-                                                     b.toolchain_name,
-                                                     b.toolchain_version});
+            --skip;
+            continue;
           }
 
-          // Print unbuilt package configurations.
+          s << TABLE(CLASS="proplist build")
+            <<   TBODY
+            <<     TR_NAME (id.name, string (), root, id.tenant)
+            <<     TR_VERSION (id.name, p->version, root, id.tenant)
+            <<     TR_VALUE ("toolchain",
+                             string (ct.toolchain_name) + '-' +
+                             ct.toolchain_version.string ())
+            <<     TR_VALUE ("target", ct.target.string ())
+            <<     TR_VALUE ("tgt config", ct.target_config)
+            <<     TR_VALUE ("pkg config", ct.package_config);
+
+          // In the global view mode add the tenant builds link. Note that
+          // the global view (and the link) makes sense only in the
+          // multi-tenant mode.
           //
-          for (const auto& ct: unbuilt_configs)
-          {
-            if (skip != 0)
-            {
-              --skip;
-              continue;
-            }
+          if (!tn && !id.tenant.empty ())
+            s << TR_TENANT (tenant_name, "builds", root, id.tenant);
 
-            s << TABLE(CLASS="proplist build")
-              <<   TBODY
-              <<     TR_NAME (id.name, string (), root, id.tenant)
-              <<     TR_VERSION (id.name, p->version, root, id.tenant)
-              <<     TR_VALUE ("toolchain",
-                               string (ct.toolchain_name) + '-' +
-                               ct.toolchain_version.string ())
-              <<     TR_VALUE ("target", ct.target.string ())
-              <<     TR_VALUE ("tgt config", ct.target_config)
-              <<     TR_VALUE ("pkg config", ct.package_config);
+          s <<   ~TBODY
+            << ~TABLE;
 
-            // In the global view mode add the tenant builds link. Note that
-            // the global view (and the link) makes sense only in the
-            // multi-tenant mode.
-            //
-            if (!tn && !id.tenant.empty ())
-              s << TR_TENANT (tenant_name, "builds", root, id.tenant);
-
-            s <<   ~TBODY
-              << ~TABLE;
-
-            if (--print == 0) // Bail out the configuration loop.
-              break;
-          }
-
-          if (print == 0) // Bail out the package loop.
+          if (--print == 0) // Bail out the configuration loop.
             break;
         }
-      }
 
-      t.commit ();
+        if (print == 0) // Bail out the package loop.
+          break;
+      }
     }
+
+    t.commit ();
+
     s << ~DIV;
   }
 
