@@ -1444,7 +1444,7 @@ handle (request& rq, response& rs)
         {
           try
           {
-            transaction t (build_db_->begin ());
+            transaction t (conn->begin ());
 
             b = build_db_->find<build> (b->id);
 
