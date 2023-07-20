@@ -201,6 +201,14 @@ handle (request& rq, response&)
 
     package_build pb;
     shared_ptr<build> b;
+
+    auto build_timestamp = [&b] ()
+    {
+      return to_string (
+        chrono::duration_cast<std::chrono::nanoseconds> (
+          b->timestamp.time_since_epoch ()).count ());
+    };
+
     if (!build_db_->query_one<package_build> (
           query<package_build>::build::id == id, pb))
     {
@@ -208,11 +216,13 @@ handle (request& rq, response&)
     }
     else if ((b = move (pb.build))->state != build_state::building)
     {
-      warn_expired ("package configuration state is " + to_string (b->state));
+      warn_expired ("package configuration state is " + to_string (b->state) +
+                    ", force state " + to_string (b->force)                  +
+                    ", timestamp " + build_timestamp ());
     }
     else if (b->timestamp != session.timestamp)
     {
-      warn_expired ("non-matching timestamp");
+      warn_expired ("non-matching timestamp " + build_timestamp ());
     }
     else if (authenticate_session (*options_, rqm.challenge, *b, rqm.session))
     {
@@ -303,7 +313,7 @@ handle (request& rq, response&)
                   "dependency");
         }
 
-        unforced = b->force == force_state::unforced;
+        unforced = (b->force == force_state::unforced);
 
         // Don't send email to the build-email address for the
         // success-to-success status change, unless the build was forced.

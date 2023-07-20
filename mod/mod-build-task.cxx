@@ -876,7 +876,7 @@ handle (request& rq, response& rs)
       //
       // This is why we query the database for configurations that should not
       // be built (in the built state, or in the building state and not
-      // expired).  Having such a list we will select the first build
+      // expired). Having such a list we will select the first build
       // configuration that is not in the list (if available) for the
       // response.
       //
@@ -921,8 +921,8 @@ handle (request& rq, response& rs)
 
         return (b.force == force_state::forced &&
                 b.timestamp <= forced_rebuild_expiration)  ||
-        b.soft_timestamp <= soft_rebuild_expiration ||
-        b.hard_timestamp <= hard_rebuild_expiration;
+               b.soft_timestamp <= soft_rebuild_expiration ||
+               b.hard_timestamp <= hard_rebuild_expiration;
       };
 
       // Convert a build to the hard rebuild, resetting the agent checksum.

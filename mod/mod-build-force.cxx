@@ -188,16 +188,29 @@ handle (request& rq, response& rs)
 
     if (b->force != force)
     {
+      // Log the force rebuild with the warning severity, truncating the
+      // reason if too long.
+      //
+      diag_record dr (warn);
+      dr << "force rebuild for ";
+
+      if (!b->tenant.empty ())
+        dr << b->tenant << ' ';
+
+      dr << b->package_name << '/' << b->package_version << ' '
+         << b->target_config_name << '/' << b->target << ' '
+         << b->package_config_name << ' '
+         << b->toolchain_name << '-' << b->toolchain_version
+         << " (state: " << to_string (b->state) << ' ' << to_string (b->force)
+         << "): ";
+
+      if (reason.size () < 50)
+        dr << reason;
+      else
+        dr << string (reason, 0, 50) << "...";
+
       b->force = force;
       build_db_->update (b);
-
-      l1 ([&]{trace << "force rebuild for "
-                    << b->tenant << ' '
-                    << b->package_name << '/' << b->package_version << ' '
-                    << b->target_config_name << '/' << b->target << ' '
-                    << b->package_config_name << ' '
-                    << b->toolchain_name << '-' << b->toolchain_version
-                    << ": " << reason;});
     }
 
     t.commit ();
