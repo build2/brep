@@ -82,6 +82,7 @@ $ cd brep
 
 $ bpkg create                         \
    cc                                 \
+   config.cc.coptions=-O3             \
    config.bin.rpath=$HOME/install/lib \
    config.install.root=$HOME/install
 
