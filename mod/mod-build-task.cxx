@@ -1543,7 +1543,13 @@ handle (request& rq, response& rs)
 
             t.commit ();
           }
-          catch (const odb::deadlock&) {} // Just try with the next rebuild.
+          catch (const odb::deadlock&)
+          {
+            // Just try with the next rebuild. But first, reset the task
+            // response manifest that we may have prepared.
+            //
+            tsm = task_response_manifest ();
+          }
 
           // If the task response manifest is prepared, then bail out from the
           // package configuration rebuilds loop and respond.
