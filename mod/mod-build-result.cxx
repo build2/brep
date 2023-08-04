@@ -132,9 +132,24 @@ handle (request& rq, response&)
   // if the session is valid. The thinking is that this is a problem with the
   // controller's setup (expires too fast), not with the agent's.
   //
-  auto warn_expired = [&rqm, &warn] (const string& d)
+  // Note, though, that there can be quite a common situation when a build
+  // machine is suspended by the bbot agent due to the build timeout. In this
+  // case the task result request may arrive anytime later (after the issue is
+  // investigated, etc) with the abort or abnormal status. By that arrival
+  // time a new build task may already be issued/completed for this package
+  // build configuration or this configuration may even be gone (brep has been
+  // reconfigured, package has gone, etc). We will log no warning in this
+  // case, assuming that such an expiration is not a problem with the
+  // controller's setup.
+  //
+  shared_ptr<build> b;
+  result_status rs (rqm.result.status);
+
+  auto warn_expired = [&rqm, &warn, &b, &session, rs] (const string& d)
   {
-    warn << "session '" << rqm.session << "' expired: " << d;
+    if (!((b == nullptr || b->timestamp > session.timestamp) &&
+          (rs == result_status::abort || rs == result_status::abnormal)))
+      warn << "session '" << rqm.session << "' expired: " << d;
   };
 
   // Make sure the build configuration still exists.
@@ -200,7 +215,6 @@ handle (request& rq, response&)
     transaction t (build_db_->begin ());
 
     package_build pb;
-    shared_ptr<build> b;
 
     auto build_timestamp = [&b] ()
     {
@@ -229,7 +243,7 @@ handle (request& rq, response&)
       // If the build is interrupted, then revert it to the original built
       // state if this is a rebuild and delete it from the database otherwise.
       //
-      if (rqm.result.status == result_status::interrupt)
+      if (rs == result_status::interrupt)
       {
         if (b->status) // Is this a rebuild?
         {
@@ -269,7 +283,7 @@ handle (request& rq, response&)
         // checksums. On verification failure respond with the bad request
         // HTTP code (400).
         //
-        if (rqm.result.status == result_status::skip)
+        if (rs == result_status::skip)
         {
           if (!b->agent_checksum  ||
               !b->worker_checksum ||
@@ -318,9 +332,9 @@ handle (request& rq, response&)
         // Don't send email to the build-email address for the
         // success-to-success status change, unless the build was forced.
         //
-        build_notify = !(rqm.result.status == result_status::success &&
-                         b->status                                   &&
-                         *b->status == rqm.result.status             &&
+        build_notify = !(rs == result_status::success &&
+                         b->status                    &&
+                         *b->status == rs             &&
                          unforced);
 
         b->state  = build_state::built;
@@ -341,9 +355,9 @@ handle (request& rq, response&)
         // If the result status is other than skip, then save the status,
         // results, and checksums and update the hard timestamp.
         //
-        if (rqm.result.status != result_status::skip)
+        if (rs != result_status::skip)
         {
-          b->status = rqm.result.status;
+          b->status = rs;
           b->hard_timestamp = b->soft_timestamp;
 
           // Mark the section as loaded, so results are updated.
@@ -364,7 +378,7 @@ handle (request& rq, response&)
         // `skip`, the configuration is hidden, or is now excluded by the
         // package.
         //
-        if (rqm.result.status != result_status::skip && belongs (*tc, "all"))
+        if (rs != result_status::skip && belongs (*tc, "all"))
         {
           shared_ptr<build_package> p (
             build_db_->load<build_package> (b->id.package));

@@ -454,7 +454,7 @@ load_packages (const shared_ptr<repository>& rp,
         // repository is of a type other than pkg) or if the type is not
         // recognized (can only happen in the "ignore unknown" mode).
         //
-        auto to_typed_text = [&cl, &p, ignore_unknown] (typed_text_file&& v)
+        auto to_typed_text = [&cl, ignore_unknown] (typed_text_file&& v)
         {
           optional<typed_text> r;
 
