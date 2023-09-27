@@ -756,7 +756,7 @@ handle (request& rq, response& rs)
       {
         const build_target_config& tc (*bc.second);
 
-        if (belongs (tc, "all") && !exclude (pc, tc))
+        if (!belongs (tc, "hidden") && !exclude (pc, tc))
         {
           const build_target_config_id& id (bc.first);
 

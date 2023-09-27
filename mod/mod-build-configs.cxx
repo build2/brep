@@ -54,6 +54,8 @@ handle (request& rq, response& rs)
 
   params::build_configs params;
 
+  string& selected_class (params.class_name ()); // Note: can be empty.
+
   try
   {
     name_value_scanner s (rq.parameters (1024));
@@ -64,8 +66,7 @@ handle (request& rq, response& rs)
     // character (that is otherwise forbidden in a class name) to the plus
     // character.
     //
-    string& cn (params.class_name ());
-    replace (cn.begin (), cn.end (), ' ', '+');
+    replace (selected_class.begin (), selected_class.end (), ' ', '+');
   }
   catch (const cli::exception& e)
   {
@@ -90,7 +91,7 @@ handle (request& rq, response& rs)
   {
     string r (tenant_dir (root, tenant).string () + "?build-configs");
 
-    if (cls != "all")
+    if (!cls.empty ())
     {
       r += '=';
 
@@ -125,26 +126,36 @@ handle (request& rq, response& rs)
 
     for (auto b (cls.begin ()), i (b), e (cls.end ()); i != e; ++i)
     {
-      if (i != b)
-        s << ' ';
-
-      const string& c (*i);
-      print_class_name (c, c == params.class_name ());
-
-      // Append the base class, if present.
+      // Skip the 'hidden' class.
       //
-      auto j (im.find (c));
-      if (j != im.end ())
+      const string& c (*i);
+
+      if (c != "hidden")
       {
-        s << ':';
-        print_class_name (j->second);
+        // Note that here we rely on the fact that the first class in the list
+        // can never be 'hidden' (is always 'all').
+        //
+        if (i != b)
+          s << ' ';
+
+        print_class_name (c, c == selected_class);
+
+        // Append the base class, if present.
+        //
+        auto j (im.find (c));
+        if (j != im.end ())
+        {
+          s << ':';
+          print_class_name (j->second);
+        }
       }
     }
 
     s << ~P;
   }
 
-  // Print build configurations that belong to the selected class.
+  // Print build configurations that belong to the selected class (all
+  // configurations if no class is selected) and are not hidden.
   //
   // We will calculate the total configuration count and cache configurations
   // for printing (skipping an appropriate number of them for page number
@@ -159,7 +170,8 @@ handle (request& rq, response& rs)
   size_t print (page_configs);
   for (const build_target_config& c: *target_conf_)
   {
-    if (belongs (c, params.class_name ()))
+    if ((selected_class.empty () || belongs (c, selected_class)) &&
+        !belongs (c, "hidden"))
     {
       if (skip != 0)
         --skip;
@@ -214,7 +226,7 @@ handle (request& rq, response& rs)
                         count,
                         page_configs,
                         options_->build_config_pages (),
-                        url (params.class_name ()))
+                        url (selected_class))
     <<     ~DIV
     <<   ~BODY
     << ~HTML;

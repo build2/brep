@@ -969,10 +969,13 @@ namespace brep
 
     class build_configs
     {
+      // By default, display all build configurations except those which
+      // belong to the 'hidden' class.
+      //
       // Note that the build-configs parameter is renamed to '_' by the root
       // handler (see the request_proxy class for details).
       //
-      string class_name | _ = "all";
+      string class_name | _;
 
       // Display build configurations list starting from this page.
       //

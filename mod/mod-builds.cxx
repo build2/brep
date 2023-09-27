@@ -511,7 +511,7 @@ handle (request& rq, response& rs)
 
   for (const auto& c: *target_conf_map_)
   {
-    if (!exclude_hidden || belongs (*c.second, "all"))
+    if (!exclude_hidden || !belongs (*c.second, "hidden"))
       conf_ids.push_back (c.first);
   }
 
@@ -798,7 +798,7 @@ handle (request& rq, response& rs)
             //
             (tgt.empty () || path_match (c.target.string (), tgt)) &&
 
-            (!exclude_hidden || belongs (c, "all"))) // Filter hidden.
+            (!exclude_hidden || !belongs (c, "hidden"))) // Filter hidden.
         {
           target_configs.push_back (&c);
 

@@ -378,7 +378,7 @@ handle (request& rq, response&)
         // `skip`, the configuration is hidden, or is now excluded by the
         // package.
         //
-        if (rs != result_status::skip && belongs (*tc, "all"))
+        if (rs != result_status::skip && !belongs (*tc, "hidden"))
         {
           shared_ptr<build_package> p (
             build_db_->load<build_package> (b->id.package));
