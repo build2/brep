@@ -61,6 +61,12 @@ CREATE FOREIGN TABLE build_package (
   version_upstream TEXT NOT NULL,
   version_release TEXT NULL,
   project CITEXT NOT NULL,
+  build_email TEXT NULL,
+  build_email_comment TEXT NULL,
+  build_warning_email TEXT NULL,
+  build_warning_email_comment TEXT NULL,
+  build_error_email TEXT NULL,
+  build_error_email_comment TEXT NULL,
   internal_repository_tenant TEXT NULL,
   internal_repository_canonical_name TEXT NULL,
   buildable BOOLEAN NOT NULL)
@@ -189,7 +195,13 @@ CREATE FOREIGN TABLE build_package_configs (
   index BIGINT NOT NULL,
   config_name TEXT NOT NULL,
   config_arguments TEXT NULL,
-  config_comment TEXT NOT NULL)
+  config_comment TEXT NOT NULL,
+  config_email TEXT NULL,
+  config_email_comment TEXT NULL,
+  config_warning_email TEXT NULL,
+  config_warning_email_comment TEXT NULL,
+  config_error_email TEXT NULL,
+  config_error_email_comment TEXT NULL)
 SERVER package_server OPTIONS (table_name 'package_build_configs');
 
 CREATE FOREIGN TABLE build_package_config_builds (

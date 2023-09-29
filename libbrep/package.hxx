@@ -20,7 +20,7 @@
 //
 #define LIBBREP_PACKAGE_SCHEMA_VERSION_BASE 27
 
-#pragma db model version(LIBBREP_PACKAGE_SCHEMA_VERSION_BASE, 27, closed)
+#pragma db model version(LIBBREP_PACKAGE_SCHEMA_VERSION_BASE, 28, closed)
 
 namespace brep
 {
@@ -71,13 +71,6 @@ namespace brep
     get(this.string ())                                         \
     set(this = brep::manifest_url ((?), "" /* comment */))      \
     column("")
-
-  // email
-  //
-  using bpkg::email;
-
-  #pragma db value(email) definition
-  #pragma db member(email::value) virtual(string) before access(this) column("")
 
   // licenses
   //
@@ -527,9 +520,9 @@ namespace brep
     optional<manifest_url> package_url;
     optional<email_type> email;
     optional<email_type> package_email;
-    optional<email_type> build_email;
-    optional<email_type> build_warning_email;
-    optional<email_type> build_error_email;
+    optional<email_type> build_email;         // Note: foreign-mapped in build.
+    optional<email_type> build_warning_email; // Note: foreign-mapped in build.
+    optional<email_type> build_error_email;   // Note: foreign-mapped in build.
     dependencies_type dependencies;
     requirements_type requirements;           // Note: foreign-mapped in build.
     small_vector<test_dependency, 1> tests;   // Note: foreign-mapped in build.

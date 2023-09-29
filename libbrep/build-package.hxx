@@ -114,6 +114,10 @@ namespace brep
 
     package_name project;
 
+    optional<email> build_email;
+    optional<email> build_warning_email;
+    optional<email> build_error_email;
+
     // Mapped to the package object requirements and tests members using the
     // PostgreSQL foreign table mechanism.
     //

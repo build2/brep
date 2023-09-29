@@ -333,6 +333,13 @@ namespace brep
 
   #pragma db value(build_constraint) definition
 
+  // email
+  //
+  using bpkg::email;
+
+  #pragma db value(email) definition
+  #pragma db member(email::value) virtual(string) before access(this) column("")
+
   // build_package_config
   //
   using build_package_config = bpkg::build_package_config;

@@ -51,12 +51,7 @@ init (scanner& s)
     s, unknown_mode::fail, unknown_mode::fail);
 
   if (options_->build_config_specified ())
-  {
     build_result_module::init (*options_, *options_);
-
-    database_module::init (static_cast<const options::package_db&> (*options_),
-                           options_->package_db_retry ());
-  }
 
   if (options_->root ().empty ())
     options_->root (dir_path ("/"));
@@ -168,27 +163,6 @@ handle (request& rq, response&)
     tc = i->second;
   }
 
-  // Load the built package (if present).
-  //
-  // The only way not to deal with 2 databases simultaneously is to pull
-  // another bunch of the package fields into the build_package foreign
-  // object, which is a pain (see build_package.hxx for details). Doesn't seem
-  // worth it here: email members are really secondary and we don't need to
-  // switch transactions back and forth.
-  //
-  shared_ptr<package> pkg;
-  {
-    transaction t (package_db_->begin ());
-    pkg = package_db_->find<package> (id.package);
-    t.commit ();
-  }
-
-  if (pkg == nullptr)
-  {
-    warn_expired ("no package");
-    return true;
-  }
-
   auto print_args = [&trace, this] (const char* args[], size_t n)
   {
     l2 ([&]{trace << process_args {args, n};});
@@ -201,6 +175,13 @@ handle (request& rq, response&)
   // package.
   //
   shared_ptr<build> bld;
+
+  // The built package configuration.
+  //
+  // Not NULL if bld is not NULL.
+  //
+  shared_ptr<build_package> pkg;
+  const build_package_config* cfg (nullptr);
 
   bool build_notify (false);
   bool unforced (true);
@@ -374,30 +355,29 @@ handle (request& rq, response&)
 
         build_db_->update (b);
 
-        // Don't send the build notification email if the task result is
-        // `skip`, the configuration is hidden, or is now excluded by the
-        // package.
+        pkg = build_db_->load<build_package> (b->id.package);
+        cfg = find (b->package_config_name, pkg->configs);
+
+        // The package configuration should be present (see mod-builds.cxx for
+        // details) but if it is not, let's log the warning.
         //
-        if (rs != result_status::skip && !belongs (*tc, "hidden"))
+        if (cfg != nullptr)
         {
-          shared_ptr<build_package> p (
-            build_db_->load<build_package> (b->id.package));
-
-          // The package configuration should be present (see mod-builds.cxx
-          // for details) but if it is not, let's log the warning.
+          // Don't send the build notification email if the task result is
+          // `skip`, the configuration is hidden, or is now excluded by the
+          // package.
           //
-          if (const build_package_config* pc = find (b->package_config_name,
-                                                     p->configs))
+          if (rs != result_status::skip && !belongs (*tc, "hidden"))
           {
-            build_db_->load (*p, p->constraints_section);
+            build_db_->load (*pkg, pkg->constraints_section);
 
-            if (!exclude (*pc, p->builds, p->constraints, *tc))
+            if (!exclude (*cfg, pkg->builds, pkg->constraints, *tc))
               bld = move (b);
           }
-          else
-            warn << "cannot find configuration '" << b->package_config_name
-                 << "' for package " << p->id.name << '/' << p->version;
         }
+        else
+          warn << "cannot find configuration '" << b->package_config_name
+               << "' for package " << pkg->id.name << '/' << pkg->version;
       }
     }
 
@@ -486,19 +466,32 @@ handle (request& rq, response&)
   // Send the build notification email if a non-empty package build email is
   // specified.
   //
-  optional<email>& build_email (pkg->build_email);
-  if (build_notify && build_email && !build_email->empty ())
-    send_email (*pkg->build_email);
+  if (build_notify)
+  {
+    if (const optional<email>& e = cfg->effective_email (pkg->build_email))
+    {
+      if (!e->empty ())
+        send_email (*pkg->build_email);
+    }
+  }
 
   assert (bld->status);
 
   // Send the build warning/error notification emails, if requested.
   //
-  if (pkg->build_warning_email && *bld->status >= result_status::warning)
-    send_email (*pkg->build_warning_email);
+  if (*bld->status >= result_status::warning)
+  {
+    if (const optional<email>& e =
+          cfg->effective_warning_email (pkg->build_warning_email))
+      send_email (*e);
+  }
 
-  if (pkg->build_error_email && *bld->status >= result_status::error)
-    send_email (*pkg->build_error_email);
+  if (*bld->status >= result_status::error)
+  {
+    if (const optional<email>& e =
+        cfg->effective_error_email (pkg->build_error_email))
+      send_email (*e);
+  }
 
   return true;
 }
