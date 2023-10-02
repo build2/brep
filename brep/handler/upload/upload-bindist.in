@@ -230,13 +230,13 @@ if [[ -z "$target" ]]; then
   error "target manifest value expected"
 fi
 
-# Let's disallow dots in the package-config manifest value since the latter
-# serves as the package configuration symlink name and the dot can be
-# misinterpreted by brep as an extension separator, which the implementation
-# relies upon.
+# Let's disallow the leading dot in the package-config manifest value since
+# the latter serves as the package configuration symlink name and brep skips
+# symlinks with the leading dots assuming them as hidden (see
+# mod/mod-package-version-details.cxx for details).
 #
-if [[ "$package_config" == *"."* ]]; then
-  exit_with_manifest 400 "package-config manifest value may not contain dot"
+if [[ "$package_config" == "."* ]]; then
+  exit_with_manifest 400 "package-config manifest value may not start with dot"
 fi
 
 # Extract the CPU component from the target triplet and deduce the binary
@@ -454,7 +454,8 @@ fi
 
 # Create parent (doesn't fail if directory exists).
 #
-run mkdir -p "$(dirname "$config_dir")"
+config_parent_dir="$(dirname "$config_dir")"
+run mkdir -p "$config_parent_dir"
 
 created=
 
@@ -520,10 +521,12 @@ done
 trace "+ (cd $config_dir && exec sha256sum -b ${package_file_paths[@]} >.packages.sha256)"
 (cd "$config_dir" && exec sha256sum -b "${package_file_paths[@]}" >".packages.sha256")
 
-# Create the new package configuration symlink.
+# Create the new package configuration "hidden" symlink. Construct its name by
+# prepending the configuration directory name with a dot.
 #
-config_link_new="$config_dir.symlink"
-run ln -s $(basename "$config_dir") "$config_link_new"
+config_dir_name="$(basename "$config_dir")"
+config_link_new="$config_parent_dir/.$config_dir_name"
+run ln -s "$config_dir_name" "$config_link_new"
 
 # Switch the package configuration symlink atomically. But first, cache the
 # previous package configuration symlink target if the --keep-previous option
