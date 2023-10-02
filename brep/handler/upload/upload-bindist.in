@@ -22,15 +22,19 @@
 # sanitized, having the "bindist", <instance>, <os-release-name-id>, and
 # <os-release-name-id><os-release-version-id> dash-separated sub-components
 # removed. If the component becomes empty as a result of the sanitization,
-# then "default" is assumed. For example, the following symlink paths:
+# then the target CPU is assumed, if the package is not architecture-
+# independent, and "noarch" otherwise. If the sanitized component is not
+# empty, the package is not architecture-independent, and the resulting
+# component doesn't containt the target CPU, then prepend it with the <cpu>-
+# prefix. For example, the following symlink paths:
 #
 # .../archive/windows10/foo/libfoo/1.0.0/bindist-archive-windows10-release
 # .../archive/windows10/foo/libfoo/1.0.0/bindist-archive-windows10
 #
 # are reduced to:
 #
-# .../archive/windows10/foo/libfoo/1.0.0/release
-# .../archive/windows10/foo/libfoo/1.0.0/default
+# .../archive/windows10/foo/libfoo/1.0.0/x86_64-release
+# .../archive/windows10/foo/libfoo/1.0.0/x86_64
 #
 # To achieve this the handler performs the following steps (<dir> is passed as
 # last argument by brep and is a subdirectory of upload-data):
@@ -175,6 +179,7 @@ name=
 version=
 project=
 package_config=
+target=
 tenant=
 
 while IFS=: read -ru "$manifest_parser_ofd" -d '' n v; do
@@ -186,6 +191,7 @@ while IFS=: read -ru "$manifest_parser_ofd" -d '' n v; do
     version)        version="$v"        ;;
     project)        project="$v"        ;;
     package-config) package_config="$v" ;;
+    target)         target="$v"         ;;
     tenant)         tenant="$v"         ;;
   esac
 done
@@ -220,6 +226,10 @@ if [[ -z "$package_config" ]]; then
   error "package-config manifest value expected"
 fi
 
+if [[ -z "$target" ]]; then
+  error "target manifest value expected"
+fi
+
 # Let's disallow dots in the package-config manifest value since the latter
 # serves as the package configuration symlink name and the dot can be
 # misinterpreted by brep as an extension separator, which the implementation
@@ -228,6 +238,37 @@ fi
 if [[ "$package_config" == *"."* ]]; then
   exit_with_manifest 400 "package-config manifest value may not contain dot"
 fi
+
+# Extract the CPU component from the target triplet and deduce the binary
+# distribution-specific CPU representation which is normally used in the
+# package file names.
+#
+cpu="$(sed -n -re 's/^([^-]+)-.+/\1/p' <<<"$target")"
+
+if [[ -z "$cpu" ]]; then
+  error "CPU expected in target '$target'"
+fi
+
+# Use CPU extracted from the target triplet as a distribution-specific
+# representation, unless this is Debian or Fedora (see bpkg's
+# system-package-manager-{fedora,debian}.cxx for details).
+#
+cpu_dist="$cpu"
+
+case $instance in
+  debian)
+    case $cpu in
+      x86_64)                    cpu_dist="amd64" ;;
+      aarch64)                   cpu_dist="arm64" ;;
+      i386 | i486 | i586 | i686) cpu_dist="i386"  ;;
+    esac
+    ;;
+  fedora)
+    case $cpu in
+      i386 | i486 | i586 | i686) cpu_dist="i686"  ;;
+    esac
+    ;;
+esac
 
 # Unpack the archive.
 #
@@ -283,6 +324,10 @@ fi
 
 # Parse the package file manifest list and cache the file paths.
 #
+# While at it, detect if the package is architecture-specific or not by
+# checking if any package file name contains the distribution-specific CPU
+# representation (as a sub-string).
+#
 # Note that while we currently only need the package file paths, we can make
 # use of their types and system names in the future. Thus, let's verify that
 # all the required package file values are present and, while at it, cache
@@ -291,6 +336,8 @@ fi
 package_file_paths=()
 package_file_types=()
 package_file_system_names=()
+
+arch_specific=
 
 # The outer loop iterates over package file manifests while the inner loop
 # iterates over manifest values in each such manifest.
@@ -325,6 +372,10 @@ while [[ "$more" ]]; do
   package_file_paths+=("$path")
   package_file_types+=("$type")
   package_file_system_names+=("$system_name") # Note: system name can be empty.
+
+  if [[ "$path" == *"$cpu_dist"* ]]; then
+    arch_specific=true
+  fi
 done
 
 manifest_parser_finish
@@ -345,8 +396,18 @@ for c in $(sed 's/-/ /g' <<<"$package_config"); do
   fi
 done
 
+# Reflect the architecture in the sanitized configuration name.
+#
 if [[ -z "$config" ]]; then
-  config="default"
+  if [[ "$arch_specific"  ]]; then
+    config="$cpu"
+  else
+    config="noarch"
+  fi
+else
+  if [[ "$arch_specific" && ("$config" != *"$cpu"*) ]]; then
+    config="$cpu-$config"
+  fi
 fi
 
 # Compose the package configuration symlink path.
