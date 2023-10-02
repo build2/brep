@@ -573,8 +573,8 @@ handle (request& rq, response& rs)
     {
       dir_path distribution; // debian, fedora, archive
       dir_path os_release;   // fedora37, windows10
-      path     symlink;      // .../default, .../release
-      dir_path directory;    // .../default-2023-05-11T10:13:43Z
+      path     symlink;      // .../x86_64, .../x86_64-release
+      dir_path directory;    // .../x86_64-2023-05-11T10:13:43Z
 
       bool
       operator< (const bindist_config& v)
