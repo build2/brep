@@ -635,12 +635,12 @@ handle (request& rq, response& rs)
                 if (ce.ltype () != entry_type::symlink)
                   continue;
 
-                // Skip symlinks which have extensions. Note that upload
-                // handlers may add an extension to a newly created symlink to
-                // atomically replace an old symlink with the new one.
+                // Skip the "hidden" symlinks which may potentially be used by
+                // the upload handlers until they expose the finalized upload
+                // directory.
                 //
                 const path& cl (ce.path ());
-                if (cl.extension_cstring () != nullptr)
+                if (cl.string () [0] == '.')
                   continue;
 
                 try
