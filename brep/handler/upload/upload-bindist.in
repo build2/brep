@@ -246,7 +246,7 @@ fi
 cpu="$(sed -n -re 's/^([^-]+)-.+/\1/p' <<<"$target")"
 
 if [[ -z "$cpu" ]]; then
-  error "CPU expected in target '$target'"
+  error "CPU expected in target triplet '$target'"
 fi
 
 # Use CPU extracted from the target triplet as a distribution-specific
@@ -325,7 +325,7 @@ fi
 # Parse the package file manifest list and cache the file paths.
 #
 # While at it, detect if the package is architecture-specific or not by
-# checking if any package file name contains the distribution-specific CPU
+# checking if any package file names contain the distribution-specific CPU
 # representation (as a sub-string).
 #
 # Note that while we currently only need the package file paths, we can make
