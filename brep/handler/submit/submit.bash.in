@@ -52,7 +52,24 @@ function extract_package_manifest () # <archive> <manifest>
   # not fail due to this package down the road. Note that we also make sure
   # that all the manifest values are known (see bpkg-pkg-verify for details).
   #
-  if ! run_silent bpkg pkg-verify --deep --manifest "$arc" >"$man"; then
+  local cmd=(bpkg pkg-verify --deep --manifest "$arc")
+  trace_cmd "${cmd[@]}"
+
+  # Note that we used to just advise the user to run bpkg-pkg-verify locally
+  # for the details on the potential failure. That, however, may not always be
+  # helpful since the user can use a different version of the toolchain and so
+  # may observe a different behavior. Thus, we add the bpkg-pkg-verify error
+  # message to the response, turning it into an info. This way the user may
+  # potentially see the following bdep-publish diagnostics:
+  #
+  # error: package archive is not valid
+  #   info: unable to satisfy constraint (build2 >= 0.17.0-) for package libhello-1.0.0.tar.gz
+  #   info: available build2 version is 0.16.0
+  #   info: run bpkg pkg-verify for details
+  #   info: reference: 308e155764c8
+  #
+  local e
+  if ! e="$("${cmd[@]}" 2>&1 >"$man")"; then
 
     # Perform the sanity check to make sure that bpkg is runnable.
     #
@@ -60,7 +77,19 @@ function extract_package_manifest () # <archive> <manifest>
       error "unable to run bpkg"
     fi
 
-    exit_with_manifest 400 "archive is not a valid package (run bpkg pkg-verify for details)"
+    # Note that bpkg-pkg-verify diagnostics may potentially contain the
+    # archive absolute path. Let's sanitize this diagnostics by stripping the
+    # archive directory path, if present. Also note that to use sed for that
+    # we first need to escape the special regex characters and slashes in the
+    # archive directory path (see sed's basic regular expressions for
+    # details).
+    #
+    local d="$(sed 's/[[\.*^$/]/\\&/g' <<<"$(dirname "$arc")/")"
+
+    e="$(sed -e "s/$d//g" -e 's/^error:/  info:/' <<<"$e")"
+    e=$'package archive is not valid\n'"$e"$'\n  info: run bpkg pkg-verify for details'
+
+    exit_with_manifest 400 "$e"
   fi
 }
 
