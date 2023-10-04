@@ -167,7 +167,7 @@ handle (request& rq, response& rs)
 
     s << TABLE(CLASS="proplist package")
       <<   TBODY
-      <<     TR_NAME (p->name, equery, root, p->tenant)
+      <<     TR_NAME (p->name, root, p->tenant)
       <<     TR_SUMMARY (p->summary)
       <<     TR_LICENSE (p->license_alternatives)
       <<     TR_DEPENDS (p->dependencies, root, p->tenant);

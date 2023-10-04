@@ -237,15 +237,9 @@ namespace brep
       <<       A
       <<       HREF
       <<         tenant_dir (root_, tenant_) /
-                 path (mime_url_encode (name_.string (), false));
-
-    // Propagate search criteria to the package details page.
-    //
-    if (!query_.empty ())
-      s << "?q=" << query_;
-
-    s <<       ~HREF
-      <<          name_
+                 path (mime_url_encode (name_.string (), false))
+      <<       ~HREF
+      <<         name_
       <<       ~A
       <<     ~SPAN
       <<   ~TD

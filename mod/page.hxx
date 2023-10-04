@@ -193,24 +193,19 @@ namespace brep
     const string& tenant_;
   };
 
-  // Generate package name element with an optional search criteria. The
-  // search string should be url-encoded, if specified.
+  // Generate package name element.
   //
   class TR_NAME
   {
   public:
-    TR_NAME (const package_name& n,
-             const string& q,
-             const dir_path& r,
-             const string& t)
-        : name_ (n), query_ (q), root_ (r), tenant_ (t) {}
+    TR_NAME (const package_name& n, const dir_path& r, const string& t)
+        : name_ (n), root_ (r), tenant_ (t) {}
 
     void
     operator() (xml::serializer&) const;
 
   private:
     const package_name& name_;
-    const string& query_;
     const dir_path& root_;
     const string& tenant_;
   };

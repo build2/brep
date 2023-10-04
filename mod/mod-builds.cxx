@@ -681,7 +681,7 @@ handle (request& rq, response& rs)
 
       s << TABLE(CLASS="proplist build")
         <<   TBODY
-        <<     TR_NAME (b.package_name, string (), root, b.tenant)
+        <<     TR_NAME (b.package_name, root, b.tenant)
         <<     TR_VERSION (b.package_name, b.package_version, root, b.tenant)
         <<     TR_VALUE ("toolchain",
                          b.toolchain_name + '-' +
@@ -1077,7 +1077,7 @@ handle (request& rq, response& rs)
 
           s << TABLE(CLASS="proplist build")
             <<   TBODY
-            <<     TR_NAME (id.name, string (), root, id.tenant)
+            <<     TR_NAME (id.name, root, id.tenant)
             <<     TR_VERSION (id.name, p->version, root, id.tenant)
             <<     TR_VALUE ("toolchain",
                              string (ct.toolchain_name) + '-' +
