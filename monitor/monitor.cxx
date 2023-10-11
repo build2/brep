@@ -538,7 +538,7 @@ namespace brep
                query::id.toolchain_name                   +
                order_by_version (query::id.toolchain_version,
                                  false /* first */)       +
-               "OFFSET" + query::_ref (offset) + "LIMIT 100");
+               "OFFSET" + query::_ref (offset) + "LIMIT 2000");
 
       connection_ptr conn (db.connection ());
 
