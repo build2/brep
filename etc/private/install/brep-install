@@ -271,6 +271,12 @@ GRANT ALL PRIVILEGES ON DATABASE brep_package, brep_build TO brep;
 CREATE USER "www-data" INHERIT IN ROLE brep;
 
 CREATE USER "brep-build" INHERIT IN ROLE brep PASSWORD '-';
+
+\c brep_package
+GRANT ALL PRIVILEGES ON SCHEMA public TO brep;
+
+\c brep_build
+GRANT ALL PRIVILEGES ON SCHEMA public TO brep;
 EOF
 
 # Create the "staging" package database for the submit-pub package submission
@@ -284,6 +290,9 @@ LC_COLLATE 'en_US.UTF8'
 LC_CTYPE 'en_US.UTF8';
 
 GRANT ALL PRIVILEGES ON DATABASE brep_submit_package TO brep;
+
+\c brep_submit_package
+GRANT ALL PRIVILEGES ON SCHEMA public TO brep;
 EOF
 
 # Make sure the 'brep' and Apache2 user's logins work properly.

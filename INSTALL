@@ -171,6 +171,17 @@ CREATE USER MAPPING FOR PUBLIC
   SERVER package_server
   OPTIONS (user 'brep-build', password '-');
 
+Note that starting with PostgreSQL 15 only the database owner can create the
+objects in the public schema by default. Thus, if the PostgreSQL version is 15
+or above, then all the privileges on this schema in the created databases need
+to be granted explicitly by the postgres user to the brep user:
+
+\c brep_package
+GRANT ALL PRIVILEGES ON SCHEMA public TO brep;
+
+\c brep_build
+GRANT ALL PRIVILEGES ON SCHEMA public TO brep;
+
 Exit psql (^D)
 
 The user brep-build is required (by the postgres_fdw extension) to login with
