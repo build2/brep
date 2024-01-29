@@ -26,6 +26,7 @@ namespace brep
   class submit;
   class ci;
   class ci_cancel;
+  class ci_github;
   class upload;
 
   class repository_root: public handler
@@ -76,6 +77,7 @@ namespace brep
     shared_ptr<submit> submit_;
     shared_ptr<ci> ci_;
     shared_ptr<ci_cancel> ci_cancel_;
+    shared_ptr<ci_github> ci_github_;
     shared_ptr<upload> upload_;
 
     shared_ptr<options::repository_root> options_;

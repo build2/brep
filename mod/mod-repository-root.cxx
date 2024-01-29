@@ -15,6 +15,7 @@
 #include <mod/module-options.hxx>
 
 #include <mod/mod-ci.hxx>
+#include <mod/mod-ci-github.hxx>
 #include <mod/mod-submit.hxx>
 #include <mod/mod-upload.hxx>
 #include <mod/mod-builds.hxx>
@@ -134,6 +135,7 @@ namespace brep
         ci_ (make_shared<ci> ()),
 #endif
         ci_cancel_ (make_shared<ci_cancel> ()),
+        ci_github_ (make_shared<ci_github> ()),
         upload_ (make_shared<upload> ())
   {
   }
@@ -206,6 +208,10 @@ namespace brep
           r.initialized_
           ? r.ci_cancel_
           : make_shared<ci_cancel> (*r.ci_cancel_)),
+        ci_github_ (
+          r.initialized_
+          ? r.ci_github_
+          : make_shared<ci_github> (*r.ci_github_)),
         upload_ (
           r.initialized_
           ? r.upload_
@@ -237,6 +243,7 @@ namespace brep
     append (r, submit_->options ());
     append (r, ci_->options ());
     append (r, ci_cancel_->options ());
+    append (r, ci_github_->options ());
     append (r, upload_->options ());
     return r;
   }
@@ -284,6 +291,7 @@ namespace brep
     sub_init (*submit_, "submit");
     sub_init (*ci_, "ci");
     sub_init (*ci_cancel_, "ci-cancel");
+    sub_init (*ci_github_, "ci_github");
     sub_init (*upload_, "upload");
 
     // Parse own configuration options.
@@ -304,8 +312,13 @@ namespace brep
     //
     auto verify = [&fail] (const string& v, const char* what)
     {
-      cstrings vs ({
-          "packages", "builds", "build-configs", "about", "submit", "ci"});
+      cstrings vs ({"packages",
+                    "builds",
+                    "build-configs",
+                    "about",
+                    "submit",
+                    "ci",
+                    "ci-github"});
 
       if (find (vs.begin (), vs.end (), v) == vs.end ())
         fail << what << " value '" << v << "' is invalid";
@@ -486,6 +499,13 @@ namespace brep
             handler_.reset (new ci_cancel (*ci_cancel_));
 
           return handle ("ci-cancel", param);
+        }
+        else if (func == "ci-github")
+        {
+          if (handler_ == nullptr)
+            handler_.reset (new ci_github (*ci_github_));
+
+          return handle ("ci_github", param);
         }
         else if (func == "upload")
         {
