@@ -35,6 +35,14 @@ namespace brep
     virtual void
     init (cli::scanner&);
 
+    bool
+    respond (response&, status_code, const string& message);
+
+    bool
+    handle_webhook (request&,
+                    const std::optional<std::string>& github_event,
+                    response&);
+
   private:
     shared_ptr<options::ci> options_;
   };
