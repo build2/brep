@@ -98,6 +98,7 @@ namespace brep
   {
     test_dependency_type type;
     bool buildtime;
+    optional<string> enable;
     optional<string> reflect;
   };
 

@@ -453,7 +453,10 @@ handle (request& rq, response& rs)
   //
   // Print test dependencies of the specific type.
   //
-  auto print_tests = [&pkg, &s, &print_dependency] (test_dependency_type dt)
+  auto print_tests = [&pkg,
+                      &s,
+                      &print_dependency,
+                      full] (test_dependency_type dt)
   {
     string id;
 
@@ -491,6 +494,20 @@ handle (request& rq, response& rs)
           <<     SPAN(CLASS="value");
 
         print_dependency (td);
+
+        if (td.enable || td.reflect)
+        {
+          if (full)
+          {
+            if (td.enable)
+              s << " ? (" << *td.enable << ')';
+
+            if (td.reflect)
+              s << ' ' << *td.reflect;
+          }
+          else
+            s << " ...";
+        }
 
         s <<     ~SPAN
           <<   ~TD

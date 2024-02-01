@@ -386,6 +386,7 @@ handle (request& rq, response& rs)
                             td.type,
                             td.buildtime,
                             move (td.constraint),
+                            move (td.enable),
                             move (td.reflect));
       }
 

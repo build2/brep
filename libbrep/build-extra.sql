@@ -147,6 +147,7 @@ CREATE FOREIGN TABLE build_package_tests (
   test_package_version_revision INTEGER NULL,
   test_type TEXT NOT NULL,
   test_buildtime BOOLEAN NOT NULL,
+  test_enable TEXT NULL,
   test_reflect TEXT NULL)
 SERVER package_server OPTIONS (table_name 'package_tests');
 

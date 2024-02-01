@@ -111,23 +111,24 @@ requires: ? ($windows); Only 64-bit.
 requires: x86_64 ? ; Only if on Windows.
 requires: * vc++ >= 12.0 ? (windows); Only if using VC++ on Windows.
 requires: host
-tests: * libfoo-tests == 1.2.4
+tests: * libfoo-tests == 1.2.4 ? (!$defined(config.libfoo_tests.test))\
+ config.libfoo_tests.test=libfoo
 examples: libfoo-examples
 benchmarks: libfoo-benchmarks > 0.0.1
 builds: all
-network-build-config: config.libfoo.network=true; Enable networking API.
 network-build-include: windows-vc_14d/x86_64-microsoft-win32-msvc14.0
 network-build-exclude: **
+network-build-config: config.libfoo.network=true; Enable networking API.
+cache-builds: default
+cache-builds: -linux
+cache-build-include: windows-vc_14d/x86_64-microsoft-win32-msvc14.0
+cache-build-exclude: **
 cache-build-config:\
 config.libfoo.cache=true
 config.libfoo.buffer=4096
 ;
 Enable caching.
 \
-cache-builds: default
-cache-builds: -linux
-cache-build-include: windows-vc_14d/x86_64-microsoft-win32-msvc14.0
-cache-build-exclude: **
 bootstrap-build:\
 project = libfoo
 
@@ -140,7 +141,7 @@ config [uint64] config.libfoo.buffer ?= 1024
 
 \
 location: libfoo-1.2.4+1.tar.gz
-sha256sum: 072386bc75b026889d2992374609a2b4fa18ee59c00f664d5bb21fb86a090671
+sha256sum: ffce9d3e3ca9899d3fd6da1f6b93c07cce2c3f6b7004948b59757dae420f801b
 :
 name: libfoo-benchmarks
 version: 1.2.4
@@ -175,8 +176,12 @@ bootstrap-build:\
 project = libfoo-tests
 
 \
+root-build:\
+config [strings] config.libfoo_tests.test
+
+\
 location: libfoo-tests-1.2.4.tar.gz
-sha256sum: bff1e47ef4f9658072dd7f412e97f80179d4257323568c3fa77ce6adbf89ebd1
+sha256sum: 29a97b3356c42602dd81ee2766c242f8974b0a92d8560cb107dd464655d3d527
 :
 name: libpq
 version: 0

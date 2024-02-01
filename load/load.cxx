@@ -586,6 +586,7 @@ load_packages (const shared_ptr<repository>& rp,
                              td.type,
                              td.buildtime,
                              move (td.constraint),
+                             move (td.enable),
                              move (td.reflect));
         }
 

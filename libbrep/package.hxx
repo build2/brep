@@ -20,7 +20,7 @@
 //
 #define LIBBREP_PACKAGE_SCHEMA_VERSION_BASE 27
 
-#pragma db model version(LIBBREP_PACKAGE_SCHEMA_VERSION_BASE, 28, closed)
+#pragma db model version(LIBBREP_PACKAGE_SCHEMA_VERSION_BASE, 29, closed)
 
 namespace brep
 {
@@ -198,6 +198,7 @@ namespace brep
   {
     test_dependency_type type;
     bool buildtime;
+    optional<string> enable;
     optional<string> reflect;
 
     test_dependency () = default;
@@ -205,10 +206,12 @@ namespace brep
                      test_dependency_type t,
                      bool b,
                      optional<version_constraint> c,
+                     optional<string> e,
                      optional<string> r)
         : dependency {move (n), move (c), nullptr /* package */},
           type (t),
           buildtime (b),
+          enable (move (e)),
           reflect (move (r))
     {
     }

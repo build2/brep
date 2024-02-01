@@ -1,4 +1,10 @@
 <changelog xmlns="http://www.codesynthesis.com/xmlns/odb/changelog" database="pgsql" schema-name="package" version="1">
+  <changeset version="29">
+    <alter-table name="package_tests">
+      <add-column name="test_enable" type="TEXT" null="true"/>
+    </alter-table>
+  </changeset>
+
   <changeset version="28">
     <alter-table name="package_build_configs">
       <add-column name="config_email" type="TEXT" null="true"/>
