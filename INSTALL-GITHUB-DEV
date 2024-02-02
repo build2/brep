@@ -1,0 +1,88 @@
+This document explains how to get Github webhooks (a notification that an
+event such as a push has occurred on a repository) delivered to a
+locally-running instance of brep.
+
+0. Overview of the brep Github CI integration
+
+First we register our Github CI brep module as a Github app. This Github app
+essentially consists of an app name, the URL we want webhooks to be delivered
+to, permissions required on users' repositories, event subscriptions, and
+various authentication-related settings.
+
+Once registered, Github users can install our Github app on their user or
+organization accounts, optionally restricting its access to specific
+repositories.
+
+Once installed on a repository, Github will send webhook requests to our app's
+webhook URL when, for example, code is pushed or a pull request is created
+(the specifics depending on the events our app is subscribed to).
+
+For development we need these webhooks delivered to our locally-running brep
+instance. This is achieved by setting the Github app's webhook URL to that of
+the webhook proxy smee.io and connecting it to our local brep instance via a
+the smee client (also run locally).
+
+1. Follow the instructions in INSTALL-DEV to get brep set up.
+
+2. Register the Github app
+
+Github doc: Registering a GitHub App (note that that doc is a bit out of date)
+https://docs.github.com/en/apps/creating-github-apps/registering-a-github-app/registering-a-github-app
+
+Skip the steps marked "optional" and leave authorization-related settings at
+their defaults. @@ TODO Update authentication-related info once better understood.
+
+At this stage the only settings important to us are:
+
+- App name
+- Webhook URL (updated later -- leave webhooks deactivated for now)
+- Repository permissions
+  - Checks: RW
+  - Pull requests: RO
+  - Contents: RO
+  - Metadata: RO
+- Subscribed events
+  - Check suite
+  - Check run
+  - Pull request
+
+3. Install the Github app
+
+Github doc: Installing your own GitHub App
+https://docs.github.com/en/apps/using-github-apps/installing-your-own-github-app
+
+It would probably make sense to install it to your own user account and
+restrict its access to a test repository.
+
+4. Forward Github webhooks to a local brep instance
+
+Go to https://smee.io/ and start a new channel. Note the webhook proxy URL,
+which will look something like
+
+  https://smee.io/7stvNqVgyQRlIhbY
+
+Set the Github app's webhook URL to this proxy URL.
+
+Install the smee client:
+
+  $ npm install --global smee-client
+
+Start brep.
+
+Start the smee client, passing the webhook proxy URL with --url and the brep
+Github CI endpoint's URL with --target:
+
+  $ smee --url https://smee.io/7stvNqVgyQRlIhbY \
+         --target http://127.0.0.1/pkg?ci-github
+
+Trigger a webhook delivery from Github by pushing a commit to a repository our
+Github app is installed in. You should see the webhook delivery on the smee.io
+channel page and the smee client will also print something to stdout.
+
+Any webhook delivery can be redelivered by clicking a button on the smee.io
+channel page (or the app's advanced settings page on Github) so no need to
+repeatedly push to the repository.
+
+You can also see the HTTP headers and JSON payload of delivered webhooks on
+both the Github app's advanced settings page and the smee.io channel page, but
+smee.io's presentation is much better. (There's also wireshark of course.)
