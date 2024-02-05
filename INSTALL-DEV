@@ -145,9 +145,9 @@ $ psql -d brep_build -c 'SELECT DISTINCT name FROM build_package'
 
 3. Setup Apache2 Module
 
-Here we assume Apache2 is installed and you have an appropriate VirtualServer
+Here we assume Apache2 is installed and you have an appropriate VirtualHost
 ready (the one for the default site is usually a good candidate). Open the
-corresponding Apache2 .conf file and add the following inside VirtualServer,
+corresponding Apache2 .conf file and add the following inside VirtualHost,
 replacing <BREP-OUT-ROOT> and <BREP-SRC-ROOT> with the actual absolute paths
 (if you built brep in the source tree, then the two would be the same), and
 replacing <user> with your login.
