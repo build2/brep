@@ -142,12 +142,42 @@ init (scanner& s)
 bool brep::ci_github::
 respond (response& rs, status_code status, const string& message)
 {
-  ostream& os (rs.content (status, "text/manifest;charset=utf-8"));
+  ostream& os (rs.content (status, "text/plain;charset=utf-8"));
 
   os << message;
 
   return true;
 }
+
+// The "check_suite" object within a check_quite webhook request.
+//
+struct check_suite
+{
+  uint64_t id;
+  string head_branch;
+  string head_sha;
+  string before;
+  string after;
+
+  explicit
+  check_suite (json::parser&);
+
+  check_suite () = default;
+};
+
+struct repository
+{
+  string name;
+  string full_name;
+  string default_branch;
+};
+
+struct check_suite_event
+{
+  string        action;
+  ::check_suite check_suite;
+  ::repository  repository;
+};
 
 bool brep::ci_github::
 handle (request& rq, response& rs)
@@ -160,55 +190,129 @@ handle (request& rq, response& rs)
   if (false)
     return respond (rs, 404, "CI request submission disabled");
 
-  enum { unknown, webhook } rq_type (unknown); // Request type.
-
-  const std::optional<std::string>* ghe (nullptr); // Github event.
-
-  // Determine the message type.
+  // Process headers.
   //
-  for (const name_value& h: rq.headers ())
+  string event;
   {
-    if (icasecmp (h.name, "x-github-delivery") == 0)
+    bool content_type (false);
+
+    for (const name_value& h: rq.headers ())
     {
-      // @@ TODO Check that delivery UUID has not been received before (replay
-      //         attack).
+      if (icasecmp (h.name, "x-github-delivery") == 0)
+      {
+        // @@ TODO Check that delivery UUID has not been received before
+        //         (replay attack).
+      }
+      else if (icasecmp (h.name, "content-type") == 0)
+      {
+        if (!h.value)
+          return respond (rs, 400, "missing content-type value");
+
+        if (icasecmp (*h.value, "application/json") != 0)
+          return respond (rs, 400,
+                          "invalid content-type value: '" + *h.value + '\'');
+      }
+      else if (icasecmp (h.name, "x-github-event") == 0)
+      {
+        if (!h.value)
+          return respond (rs, 400, "missing x-github-event value");
+
+        event = *h.value;
+      }
     }
-    else if (icasecmp (h.name, "content-type") == 0)
-    {
-      // @@ TODO Safe to assume an empty content-type would have been rejected
-      //         already?
-      //
-      if (icasecmp (*h.value, "application/json") != 0)
-        return respond (rs, 400, "invalid content-type: " + *h.value);
-    }
-    else if (icasecmp (h.name, "x-github-event") == 0)
-    {
-      rq_type = webhook;
-      ghe = &h.value;
-    }
+
+    if (!content_type)
+      return respond (rs, 400, "missing content-type header");
+
+    if (event.empty ())
+      return respond (rs, 400, "missing x-github-event header");
   }
 
-  switch (rq_type)
+  // There is an event (specified in the x-github-event header) and each event
+  // contains a bunch of actions (specified in the JSON request body).
+  //
+  // Note: "GitHub continues to add new event types and new actions to
+  // existing event types." As a result we ignore known actions that we are
+  // not interested in and log and ignore unknown actions. The thinking here
+  // is that we want be "notified" of new actions at which point we can decide
+  // whether to ignore them or to handle.
+  //
+  try
   {
-  case webhook:
-    return handle_webhook (rq, *ghe, rs);
-    break;
-  default:
-    return respond (rs, 400, "unknown request type");
-    break;
+    if (event == "check_suite")
+    {
+      json::parser p (rq.content (64 * 1024), "check_suite webhook");
+
+      p.next_expect (event::begin_object); // @@ Let's move into ctor (everywhere).
+      check_suite_event cs (p);
+
+      // @@ TODO: log and ignore unknown.
+      //
+      if (cs.action == "requested")
+      {
+      }
+      else if (cs.action == "rerequested")
+      {
+        // Someone manually requested to re-run the check runs in this check
+        // suite.
+      }
+      else if (cs.action == "completed")
+      {
+        // GitHub thinks that "all the check runs in this check suite have
+        // completed and a conclusion is available". Looks like this one we
+        // ignore?
+      }
+      else
+        return respond (rs, 400, "unsupported action: " + cs.action);
+
+      cout << "<check_suite webhook>" << endl << cs << endl;
+
+      return true;
+    }
+    else if (event == "pull_request")
+    {
+      return respond (rs, 501, "pull request events not implemented yet");
+    }
+    else
+      respond (rs, 400, "unexpected event: '" + event + "'");
+  }
+  catch (const json::invalid_json_input& e)
+  {
+    // @@ TODO: should we write more detailed diagnostics to log? Maybe we
+    //    should do this for all unsuccessful calls to respond().
+
+    return respond (rs, 400, "malformed JSON in request body");
   }
 }
 
-// The "check_suite" object within a check_quite webhook request.
+using event = json::event;
+
+// check_suite_obj
 //
-struct check_suite_obj
+
+// @@ Let's make then constructors.
+//
+static check_suite_obj
+parse_check_suite_obj (json::parser& p)
 {
-  uint64_t id;
-  string head_branch;
-  string head_sha;
-  string before;
-  string after;
-};
+  check_suite_obj r;
+
+  // Skip unknown/uninteresting members.
+  //
+  while (p.next_expect (event::name, event::end_object))
+  {
+    const string& n (p.name ());
+
+    if      (n == "id")          r.id = p.next_expect_number<uint64_t> ();
+    else if (n == "head_branch") r.head_branch = p.next_expect_string ();
+    else if (n == "head_sha")    r.head_sha = p.next_expect_string ();
+    else if (n == "before")      r.before = p.next_expect_string ();
+    else if (n == "after")       r.after = p.next_expect_string ();
+    else p.next_expect_value_skip ();
+  }
+
+  return r;
+}
 
 static ostream&
 operator<< (ostream& os, const check_suite_obj& cs)
@@ -222,12 +326,27 @@ operator<< (ostream& os, const check_suite_obj& cs)
   return os;
 }
 
-struct repository_obj
+// repository_obj
+//
+static repository_obj
+parse_repository_obj (json::parser& p)
 {
-  string name;
-  string full_name;
-  string default_branch;
-};
+  repository_obj r;
+
+  // Skip unknown/uninteresting members.
+  //
+  while (p.next_expect (event::name, event::end_object))
+  {
+    const string& n (p.name ());
+
+    if      (n == "name")           r.name = p.next_expect_string ();
+    else if (n == "full_name")      r.full_name = p.next_expect_string ();
+    else if (n == "default_branch") r.default_branch = p.next_expect_string ();
+    else p.next_expect_value_skip ();
+  }
+
+  return r;
+}
 
 static ostream&
 operator<< (ostream& os, const repository_obj& rep)
@@ -239,85 +358,14 @@ operator<< (ostream& os, const repository_obj& rep)
   return os;
 }
 
-struct check_suite_req
-{
-  string action;
-  check_suite_obj check_suite;
-  repository_obj repository;
-};
-
-static ostream&
-operator<< (ostream& os, const check_suite_req& cs)
-{
-  os << "action: " << cs.action << endl;
-  os << "<check_suite>" << endl << cs.check_suite;
-  os << "<repository>" << endl << cs.repository << endl;
-
-  return os;
-}
-
-static check_suite_obj
-parse_check_suite_obj (json::parser& p)
-{
-  using event = json::event;
-
-  check_suite_obj r;
-
-  // Skip unknown/uninteresting members.
-  //
-  while (p.next_expect (event::name, event::end_object))
-  {
-    const string& n (p.name ());
-
-    if (n == "id")
-      r.id = p.next_expect_number<uint64_t> ();
-    else if (n == "head_branch")
-      r.head_branch = p.next_expect_string ();
-    else if (n == "head_sha")
-      r.head_sha = p.next_expect_string ();
-    else if (n == "before")
-      r.before = p.next_expect_string ();
-    else if (n == "after")
-      r.after = p.next_expect_string ();
-    else
-      p.next_expect_value_skip ();
-  }
-
-  return r;
-}
-
-static repository_obj
-parse_repository_obj (json::parser& p)
-{
-  using event = json::event;
-
-  repository_obj r;
-
-  // Skip unknown/uninteresting members.
-  //
-  while (p.next_expect (event::name, event::end_object))
-  {
-    const string& n (p.name ());
-
-    if (n == "name")
-      r.name = p.next_expect_string ();
-    else if (n == "full_name")
-      r.full_name = p.next_expect_string ();
-    else if (n == "default_branch")
-      r.default_branch = p.next_expect_string ();
-    else
-      p.next_expect_value_skip ();
-  }
-
-  return r;
-}
-
+// check_suite_req
+//
 static check_suite_req
 parse_check_suite_webhook (json::parser& p)
 {
-  using event = json::event;
-
   check_suite_req r;
+
+  // @@ Let's not assume order.
 
   r.action = p.next_expect_member_string ("action");
 
@@ -336,73 +384,12 @@ parse_check_suite_webhook (json::parser& p)
   return r;
 }
 
-bool
-brep::ci_github::handle_webhook (request& rq,
-                                 const std::optional<std::string>& ghe,
-                                 response& rs)
+static ostream&
+operator<< (ostream& os, const check_suite_req& cs)
 {
-  using event = json::event;
+  os << "action: " << cs.action << endl;
+  os << "<check_suite>" << endl << cs.check_suite;
+  os << "<repository>" << endl << cs.repository << endl;
 
-  if (!ghe)
-    return respond (rs, 400, "empty Github event type");
-
-  enum class event_type // Github event type.
-  {
-    check_suite,
-    pull_request
-  };
-
-  optional<event_type> evt;
-
-  if (ghe == "check_suite")
-    evt = event_type::check_suite;
-  else if (ghe == "pull_request")
-    evt = event_type::pull_request;
-
-  if (!evt)
-    return respond (rs, 400, "unsupported event type: " + *ghe);
-
-  switch (*evt)
-  {
-  case event_type::pull_request:
-    return respond (rs, 501, "pull request events not implemented yet");
-    break;
-
-  case event_type::check_suite:
-    // Parse the structured result JSON.
-    //
-    try
-    {
-      json::parser p (rq.content (64 * 1024), "check_suite webhook");
-
-      p.next_expect (event::begin_object);
-      check_suite_req cs (parse_check_suite_webhook (p));
-
-      // Note: "GitHub continues to add new event types and new actions to
-      // existing event types."
-      //
-      if (cs.action == "requested")
-      {
-      }
-      else if (cs.action == "rerequested")
-      {
-      }
-      else if (cs.action == "completed")
-      {
-      }
-      else
-        return respond (rs, 400, "unsupported action: " + cs.action);
-
-      cout << "<check_suite webhook>" << endl << cs << endl;
-
-      return true;
-    }
-    catch (const json::invalid_json_input& e)
-    {
-      return respond (rs, 400, "malformed JSON in request body");
-    }
-    break;
-  }
-
-  return false;
+  return os;
 }
