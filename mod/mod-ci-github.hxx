@@ -29,14 +29,14 @@ namespace brep
     handle (request&, response&);
 
     virtual const cli::options&
-    cli_options () const {return options::ci::description ();}
+    cli_options () const {return options::ci_github::description ();}
 
   private:
     virtual void
     init (cli::scanner&);
 
   private:
-    shared_ptr<options::ci> options_;
+    shared_ptr<options::ci_github> options_;
   };
 }
 
