@@ -5,8 +5,10 @@
 
 #include <libbutl/json/parser.hxx>
 
+#include <mod/jwt.hxx>
 #include <mod/module-options.hxx>
 
+#include <stdexcept>
 #include <iostream>
 
 // @@ TODO
@@ -62,55 +64,6 @@
 //
 //    - Generate a JSON Web Token (JWT)
 //
-//      The inputs are (one of) the application's private key(s) and the
-//      application ID, which goes into the "issuer" JWT field. Also the
-//      token's issued time and expiration time (10 minutes max).
-//
-//      The best library for us seems to be libjwt at
-//      https://github.com/benmcollins/libjwt which is also widely packaged
-//      (most Linux distros and Homebrew).
-//
-//      Doing it ourselves:
-//
-//      Github requires the RS256 algorithm, which is RSA signing using
-//      SHA256.
-//
-//      The message consists of a base64url-encoded JSON header and
-//      payload. (base64url differs from base64 by having different 62nd and
-//      63rd alphabet characters (- and _ instead of ~ and . to make it
-//      filesystem-safe) and no padding because the padding character '=' is
-//      unsafe in URIs.)
-//
-//      Header:
-//
-//      {
-//        "alg": "RS256",
-//        "typ": "JWT"
-//      }
-//
-//      Payload:
-//
-//      {
-//        "iat": 1234567,
-//        "exp": 1234577,
-//        "iss": "<APP_ID>"
-//      }
-//
-//      Where:
-//      iat := Issued At (NumericDate)
-//      exp := Expires At (NumericDate)
-//      iss := Issuer
-//
-//      Signature:
-//
-//        RSA_SHA256(PKEY, base64url($header) + "." + base64url($payload))
-//
-//      JWT:
-//
-//        base64url($header) + "." +
-//        base64url($payload) + "." +
-//        base64url($signature)
-//
 //    - Get the installation ID. This will be included in the webhook request
 //      in our case
 //
@@ -135,7 +88,7 @@ brep::ci_github::ci_github (const ci_github& r)
 void brep::ci_github::
 init (scanner& s)
 {
-  options_ = make_shared<options::ci> (
+  options_ = make_shared<options::ci_github> (
     s, unknown_mode::fail, unknown_mode::fail);
 }
 
@@ -277,6 +230,31 @@ handle (request& rq, response& rs)
         throw invalid_request (400, "unsupported action: " + cs.action);
 
       cout << "<check_suite webhook>" << endl << cs << endl;
+
+      try
+      {
+        // Use the maximum validity period allowed by GitHub (10 minutes).
+        //
+        string jwt (gen_jwt (*options_,
+                             options_->ci_github_app_private_key (),
+                             to_string (options_->ci_github_app_id ()),
+                             chrono::minutes (10)));
+
+        if (jwt.empty ())
+          fail << "unable to generate JWT: " << options_->openssl ()
+               << " failed";
+
+        cout << "JWT: " << jwt << endl;
+      }
+      catch (const system_error& e)
+      {
+        fail << "unable to generate JWT: unable to execute "
+             << options_->openssl () << ": " << e.what ();
+      }
+      catch (const std::exception& e)
+      {
+        fail << "unable to generate JWT: " << e;
+      }
 
       return true;
     }

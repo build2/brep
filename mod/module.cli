@@ -845,11 +845,29 @@ namespace brep
     {
     };
 
-    class ci_github: ci_start, build, build_db, handler
+    // @@ TODO Is etc/brep-module.conf updated manually?
+    //
+    class ci_github: ci_start, ci_cancel,
+                     build, build_db,
+                     handler,
+                     openssl_options
     {
       // GitHub CI-specific options (e.g., request timeout when invoking
       // GitHub APIs).
       //
+
+      size_t ci-github-app-id
+      {
+        "<id>",
+        "The GitHub App ID. Found in the app's settings on GitHub."
+      }
+
+      path ci-github-app-private-key
+      {
+        "<path>",
+        "The private key used during GitHub API authentication. Created in
+         the GitHub app's settings."
+      }
     };
 
     class upload: build, build_db, build_upload, repository_email, handler
