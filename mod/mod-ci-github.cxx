@@ -139,16 +139,6 @@ init (scanner& s)
     s, unknown_mode::fail, unknown_mode::fail);
 }
 
-bool brep::ci_github::
-respond (response& rs, status_code status, const string& message)
-{
-  ostream& os (rs.content (status, "text/plain;charset=utf-8"));
-
-  os << message;
-
-  return true;
-}
-
 // The "check_suite" object within a check_quite webhook request.
 //
 struct check_suite
@@ -170,6 +160,10 @@ struct repository
   string name;
   string full_name;
   string default_branch;
+
+  explicit repository (json::parser&);
+
+  repository () = default;
 };
 
 struct check_suite_event
@@ -177,7 +171,20 @@ struct check_suite_event
   string        action;
   ::check_suite check_suite;
   ::repository  repository;
+
+  explicit check_suite_event (json::parser&);
+
+  check_suite_event () = default;
 };
+
+static ostream&
+operator<< (ostream&, const check_suite&);
+
+static ostream&
+operator<< (ostream&, const repository&);
+
+static ostream&
+operator<< (ostream&, const check_suite_event&);
 
 bool brep::ci_github::
 handle (request& rq, response& rs)
@@ -188,7 +195,7 @@ handle (request& rq, response& rs)
 
   // @@ TODO
   if (false)
-    return respond (rs, 404, "CI request submission disabled");
+    throw invalid_request (404, "CI request submission disabled");
 
   // Process headers.
   //
@@ -206,26 +213,31 @@ handle (request& rq, response& rs)
       else if (icasecmp (h.name, "content-type") == 0)
       {
         if (!h.value)
-          return respond (rs, 400, "missing content-type value");
+          throw invalid_request (400, "missing content-type value");
 
         if (icasecmp (*h.value, "application/json") != 0)
-          return respond (rs, 400,
-                          "invalid content-type value: '" + *h.value + '\'');
+        {
+          throw invalid_request (400,
+                                 "invalid content-type value: '" + *h.value +
+                                     '\'');
+        }
+
+        content_type = true;
       }
       else if (icasecmp (h.name, "x-github-event") == 0)
       {
         if (!h.value)
-          return respond (rs, 400, "missing x-github-event value");
+          throw invalid_request (400, "missing x-github-event value");
 
         event = *h.value;
       }
     }
 
     if (!content_type)
-      return respond (rs, 400, "missing content-type header");
+      throw invalid_request (400, "missing content-type header");
 
     if (event.empty ())
-      return respond (rs, 400, "missing x-github-event header");
+      throw invalid_request (400, "missing x-github-event header");
   }
 
   // There is an event (specified in the x-github-event header) and each event
@@ -243,7 +255,6 @@ handle (request& rq, response& rs)
     {
       json::parser p (rq.content (64 * 1024), "check_suite webhook");
 
-      p.next_expect (event::begin_object); // @@ Let's move into ctor (everywhere).
       check_suite_event cs (p);
 
       // @@ TODO: log and ignore unknown.
@@ -263,7 +274,7 @@ handle (request& rq, response& rs)
         // ignore?
       }
       else
-        return respond (rs, 400, "unsupported action: " + cs.action);
+        throw invalid_request (400, "unsupported action: " + cs.action);
 
       cout << "<check_suite webhook>" << endl << cs << endl;
 
@@ -271,31 +282,29 @@ handle (request& rq, response& rs)
     }
     else if (event == "pull_request")
     {
-      return respond (rs, 501, "pull request events not implemented yet");
+      throw invalid_request (501, "pull request events not implemented yet");
     }
     else
-      respond (rs, 400, "unexpected event: '" + event + "'");
+      throw invalid_request (400, "unexpected event: '" + event + "'");
   }
   catch (const json::invalid_json_input& e)
   {
     // @@ TODO: should we write more detailed diagnostics to log? Maybe we
     //    should do this for all unsuccessful calls to respond().
-
-    return respond (rs, 400, "malformed JSON in request body");
+    //
+    //    @@ TMP These exceptions end up in the apache error log.
+    //
+    throw invalid_request (400, "malformed JSON in request body");
   }
 }
 
 using event = json::event;
 
-// check_suite_obj
+// check_suite
 //
-
-// @@ Let's make then constructors.
-//
-static check_suite_obj
-parse_check_suite_obj (json::parser& p)
+check_suite::check_suite (json::parser& p)
 {
-  check_suite_obj r;
+  p.next_expect (event::begin_object);
 
   // Skip unknown/uninteresting members.
   //
@@ -303,19 +312,17 @@ parse_check_suite_obj (json::parser& p)
   {
     const string& n (p.name ());
 
-    if      (n == "id")          r.id = p.next_expect_number<uint64_t> ();
-    else if (n == "head_branch") r.head_branch = p.next_expect_string ();
-    else if (n == "head_sha")    r.head_sha = p.next_expect_string ();
-    else if (n == "before")      r.before = p.next_expect_string ();
-    else if (n == "after")       r.after = p.next_expect_string ();
+    if      (n == "id")          id = p.next_expect_number<uint64_t> ();
+    else if (n == "head_branch") head_branch = p.next_expect_string ();
+    else if (n == "head_sha")    head_sha = p.next_expect_string ();
+    else if (n == "before")      before = p.next_expect_string ();
+    else if (n == "after")       after = p.next_expect_string ();
     else p.next_expect_value_skip ();
   }
-
-  return r;
 }
 
 static ostream&
-operator<< (ostream& os, const check_suite_obj& cs)
+operator<< (ostream& os, const check_suite& cs)
 {
   os << "id: " << cs.id << endl
      << "head_branch: " << cs.head_branch << endl
@@ -326,12 +333,11 @@ operator<< (ostream& os, const check_suite_obj& cs)
   return os;
 }
 
-// repository_obj
+// repository
 //
-static repository_obj
-parse_repository_obj (json::parser& p)
+repository::repository (json::parser& p)
 {
-  repository_obj r;
+  p.next_expect (event::begin_object);
 
   // Skip unknown/uninteresting members.
   //
@@ -339,17 +345,15 @@ parse_repository_obj (json::parser& p)
   {
     const string& n (p.name ());
 
-    if      (n == "name")           r.name = p.next_expect_string ();
-    else if (n == "full_name")      r.full_name = p.next_expect_string ();
-    else if (n == "default_branch") r.default_branch = p.next_expect_string ();
+    if      (n == "name")           name = p.next_expect_string ();
+    else if (n == "full_name")      full_name = p.next_expect_string ();
+    else if (n == "default_branch") default_branch = p.next_expect_string ();
     else p.next_expect_value_skip ();
   }
-
-  return r;
 }
 
 static ostream&
-operator<< (ostream& os, const repository_obj& rep)
+operator<< (ostream& os, const repository& rep)
 {
   os << "name: " << rep.name << endl
      << "full_name: " << rep.full_name << endl
@@ -358,34 +362,27 @@ operator<< (ostream& os, const repository_obj& rep)
   return os;
 }
 
-// check_suite_req
+// check_suite_event
 //
-static check_suite_req
-parse_check_suite_webhook (json::parser& p)
+check_suite_event::check_suite_event (json::parser& p)
 {
-  check_suite_req r;
-
-  // @@ Let's not assume order.
-
-  r.action = p.next_expect_member_string ("action");
-
-  // Parse the check_suite object.
-  //
-  p.next_expect_name ("check_suite");
   p.next_expect (event::begin_object);
-  r.check_suite = parse_check_suite_obj (p);
 
-  // Parse the repository object.
+  // Skip unknown/uninteresting members.
   //
-  p.next_expect_name ("repository", true /* skip_unknown */);
-  p.next_expect (event::begin_object);
-  r.repository = parse_repository_obj (p);
+  while (p.next_expect (event::name, event::end_object))
+  {
+    const string& n (p.name ());
 
-  return r;
+    if      (n == "action")         action = p.next_expect_string ();
+    else if (n == "check_suite")    check_suite = ::check_suite (p);
+    else if (n == "repository")     repository = ::repository (p);
+    else p.next_expect_value_skip ();
+  }
 }
 
 static ostream&
-operator<< (ostream& os, const check_suite_req& cs)
+operator<< (ostream& os, const check_suite_event& cs)
 {
   os << "action: " << cs.action << endl;
   os << "<check_suite>" << endl << cs.check_suite;

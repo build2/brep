@@ -35,11 +35,6 @@ namespace brep
     virtual void
     init (cli::scanner&);
 
-    // @@ Can it be static in .cxx file?
-    //
-    bool
-    respond (response&, status_code, const string& message);
-
   private:
     shared_ptr<options::ci> options_;
   };
