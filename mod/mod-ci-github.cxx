@@ -114,7 +114,8 @@ struct repository
   string full_name;
   string default_branch;
 
-  explicit repository (json::parser&);
+  explicit
+  repository (json::parser&);
 
   repository () = default;
 };
@@ -125,7 +126,8 @@ struct check_suite_event
   ::check_suite check_suite;
   ::repository  repository;
 
-  explicit check_suite_event (json::parser&);
+  explicit
+  check_suite_event (json::parser&);
 
   check_suite_event () = default;
 };
@@ -234,6 +236,7 @@ handle (request& rq, response& rs)
       try
       {
         // Use the maximum validity period allowed by GitHub (10 minutes).
+        // @@ Let's make configurable.
         //
         string jwt (gen_jwt (*options_,
                              options_->ci_github_app_private_key (),
@@ -270,7 +273,7 @@ handle (request& rq, response& rs)
     // @@ TODO: should we write more detailed diagnostics to log? Maybe we
     //    should do this for all unsuccessful calls to respond().
     //
-    //    @@ TMP These exceptions end up in the apache error log.
+    // Note: these exceptions end up in the apache error log.
     //
     throw invalid_request (400, "malformed JSON in request body");
   }
