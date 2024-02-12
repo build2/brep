@@ -235,13 +235,15 @@ handle (request& rq, response& rs)
 
       try
       {
-        // Use the maximum validity period allowed by GitHub (10 minutes).
-        // @@ Let's make configurable.
+        // Set token's "issued at" time 60 seconds in the past to combat clock
+        // drift (as recommended by GitHub).
         //
-        string jwt (gen_jwt (*options_,
-                             options_->ci_github_app_private_key (),
-                             to_string (options_->ci_github_app_id ()),
-                             chrono::minutes (10)));
+        string jwt (gen_jwt (
+            *options_,
+            options_->ci_github_app_private_key (),
+            to_string (options_->ci_github_app_id ()),
+            chrono::minutes (options_->ci_github_jwt_validity_period ()),
+            chrono::seconds (60)));
 
         if (jwt.empty ())
           fail << "unable to generate JWT: " << options_->openssl ()
@@ -274,6 +276,9 @@ handle (request& rq, response& rs)
     //    should do this for all unsuccessful calls to respond().
     //
     // Note: these exceptions end up in the apache error log.
+    //
+    //  @@ TMP Actually I was wrong, these do not end up in any logs. Pretty
+    //         sure I saw them go there but they're definitely not anymore.
     //
     throw invalid_request (400, "malformed JSON in request body");
   }

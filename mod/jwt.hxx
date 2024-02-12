@@ -22,16 +22,19 @@ namespace brep
   //
   // The backdate argument specifies the number of seconds to subtract from
   // the "issued at" time in order to combat potential clock drift (which can
-  // casue the token to be not valid yet).
+  // cause the token to be not valid yet).
   //
-  // Return the token or std::system_error in case if an error.
+  //   @@ TODO Is there a standard term? "drift" or "drift value" seems to be
+  //           used quite often.
+  //
+  // Return the token or throw std::system_error in case of an error.
   //
   string
   gen_jwt (const options::openssl_options&,
            const path& private_key,
            const string& issuer,
            const std::chrono::minutes& validity_period,
-           const std::chrono::seconds& backdate = 60);
+           const std::chrono::seconds& backdate = std::chrono::seconds (60));
 }
 
 #endif
