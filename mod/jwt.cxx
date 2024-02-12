@@ -2,7 +2,6 @@
 
 #include <libbutl/base64.hxx>
 #include <libbutl/openssl.hxx>
-#include <libbutl/timestamp.hxx>
 #include <libbutl/json/serializer.hxx>
 
 using namespace std;
@@ -56,7 +55,8 @@ string brep::
 gen_jwt (const options::openssl_options& o,
          const path& pk,
          const string& iss,
-         const std::chrono::minutes& vp)
+         const chrono::minutes& vp,
+         const chrono::seconds& bd)
 {
   // Create the header.
   //
@@ -81,15 +81,15 @@ gen_jwt (const options::openssl_options& o,
 
     // "Issued at" time.
     //
-    seconds iat (
-        duration_cast<seconds> (system_clock::now ().time_since_epoch ()));
+    seconds iat (duration_cast<seconds> (
+        system_clock::now ().time_since_epoch () - bd));
 
     // Expiration time.
     //
     seconds exp (iat + vp);
 
     vector<char> b;
-    json::buffer_serializer s (b);
+    json::buffer_serializer s (b, 0 /* indentation */);
 
     s.begin_object ();
     s.member ("iss", iss);
@@ -116,7 +116,7 @@ gen_jwt (const options::openssl_options& o,
     // Note that RSA is indicated by the contents of the private key.
     //
     // Note that here we assume both output and diagnostics will fit into pipe
-    // buffers and don't both with fdselect().
+    // buffers and don't poll both with fdselect().
     //
     openssl os (path ("-"), // Read message from openssl::out.
                 path ("-"), // Write output to openssl::in.

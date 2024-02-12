@@ -868,6 +868,13 @@ namespace brep
         "The private key used during GitHub API authentication. Created in
          the GitHub app's settings."
       }
+
+      uint16_t ci-github-jwt-validity-period = 10
+      {
+        "<minutes>",
+        "The number of minutes a JWT (authentication token) should be valid for.
+         The maximum allowed by GitHub is 10 minutes."
+      }
     };
 
     class upload: build, build_db, build_upload, repository_email, handler
