@@ -52,18 +52,18 @@ using namespace butl;
 //
 //   base64url($header) + '.' + base64url($payload) + '.' + base64url($signature)
 //
-string
-brep::gen_jwt (const options::openssl_options& o,
-               const path& pk,
-               const string& iss,
-               const std::chrono::minutes& vp)
+string brep::
+gen_jwt (const options::openssl_options& o,
+         const path& pk,
+         const string& iss,
+         const std::chrono::minutes& vp)
 {
   // Create the header.
   //
   string h; // Header (base64url-encoded).
   {
     vector<char> b;
-    json::buffer_serializer s (b);
+    json::buffer_serializer s (b, 0 /* indentation */);
 
     s.begin_object ();
     s.member ("typ", "JWT");
@@ -80,11 +80,6 @@ brep::gen_jwt (const options::openssl_options& o,
     using namespace std::chrono;
 
     // "Issued at" time.
-    //
-    // @@ TODO GitHub recommends setting this time to 60 seconds in the past
-    //         to combat clock drift. Seems likely to be a general problem
-    //         with client/server authentication schemes so perhaps passing
-    //         the expected drift/skew as an argument might make sense?
     //
     seconds iat (
         duration_cast<seconds> (system_clock::now ().time_since_epoch ()));
@@ -109,9 +104,10 @@ brep::gen_jwt (const options::openssl_options& o,
   //
 
   // The signature (base64url-encoded). Will be left empty if openssl exits
-  // with a non-zero status.
+  // with a non-zero status. @@
   //
   string s;
+  try
   {
     // Sign the concatenated header and payload using openssl.
     //
@@ -119,27 +115,49 @@ brep::gen_jwt (const options::openssl_options& o,
     //
     // Note that RSA is indicated by the contents of the private key.
     //
+    // Note that here we assume both output and diagnostics will fit into pipe
+    // buffers and don't both with fdselect().
+    //
     openssl os (path ("-"), // Read message from openssl::out.
                 path ("-"), // Write output to openssl::in.
                 2,          // Diagnostics to stderr.
                 process_env (o.openssl (), o.openssl_envvar ()),
                 "dgst", o.openssl_option (), "-sha256", "-sign", pk);
 
-    // Write the concatenated header and payload to openssl's input.
-    //
-    os.out << h << '.' << p;
-    os.out.close ();
+    // @@ TODO redirect stderr to pipe/ofdstream.
 
-    // Read the binary signature from openssl's output.
-    //
-    vector<char> bs (os.in.read_binary ());
-    os.in.close ();
+    try
+    {
+      // Write the concatenated header and payload to openssl's input.
+      //
+      os.out << h << '.' << p;
+      os.out.close ();
 
-    if (os.wait ())
-      s = base64url_encode (bs);
+      // Read the binary signature from openssl's output.
+      //
+      vector<char> bs (os.in.read_binary ());
+      os.in.close ();
+    }
+    catch (const io_error&)
+    {
+      if (!os.wait ())
+        throw system_error (); // @@
+
+      // Fall through.
+    }
+
+    if (!os.wait ())
+      throw system_error (); // @@
+
+    s = base64url_encode (bs);
+  }
+  catch ()
+  {
+    // @@ TODO: catch all possible errors and translate to suitable
+    //    system_error.
   }
 
-  // Return the token, or empty if openssl exited with a non-zero status.
+  // Return the token, or empty if openssl exited with a non-zero status. @@
   //
   return !s.empty ()
          ? h + '.' + p + '.' + s
