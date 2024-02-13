@@ -885,23 +885,22 @@ handle (request& rq, response& rs)
       using prep_bld_query = prepared_query<build>;
 
       package_id id;
-      string pkg_config_name;
+      string pkg_config;
 
       bld_query sq (false);
       for (const auto& cm: conf_machines)
-        sq = sq || (bld_query::id.target == cm.first.target             &&
-                    bld_query::id.target_config_name == cm.first.config &&
-                    bld_query::id.package_config_name ==
-                    bld_query::_ref (pkg_config_name));
+        sq = sq || (bld_query::id.target == cm.first.target &&
+                    bld_query::id.target_config_name == cm.first.config);
 
       bld_query bq (
-        equal<build> (bld_query::id.package, id)                   &&
-        sq                                                         &&
-        bld_query::id.toolchain_name == tqm.toolchain_name         &&
+        equal<build> (bld_query::id.package, id)                          &&
+        bld_query::id.package_config_name == bld_query::_ref (pkg_config) &&
+        sq                                                                &&
+        bld_query::id.toolchain_name == tqm.toolchain_name                &&
 
         compare_version_eq (bld_query::id.toolchain_version,
                             canonical_version (toolchain_version),
-                            true /* revision */)                   &&
+                            true /* revision */)                          &&
 
         (bld_query::state == "built"                          ||
          (bld_query::force == "forcing" &&
@@ -1223,7 +1222,7 @@ handle (request& rq, response& rs)
 
           for (build_package_config& pc: p->configs)
           {
-            pkg_config_name = pc.name;
+            pkg_config = pc.name;
 
             // Iterate through the built configurations and erase them from the
             // build configuration map. All those configurations that remained
@@ -1279,7 +1278,7 @@ handle (request& rq, response& rs)
                 build_id bid (move (id),
                               cm.config->target,
                               cm.config->name,
-                              move (pkg_config_name),
+                              move (pkg_config),
                               move (tqm.toolchain_name),
                               toolchain_version);
 
