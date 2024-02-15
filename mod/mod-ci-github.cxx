@@ -3,6 +3,7 @@
 
 #include <mod/mod-ci-github.hxx>
 
+#include <libbutl/curl.hxx>
 #include <libbutl/json/parser.hxx>
 
 #include <mod/jwt.hxx>
@@ -80,7 +81,8 @@ using namespace butl;
 using namespace web;
 using namespace brep::cli;
 
-brep::ci_github::ci_github (const ci_github& r)
+brep::ci_github::
+ci_github (const ci_github& r)
     : handler (r),
       options_ (r.initialized_ ? r.options_ : nullptr)
 {
@@ -121,16 +123,38 @@ struct repository
   repository () = default;
 };
 
+struct installation
+{
+  uint64_t id;
+
+  explicit
+  installation (json::parser&);
+
+  installation () = default;
+};
+
 struct check_suite_event
 {
   string        action;
   ::check_suite check_suite;
   ::repository  repository;
+  ::installation installation;
 
   explicit
   check_suite_event (json::parser&);
 
   check_suite_event () = default;
+};
+
+struct installation_access_token
+{
+  string token;
+  timestamp expires_at;
+
+  explicit
+  installation_access_token (json::parser&);
+
+  installation_access_token () = default;
 };
 
 static ostream&
@@ -140,7 +164,149 @@ static ostream&
 operator<< (ostream&, const repository&);
 
 static ostream&
+operator<< (ostream&, const installation&);
+
+static ostream&
 operator<< (ostream&, const check_suite_event&);
+
+static ostream&
+operator<< (ostream&, const installation_access_token&);
+
+// Send a POST request to the GitHub API endpoint `ep`, parse GitHub's JSON
+// response into `rs`, and return the HTTP status code.
+//
+// The endpoint `ep` should not have a leading slash.
+//
+// Pass additional HTTP headers in `hdrs`. For example:
+//
+//   "HeaderName: header value"
+//
+// @@ TMP Presumably we'll be factoring most of this function into something
+//        like github_send(curl::method_type, ...).
+//
+template<typename T>
+static int
+github_post (T& rs, const string& ep, const brep::strings& hdrs)
+{
+  // Convert the header values to curl header option/value pairs.
+  //
+  brep::strings hdr_opts;
+
+  for (const string& h: hdrs)
+  {
+    hdr_opts.push_back ("--header");
+    hdr_opts.push_back (h);
+  }
+
+  // Run curl.
+  //
+  try
+  {
+    // Use the --write-out option to get curl to print the HTTP response
+    // status code after the HTTP response body (see below for more details
+    // and an example).
+    //
+    // The API version `2022-11-28` is the only one currently supported and if
+    // the X-GitHub-Api-Version header is not passed this version will be
+    // chosen by default.
+    //
+    // @@ TMP Although this request does not have a body, can't pass a nullfd
+    //        stdin because it will cause butl::curl to fail if the method is
+    //        POST.
+    //
+    curl c (path ("-"),
+            path ("-"), // Write response to curl::in.
+            2,
+            curl::post, "https://api.github.com/" + ep,
+            "--write-out", "{\"brep_http_status\": %{http_code}}\n",
+            "--header", "Accept: application/vnd.github+json",
+            "--header", "X-GitHub-Api-Version: 2022-11-28",
+            move (hdr_opts));
+
+    // Parse the HTTP response.
+    //
+    int sc; // Status code.
+    try
+    {
+      c.out.close (); // No input required.
+
+      // The output is expected to contain two JSON values: the HTTP response
+      // body and the HTTP status code we added with --write-out above. For
+      // example:
+      //
+      //  {
+      //    "id": 12345,
+      //    "name": "foo"
+      //  }
+      //  { "brep_http_status": 201 }
+      //
+      // Name the status code so that we don't accidentally parse some other
+      // value.
+      //
+      // Note that GitHub API error response bodies also consist of a single
+      // JSON object so the format will be the same in both cases.
+      //
+      json::parser p (c.in, ep, true /* multi_value */, "\n");
+
+      // Parse the response body (first JSON value).
+      //
+      rs = T (p);
+
+      p.next (); // Skip the value-separating nullopt.
+
+      // Parse the HTTP response status code (second JSON value).
+      //
+      p.next_expect (json::event::begin_object);
+      sc = p.next_expect_member_number<int> ("brep_http_status");
+      p.next_expect (json::event::end_object);
+
+      c.in.close ();
+    }
+    catch (const brep::io_error& e)
+    {
+      // IO failure, child exit status doesn't matter. Just wait for the
+      // process completion and throw.
+      //
+      c.wait ();
+
+      throw_generic_error (
+          e.code ().value (),
+          (string ("unable to communicate with curl: ") + e.what ())
+              .c_str ());
+    }
+    catch (const json::invalid_json_input& e)
+    {
+      if (!c.wait ())
+      {
+        throw_generic_error (
+            EINVAL,
+            ("curl failed with " + to_string (*c.exit)).c_str ());
+      }
+
+      throw runtime_error (
+          (string ("malformed JSON response from GitHub: ") + e.what ())
+              .c_str ());
+    }
+
+    // @@ TMP The odds of this failing are probably slim given that we parsed
+    //        the JSON output successfully.
+    //
+    if (!c.wait ())
+    {
+      throw_generic_error (
+        EINVAL,
+        ("curl failed with " + to_string (*c.exit)).c_str ());
+    }
+
+    return sc;
+  }
+  catch (const process_error& e)
+  {
+    throw_generic_error (
+        e.code ().value (),
+        (string ("unable to execute curl:") + e.what ()).c_str ());
+  }
+}
 
 bool brep::ci_github::
 handle (request& rq, response& rs)
@@ -234,17 +400,18 @@ handle (request& rq, response& rs)
 
       cout << "<check_suite webhook>" << endl << cs << endl;
 
+      string jwt;
       try
       {
         // Set token's "issued at" time 60 seconds in the past to combat clock
         // drift (as recommended by GitHub).
         //
-        string jwt (gen_jwt (
+        jwt = gen_jwt (
             *options_,
             options_->ci_github_app_private_key (),
             to_string (options_->ci_github_app_id ()),
             chrono::minutes (options_->ci_github_jwt_validity_period ()),
-            chrono::seconds (60)));
+            chrono::seconds (60));
 
         cout << "JWT: " << jwt << endl;
       }
@@ -252,6 +419,41 @@ handle (request& rq, response& rs)
       {
         fail << "unable to generate JWT: [" << e.code () << "] " << e.what ();
       }
+
+      // Authenticate to GitHub as an app installation.
+      //
+      installation_access_token iat;
+      try
+      {
+        // API endpoint.
+        //
+        string ep ("app/installations/" + to_string (cs.installation.id) +
+                   "/access_tokens");
+
+        int sc (
+            github_post (iat, ep, strings {"Authorization: Bearer " + jwt}));
+
+        // Possible response status codes from the access_tokens endpoint:
+        //
+        // 201 Created
+        // 401 Requires authentication
+        // 403 Forbidden
+        // 404 Resource not found
+        // 422 Validation failed, or the endpoint has been spammed.
+        //
+        if (sc != 201)
+        {
+          throw runtime_error ("error status code received from GitHub: " +
+                               to_string (sc));
+        }
+      }
+      catch (const system_error& e)
+      {
+        fail << "unable to get installation access token: [" << e.code ()
+             << "] " << e.what ();
+      }
+
+      cout << "<installation_access_token>" << endl << iat << endl;
 
       return true;
     }
@@ -280,7 +482,8 @@ using event = json::event;
 
 // check_suite
 //
-check_suite::check_suite (json::parser& p)
+check_suite::
+check_suite (json::parser& p)
 {
   p.next_expect (event::begin_object);
 
@@ -313,7 +516,8 @@ operator<< (ostream& os, const check_suite& cs)
 
 // repository
 //
-repository::repository (json::parser& p)
+repository::
+repository (json::parser& p)
 {
   p.next_expect (event::begin_object);
 
@@ -340,9 +544,36 @@ operator<< (ostream& os, const repository& rep)
   return os;
 }
 
+// installation
+
+installation::
+installation (json::parser& p)
+{
+  p.next_expect (event::begin_object);
+
+  // Skip unknown/uninteresting members.
+  //
+  while (p.next_expect (event::name, event::end_object))
+  {
+    const string& n (p.name ());
+
+    if (n == "id") id = p.next_expect_number<uint64_t> ();
+    else p.next_expect_value_skip ();
+  }
+}
+
+static ostream&
+operator<< (ostream& os, const installation& i)
+{
+  os << "id: " << i.id << endl;
+
+  return os;
+}
+
 // check_suite_event
 //
-check_suite_event::check_suite_event (json::parser& p)
+check_suite_event::
+check_suite_event (json::parser& p)
 {
   p.next_expect (event::begin_object);
 
@@ -355,6 +586,7 @@ check_suite_event::check_suite_event (json::parser& p)
     if      (n == "action")         action = p.next_expect_string ();
     else if (n == "check_suite")    check_suite = ::check_suite (p);
     else if (n == "repository")     repository = ::repository (p);
+    else if (n == "installation")   installation = ::installation (p);
     else p.next_expect_value_skip ();
   }
 }
@@ -364,7 +596,50 @@ operator<< (ostream& os, const check_suite_event& cs)
 {
   os << "action: " << cs.action << endl;
   os << "<check_suite>" << endl << cs.check_suite;
-  os << "<repository>" << endl << cs.repository << endl;
+  os << "<repository>" << endl << cs.repository;
+  os << "<installation>" << endl << cs.installation;
+  os << endl;
+
+  return os;
+}
+
+// installation_access_token
+//
+// Example JSON:
+//
+// {
+//   "token": "ghs_Py7TPcsmsITeVCAWeVtD8RQs8eSos71O5Nzp",
+//   "expires_at": "2024-02-15T16:16:38Z",
+//   ...
+// }
+//
+installation_access_token::
+installation_access_token (json::parser& p)
+{
+  p.next_expect (event::begin_object);
+
+  // Skip unknown/uninteresting members.
+  //
+  while (p.next_expect (event::name, event::end_object))
+  {
+    const string& n (p.name ());
+
+    if (n == "token")
+      token = p.next_expect_string ();
+    else if (n == "expires_at")
+    {
+      const string& s (p.next_expect_string ());
+      expires_at = from_string (s.c_str (), "%Y-%m-%dT%TZ", false /* local */);
+    }
+    else p.next_expect_value_skip ();
+  }
+}
+
+static ostream&
+operator<< (ostream& os, const installation_access_token& t)
+{
+  os << "token: " << t.token << endl;
+  os << "expires_at: " << t.expires_at << endl;
 
   return os;
 }
