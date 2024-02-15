@@ -737,6 +737,27 @@ namespace brep
   }
 
   // Allow comparing the query members with the query parameters bound by
+  // reference to variables of the canonical version type (in particular in
+  // the prepared queries).
+  //
+  // Note that it is not operator==() since the query template parameter type
+  // can not be deduced from the function parameter types and needs to be
+  // specified explicitly.
+  //
+  template <typename T, typename V>
+  inline auto
+  equal (const V& x, const canonical_version& y)
+    -> decltype (x.epoch == odb::query<T>::_ref (y.epoch))
+  {
+    using query = odb::query<T>;
+
+    return x.epoch              == query::_ref (y.epoch)              &&
+           x.canonical_upstream == query::_ref (y.canonical_upstream) &&
+           x.canonical_release  == query::_ref (y.canonical_release)  &&
+           x.revision           == query::_ref (y.revision);
+  }
+
+  // Allow comparing the query members with the query parameters bound by
   // reference to variables of the package id type (in particular in the
   // prepared queries).
   //
@@ -747,21 +768,15 @@ namespace brep
   template <typename T, typename ID>
   inline auto
   equal (const ID& x, const package_id& y)
-    -> decltype (x.tenant == odb::query<T>::_ref (y.tenant) &&
-                 x.name == odb::query<T>::_ref (y.name)     &&
+    -> decltype (x.tenant        == odb::query<T>::_ref (y.tenant) &&
+                 x.name          == odb::query<T>::_ref (y.name)   &&
                  x.version.epoch == odb::query<T>::_ref (y.version.epoch))
   {
     using query = odb::query<T>;
 
-    const auto& qv (x.version);
-    const canonical_version& v (y.version);
-
-    return x.tenant == query::_ref (y.tenant)                          &&
-           x.name == query::_ref (y.name)                              &&
-           qv.epoch == query::_ref (v.epoch)                           &&
-           qv.canonical_upstream == query::_ref (v.canonical_upstream) &&
-           qv.canonical_release == query::_ref (v.canonical_release)   &&
-           qv.revision == query::_ref (v.revision);
+    return x.tenant == query::_ref (y.tenant) &&
+           x.name   == query::_ref (y.name)   &&
+           equal<T> (x.version, y.version);
   }
 
   // Repository id comparison operators.

@@ -655,8 +655,13 @@ namespace brep
         conn->prepare_query<buildable_package> ("buildable-package-query",
                                                 pq));
 
-      // Prepare the package configuration build prepared query.
+      // Prepare the package configuration build prepared queries.
       //
+      using bquery = query<build>;
+      using prep_bquery = prepared_query<build>;
+
+      build_id id;
+
       // This query will only be used for toolchains that have no version
       // specified on the command line to obtain the latest completed build
       // across all toolchain versions, if present, and the latest incomplete
@@ -667,29 +672,26 @@ namespace brep
       // toolchain that built the package last and if there are none, pick the
       // one for which the build task was issued last.
       //
-      using bquery = query<package_build>;
-      using prep_bquery = prepared_query<package_build>;
+      // @@ TMP Check if we can optimize this query by adding index for
+      //        soft_timestamp and/or by setting enable_nestloop=off (or some
+      //        such) as we do in mod/mod-builds.cxx.
+      //
+      bquery lbq ((equal<build> (bquery::id,
+                                 id,
+                                 false /* toolchain_version */) &&
+                   bquery::state != "queued")       +
+                  "ORDER BY"                        +
+                  bquery::soft_timestamp + "DESC, " +
+                  bquery::timestamp + "DESC"        +
+                  "LIMIT 1");
 
-      build_id id;
-      string package_config_name;
+      prep_bquery plbq (
+        conn->prepare_query<build> ("package-latest-build-query", lbq));
 
-      const auto& bid (bquery::build::id);
-
-      bquery bq ((bquery::build::state != "queued"               &&
-                  equal<package_build> (bid.package, id.package) &&
-                  bid.target == bquery::_ref (id.target)         &&
-                  bid.target_config_name ==
-                    bquery::_ref (id.target_config_name)         &&
-                  bid.package_config_name ==
-                    bquery::_ref (package_config_name)           &&
-                  bid.toolchain_name == bquery::_ref (id.toolchain_name)) +
-                 "ORDER BY"                                               +
-                 bquery::build::soft_timestamp + "DESC, "                 +
-                 bquery::build::timestamp + "DESC"                        +
-                 "LIMIT 1");
-
-      prep_bquery pbq (
-        conn->prepare_query<package_build> ("package-build-query", bq));
+      // This query will only be used to retrieve a specific build by id.
+      //
+      bquery bq (equal<build> (bquery::id, id) && bquery::state != "queued");
+      prep_bquery pbq (conn->prepare_query<build> ("package-build-query", bq));
 
       timestamp now (system_clock::now ());
 
@@ -848,29 +850,9 @@ namespace brep
                   // the latest build across all toolchain versions and search
                   // for a specific build otherwise.
                   //
-                  shared_ptr<build> b;
-
-                  if (id.toolchain_version.empty ())
-                  {
-                    package_config_name = pc.name;
-
-                    // @@ TMP Check if we can optimize this query by adding
-                    //        index for soft_timestamp and/or by setting
-                    //        enable_nestloop=off (or some such) as we do in
-                    //        mod/mod-builds.cxx.
-                    //
-                    auto pbs (pbq.execute ());
-
-                    if (!pbs.empty ())
-                      b = move (pbs.begin ()->build);
-                  }
-                  else
-                  {
-                    b = db.find<build> (id);
-
-                    if (b->state == build_state::queued)
-                      b = nullptr;
-                  }
+                  shared_ptr<build> b (id.toolchain_version.empty ()
+                                       ? plbq.execute_one ()
+                                       : pbq.execute_one ());
 
                   // Note that we consider a build as delayed if it is not
                   // completed in the expected timeframe. So even if the build

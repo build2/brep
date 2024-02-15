@@ -127,6 +127,41 @@ namespace brep
            compare_version_ne (x.toolchain_version, y.toolchain_version, true);
   }
 
+  // Allow comparing the query members with the query parameters bound by
+  // reference to variables of the build id type (in particular in the
+  // prepared queries).
+  //
+  // Note that it is not operator==() since the query template parameter type
+  // can not be deduced from the function parameter types and needs to be
+  // specified explicitly.
+  //
+  template <typename T, typename ID>
+  inline auto
+  equal (const ID& x, const build_id& y, bool toolchain_version = true)
+    -> decltype (x.package.tenant == odb::query<T>::_ref (y.package.tenant) &&
+                 x.package.name == odb::query<T>::_ref (y.package.name)     &&
+                 x.package.version.epoch ==
+                   odb::query<T>::_ref (y.package.version.epoch)            &&
+                 x.target_config_name ==
+                   odb::query<T>::_ref (y.target_config_name)               &&
+                 x.toolchain_name == odb::query<T>::_ref (y.toolchain_name) &&
+                 x.toolchain_version.epoch ==
+                   odb::query<T>::_ref (y.toolchain_version.epoch))
+  {
+    using query = odb::query<T>;
+
+    query r (equal<T> (x.package, y.package)                              &&
+             x.target              == query::_ref (y.target)              &&
+             x.target_config_name  == query::_ref (y.target_config_name)  &&
+             x.package_config_name == query::_ref (y.package_config_name) &&
+             x.toolchain_name      == query::_ref (y.toolchain_name));
+
+    if (toolchain_version)
+      r = r && equal<T> (x.toolchain_version, y.toolchain_version);
+
+    return r;
+  }
+
   // build_state
   //
   // The queued build state is semantically equivalent to a non-existent
