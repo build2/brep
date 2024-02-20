@@ -102,11 +102,7 @@ gen_jwt (const options::openssl_options& o,
 
   // Create the signature.
   //
-
-  // The signature (base64url-encoded). Will be left empty if openssl exits
-  // with a non-zero status. @@
-  //
-  string s;
+  string s; // Signature (base64url-encoded).
   try
   {
     // Sign the concatenated header and payload using openssl.
@@ -118,48 +114,68 @@ gen_jwt (const options::openssl_options& o,
     // Note that here we assume both output and diagnostics will fit into pipe
     // buffers and don't poll both with fdselect().
     //
+    fdpipe errp (fdopen_pipe ()); // stderr pipe.
+
     openssl os (path ("-"), // Read message from openssl::out.
                 path ("-"), // Write output to openssl::in.
-                2,          // Diagnostics to stderr.
+                process::pipe (errp.in.get (), move (errp.out)),
                 process_env (o.openssl (), o.openssl_envvar ()),
                 "dgst", o.openssl_option (), "-sha256", "-sign", pk);
 
-    // @@ TODO redirect stderr to pipe/ofdstream.
-
+    vector<char> bs; // Binary signature (openssl output).
+    string et;       // Openssl stderr text.
     try
     {
+      // In case of exception, skip and close input after output.
+      //
+      ifdstream in (os.in.release (), fdstream_mode::skip);
+      ofdstream out (os.out.release ());
+      ifdstream err (move (errp.in));
+
       // Write the concatenated header and payload to openssl's input.
       //
-      os.out << h << '.' << p;
-      os.out.close ();
+      out << h << '.' << p;
+      out.close ();
 
       // Read the binary signature from openssl's output.
       //
-      vector<char> bs (os.in.read_binary ());
-      os.in.close ();
-    }
-    catch (const io_error&)
-    {
-      if (!os.wait ())
-        throw system_error (); // @@
+      bs = in.read_binary ();
+      in.close ();
 
-      // Fall through.
+      if (!os.wait ())
+        et = err.read_text ();
+
+      err.close ();
+    }
+    catch (const io_error& e)
+    {
+      // IO failure, child exit status doesn't matter. Just wait for the
+      // process completion and throw.
+      //
+      os.wait ();
+
+      throw_generic_error (e.code ().value (),
+                           ("unable to communicate with " +
+                            o.openssl ().string () + ": " + e.what ())
+                               .c_str ());
     }
 
     if (!os.wait ())
-      throw system_error (); // @@
+    {
+      throw_generic_error (
+          EINVAL,
+          (o.openssl ().string () + " failed: " + et).c_str ());
+    }
 
     s = base64url_encode (bs);
   }
-  catch ()
+  catch (const process_error& e)
   {
-    // @@ TODO: catch all possible errors and translate to suitable
-    //    system_error.
+    throw_generic_error (
+        e.code ().value (),
+        ("unable to execute " + o.openssl ().string () + ": " + e.what ())
+            .c_str ());
   }
 
-  // Return the token, or empty if openssl exited with a non-zero status. @@
-  //
-  return !s.empty ()
-         ? h + '.' + p + '.' + s
-         : "";
+  return h + '.' + p + '.' + s; // Return the token.
 }
