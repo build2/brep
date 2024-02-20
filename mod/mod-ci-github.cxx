@@ -73,6 +73,7 @@
 //      the webhook request to restrict access, otherwise we get access to all
 //      repos covered by the installation if installed on an organisation for
 //      example.
+//
 
 using namespace std;
 using namespace butl;
@@ -245,20 +246,11 @@ handle (request& rq, response& rs)
             chrono::minutes (options_->ci_github_jwt_validity_period ()),
             chrono::seconds (60)));
 
-        if (jwt.empty ())
-          fail << "unable to generate JWT: " << options_->openssl ()
-               << " failed";
-
         cout << "JWT: " << jwt << endl;
       }
       catch (const system_error& e)
       {
-        fail << "unable to generate JWT: unable to execute "
-             << options_->openssl () << ": " << e.what ();
-      }
-      catch (const std::exception& e)
-      {
-        fail << "unable to generate JWT: " << e;
+        fail << "unable to generate JWT: [" << e.code () << "] " << e.what ();
       }
 
       return true;
