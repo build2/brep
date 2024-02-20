@@ -371,111 +371,111 @@ handle (request& rq, response& rs)
   // is that we want be "notified" of new actions at which point we can decide
   // whether to ignore them or to handle.
   //
-  try
+  if (event == "check_suite")
   {
-    if (event == "check_suite")
+    check_suite_event cs;
+    try
     {
       json::parser p (rq.content (64 * 1024), "check_suite webhook");
 
-      check_suite_event cs (p);
-
-      // @@ TODO: log and ignore unknown.
-      //
-      if (cs.action == "requested")
-      {
-      }
-      else if (cs.action == "rerequested")
-      {
-        // Someone manually requested to re-run the check runs in this check
-        // suite.
-      }
-      else if (cs.action == "completed")
-      {
-        // GitHub thinks that "all the check runs in this check suite have
-        // completed and a conclusion is available". Looks like this one we
-        // ignore?
-      }
-      else
-        throw invalid_request (400, "unsupported action: " + cs.action);
-
-      cout << "<check_suite webhook>" << endl << cs << endl;
-
-      string jwt;
-      try
-      {
-        // Set token's "issued at" time 60 seconds in the past to combat clock
-        // drift (as recommended by GitHub).
-        //
-        jwt = gen_jwt (
-            *options_,
-            options_->ci_github_app_private_key (),
-            to_string (options_->ci_github_app_id ()),
-            chrono::minutes (options_->ci_github_jwt_validity_period ()),
-            chrono::seconds (60));
-
-        cout << "JWT: " << jwt << endl;
-      }
-      catch (const system_error& e)
-      {
-        fail << "unable to generate JWT: [" << e.code () << "] " << e.what ();
-      }
-
-      // Authenticate to GitHub as an app installation.
-      //
-      installation_access_token iat;
-      try
-      {
-        // API endpoint.
-        //
-        string ep ("app/installations/" + to_string (cs.installation.id) +
-                   "/access_tokens");
-
-        int sc (
-            github_post (iat, ep, strings {"Authorization: Bearer " + jwt}));
-
-        // Possible response status codes from the access_tokens endpoint:
-        //
-        // 201 Created
-        // 401 Requires authentication
-        // 403 Forbidden
-        // 404 Resource not found
-        // 422 Validation failed, or the endpoint has been spammed.
-        //
-        if (sc != 201)
-        {
-          throw runtime_error ("error status code received from GitHub: " +
-                               to_string (sc));
-        }
-      }
-      catch (const system_error& e)
-      {
-        fail << "unable to get installation access token: [" << e.code ()
-             << "] " << e.what ();
-      }
-
-      cout << "<installation_access_token>" << endl << iat << endl;
-
-      return true;
+      cs = check_suite_event (p);
     }
-    else if (event == "pull_request")
+    catch (const json::invalid_json_input& e)
     {
-      throw invalid_request (501, "pull request events not implemented yet");
+      // @@ TODO: should we write more detailed diagnostics to log? Maybe we
+      //    should do this for all unsuccessful calls to respond().
+      //
+      // Note: these exceptions end up in the apache error log.
+      //
+      //  @@ TMP Actually I was wrong, these do not end up in any logs. Pretty
+      //         sure I saw them go there but they're definitely not anymore.
+      //
+      throw invalid_request (400, "malformed JSON in request body");
+    }
+
+    // @@ TODO: log and ignore unknown.
+    //
+    if (cs.action == "requested")
+    {
+    }
+    else if (cs.action == "rerequested")
+    {
+      // Someone manually requested to re-run the check runs in this check
+      // suite.
+    }
+    else if (cs.action == "completed")
+    {
+      // GitHub thinks that "all the check runs in this check suite have
+      // completed and a conclusion is available". Looks like this one we
+      // ignore?
     }
     else
-      throw invalid_request (400, "unexpected event: '" + event + "'");
+      throw invalid_request (400, "unsupported action: " + cs.action);
+
+    cout << "<check_suite webhook>" << endl << cs << endl;
+
+    string jwt;
+    try
+    {
+      // Set token's "issued at" time 60 seconds in the past to combat clock
+      // drift (as recommended by GitHub).
+      //
+      jwt = gen_jwt (
+          *options_,
+          options_->ci_github_app_private_key (),
+          to_string (options_->ci_github_app_id ()),
+          chrono::minutes (options_->ci_github_jwt_validity_period ()),
+          chrono::seconds (60));
+
+      cout << "JWT: " << jwt << endl;
+    }
+    catch (const system_error& e)
+    {
+      fail << "unable to generate JWT: [" << e.code () << "] " << e.what ();
+    }
+
+    // Authenticate to GitHub as an app installation.
+    //
+    installation_access_token iat;
+    try
+    {
+      // API endpoint.
+      //
+      string ep ("app/installations/" + to_string (cs.installation.id) +
+                 "/access_tokens");
+
+      int sc (github_post (iat, ep, strings {"Authorization: Bearer " + jwt}));
+
+      // Possible response status codes from the access_tokens endpoint:
+      //
+      // 201 Created
+      // 401 Requires authentication
+      // 403 Forbidden
+      // 404 Resource not found
+      // 422 Validation failed, or the endpoint has been spammed.
+      //
+      if (sc != 201)
+      {
+        throw runtime_error ("error status code received from GitHub: " +
+                             to_string (sc));
+      }
+    }
+    catch (const system_error& e)
+    {
+      fail << "unable to get installation access token: [" << e.code ()
+           << "] " << e.what ();
+    }
+
+    cout << "<installation_access_token>" << endl << iat << endl;
+
+    return true;
   }
-  catch (const json::invalid_json_input& e)
+  else if (event == "pull_request")
   {
-    // @@ TODO: should we write more detailed diagnostics to log? Maybe we
-    //    should do this for all unsuccessful calls to respond().
-    //
-    // Note: these exceptions end up in the apache error log.
-    //
-    //  @@ TMP Actually I was wrong, these do not end up in any logs. Pretty
-    //         sure I saw them go there but they're definitely not anymore.
-    //
-    throw invalid_request (400, "malformed JSON in request body");
+    throw invalid_request (501, "pull request events not implemented yet");
   }
+  else
+    throw invalid_request (400, "unexpected event: '" + event + "'");
 }
 
 using event = json::event;
