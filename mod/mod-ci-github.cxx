@@ -81,6 +81,9 @@ using namespace butl;
 using namespace web;
 using namespace brep::cli;
 
+// @@ Let's move everything to the brep namespace and get rid of
+//    explicit brep:: qualifications.
+
 brep::ci_github::
 ci_github (const ci_github& r)
     : handler (r),
@@ -173,7 +176,7 @@ static ostream&
 operator<< (ostream&, const installation_access_token&);
 
 // Send a POST request to the GitHub API endpoint `ep`, parse GitHub's JSON
-// response into `rs`, and return the HTTP status code.
+// response into `rs` (only for 200 codes), and return the HTTP status code.
 //
 // The endpoint `ep` should not have a leading slash.
 //
@@ -181,11 +184,8 @@ operator<< (ostream&, const installation_access_token&);
 //
 //   "HeaderName: header value"
 //
-// @@ TMP Presumably we'll be factoring most of this function into something
-//        like github_send(curl::method_type, ...).
-//
 template<typename T>
-static int
+static uint16_t
 github_post (T& rs, const string& ep, const brep::strings& hdrs)
 {
   // Convert the header values to curl header option/value pairs.
@@ -206,6 +206,8 @@ github_post (T& rs, const string& ep, const brep::strings& hdrs)
     // status code after the HTTP response body (see below for more details
     // and an example).
     //
+    // @@ TODO: any cleaner/easier way to get HTTP status? --include?
+    //
     // The API version `2022-11-28` is the only one currently supported and if
     // the X-GitHub-Api-Version header is not passed this version will be
     // chosen by default.
@@ -213,6 +215,8 @@ github_post (T& rs, const string& ep, const brep::strings& hdrs)
     // @@ TMP Although this request does not have a body, can't pass a nullfd
     //        stdin because it will cause butl::curl to fail if the method is
     //        POST.
+    //
+    // @@ TODO: let's redirect stderr like in JWT.
     //
     curl c (path ("-"),
             path ("-"), // Write response to curl::in.
@@ -456,6 +460,8 @@ handle (request& rq, response& rs)
       // 403 Forbidden
       // 404 Resource not found
       // 422 Validation failed, or the endpoint has been spammed.
+      //
+      // Note that the payloads of non-201 status codes are undocumented.
       //
       if (sc != 201)
       {
