@@ -216,16 +216,18 @@ github_post (T& rs, const string& ep, const brep::strings& hdrs)
     //        stdin because it will cause butl::curl to fail if the method is
     //        POST.
     //
-    // @@ TODO: let's redirect stderr like in JWT.
-    //
+    fdpipe errp (fdopen_pipe ()); // stderr pipe.
+
     curl c (path ("-"),
             path ("-"), // Write response to curl::in.
-            2,
+            process::pipe (errp.in.get (), move (errp.out)),
             curl::post, "https://api.github.com/" + ep,
             "--write-out", "{\"brep_http_status\": %{http_code}}\n",
             "--header", "Accept: application/vnd.github+json",
             "--header", "X-GitHub-Api-Version: 2022-11-28",
             move (hdr_opts));
+
+    ifdstream err (move (errp.in));
 
     // Parse the HTTP response.
     //
@@ -268,39 +270,38 @@ github_post (T& rs, const string& ep, const brep::strings& hdrs)
     }
     catch (const brep::io_error& e)
     {
-      // IO failure, child exit status doesn't matter. Just wait for the
-      // process completion and throw.
+      // If the process exits with non-zero status, assume the IO error is due
+      // to that and fall through.
       //
-      c.wait ();
-
-      throw_generic_error (
+      if (c.wait ())
+      {
+        throw_generic_error (
           e.code ().value (),
-          (string ("unable to communicate with curl: ") + e.what ())
-              .c_str ());
+          (string ("unable to read curl stdout: ") + e.what ()).c_str ());
+      }
     }
     catch (const json::invalid_json_input& e)
     {
-      if (!c.wait ())
+      // If the process exits with non-zero status, assume the JSON error is
+      // due to that and fall through.
+      //
+      if (c.wait ())
       {
         throw_generic_error (
-            EINVAL,
-            ("curl failed with " + to_string (*c.exit)).c_str ());
-      }
-
-      throw runtime_error (
+          EINVAL,
           (string ("malformed JSON response from GitHub: ") + e.what ())
-              .c_str ());
+          .c_str ());
+      }
     }
 
-    // @@ TMP The odds of this failing are probably slim given that we parsed
-    //        the JSON output successfully.
-    //
     if (!c.wait ())
     {
-      throw_generic_error (
-        EINVAL,
-        ("curl failed with " + to_string (*c.exit)).c_str ());
+      string et (err.read_text ());
+      throw_generic_error (EINVAL,
+                           ("non-zero curl exit status: " + et).c_str ());
     }
+
+    err.close ();
 
     return sc;
   }
@@ -309,6 +310,14 @@ github_post (T& rs, const string& ep, const brep::strings& hdrs)
     throw_generic_error (
         e.code ().value (),
         (string ("unable to execute curl:") + e.what ()).c_str ());
+  }
+  catch (const brep::io_error& e)
+  {
+    // Unable to read diagnostics from stderr.
+    //
+    throw_generic_error (
+      e.code ().value (),
+      (string ("unable to read curl stderr : ") + e.what ()).c_str ());
   }
 }
 
@@ -386,16 +395,6 @@ handle (request& rq, response& rs)
     }
     catch (const json::invalid_json_input& e)
     {
-      // @@ TODO: should we write more detailed diagnostics to log? Maybe we
-      //    should do this for all unsuccessful calls to respond().
-      //
-      // Note: these exceptions end up in the apache error log.
-      //
-      //  @@ TMP Actually I was wrong, these do not end up in any logs. Pretty
-      //         sure I saw them go there but they're definitely not anymore.
-      //
-      //     See how it's done in other modules and do the same.
-      //
       throw invalid_request (400, "malformed JSON in request body");
     }
 
@@ -430,7 +429,7 @@ handle (request& rq, response& rs)
           *options_,
           options_->ci_github_app_private_key (),
           to_string (options_->ci_github_app_id ()),
-          chrono::minutes (options_->ci_github_jwt_validity_period ()),
+          chrono::seconds (options_->ci_github_jwt_validity_period ()),
           chrono::seconds (60));
 
       cout << "JWT: " << jwt << endl;
@@ -471,11 +470,11 @@ handle (request& rq, response& rs)
     }
     catch (const system_error& e)
     {
-      fail << "unable to get installation access token: [" << e.code ()
-           << "] " << e.what ();
+      fail << "unable to get installation access token (errno=" << e.code ()
+           << "): " << e.what ();
     }
 
-    cout << "<installation_access_token>" << endl << iat << endl;
+    cout << endl << "<installation_access_token>" << endl << iat << endl;
 
     return true;
   }
@@ -607,7 +606,6 @@ operator<< (ostream& os, const check_suite_event& cs)
   os << "<check_suite>" << endl << cs.check_suite;
   os << "<repository>" << endl << cs.repository;
   os << "<installation>" << endl << cs.installation;
-  os << endl;
 
   return os;
 }

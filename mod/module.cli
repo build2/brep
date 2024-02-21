@@ -869,10 +869,10 @@ namespace brep
          the GitHub app's settings."
       }
 
-      uint16_t ci-github-jwt-validity-period = 10 // @@ Seconds.
+      uint16_t ci-github-jwt-validity-period = 600
       {
-        "<minutes>",
-        "The number of minutes a JWT (authentication token) should be valid for.
+        "<seconds>",
+        "The number of seconds a JWT (authentication token) should be valid for.
          The maximum allowed by GitHub is 10 minutes."
       }
     };

@@ -33,7 +33,7 @@ namespace brep
   gen_jwt (const options::openssl_options&,
            const path& private_key,
            const string& issuer,
-           const std::chrono::minutes& validity_period,
+           const std::chrono::seconds& validity_period,
            const std::chrono::seconds& backdate = std::chrono::seconds (60));
 }
 
