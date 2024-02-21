@@ -390,6 +390,8 @@ handle (request& rq, response& rs)
       //  @@ TMP Actually I was wrong, these do not end up in any logs. Pretty
       //         sure I saw them go there but they're definitely not anymore.
       //
+      //     See how it's done in other modules and do the same.
+      //
       throw invalid_request (400, "malformed JSON in request body");
     }
 
@@ -431,7 +433,8 @@ handle (request& rq, response& rs)
     }
     catch (const system_error& e)
     {
-      fail << "unable to generate JWT: [" << e.code () << "] " << e.what ();
+      fail << "unable to generate JWT (errno=" << e.code () << "): "
+           << e.what ();
     }
 
     // Authenticate to GitHub as an app installation.
