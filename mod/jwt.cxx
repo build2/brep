@@ -122,15 +122,19 @@ gen_jwt (const options::openssl_options& o,
                 process_env (o.openssl (), o.openssl_envvar ()),
                 "dgst", o.openssl_option (), "-sha256", "-sign", pk);
 
+    ifdstream err (move (errp.in));
+
     vector<char> bs; // Binary signature (openssl output).
     string et;       // Openssl stderr text.
     try
     {
       // In case of exception, skip and close input after output.
       //
+      // Note: re-open in/out so that they get automaitcally closed on
+      // exception.
+      //
       ifdstream in (os.in.release (), fdstream_mode::skip);
       ofdstream out (os.out.release ());
-      ifdstream err (move (errp.in));
 
       // Write the concatenated header and payload to openssl's input.
       //
@@ -141,40 +145,45 @@ gen_jwt (const options::openssl_options& o,
       //
       bs = in.read_binary ();
       in.close ();
-
-      if (!os.wait ())
-        et = err.read_text ();
-
-      err.close ();
     }
     catch (const io_error& e)
     {
-      // IO failure, child exit status doesn't matter. Just wait for the
-      // process completion and throw.
+      // If the process exits with non-zero status, assume the IO error is due
+      // to that and fall through.
       //
-      os.wait ();
-
-      throw_generic_error (e.code ().value (),
-                           ("unable to communicate with " +
-                            o.openssl ().string () + ": " + e.what ())
-                               .c_str ());
+      if (os.wait ())
+      {
+        throw_generic_error (
+          e.code ().value (),
+          ("unable to read/write openssl stdout/stdin: " + e.what ()).c_str ());
+      }
     }
 
     if (!os.wait ())
     {
+      et = err.read_text ();
       throw_generic_error (
-          EINVAL,
-          (o.openssl ().string () + " failed: " + et).c_str ());
+        EINVAL,
+        ("non-zero openssl exit status: " + et).c_str ());
     }
+
+    err.close ();
 
     s = base64url_encode (bs);
   }
   catch (const process_error& e)
   {
     throw_generic_error (
-        e.code ().value (),
-        ("unable to execute " + o.openssl ().string () + ": " + e.what ())
-            .c_str ());
+      e.code ().value (),
+      ("unable to execute openssl: " + e.what ()).c_str ());
+  }
+  catch (const io_error& e)
+  {
+    // Unable to read diagnostics from stderr.
+    //
+    throw_generic_error (
+      e.code ().value (),
+      ("unable to read openssl stderr : " + e.what ()).c_str ());
   }
 
   return h + '.' + p + '.' + s; // Return the token.
