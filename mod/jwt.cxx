@@ -55,7 +55,7 @@ string brep::
 gen_jwt (const options::openssl_options& o,
          const path& pk,
          const string& iss,
-         const chrono::minutes& vp,
+         const chrono::seconds& vp,
          const chrono::seconds& bd)
 {
   // Create the header.
@@ -125,12 +125,11 @@ gen_jwt (const options::openssl_options& o,
     ifdstream err (move (errp.in));
 
     vector<char> bs; // Binary signature (openssl output).
-    string et;       // Openssl stderr text.
     try
     {
       // In case of exception, skip and close input after output.
       //
-      // Note: re-open in/out so that they get automaitcally closed on
+      // Note: re-open in/out so that they get automatically closed on
       // exception.
       //
       ifdstream in (os.in.release (), fdstream_mode::skip);
@@ -155,16 +154,16 @@ gen_jwt (const options::openssl_options& o,
       {
         throw_generic_error (
           e.code ().value (),
-          ("unable to read/write openssl stdout/stdin: " + e.what ()).c_str ());
+          (string ("unable to read/write openssl stdout/stdin: ") +
+                   e.what ()).c_str ());
       }
     }
 
     if (!os.wait ())
     {
-      et = err.read_text ();
-      throw_generic_error (
-        EINVAL,
-        ("non-zero openssl exit status: " + et).c_str ());
+      string et (err.read_text ());
+      throw_generic_error (EINVAL,
+                           ("non-zero openssl exit status: " + et).c_str ());
     }
 
     err.close ();
@@ -175,7 +174,7 @@ gen_jwt (const options::openssl_options& o,
   {
     throw_generic_error (
       e.code ().value (),
-      ("unable to execute openssl: " + e.what ()).c_str ());
+      (string ("unable to execute openssl: ") + e.what ()).c_str ());
   }
   catch (const io_error& e)
   {
@@ -183,7 +182,7 @@ gen_jwt (const options::openssl_options& o,
     //
     throw_generic_error (
       e.code ().value (),
-      ("unable to read openssl stderr : " + e.what ()).c_str ());
+      (string ("unable to read openssl stderr : ") + e.what ()).c_str ());
   }
 
   return h + '.' + p + '.' + s; // Return the token.
