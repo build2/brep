@@ -175,6 +175,113 @@ operator<< (ostream&, const check_suite_event&);
 static ostream&
 operator<< (ostream&, const installation_access_token&);
 
+// Read the HTTP response status code from an input stream.
+//
+// Parse the status code from the HTTP status line, skip over the remaining
+// headers (leaving the stream at the beginning of the response body), and
+// return the status code.
+//
+// Throw system_error(EINVAL) if the status line could not be parsed.
+//
+// Note that this implementation is almost identical to that of bpkg's
+// start_curl() function in fetch.cxx.
+//
+static uint16_t
+read_status_code (ifdstream& in)
+{
+  // After getting the status code we will read until the empty line
+  // (containing just CRLF). Not being able to reach such a line is an error,
+  // which is the reason for the exception mask choice. When done, we will
+  // restore the original exception mask.
+  //
+  //   @@ TMP Presumably curl would already have failed if the server's
+  //          response was malformed, right? So if we get here the only way to
+  //          get EOF would be an I/O error?
+  //
+  ifdstream::iostate es (in.exceptions ());
+
+  in.exceptions (
+    ifdstream::badbit | ifdstream::failbit | ifdstream::eofbit);
+
+  // Parse and return the HTTP status code. Return 0 if the argument is
+  // invalid.
+  //
+  auto status_code = [] (const string& s)
+  {
+    char* e (nullptr);
+    unsigned long c (strtoul (s.c_str (), &e, 10)); // Can't throw.
+    assert (e != nullptr);
+
+    return *e == '\0' && c >= 100 && c < 600
+      ? static_cast<uint16_t> (c)
+      : 0;
+  };
+
+  // Read the CRLF-terminated line from the stream stripping the trailing
+  // CRLF.
+  //
+  auto read_line = [&in] ()
+  {
+    string l;
+    getline (in, l); // Strips the trailing LF (0xA).
+
+    // Note that on POSIX CRLF is not automatically translated into LF, so
+    // we need to strip CR (0xD) manually.
+    //
+    if (!l.empty () && l.back () == '\r')
+      l.pop_back ();
+
+    return l;
+  };
+
+  auto read_status = [&read_line, &status_code] () -> uint16_t
+  {
+    string l (read_line ());
+
+    for (;;) // Breakout loop.
+    {
+      if (l.compare (0, 5, "HTTP/") != 0)
+        break;
+
+      size_t p (l.find (' ', 5));           // The protocol end.
+      if (p == string::npos)
+        break;
+
+      p = l.find_first_not_of (' ', p + 1); // The code start.
+      if (p == string::npos)
+        break;
+
+      size_t e (l.find (' ', p + 1));       // The code end.
+      if (e == string::npos)
+        break;
+
+      uint16_t c (status_code (string (l, p, e - p)));
+      if (c == 0)
+        break;
+
+      return c;
+    }
+
+    throw_generic_error (
+        EINVAL,
+        ("invalid HTTP response status line '" + l + "'").c_str ());
+  };
+
+  uint16_t sc (read_status ());
+
+  if (sc == 100)
+  {
+    while (!read_line ().empty ()) ; // Skips the interim response.
+    sc = read_status ();             // Reads the final status code.
+  }
+
+  while (!read_line ().empty ()) ;   // Skips headers.
+
+  in.exceptions (es);
+
+  return sc;
+}
+
 // Send a POST request to the GitHub API endpoint `ep`, parse GitHub's JSON
 // response into `rs` (only for 200 codes), and return the HTTP status code.
 //
@@ -202,13 +309,17 @@ github_post (T& rs, const string& ep, const brep::strings& hdrs)
   //
   try
   {
-    // Use the --write-out option to get curl to print the HTTP response
-    // status code after the HTTP response body (see below for more details
-    // and an example).
+    // Pass --include to print the HTTP status line (followed by the response
+    // headers) so that we can get the response status code.
     //
-    // @@ TODO: any cleaner/easier way to get HTTP status? --include?
+    // Pass --no-fail to disable the --fail option added by butl::curl which
+    // causes curl to exit with status 22 in case of an error HTTP response
+    // status code (>= 400) otherwise we can't get the status code.
     //
-    // The API version `2022-11-28` is the only one currently supported and if
+    // Note that butl::curl also adds --location to make curl follow redirects
+    // (which is recommended by GitHub).
+    //
+    // The API version `2022-11-28` is the only one currently supported. If
     // the X-GitHub-Api-Version header is not passed this version will be
     // chosen by default.
     //
@@ -222,7 +333,8 @@ github_post (T& rs, const string& ep, const brep::strings& hdrs)
             path ("-"), // Write response to curl::in.
             process::pipe (errp.in.get (), move (errp.out)),
             curl::post, "https://api.github.com/" + ep,
-            "--write-out", "{\"brep_http_status\": %{http_code}}\n",
+            "--include", // Output response headers for status code.
+            "--no-fail", // Don't exit with 22 if response status code >= 400.
             "--header", "Accept: application/vnd.github+json",
             "--header", "X-GitHub-Api-Version: 2022-11-28",
             move (hdr_opts));
@@ -234,39 +346,23 @@ github_post (T& rs, const string& ep, const brep::strings& hdrs)
     int sc; // Status code.
     try
     {
+      ifdstream in (c.in.release (), fdstream_mode::skip);
+
       c.out.close (); // No input required.
 
-      // The output is expected to contain two JSON values: the HTTP response
-      // body and the HTTP status code we added with --write-out above. For
-      // example:
+      // Read HTTP status code.
       //
-      //  {
-      //    "id": 12345,
-      //    "name": "foo"
-      //  }
-      //  { "brep_http_status": 201 }
-      //
-      // Name the status code so that we don't accidentally parse some other
-      // value.
-      //
-      // Note that GitHub API error response bodies also consist of a single
-      // JSON object so the format will be the same in both cases.
-      //
-      json::parser p (c.in, ep, true /* multi_value */, "\n");
+      sc = read_status_code (in);
 
-      // Parse the response body (first JSON value).
+      // Parse the response body if the status code is in the 200 range.
       //
-      rs = T (p);
+      if (sc >= 200 && sc < 300)
+      {
+        json::parser p (in, ep);
+        rs = T (p);
+      }
 
-      p.next (); // Skip the value-separating nullopt.
-
-      // Parse the HTTP response status code (second JSON value).
-      //
-      p.next_expect (json::event::begin_object);
-      sc = p.next_expect_member_number<int> ("brep_http_status");
-      p.next_expect (json::event::end_object);
-
-      c.in.close ();
+      in.close ();
     }
     catch (const brep::io_error& e)
     {
