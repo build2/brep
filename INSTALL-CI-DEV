@@ -1,0 +1,131 @@
+This guide shows how to configure the brep module for serving the CI and
+build2 build bot requests and how to smoke-test it.
+
+Note that during the testing both the user and CI submission handler (executed
+by the brep module) will run the build2 toolchain utilities. Thus, the user
+needs to arrange the toolchain availability for her and for the user the
+Apache2 process runs under. The easiest, would be to install the toolchain
+into the system using, for example, the build2-install-*-a.0-stage.sh script
+(can be downloaded from https://stage.build2.org/0/). If the being developed
+brep module is not compatible with the staged toolchain, then installing the
+development version of the toolchain may be required.
+
+In the below instructions replace <BREP-SRC-ROOT>, <BREP-OUT-ROOT>, and <HOME>
+with the actual absolute paths of the brep source, brep output, and the user
+home directories. Replace <HOST> with the actual hostname of the local brep
+repository instance.
+
+Here we assume that the brep instance is already configured according to the
+instructions in the INSTALL-DEV file. Now, the instance needs to additionally
+be configured as the build2 build bot controller and the CI request service,
+as it is described in the INSTALL file. This, in particular, requires to
+specify the build-config and the number of ci-* configuration options in the
+brep module configuration file. For example:
+
+$ mkdir ~/brep
+$ cd ~/brep
+$ mkdir ci-data config
+$ setfacl -m g:www-data:rwx ci-data
+$ cd config
+$ cp <BREP-SRC-ROOT>/etc/brep-module.conf .
+
+Edit brep-module.conf:
+
+- Uncomment the Builds=?builds menu.
+- Set the build-config option as <HOME>/brep/config/buildtab.
+- Set the ci-data option as <HOME>/brep/ci-data.
+- Set the ci-handler option as <BREP-OUT-ROOT>/brep/handler/ci/brep-ci-load.
+
+- Add the following options:
+
+ci-handler-argument --result-url
+ci-handler-argument http://<HOST>
+ci-handler-argument <BREP-OUT-ROOT>/load/brep-load
+
+Create the buildtab file:
+
+$ cat <<EOF >buildtab
+linux_debian_12*-gcc_13.1 linux_debian_12-gcc_13.1    x86_64-linux-gnu "all default"
+linux_debian_12*-gcc_13.1 linux_debian_12-gcc_13.1-O3 x86_64-linux-gnu "all default" config.cc.coptions="-O3"
+EOF
+
+Point the brep module to the newly created configuration file:
+
+$ sudo systemctl stop apache2
+
+Open the corresponding Apache2 .conf file and change the brep-conf directive
+to refer to <HOME>/brep/config/brep-module.conf.
+
+$ sudo systemctl start apache2
+$ sudo systemctl status apache2
+
+Submit a package for CI, for example, foo/1.0.0:
+
+$ cd ~/brep
+$ git clone https://.../foo
+$ cd foo
+$ bdep init -C @cfg --
+$ bdep ci --server http://<HOST>
+
+Verify that the CI request is successfully submitted by opening the link
+contained in the bdep-ci's stderr. The submitted package should be present on
+the Packages page.
+
+Send the task request query on the behalf of the build2 build bot agent, for
+example:
+
+$ cd ~/brep
+$ cat <<EOF >task-request.manifest
+: 1
+agent: bot
+toolchain-name: dev
+toolchain-version: 0.17.0-a.1
+
+:
+id: a2b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855
+name: linux_debian_12-gcc_13.1
+summary: Linux Debian 12 GCC 13.1
+EOF
+
+$ cat task-request.manifest | \
+  curl -s -S --data-binary @- \
+       --header 'Content-Type: text/manifest' \
+       --include "http://<HOST>/?build-task"
+
+Stash the session and result-url manifest values contained in the curl's
+stdout. We will refer them as <SESSION> and <RESULT-URL> down the road.
+
+Verify that the CI task is successfully created by clicking the 'Builds' link
+in the menu of the previously opened brep page. A single package build in the
+building state should be present on the Builds page.
+
+Send the result request query on the behalf of the build2 build bot agent:
+
+$ cat <<EOF >result-request.manifest
+: 1
+session: <SESSION>
+agent-checksum: 1
+:
+name: foo
+version: 1.0.0
+status: success
+EOF
+
+$ cat result-request.manifest | \
+  curl -s -S --data-binary @- \
+       --header 'Content-Type: text/manifest' \
+       --include <RESULT-URL>
+
+Refresh the Builds page and make sure that the build is now in the built state
+(the 'success' status is printed in the result field).
+
+Re-submit the task-request.manifest file, refresh the Builds page, and make
+sure that the second package build appears on the page in the building state.
+Edit the session value in the result-request.manifest, re-submit it to the new
+result URL, refresh the Builds page, and make sure that the latest build is
+now in the built state as well.
+
+You can also track the brep objects state transitions in the database. For
+example, by executing the following query before/after each curl command:
+
+$ psql -d brep_build -c 'select * from build_tenant'
