@@ -675,7 +675,8 @@ namespace brep
 
       const auto& bid (bquery::build::id);
 
-      bquery bq ((equal<package_build> (bid.package, id.package) &&
+      bquery bq ((bquery::build::state != "queued"               &&
+                  equal<package_build> (bid.package, id.package) &&
                   bid.target == bquery::_ref (id.target)         &&
                   bid.target_config_name ==
                     bquery::_ref (id.target_config_name)         &&
@@ -864,7 +865,12 @@ namespace brep
                       b = move (pbs.begin ()->build);
                   }
                   else
+                  {
                     b = db.find<build> (id);
+
+                    if (b->state == build_state::queued)
+                      b = nullptr;
+                  }
 
                   // Note that we consider a build as delayed if it is not
                   // completed in the expected timeframe. So even if the build

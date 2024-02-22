@@ -1,4 +1,20 @@
 <changelog xmlns="http://www.codesynthesis.com/xmlns/odb/changelog" database="pgsql" schema-name="package" version="1">
+  <changeset version="30">
+    <alter-table name="tenant">
+      <add-column name="service_id" type="TEXT" null="true"/>
+      <add-column name="service_type" type="TEXT" null="true"/>
+      <add-column name="service_data" type="TEXT" null="true"/>
+      <add-column name="queued_timestamp" type="BIGINT" null="true"/>
+      <add-index name="tenant_service_i" type="UNIQUE">
+        <column name="service_id"/>
+        <column name="service_type"/>
+      </add-index>
+      <add-index name="tenant_service_id_i">
+        <column name="service_id"/>
+      </add-index>
+    </alter-table>
+  </changeset>
+
   <changeset version="29">
     <alter-table name="package_tests">
       <add-column name="test_enable" type="TEXT" null="true"/>

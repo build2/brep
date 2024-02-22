@@ -9,6 +9,7 @@
 
 #include <mod/module.hxx>
 #include <mod/module-options.hxx>
+#include <mod/tenant-service.hxx>
 
 namespace brep
 {
@@ -59,6 +60,8 @@ namespace brep
     version ();
 
   private:
+    shared_ptr<tenant_service_map> tenant_service_map_;
+
     shared_ptr<packages> packages_;
     shared_ptr<package_details> package_details_;
     shared_ptr<package_version_details> package_version_details_;

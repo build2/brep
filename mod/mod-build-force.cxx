@@ -12,20 +12,28 @@
 #include <libbrep/build-odb.hxx>
 
 #include <mod/module-options.hxx>
+#include <mod/tenant-service.hxx>
 
 using namespace std;
 using namespace brep::cli;
 using namespace odb::core;
+
+brep::build_force::
+build_force (const tenant_service_map& tsm)
+    : tenant_service_map_ (tsm)
+{
+}
 
 // While currently the user-defined copy constructor is not required (we don't
 // need to deep copy nullptr's), it is a good idea to keep the placeholder
 // ready for less trivial cases.
 //
 brep::build_force::
-build_force (const build_force& r)
+build_force (const build_force& r, const tenant_service_map& tsm)
     : database_module (r),
       build_config_module (r),
-      options_ (r.initialized_ ? r.options_ : nullptr)
+      options_ (r.initialized_ ? r.options_ : nullptr),
+      tenant_service_map_ (tsm)
 {
 }
 
@@ -173,15 +181,26 @@ handle (request& rq, response& rs)
   // Load the package build configuration (if present), set the force flag and
   // update the object's persistent state.
   //
+  // If the incomplete package build is being forced to rebuild and the
+  // tenant_service_build_queued callback is associated with the package
+  // tenant, then stash the state, the build object, and the callback pointer
+  // for the subsequent service `queued` notification.
+  //
+  const tenant_service_build_queued* tsq (nullptr);
+  optional<pair<tenant_service, shared_ptr<build>>> tss;
+
+  connection_ptr conn (build_db_->connection ());
   {
-    transaction t (build_db_->begin ());
+    transaction t (conn->begin ());
 
     package_build pb;
+    shared_ptr<build> b;
+
     if (!build_db_->query_one<package_build> (
-          query<package_build>::build::id == id, pb))
+          query<package_build>::build::id == id, pb) ||
+        (b = move (pb.build))->state == build_state::queued)
       config_expired ("no package build");
 
-    shared_ptr<build> b (pb.build);
     force_state force (b->state == build_state::built
                        ? force_state::forced
                        : force_state::forcing);
@@ -211,9 +230,58 @@ handle (request& rq, response& rs)
 
       b->force = force;
       build_db_->update (b);
+
+      if (force == force_state::forcing)
+      {
+        shared_ptr<build_tenant> t (build_db_->load<build_tenant> (b->tenant));
+
+        if (t->service)
+        {
+          auto i (tenant_service_map_.find (t->service->type));
+
+          if (i != tenant_service_map_.end ())
+          {
+            tsq = dynamic_cast<const tenant_service_build_queued*> (
+              i->second.get ());
+
+            if (tsq != nullptr)
+            {
+              // If we ought to call the
+              // tenant_service_build_queued::build_queued() callback, then
+              // also set the package tenant's queued timestamp to the current
+              // time to prevent the notifications race (see
+              // tenant::queued_timestamp for details).
+              //
+              t->queued_timestamp = system_clock::now ();
+              build_db_->update (t);
+
+              tss = make_pair (move (*t->service), move (b));
+            }
+          }
+        }
+      }
     }
 
     t.commit ();
+  }
+
+  // If the incomplete package build is being forced to rebuild and the
+  // tenant-associated third-party service needs to be notified about the
+  // queued builds, then call the tenant_service_build_queued::build_queued()
+  // callback function and update the service state, if requested.
+  //
+  if (tsq != nullptr)
+  {
+    assert (tss); // Wouldn't be here otherwise.
+
+    const tenant_service& ss (tss->first);
+    build& b (*tss->second);
+
+    vector<build> qbs;
+    qbs.push_back (move (b));
+
+    if (auto f = tsq->build_queued (ss, qbs, build_state::building))
+      update_tenant_service_state (conn, qbs.back ().tenant, f);
   }
 
   // We have all the data, so don't buffer the response content.

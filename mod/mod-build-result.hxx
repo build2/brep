@@ -8,6 +8,7 @@
 #include <libbrep/utility.hxx>
 
 #include <mod/module-options.hxx>
+#include <mod/tenant-service.hxx>
 #include <mod/build-result-module.hxx>
 
 namespace brep
@@ -15,13 +16,13 @@ namespace brep
   class build_result: public build_result_module
   {
   public:
-    build_result () = default;
+    explicit
+    build_result (const tenant_service_map&);
 
     // Create a shallow copy (handling instance) if initialized and a deep
     // copy (context exemplar) otherwise.
     //
-    explicit
-    build_result (const build_result&);
+    build_result (const build_result&, const tenant_service_map&);
 
     virtual bool
     handle (request&, response&);
@@ -35,6 +36,7 @@ namespace brep
 
   private:
     shared_ptr<options::build_result> options_;
+    const tenant_service_map& tenant_service_map_;
   };
 }
 

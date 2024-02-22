@@ -473,7 +473,12 @@ namespace brep
                      bool a,
                      const string& h,
                      const dir_path& r):
-        build_ (b), archived_ (a), host_ (h), root_ (r) {}
+        build_ (b), archived_ (a), host_ (h), root_ (r)
+    {
+      // We don't expect a queued build to ever be displayed.
+      //
+      assert (build_.state != build_state::queued);
+    }
 
     void
     operator() (xml::serializer&) const;

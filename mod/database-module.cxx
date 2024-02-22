@@ -3,13 +3,20 @@
 
 #include <mod/database-module.hxx>
 
+#include <odb/database.hxx>
 #include <odb/exceptions.hxx>
+#include <odb/transaction.hxx>
+
+#include <libbrep/build-package.hxx>
+#include <libbrep/build-package-odb.hxx>
 
 #include <mod/database.hxx>
 #include <mod/module-options.hxx>
 
 namespace brep
 {
+  using namespace odb::core;
+
   // While currently the user-defined copy constructor is not required (we
   // don't need to deep copy nullptr's), it is a good idea to keep the
   // placeholder ready for less trivial cases.
@@ -67,5 +74,54 @@ namespace brep
     }
 
     throw;
+  }
+
+  void database_module::
+  update_tenant_service_state (
+    const connection_ptr& conn,
+    const string& tid,
+    const function<optional<string> (const tenant_service&)>& f)
+  {
+    assert (f != nullptr); // Shouldn't be called otherwise.
+
+    // Must be initialized via the init(options::build_db) function call.
+    //
+    assert (build_db_ != nullptr);
+
+    for (size_t retry (retry_);; )
+    {
+      try
+      {
+        transaction tr (conn->begin ());
+
+        shared_ptr<build_tenant> t (build_db_->find<build_tenant> (tid));
+
+        if (t != nullptr && t->service)
+        {
+          tenant_service& s (*t->service);
+
+          if (optional<string> data = f (s))
+          {
+            s.data = move (*data);
+            build_db_->update (t);
+          }
+        }
+
+        tr.commit ();
+
+        // Bail out if we have successfully updated the service state.
+        //
+        break;
+      }
+      catch (const odb::recoverable& e)
+      {
+        if (retry-- == 0)
+          throw;
+
+        HANDLER_DIAG;
+        l1 ([&]{trace << e << "; " << retry + 1 << " tenant service "
+                      << "state update retries left";});
+      }
+    }
   }
 }

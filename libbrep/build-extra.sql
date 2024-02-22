@@ -36,7 +36,11 @@ CREATE FOREIGN TABLE build_tenant (
   id TEXT NOT NULL,
   private BOOLEAN NOT NULL,
   interactive TEXT NULL,
-  archived BOOLEAN NOT NULL)
+  archived BOOLEAN NOT NULL,
+  service_id TEXT NULL,
+  service_type TEXT NULL,
+  service_data TEXT NULL,
+  queued_timestamp BIGINT NULL)
 SERVER package_server OPTIONS (table_name 'tenant');
 
 -- The foreign table for build_repository object.

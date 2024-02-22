@@ -35,6 +35,11 @@ mod{brep}: {hxx ixx txx cxx}{* -module-options -{$libu_src}}               \
                     {hxx ixx txx cxx}{+{$libu_src}  } \
                     $libs
 
+# Add support for tenant-associated service notifications to the CI module for
+# the debugging of the notifications machinery.
+#
+cxx.poptions += -DBREP_CI_TENANT_SERVICE
+
 libus{mod}: ../web/xhtml/libus{xhtml}
 libue{mod}: ../web/xhtml/libue{xhtml}
 

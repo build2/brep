@@ -108,18 +108,31 @@ namespace brep
   //
   repository_root::
   repository_root ()
-      : packages_ (make_shared<packages> ()),
+      :
+        //
+        // Only create and populate the tenant service map in the examplar
+        // passing a reference to it to all the sub-handler exemplars. Note
+        // that we dispatch the tenant service callbacks to the examplar
+        // without creating a new instance for each callback (thus the
+        // callbacks are const).
+        //
+        tenant_service_map_ (make_shared<tenant_service_map> ()),
+        packages_ (make_shared<packages> ()),
         package_details_ (make_shared<package_details> ()),
         package_version_details_ (make_shared<package_version_details> ()),
         repository_details_ (make_shared<repository_details> ()),
-        build_task_ (make_shared<build_task> ()),
-        build_result_ (make_shared<build_result> ()),
-        build_force_ (make_shared<build_force> ()),
+        build_task_ (make_shared<build_task> (*tenant_service_map_)),
+        build_result_ (make_shared<build_result> (*tenant_service_map_)),
+        build_force_ (make_shared<build_force> (*tenant_service_map_)),
         build_log_ (make_shared<build_log> ()),
         builds_ (make_shared<builds> ()),
         build_configs_ (make_shared<build_configs> ()),
         submit_ (make_shared<submit> ()),
+#ifdef BREP_CI_TENANT_SERVICE
+        ci_ (make_shared<ci> (*tenant_service_map_)),
+#else
         ci_ (make_shared<ci> ()),
+#endif
         upload_ (make_shared<upload> ())
   {
   }
@@ -127,6 +140,10 @@ namespace brep
   repository_root::
   repository_root (const repository_root& r)
       : handler (r),
+        tenant_service_map_ (
+          r.initialized_
+          ? r.tenant_service_map_
+          : make_shared<tenant_service_map> ()),
         //
         // Deep/shallow-copy sub-handlers depending on whether this is an
         // exemplar/handler.
@@ -151,15 +168,15 @@ namespace brep
         build_task_ (
           r.initialized_
           ? r.build_task_
-          : make_shared<build_task> (*r.build_task_)),
+          : make_shared<build_task> (*r.build_task_, *tenant_service_map_)),
         build_result_ (
           r.initialized_
           ? r.build_result_
-          : make_shared<build_result> (*r.build_result_)),
+          : make_shared<build_result> (*r.build_result_, *tenant_service_map_)),
         build_force_ (
           r.initialized_
           ? r.build_force_
-          : make_shared<build_force> (*r.build_force_)),
+          : make_shared<build_force> (*r.build_force_, *tenant_service_map_)),
         build_log_ (
           r.initialized_
           ? r.build_log_
@@ -179,7 +196,11 @@ namespace brep
         ci_ (
           r.initialized_
           ? r.ci_
+#ifdef BREP_CI_TENANT_SERVICE
+          : make_shared<ci> (*r.ci_, *tenant_service_map_)),
+#else
           : make_shared<ci> (*r.ci_)),
+#endif
         upload_ (
           r.initialized_
           ? r.upload_

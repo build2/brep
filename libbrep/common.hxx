@@ -127,6 +127,20 @@ namespace brep
       std::chrono::duration_cast<brep::timestamp::duration> ( \
         std::chrono::nanoseconds (?))))
 
+  using optional_timestamp = optional<timestamp>;
+  using optional_uint64 = optional<uint64_t>;
+
+  #pragma db map type(optional_timestamp) as(brep::optional_uint64)  \
+    to((?)                                                           \
+       ? std::chrono::duration_cast<std::chrono::nanoseconds> (      \
+           (?)->time_since_epoch ()).count ()                        \
+       : brep::optional_uint64 ())                                   \
+    from((?)                                                         \
+         ? brep::timestamp (                                         \
+             std::chrono::duration_cast<brep::timestamp::duration> ( \
+               std::chrono::nanoseconds (*(?))))                     \
+         : brep::optional_timestamp ())
+
   // version
   //
   using bpkg::version;
@@ -516,6 +530,22 @@ namespace brep
   #pragma db member(requirement_key::outer)  column("requirement_index")
   #pragma db member(requirement_key::middle) column("alternative_index")
   #pragma db member(requirement_key::inner)  column("index")
+
+  // Third-party service state which may optionally be associated with a
+  // tenant (see also mod/tenant-service.hxx for background).
+  //
+  #pragma db value
+  struct tenant_service
+  {
+    string id;
+    string type;
+    optional<string> data;
+
+    tenant_service () = default;
+
+    tenant_service (string i, string t, optional<string> d = nullopt)
+        : id (move (i)), type (move (t)), data (move (d)) {}
+  };
 
   // Version comparison operators.
   //

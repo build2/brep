@@ -24,6 +24,7 @@
 
 #include <mod/build.hxx>          // *_url()
 #include <mod/module-options.hxx>
+#include <mod/tenant-service.hxx>
 
 using namespace std;
 using namespace butl;
@@ -31,14 +32,21 @@ using namespace bbot;
 using namespace brep::cli;
 using namespace odb::core;
 
+brep::build_result::
+build_result (const tenant_service_map& tsm)
+    : tenant_service_map_ (tsm)
+{
+}
+
 // While currently the user-defined copy constructor is not required (we don't
 // need to deep copy nullptr's), it is a good idea to keep the placeholder
 // ready for less trivial cases.
 //
 brep::build_result::
-build_result (const build_result& r)
+build_result (const build_result& r, const tenant_service_map& tsm)
     : build_result_module (r),
-      options_ (r.initialized_ ? r.options_  : nullptr)
+      options_ (r.initialized_ ? r.options_  : nullptr),
+      tenant_service_map_ (tsm)
 {
 }
 
@@ -186,14 +194,33 @@ handle (request& rq, response&)
   bool build_notify (false);
   bool unforced (true);
 
+  // If the package is built (result status differs from interrupt, etc) and
+  // the package tenant has a third-party service state associated with it,
+  // then check if the tenant_service_build_built callback is registered for
+  // the type of the associated service. If it is, then stash the state, the
+  // build object, and the callback pointer for the subsequent service `built`
+  // notification. Note that we send this notification for the skip result as
+  // well, since it is semantically equivalent to the previous build result
+  // with the actual build process being optimized out.
+  //
+  // If the package build is interrupted and the tenant_service_build_queued
+  // callback is associated with the package tenant, then stash the state, the
+  // build object, and the callback pointer for the subsequent service
+  // `queued` notification.
+  //
+  const tenant_service_build_built* tsb (nullptr);
+  const tenant_service_build_queued* tsq (nullptr);
+  optional<pair<tenant_service, shared_ptr<build>>> tss;
+
   // Note that if the session authentication fails (probably due to the
   // authentication settings change), then we log this case with the warning
   // severity and respond with the 200 HTTP code as if the challenge is
   // valid. The thinking is that we shouldn't alarm a law-abaiding agent and
   // shouldn't provide any information to a malicious one.
   //
+  connection_ptr conn (build_db_->connection ());
   {
-    transaction t (build_db_->begin ());
+    transaction t (conn->begin ());
 
     package_build pb;
 
@@ -221,11 +248,38 @@ handle (request& rq, response&)
     }
     else if (authenticate_session (*options_, rqm.challenge, *b, rqm.session))
     {
+      const tenant_service_base* ts (nullptr);
+
+      shared_ptr<build_tenant> t (build_db_->load<build_tenant> (b->tenant));
+
+      if (t->service)
+      {
+        auto i (tenant_service_map_.find (t->service->type));
+
+        if (i != tenant_service_map_.end ())
+          ts = i->second.get ();
+      }
+
       // If the build is interrupted, then revert it to the original built
-      // state if this is a rebuild and delete it from the database otherwise.
+      // state if this is a rebuild. Otherwise (initial build), turn the build
+      // into the queued state if the tenant_service_build_queued callback is
+      // registered for the package tenant and delete it from the database
+      // otherwise.
+      //
+      // Note that if the tenant_service_build_queued callback is registered,
+      // we always send the `queued` notification for the interrupted build,
+      // even when we reverse it to the original built state. We could also
+      // turn the build into the queued state in this case, but it feels that
+      // there is no harm in keeping the previous build information available
+      // for the user.
       //
       if (rs == result_status::interrupt)
       {
+        // Schedule the `queued` notification, if the
+        // tenant_service_build_queued callback is registered for the tenant.
+        //
+        tsq = dynamic_cast<const tenant_service_build_queued*> (ts);
+
         if (b->status) // Is this a rebuild?
         {
           b->state = build_state::built;
@@ -248,14 +302,57 @@ handle (request& rq, response&)
           // Note that we are unable to restore the pre-rebuild timestamp
           // since it has been overwritten when the build task was issued.
           // That, however, feels ok and we just keep it unchanged.
+          //
+          // Moreover, we actually use the fact that the build's timestamp is
+          // greater then its soft_timestamp as an indication that the build
+          // object represents the interrupted rebuild (see the build_task
+          // handler for details).
 
           build_db_->update (b);
         }
-        else
-          build_db_->erase (b);
+        else           // Initial build.
+        {
+          if (tsq != nullptr)
+          {
+            // Since this is not a rebuild, there are no operation results and
+            // thus we don't need to load the results section to erase results
+            // from the database.
+            //
+            assert (b->results.empty ());
+
+            *b = build (move (b->tenant),
+                        move (b->package_name),
+                        move (b->package_version),
+                        move (b->target),
+                        move (b->target_config_name),
+                        move (b->package_config_name),
+                        move (b->toolchain_name),
+                        move (b->toolchain_version));
+
+            build_db_->update (b);
+          }
+          else
+            build_db_->erase (b);
+        }
+
+        // If we ought to call the tenant_service_build_queued::build_queued()
+        // callback, then also set the package tenant's queued timestamp to
+        // the current time to prevent the notifications race (see
+        // tenant::queued_timestamp for details).
+        //
+        if (tsq != nullptr)
+        {
+          t->queued_timestamp = system_clock::now ();
+          build_db_->update (t);
+        }
       }
-      else
+      else // Regular or skip build result.
       {
+        // Schedule the `built` notification, if the
+        // tenant_service_build_built callback is registered for the tenant.
+        //
+        tsb = dynamic_cast<const tenant_service_build_built*> (ts);
+
         // Verify the result status/checksums.
         //
         // Specifically, if the result status is skip, then it can only be in
@@ -334,7 +431,8 @@ handle (request& rq, response&)
         b->soft_timestamp = b->timestamp;
 
         // If the result status is other than skip, then save the status,
-        // results, and checksums and update the hard timestamp.
+        // results, and checksums and update the hard timestamp. Also stash
+        // the service notification information, if present.
         //
         if (rs != result_status::skip)
         {
@@ -372,16 +470,59 @@ handle (request& rq, response&)
             build_db_->load (*pkg, pkg->constraints_section);
 
             if (!exclude (*cfg, pkg->builds, pkg->constraints, *tc))
-              bld = move (b);
+              bld = b;
           }
         }
         else
           warn << "cannot find configuration '" << b->package_config_name
                << "' for package " << pkg->id.name << '/' << pkg->version;
       }
+
+      // If required, stash the service notification information.
+      //
+      if (tsb != nullptr || tsq != nullptr)
+        tss = make_pair (move (*t->service), move (b));
     }
 
     t.commit ();
+  }
+
+  // We either notify about the queued build or notify about the built package
+  // or don't notify at all.
+  //
+  assert (tsb == nullptr || tsq == nullptr);
+
+  // If the package build is interrupted and the tenant-associated third-party
+  // service needs to be notified about the queued builds, then call the
+  // tenant_service_build_queued::build_queued() callback function and update
+  // the service state, if requested.
+  //
+  if (tsq != nullptr)
+  {
+    assert (tss); // Wouldn't be here otherwise.
+
+    const tenant_service& ss (tss->first);
+
+    vector<build> qbs;
+    qbs.push_back (move (*tss->second));
+
+    if (auto f = tsq->build_queued (ss, qbs, build_state::building))
+      update_tenant_service_state (conn, qbs.back ().tenant, f);
+  }
+
+  // If a third-party service needs to be notified about the built package,
+  // then call the tenant_service_build_built::build_built() callback function
+  // and update the service state, if requested.
+  //
+  if (tsb != nullptr)
+  {
+    assert (tss); // Wouldn't be here otherwise.
+
+    const tenant_service& ss (tss->first);
+    const build& b (*tss->second);
+
+    if (auto f = tsb->build_built (ss, b))
+      update_tenant_service_state (conn, b.tenant, f);
   }
 
   if (bld == nullptr)

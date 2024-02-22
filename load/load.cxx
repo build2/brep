@@ -1492,6 +1492,40 @@ try
     throw failed ();
   }
 
+  // Verify the --service-* options.
+  //
+  if (ops.service_id_specified ())
+  {
+    if (!ops.tenant_specified ())
+    {
+      cerr << "error: --service-id requires --tenant" << endl;
+      throw failed ();
+    }
+
+    if (ops.service_type ().empty ())
+    {
+      cerr << "error: --service-id requires --service-type"
+           << endl;
+      throw failed ();
+    }
+  }
+  else
+  {
+    if (ops.service_type_specified ())
+    {
+      cerr << "error: --service-type requires --service-id"
+           << endl;
+      throw failed ();
+    }
+
+    if (ops.service_data_specified ())
+    {
+      cerr << "error: --service-data requires --service-id"
+           << endl;
+      throw failed ();
+    }
+  }
+
   // Parse and validate overrides, if specified.
   //
   // Note that here we make sure that the overrides manifest is valid.
@@ -1591,11 +1625,30 @@ try
 
     // Persist the tenant.
     //
+    // Note that if the tenant service is specified and some tenant with the
+    // same service id and type is already persisted, then we will end up with
+    // the `object already persistent` error and terminate with the exit code
+    // 1 (fatal error). We could potentially dedicate a special exit code for
+    // such a case, so that the caller may recognize it and behave accordingly
+    // (CI request handler can treat it as a client error rather than an
+    // internal error, etc). However, let's first see if it ever becomes a
+    // problem.
+    //
+    optional<tenant_service> service;
+
+    if (ops.service_id_specified ())
+      service = tenant_service (ops.service_id (),
+                                ops.service_type (),
+                                (ops.service_data_specified ()
+                                 ? ops.service_data ()
+                                 : optional<string> ()));
+
     db.persist (tenant (tnt,
                         ops.private_ (),
                         (ops.interactive_specified ()
                          ? ops.interactive ()
-                         : optional<string> ())));
+                         : optional<string> ()),
+                        move (service)));
 
     // On the first pass over the internal repositories we load their
     // certificate information and packages.

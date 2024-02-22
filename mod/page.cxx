@@ -761,7 +761,6 @@ namespace brep
     }
     else
     {
-
       // If no unsuccessful operation results available, then print the
       // overall build status. If there are any operation results available,
       // then also print unsuccessful operation statuses with the links to the

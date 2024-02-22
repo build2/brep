@@ -225,13 +225,19 @@ build_query (const brep::vector<brep::build_target_config_id>* config_ids,
     // Build result.
     //
     const string& rs (params.result ());
+    bool add_state (true);
 
     if (rs != "*")
     {
       if (rs == "pending")
+      {
         q = q && qb::force != "unforced";
+      }
       else if (rs == "building")
+      {
         q = q && qb::state == "building";
+        add_state = false;
+      }
       else
       {
         query sq (qb::status == rs);
@@ -259,8 +265,12 @@ build_query (const brep::vector<brep::build_target_config_id>* config_ids,
         // well (rebuild).
         //
         q = q && qb::state == "built" && sq;
+        add_state = false;
       }
     }
+
+    if (add_state)
+      q = q && qb::state != "queued";
   }
   catch (const invalid_argument&)
   {

@@ -40,11 +40,15 @@ namespace brep
   // tenant
   //
   tenant::
-  tenant (string i, bool p, optional<string> r)
+  tenant (string i,
+          bool p,
+          optional<string> r,
+          optional<tenant_service> s)
       : id (move (i)),
         private_ (p),
         interactive (move (r)),
-        creation_timestamp (timestamp::clock::now ())
+        creation_timestamp (timestamp::clock::now ()),
+        service (move (s))
   {
   }
 

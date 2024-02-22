@@ -4,7 +4,7 @@
 #ifndef MOD_DATABASE_MODULE_HXX
 #define MOD_DATABASE_MODULE_HXX
 
-#include <odb/forward.hxx> // database
+#include <odb/forward.hxx> // odb::core::database, odb::core::connection_ptr
 
 #include <libbrep/types.hxx>
 #include <libbrep/utility.hxx>
@@ -14,6 +14,8 @@
 
 namespace brep
 {
+  struct tenant_service;
+
   // A handler that utilises the database. Specifically, it will retry the
   // request in the face of recoverable database failures (deadlock, loss of
   // connection, etc) up to a certain number of times.
@@ -49,6 +51,25 @@ namespace brep
 
     virtual bool
     handle (request&, response&) = 0;
+
+    // Helpers.
+    //
+
+    // Update the tenant-associated service state if the specified
+    // notification callback-returned function (expected to be not NULL)
+    // returns the new state data.
+    //
+    // Specifically, start the database transaction, query the service state,
+    // and call the callback-returned function on this state. If this call
+    // returns the data string (rather than nullopt), then update the service
+    // state with this data and persist the change. Repeat all the above steps
+    // on the recoverable database failures (deadlocks, etc).
+    //
+    void
+    update_tenant_service_state (
+      const odb::core::connection_ptr&,
+      const string& tid,
+      const function<optional<string> (const tenant_service&)>&);
 
   protected:
     size_t retry_ = 0; // Max of all retries.

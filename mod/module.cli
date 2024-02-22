@@ -21,7 +21,7 @@ namespace brep
   {
     // Option groups.
     //
-    class handler
+    class repository_email
     {
       string email
       {
@@ -29,7 +29,10 @@ namespace brep
         "Repository email. This email is used for the \cb{From:} header in
          emails send by \cb{brep} (for example, build failure notifications)."
       }
+    };
 
+    class handler
+    {
       string host
       {
         "<host>",
@@ -278,6 +281,15 @@ namespace brep
          \cb{build-alt-hard-rebuild-timeout} for details). The semantics is
          the same as for the \cb{build-alt-soft-rebuild-stop} option but
          for the \cb{build-hard-rebuild-timeout} option."
+      }
+
+      size_t build-queued-timeout = 30
+      {
+        "<seconds>",
+        "Time to wait before assuming the \cb{queued} notifications are
+         delivered for package CI requests submitted via third-party services
+         (GitHub, etc). During this time a package is not considered for a
+         build. Must be specified in seconds. Default is 30 seconds."
       }
     };
 
@@ -563,7 +575,7 @@ namespace brep
       }
     };
 
-    class build_result: build, package_db, build_db, handler
+    class build_result: build, package_db, build_db, repository_email, handler
     {
       size_t build-result-request-max-size = 10485760
       {
@@ -626,7 +638,7 @@ namespace brep
       }
     };
 
-    class submit: page, handler
+    class submit: page, repository_email, handler
     {
       dir_path submit-data
       {
@@ -706,7 +718,7 @@ namespace brep
       }
     };
 
-    class ci: page, handler
+    class ci_start: repository_email
     {
       dir_path ci-data
       {
@@ -719,15 +731,6 @@ namespace brep
          Note that the directory path must be absolute and the directory
          itself must exist and have read, write, and execute permissions
          granted to the user that runs the web server."
-      }
-
-      path ci-form
-      {
-        "<file>",
-        "The package CI form fragment. If specified, then its contents are
-         treated as an XHTML5 fragment that is inserted into the <body>
-         element of the CI page. If unspecified, then no CI page will be
-         displayed. Note that the file path must be absolute."
       }
 
       string ci-email
@@ -766,7 +769,33 @@ namespace brep
       }
     };
 
-    class upload: build, build_db, build_upload, handler
+    class ci_cancel
+    {
+    };
+
+    class ci: ci_start, page, handler
+    {
+      // Classic CI-specific options.
+      //
+
+      path ci-form
+      {
+        "<file>",
+        "The package CI form fragment. If specified, then its contents are
+         treated as an XHTML5 fragment that is inserted into the <body>
+         element of the CI page. If unspecified, then no CI page will be
+         displayed. Note that the file path must be absolute."
+      }
+    };
+
+    class ci_github: ci_start, ci_cancel, build_db, handler
+    {
+      // GitHub CI-specific options (e.g., request timeout when invoking
+      // GitHub APIs).
+      //
+    };
+
+    class upload: build, build_db, build_upload, repository_email, handler
     {
     };
 

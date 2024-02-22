@@ -227,7 +227,7 @@ handle (request& rq, response& rs)
           query<package_build>::build::id == id, pb))
       config_expired ("no package build");
 
-    b = pb.build;
+    b = move (pb.build);
     if (b->state != build_state::built)
       config_expired ("state is " + to_string (b->state));
     else

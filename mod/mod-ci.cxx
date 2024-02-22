@@ -3,18 +3,11 @@
 
 #include <mod/mod-ci.hxx>
 
-#include <ostream>
-
-#include <libbutl/uuid.hxx>
-#include <libbutl/sendmail.hxx>
 #include <libbutl/fdstream.hxx>
-#include <libbutl/timestamp.hxx>
-#include <libbutl/filesystem.hxx>
-#include <libbutl/process-io.hxx>          // operator<<(ostream, process_args)
 #include <libbutl/manifest-parser.hxx>
 #include <libbutl/manifest-serializer.hxx>
 
-#include <libbpkg/manifest.hxx>
+#include <libbpkg/manifest.hxx>     // package_manifest
 #include <libbpkg/package-name.hxx>
 
 #include <web/server/module.hxx>
@@ -23,20 +16,35 @@
 
 #include <mod/page.hxx>
 #include <mod/module-options.hxx>
-#include <mod/external-handler.hxx>
 
 using namespace std;
 using namespace butl;
 using namespace web;
 using namespace brep::cli;
 
+#ifdef BREP_CI_TENANT_SERVICE
 brep::ci::
+ci (tenant_service_map& tsm)
+    : tenant_service_map_ (tsm)
+{
+}
+#endif
+
+brep::ci::
+#ifdef BREP_CI_TENANT_SERVICE
+ci (const ci& r, tenant_service_map& tsm)
+#else
 ci (const ci& r)
+#endif
     : handler (r),
+      ci_start (r),
       options_ (r.initialized_ ? r.options_ : nullptr),
       form_ (r.initialized_ || r.form_ == nullptr
              ? r.form_
              : make_shared<xhtml::fragment> (*r.form_))
+#ifdef BREP_CI_TENANT_SERVICE
+    , tenant_service_map_ (tsm)
+#endif
 {
 }
 
@@ -45,22 +53,25 @@ init (scanner& s)
 {
   HANDLER_DIAG;
 
+#ifdef BREP_CI_TENANT_SERVICE
+  {
+    shared_ptr<tenant_service_base> ts (
+      dynamic_pointer_cast<tenant_service_base> (shared_from_this ()));
+
+    assert (ts != nullptr); // By definition.
+
+    tenant_service_map_["ci"] = move (ts);
+  }
+#endif
+
   options_ = make_shared<options::ci> (
     s, unknown_mode::fail, unknown_mode::fail);
 
-  // Verify that the CI request handling is setup properly, if configured.
+  // Prepare for the CI requests handling, if configured.
   //
   if (options_->ci_data_specified ())
   {
-    // Verify the data directory satisfies the requirements.
-    //
-    const dir_path& d (options_->ci_data ());
-
-    if (d.relative ())
-      fail << "ci-data directory path must be absolute";
-
-    if (!dir_exists (d))
-      fail << "ci-data directory '" << d << "' does not exist";
+    ci_start::init (make_shared<options::ci_start> (*options_));
 
     // Parse XHTML5 form file, if configured.
     //
@@ -87,10 +98,6 @@ init (scanner& s)
         fail << "unable to read ci-form file '" << ci_form << "': " << e;
       }
     }
-
-    if (options_->ci_handler_specified () &&
-        options_->ci_handler ().relative ())
-      fail << "ci-handler path must be absolute";
   }
 
   if (options_->root ().empty ())
@@ -130,9 +137,8 @@ handle (request& rq, response& rs)
   //
   // return respond_error (); // Request is handled with an error.
   //
-  string request_id; // Will be set later.
-  auto respond_manifest = [&rs, &request_id] (status_code status,
-                                              const string& message) -> bool
+  auto respond_manifest = [&rs] (status_code status,
+                                 const string& message) -> bool
   {
     serializer s (rs.content (status, "text/manifest;charset=utf-8"),
                   "response");
@@ -140,10 +146,6 @@ handle (request& rq, response& rs)
     s.next ("", "1");                      // Start of manifest.
     s.next ("status", to_string (status));
     s.next ("message", message);
-
-    if (!request_id.empty ())
-      s.next ("reference", request_id);
-
     s.next ("", "");                       // End of manifest.
     return true;
   };
@@ -234,9 +236,11 @@ handle (request& rq, response& rs)
   if (rl.empty () || rl.local ())
     return respond_manifest (400, "invalid repository location");
 
-  // Verify the package name[/version] arguments.
+  // Parse the package name[/version] arguments.
   //
-  for (const string& s: params.package())
+  vector<package> packages;
+
+  for (const string& s: params.package ())
   {
     //  Let's skip the potentially unfilled package form fields.
     //
@@ -245,18 +249,21 @@ handle (request& rq, response& rs)
 
     try
     {
+      package pkg;
       size_t p (s.find ('/'));
 
       if (p != string::npos)
       {
-        package_name (string (s, 0, p));
+        pkg.name = package_name (string (s, 0, p));
 
         // Not to confuse with module::version.
         //
-        bpkg::version (string (s, p + 1));
+        pkg.version = bpkg::version (string (s, p + 1));
       }
       else
-        package_name p (s); // Not to confuse with the s variable declaration.
+        pkg.name = package_name (s);
+
+      packages.push_back (move (pkg));
     }
     catch (const invalid_argument&)
     {
@@ -265,31 +272,49 @@ handle (request& rq, response& rs)
   }
 
   // Verify that unknown parameter values satisfy the requirements (contain
-  // only UTF-8 encoded graphic characters plus '\t', '\r', and '\n').
+  // only UTF-8 encoded graphic characters plus '\t', '\r', and '\n') and
+  // stash them.
   //
   // Actually, the expected ones must satisfy too, so check them as well.
   //
-  string what;
-  for (const name_value& nv: rps)
+  vector<pair<string, string>> custom_request;
   {
-    if (nv.value &&
-        !utf8 (*nv.value, what, codepoint_types::graphic, U"\n\r\t"))
-      return respond_manifest (400,
-                               "invalid parameter " + nv.name + ": " + what);
+    string what;
+    for (const name_value& nv: rps)
+    {
+      if (nv.value &&
+          !utf8 (*nv.value, what, codepoint_types::graphic, U"\n\r\t"))
+        return respond_manifest (400,
+                                 "invalid parameter " + nv.name + ": " + what);
+
+      const string& n (nv.name);
+
+      if (n != "repository"  &&
+          n != "_"           &&
+          n != "package"     &&
+          n != "overrides"   &&
+          n != "interactive" &&
+          n != "simulate")
+         custom_request.emplace_back (n, nv.value ? *nv.value : "");
+    }
   }
 
   // Parse and validate overrides, if present.
   //
-  vector<manifest_name_value> overrides;
+  vector<pair<string, string>> overrides;
 
   if (params.overrides_specified ())
   try
   {
     istream& is (rq.open_upload ("overrides"));
     parser mp (is, "overrides");
-    overrides = parse_manifest (mp);
+    vector<manifest_name_value> ovrs (parse_manifest (mp));
 
-    package_manifest::validate_overrides (overrides, mp.name ());
+    package_manifest::validate_overrides (ovrs, mp.name ());
+
+    overrides.reserve (ovrs.size ());
+    for (manifest_name_value& nv: ovrs)
+      overrides.emplace_back (move (nv.name), move (nv.value));
   }
   // Note that invalid_argument (thrown by open_upload() function call) can
   // mean both no overrides upload or multiple overrides uploads.
@@ -310,383 +335,127 @@ handle (request& rq, response& rs)
     return respond_error ();
   }
 
+  // Stash the User-Agent HTTP header and the client IP address.
+  //
+  optional<string> client_ip;
+  optional<string> user_agent;
+  for (const name_value& h: rq.headers ())
+  {
+    if (icasecmp (h.name, ":Client-IP") == 0)
+      client_ip = h.value;
+    else if (icasecmp (h.name, "User-Agent") == 0)
+      user_agent = h.value;
+  }
+
+  optional<start_result> r (start (error,
+                                   warn,
+                                   verb_ ? &trace : nullptr,
+#ifdef BREP_CI_TENANT_SERVICE
+                                   tenant_service ("", "ci"),
+#else
+                                   nullopt /* service */,
+#endif
+                                   rl,
+                                   packages,
+                                   client_ip,
+                                   user_agent,
+                                   (params.interactive_specified ()
+                                    ? params.interactive ()
+                                    : optional<string> ()),
+                                   (!simulate.empty ()
+                                    ? simulate
+                                    : optional<string> ()),
+                                   custom_request,
+                                   overrides));
+
+  if (!r)
+    return respond_error (); // The diagnostics is already issued.
+
   try
   {
-    // Note that from now on the result manifest we respond with will contain
-    // the reference value.
-    //
-    request_id = uuid::generate ().string ();
+    serialize_manifest (*r,
+                        rs.content (r->status, "text/manifest;charset=utf-8"));
   }
-  catch (const system_error& e)
+  catch (const serialization& e)
   {
-    error << "unable to generate request id: " << e;
+    error << "ref " << r->reference << ": unable to serialize handler's "
+          << "output: " << e;
+
     return respond_error ();
   }
-
-  // Create the submission data directory.
-  //
-  dir_path dd (options_->ci_data () / dir_path (request_id));
-
-  try
-  {
-    // It's highly unlikely but still possible that the directory already
-    // exists. This can only happen if the generated uuid is not unique.
-    //
-    if (try_mkdir (dd) == mkdir_status::already_exists)
-      throw_generic_error (EEXIST);
-  }
-  catch (const system_error& e)
-  {
-    error << "unable to create directory '" << dd << "': " << e;
-    return respond_error ();
-  }
-
-  auto_rmdir ddr (dd);
-
-  // Serialize the CI request manifest to a stream. On the serialization error
-  // respond to the client with the manifest containing the bad request (400)
-  // code and return false, on the stream error pass through the io_error
-  // exception, otherwise return true.
-  //
-  timestamp ts (system_clock::now ());
-
-  auto rqm = [&request_id,
-              &rl,
-              &ts,
-              &simulate,
-              &rq,
-              &rps,
-              &params,
-              &respond_manifest]
-             (ostream& os, bool long_lines = false) -> bool
-  {
-    try
-    {
-      serializer s (os, "request", long_lines);
-
-      // Serialize the submission manifest header.
-      //
-      s.next ("", "1");                // Start of manifest.
-      s.next ("id", request_id);
-      s.next ("repository", rl.string ());
-
-      for (const string& p: params.package ())
-      {
-        if (!p.empty ()) // Skip empty package names (see above for details).
-          s.next ("package", p);
-      }
-
-      if (params.interactive_specified ())
-        s.next ("interactive", params.interactive ());
-
-      if (!simulate.empty ())
-        s.next ("simulate", simulate);
-
-      s.next ("timestamp",
-              butl::to_string (ts,
-                               "%Y-%m-%dT%H:%M:%SZ",
-                               false /* special */,
-                               false /* local */));
-
-      // Serialize the User-Agent HTTP header and the client IP address.
-      //
-      optional<string> ip;
-      optional<string> ua;
-      for (const name_value& h: rq.headers ())
-      {
-        if (icasecmp (h.name, ":Client-IP") == 0)
-          ip = h.value;
-        else if (icasecmp (h.name, "User-Agent") == 0)
-          ua = h.value;
-      }
-
-      if (ip)
-        s.next ("client-ip", *ip);
-
-      if (ua)
-        s.next ("user-agent", *ua);
-
-      // Serialize the request parameters.
-      //
-      // Note that the serializer constraints the parameter names (can't start
-      // with '#', can't contain ':' and the whitespaces, etc.).
-      //
-      for (const name_value& nv: rps)
-      {
-        const string& n (nv.name);
-
-        if (n != "repository"  &&
-            n != "_"           &&
-            n != "package"     &&
-            n != "overrides"   &&
-            n != "interactive" &&
-            n != "simulate")
-          s.next (n, nv.value ? *nv.value : "");
-      }
-
-      s.next ("", ""); // End of manifest.
-      return true;
-    }
-    catch (const serialization& e)
-    {
-      respond_manifest (400, string ("invalid parameter: ") + e.what ());
-      return false;
-    }
-  };
-
-  // Serialize the CI request manifest to the submission directory.
-  //
-  path rqf (dd / "request.manifest");
-
-  try
-  {
-    ofdstream os (rqf);
-    bool r (rqm (os));
-    os.close ();
-
-    if (!r)
-      return true; // The client is already responded with the manifest.
-  }
-  catch (const io_error& e)
-  {
-    error << "unable to write to '" << rqf << "': " << e;
-    return respond_error ();
-  }
-
-  // Serialize the CI overrides manifest to a stream. On the stream error pass
-  // through the io_error exception.
-  //
-  // Note that it can't throw the serialization exception as the override
-  // manifest is parsed from the stream and so verified.
-  //
-  auto ovm = [&overrides] (ostream& os, bool long_lines = false)
-  {
-    try
-    {
-      serializer s (os, "overrides", long_lines);
-      serialize_manifest (s, overrides);
-    }
-    catch (const serialization&) {assert (false);} // See above.
-  };
-
-  // Serialize the CI overrides manifest to the submission directory.
-  //
-  path ovf (dd / "overrides.manifest");
-
-  if (!overrides.empty ())
-  try
-  {
-    ofdstream os (ovf);
-    ovm (os);
-    os.close ();
-  }
-  catch (const io_error& e)
-  {
-    error << "unable to write to '" << ovf << "': " << e;
-    return respond_error ();
-  }
-
-  // Given that the submission data is now successfully persisted we are no
-  // longer in charge of removing it, except for the cases when the submission
-  // handler terminates with an error (see below for details).
-  //
-  ddr.cancel ();
-
-  // If the handler terminates with non-zero exit status or specifies 5XX
-  // (HTTP server error) submission result manifest status value, then we
-  // stash the submission data directory for troubleshooting. Otherwise, if
-  // it's the 4XX (HTTP client error) status value, then we remove the
-  // directory.
-  //
-  auto stash_submit_dir = [&dd, error] ()
-  {
-    if (dir_exists (dd))
-    try
-    {
-      mvdir (dd, dir_path (dd + ".fail"));
-    }
-    catch (const system_error& e)
-    {
-      // Not much we can do here. Let's just log the issue and bail out
-      // leaving the directory in place.
-      //
-      error << "unable to rename directory '" << dd << "': " << e;
-    }
-  };
-
-  // Run the submission handler, if specified, reading the result manifest
-  // from its stdout and caching it as a name/value pair list for later use
-  // (forwarding to the client, sending via email, etc). Otherwise, create
-  // implied result manifest.
-  //
-  status_code sc;
-  vector<manifest_name_value> rvs;
-
-  if (options_->ci_handler_specified ())
-  {
-    using namespace external_handler;
-
-    optional<result_manifest> r (run (options_->ci_handler (),
-                                      options_->ci_handler_argument (),
-                                      dd,
-                                      options_->ci_handler_timeout (),
-                                      error,
-                                      warn,
-                                      verb_ ? &trace : nullptr));
-    if (!r)
-    {
-      stash_submit_dir ();
-      return respond_error (); // The diagnostics is already issued.
-    }
-
-    sc = r->status;
-    rvs = move (r->values);
-  }
-  else // Create the implied result manifest.
-  {
-    sc = 200;
-
-    auto add = [&rvs] (string n, string v)
-    {
-      manifest_name_value nv {
-        move (n), move (v),
-        0 /* name_line */,  0 /* name_column */,
-        0 /* value_line */, 0 /* value_column */,
-        0 /* start_pos */, 0 /* colon_pos */, 0 /* end_pos */};
-
-      rvs.emplace_back (move (nv));
-    };
-
-    add ("status", "200");
-    add ("message", "CI request is queued");
-    add ("reference", request_id);
-  }
-
-  assert (!rvs.empty ()); // Produced by the handler or is implied.
-
-  // Serialize the submission result manifest to a stream. On the
-  // serialization error log the error description and return false, on the
-  // stream error pass through the io_error exception, otherwise return true.
-  //
-  auto rsm = [&rvs, &error, &request_id] (ostream& os,
-                                          bool long_lines = false) -> bool
-  {
-    try
-    {
-      serializer s (os, "result", long_lines);
-      serialize_manifest (s, rvs);
-      return true;
-    }
-    catch (const serialization& e)
-    {
-      error << "ref " << request_id << ": unable to serialize handler's "
-            << "output: " << e;
-      return false;
-    }
-  };
-
-  // If the submission data directory still exists then perform an appropriate
-  // action on it, depending on the submission result status. Note that the
-  // handler could move or remove the directory.
-  //
-  if (dir_exists (dd))
-  {
-    // Remove the directory if the client error is detected.
-    //
-    if (sc >= 400 && sc < 500)
-    {
-      rmdir_r (dd);
-    }
-    //
-    // Otherwise, save the result manifest, into the directory. Also stash the
-    // directory for troubleshooting in case of the server error.
-    //
-    else
-    {
-      path rsf (dd / "result.manifest");
-
-      try
-      {
-        ofdstream os (rsf);
-
-        // Not being able to stash the result manifest is not a reason to
-        // claim the submission failed. The error is logged nevertheless.
-        //
-        rsm (os);
-
-        os.close ();
-      }
-      catch (const io_error& e)
-      {
-        // Not fatal (see above).
-        //
-        error << "unable to write to '" << rsf << "': " << e;
-      }
-
-      if (sc >= 500 && sc < 600)
-        stash_submit_dir ();
-    }
-  }
-
-  // Send email, if configured, and the CI request submission is not simulated.
-  // Use the long lines manifest serialization mode for the convenience of
-  // copying/clicking URLs they contain.
-  //
-  // Note that we don't consider the email sending failure to be a submission
-  // failure as the submission data is successfully persisted and the handler
-  // is successfully executed, if configured. One can argue that email can be
-  // essential for the submission processing and missing it would result in
-  // the incomplete submission. In this case it's natural to assume that the
-  // web server error log is monitored and the email sending failure will be
-  // noticed.
-  //
-  if (options_->ci_email_specified () && simulate.empty ())
-  try
-  {
-    // Redirect the diagnostics to the web server error log.
-    //
-    sendmail sm ([&trace, this] (const char* args[], size_t n)
-                 {
-                   l2 ([&]{trace << process_args {args, n};});
-                 },
-                 2 /* stderr */,
-                 options_->email (),
-                 "CI request submission (" + request_id + ')',
-                 {options_->ci_email ()});
-
-    // Write the CI request manifest.
-    //
-    bool r (rqm (sm.out, true /* long_lines */));
-    assert (r); // The serialization succeeded once, so can't fail now.
-
-    // Write the CI overrides manifest.
-    //
-    sm.out << "\n\n";
-
-    ovm (sm.out, true /* long_lines */);
-
-    // Write the CI result manifest.
-    //
-    sm.out << "\n\n";
-
-    // We don't care about the result (see above).
-    //
-    rsm (sm.out, true /* long_lines */);
-
-    sm.out.close ();
-
-    if (!sm.wait ())
-      error << "sendmail " << *sm.exit;
-  }
-  // Handle process_error and io_error (both derive from system_error).
-  //
-  catch (const system_error& e)
-  {
-    error << "sendmail error: " << e;
-  }
-
-  if (!rsm (rs.content (sc, "text/manifest;charset=utf-8")))
-    return respond_error (); // The error description is already logged.
 
   return true;
 }
+
+#ifdef BREP_CI_TENANT_SERVICE
+function<optional<string> (const brep::tenant_service&)> brep::ci::
+build_queued (const tenant_service&,
+              const vector<build>& bs,
+              optional<build_state> initial_state) const
+{
+  return [&bs, initial_state] (const tenant_service& ts)
+         {
+           optional<string> r (ts.data);
+
+           for (const build& b: bs)
+           {
+             string s ((!initial_state
+                        ? "queued "
+                        : "queued " + to_string (*initial_state) + ' ') +
+                       b.package_name.string () + '/'                   +
+                       b.package_version.string () + '/'                +
+                       b.target.string () + '/'                         +
+                       b.target_config_name + '/'                       +
+                       b.package_config_name + '/'                      +
+                       b.toolchain_name + '/'                           +
+                       b.toolchain_version.string ());
+
+             if (r)
+             {
+               *r += ", ";
+               *r += s;
+             }
+             else
+               r = move (s);
+           }
+
+           return r;
+         };
+}
+
+function<optional<string> (const brep::tenant_service&)> brep::ci::
+build_building (const tenant_service&, const build& b) const
+{
+  return [&b] (const tenant_service& ts)
+         {
+           string s ("building "                       +
+                     b.package_name.string () + '/'    +
+                     b.package_version.string () + '/' +
+                     b.target.string () + '/'          +
+                     b.target_config_name + '/'        +
+                     b.package_config_name + '/'       +
+                     b.toolchain_name + '/'            +
+                     b.toolchain_version.string ());
+
+           return ts.data ? *ts.data + ", " + s : s;
+         };
+}
+
+function<optional<string> (const brep::tenant_service&)> brep::ci::
+build_built (const tenant_service&, const build& b) const
+{
+  return [&b] (const tenant_service& ts)
+         {
+           string s ("built "                          +
+                     b.package_name.string () + '/'    +
+                     b.package_version.string () + '/' +
+                     b.target.string () + '/'          +
+                     b.target_config_name + '/'        +
+                     b.package_config_name + '/'       +
+                     b.toolchain_name + '/'            +
+                     b.toolchain_version.string ());
+
+           return ts.data ? *ts.data + ", " + s : s;
+         };
+}
+#endif

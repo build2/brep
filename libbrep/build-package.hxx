@@ -35,6 +35,8 @@ namespace brep
     bool private_;
     optional<string> interactive;
     bool archived;
+    optional<tenant_service> service;
+    optional<timestamp> queued_timestamp;
 
     // Database mapping.
     //

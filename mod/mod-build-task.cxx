@@ -58,15 +58,22 @@ rand (size_t min_val, size_t max_val)
       static_cast<unsigned long long> (max_val)) (rand_gen));
 }
 
+brep::build_task::
+build_task (const tenant_service_map& tsm)
+    : tenant_service_map_ (tsm)
+{
+}
+
 // While currently the user-defined copy constructor is not required (we don't
 // need to deep copy nullptr's), it is a good idea to keep the placeholder
 // ready for less trivial cases.
 //
 brep::build_task::
-build_task (const build_task& r)
+build_task (const build_task& r, const tenant_service_map& tsm)
     : database_module (r),
       build_config_module (r),
-      options_ (r.initialized_ ? r.options_ : nullptr)
+      options_ (r.initialized_ ? r.options_ : nullptr),
+      tenant_service_map_ (tsm)
 {
 }
 
@@ -117,9 +124,15 @@ init (scanner& s)
     options_->root (dir_path ("/"));
 }
 
+// Skip tenants with the freshly queued packages from the consideration (see
+// tenant::queued_timestamp for the details on the service notifications race
+// prevention).
+//
 template <typename T>
 static inline query<T>
-package_query (brep::params::build_task& params, interactive_mode imode)
+package_query (brep::params::build_task& params,
+               interactive_mode imode,
+               uint64_t queued_expiration_ns)
 {
   using namespace brep;
   using query = query<T>;
@@ -153,7 +166,9 @@ package_query (brep::params::build_task& params, interactive_mode imode)
   case interactive_mode::both: break;
   }
 
-  return q;
+  return q &&
+         (query::build_tenant::queued_timestamp.is_null () ||
+          query::build_tenant::queued_timestamp < queued_expiration_ns);
 }
 
 bool brep::build_task::
@@ -261,7 +276,7 @@ handle (request& rq, response& rs)
 
   config_machines conf_machines;
 
-  for (const auto& c: *target_conf_)
+  for (const build_target_config& c: *target_conf_)
   {
     for (auto& m: tqm.machines)
     {
@@ -303,34 +318,34 @@ handle (request& rq, response& rs)
     // Create the task response manifest. Must be called inside the build db
     // transaction.
     //
-    auto task = [this] (shared_ptr<build>&& b,
-                        shared_ptr<build_package>&& p,
+    auto task = [this] (const build& b,
+                        build_package&& p,
                         build_package_config&& pc,
                         optional<string>&& interactive,
                         const config_machine& cm) -> task_response_manifest
     {
       uint64_t ts (
         chrono::duration_cast<std::chrono::nanoseconds> (
-          b->timestamp.time_since_epoch ()).count ());
+          b.timestamp.time_since_epoch ()).count ());
 
-      string session (b->tenant + '/'                      +
-                      b->package_name.string () + '/'      +
-                      b->package_version.string () + '/'   +
-                      b->target.string () + '/'            +
-                      b->target_config_name + '/'          +
-                      b->package_config_name + '/'         +
-                      b->toolchain_name + '/'              +
-                      b->toolchain_version.string () + '/' +
+      string session (b.tenant + '/'                      +
+                      b.package_name.string () + '/'      +
+                      b.package_version.string () + '/'   +
+                      b.target.string () + '/'            +
+                      b.target_config_name + '/'          +
+                      b.package_config_name + '/'         +
+                      b.toolchain_name + '/'              +
+                      b.toolchain_version.string () + '/' +
                       to_string (ts));
 
-      string tenant (tenant_dir (options_->root (), b->tenant).string ());
+      string tenant (tenant_dir (options_->root (), b.tenant).string ());
       string result_url (options_->host () + tenant + "?build-result");
 
       assert (transaction::has_current ());
 
-      assert (p->internal ()); // The package is expected to be buildable.
+      assert (p.internal ()); // The package is expected to be buildable.
 
-      shared_ptr<build_repository> r (p->internal_repository.load ());
+      shared_ptr<build_repository> r (p.internal_repository.load ());
 
       strings fps;
       if (r->certificate_fingerprint)
@@ -341,9 +356,9 @@ handle (request& rq, response& rs)
       //
       small_vector<bpkg::test_dependency, 1> tests;
 
-      build_db_->load (*p, p->requirements_tests_section);
+      build_db_->load (p, p.requirements_tests_section);
 
-      for (const build_test_dependency& td: p->tests)
+      for (const build_test_dependency& td: p.tests)
       {
         // Don't exclude unresolved external tests.
         //
@@ -390,16 +405,17 @@ handle (request& rq, response& rs)
                             move (td.reflect));
       }
 
-      bool module_pkg (
-        b->package_name.string ().compare (0, 10, "libbuild2-") == 0);
+      package_name& pn (p.id.name);
 
-      task_manifest task (move (b->package_name),
-                          move (b->package_version),
+      bool module_pkg (pn.string ().compare (0, 10, "libbuild2-") == 0);
+
+      task_manifest task (move (pn),
+                          move (p.version),
                           move (r->location),
                           move (fps),
-                          move (p->requirements),
+                          move (p.requirements),
                           move (tests),
-                          move (b->dependency_checksum),
+                          b.dependency_checksum,
                           cm.machine->name,
                           cm.config->target,
                           cm.config->environment,
@@ -408,7 +424,7 @@ handle (request& rq, response& rs)
                           belongs (*cm.config, module_pkg ? "build2" : "host"),
                           cm.config->warning_regexes,
                           move (interactive),
-                          move (b->worker_checksum));
+                          b.worker_checksum);
 
       // Collect the build artifacts upload URLs, skipping those which are
       // excluded with the upload-*-exclude configuration options.
@@ -434,7 +450,7 @@ handle (request& rq, response& rs)
         };
 
         if (!exclude (options_->upload_toolchain_exclude (),
-                      b->toolchain_name) &&
+                      b.toolchain_name) &&
             !exclude (options_->upload_repository_exclude (),
                       r->canonical_name))
         {
@@ -444,15 +460,15 @@ handle (request& rq, response& rs)
       }
 
       return task_response_manifest (move (session),
-                                     move (b->agent_challenge),
+                                     b.agent_challenge,
                                      move (result_url),
                                      move (upload_urls),
-                                     move (b->agent_checksum),
+                                     b.agent_checksum,
                                      move (task));
     };
 
-    // Calculate the build (building state) or rebuild (built state)
-    // expiration time for package configurations.
+    // Calculate the build/rebuild (building/built state) and the `queued`
+    // notifications expiration time for package configurations.
     //
     timestamp now (system_clock::now ());
 
@@ -475,6 +491,9 @@ handle (request& rq, response& rs)
 
     timestamp forced_rebuild_expiration (
       expiration (options_->build_forced_rebuild_timeout ()));
+
+    uint64_t queued_expiration_ns (
+      expiration_ns (options_->build_queued_timeout ()));
 
     // Calculate the soft/hard rebuild expiration time, based on the
     // respective build-{soft,hard}-rebuild-timeout and
@@ -626,6 +645,7 @@ handle (request& rq, response& rs)
     // Convert butl::standard_version type to brep::version.
     //
     brep::version toolchain_version (tqm.toolchain_version.string ());
+    string&       toolchain_name (tqm.toolchain_name);
 
     // Prepare the buildable package prepared query.
     //
@@ -646,7 +666,9 @@ handle (request& rq, response& rs)
     using pkg_query = query<buildable_package>;
     using prep_pkg_query = prepared_query<buildable_package>;
 
-    pkg_query pq (package_query<buildable_package> (params, imode));
+    pkg_query pq (package_query<buildable_package> (params,
+                                                    imode,
+                                                    queued_expiration_ns));
 
     // Transform (in-place) the interactive login information into the actual
     // login command, if specified in the manifest and the transformation
@@ -800,7 +822,9 @@ handle (request& rq, response& rs)
     {
       using query = query<buildable_package_count>;
 
-      query q (package_query<buildable_package_count> (params, imode));
+      query q (package_query<buildable_package_count> (params,
+                                                       imode,
+                                                       queued_expiration_ns));
 
       transaction t (build_db_->begin ());
 
@@ -896,17 +920,18 @@ handle (request& rq, response& rs)
         equal<build> (bld_query::id.package, id)                          &&
         bld_query::id.package_config_name == bld_query::_ref (pkg_config) &&
         sq                                                                &&
-        bld_query::id.toolchain_name == tqm.toolchain_name                &&
+        bld_query::id.toolchain_name == toolchain_name                    &&
 
         compare_version_eq (bld_query::id.toolchain_version,
                             canonical_version (toolchain_version),
                             true /* revision */)                          &&
 
-        (bld_query::state == "built"                          ||
-         (bld_query::force == "forcing" &&
-          bld_query::timestamp > forced_result_expiration_ns) ||
-         (bld_query::force != "forcing" && // Unforced or forced.
-          bld_query::timestamp > normal_result_expiration_ns)));
+        (bld_query::state == "built" ||
+         (bld_query::state == "building" &&
+          ((bld_query::force == "forcing" &&
+            bld_query::timestamp > forced_result_expiration_ns) ||
+           (bld_query::force != "forcing" && // Unforced or forced.
+            bld_query::timestamp > normal_result_expiration_ns)))));
 
       prep_bld_query bld_prep_query (
         conn->prepare_query<build> ("mod-build-task-build-query", bq));
@@ -970,6 +995,107 @@ handle (request& rq, response& rs)
       // Tenant that the start offset refers to.
       //
       optional<string> start_tenant;
+
+      // If the build task is created and the tenant of the being built
+      // package has a third-party service state associated with it, then
+      // check if the tenant_service_build_building and/or
+      // tenant_service_build_queued callbacks are registered for the type of
+      // the associated service. If they are, then stash the state, the build
+      // object, and the callback pointers for the subsequent service
+      // notifications.
+      //
+      // Also, if the tenant_service_build_queued callback is registered, then
+      // create, persist, and stash the queued build objects for all the
+      // unbuilt by the current toolchain and not yet queued configurations of
+      // the package the build task is created for. Note that for the task
+      // build, we need to make sure that the third-party service receives the
+      // `queued` notification prior to the `building` notification (see
+      // mod/tenant-service.hxx for valid transitions). The `queued`
+      // notification is assumed to be already sent for the build if the
+      // respective object exists and any of the following is true for it:
+      //
+      // - It is in the queued state (initial_state is build_state::queued).
+      //
+      // - It is a user-forced rebuild of an incomplete build
+      //   (rebuild_forced_build is true).
+      //
+      // - It is a rebuild of an interrupted rebuild (rebuild_forced_build is
+      //   true).
+      //
+      const tenant_service_build_building* tsb (nullptr);
+      const tenant_service_build_queued* tsq (nullptr);
+      optional<pair<tenant_service, shared_ptr<build>>> tss;
+      vector<build> qbs;
+      optional<build_state> initial_state;
+      bool rebuild_forced_build (false);
+      bool rebuild_interrupted_rebuild (false);
+
+      // Create, persist, and return the queued build objects for all the
+      // unbuilt by the current toolchain and not yet queued configurations of
+      // the specified package.
+      //
+      // Note that the build object argument is only used for the toolchain
+      // information retrieval. Also note that the package constraints section
+      // is expected to be loaded.
+      //
+      auto queue_builds = [this] (const build_package& p, const build& b)
+      {
+        assert (p.constraints_section.loaded ());
+
+        // Query the existing build ids and stash them into the set.
+        //
+        set<build_id> existing_builds;
+
+        using query = query<package_build_id>;
+
+        query q (query::build::id.package == p.id                     &&
+                 query::build::id.toolchain_name == b.toolchain_name  &&
+                 compare_version_eq (query::build::id.toolchain_version,
+                                     b.id.toolchain_version,
+                                     true /* revision */));
+
+        for (build_id& id: build_db_->query<package_build_id> (q))
+          existing_builds.emplace (move (id));
+
+        // Go through all the potential package builds and queue those which
+        // are not in the existing builds set.
+        //
+        vector<build> r;
+
+        for (const build_package_config& pc: p.configs)
+        {
+          for (const build_target_config& tc: *target_conf_)
+          {
+            if (!exclude (pc, p.builds, p.constraints, tc))
+            {
+              build_id id (p.id,
+                           tc.target, tc.name,
+                           pc.name,
+                           b.toolchain_name, b.toolchain_version);
+
+              if (existing_builds.find (id) == existing_builds.end ())
+              {
+                r.emplace_back (move (id.package.tenant),
+                                move (id.package.name),
+                                p.version,
+                                move (id.target),
+                                move (id.target_config_name),
+                                move (id.package_config_name),
+                                move (id.toolchain_name),
+                                b.toolchain_version);
+
+                // @@ TODO Persist the whole vector of builds with a single
+                //         operation if/when bulk operations support is added
+                //         for objects with containers.
+                //
+                build_db_->persist (r.back ());
+              }
+            }
+          }
+        }
+
+        return r;
+      };
 
       for (bool done (false); tsm.session.empty () && !done; )
       {
@@ -1163,7 +1289,7 @@ handle (request& rq, response& rs)
                               tc.target,
                               tc.name,
                               pc,
-                              tqm.toolchain_name,
+                              toolchain_name,
                               toolchain_version);
 
                 // Can there be any existing builds for such a tenant? Doesn't
@@ -1279,7 +1405,7 @@ handle (request& rq, response& rs)
                               cm.config->target,
                               cm.config->name,
                               move (pkg_config),
-                              move (tqm.toolchain_name),
+                              move (toolchain_name),
                               toolchain_version);
 
                 shared_ptr<build> b (build_db_->find<build> (bid));
@@ -1318,16 +1444,20 @@ handle (request& rq, response& rs)
                 }
                 else
                 {
-                  // The build configuration is in the building state.
+                  // The build configuration is in the building or queued
+                  // state.
                   //
-                  // Note that in both cases we keep the status intact to be
-                  // able to compare it with the final one in the result
-                  // request handling in order to decide if to send the
-                  // notification email or to revert it to the built state if
-                  // interrupted. The same is true for the forced flag (in
-                  // the sense that we don't set the force state to unforced).
+                  // Note that in both the building and built cases we keep
+                  // the status intact to be able to compare it with the final
+                  // one in the result request handling in order to decide if
+                  // to send the notification email or to revert it to the
+                  // built state if interrupted. The same is true for the
+                  // forced flag (in the sense that we don't set the force
+                  // state to unforced).
                   //
-                  assert (b->state == build_state::building);
+                  assert (b->state != build_state::built);
+
+                  initial_state = b->state;
 
                   b->state = build_state::building;
                   b->interactive = move (login);
@@ -1337,7 +1467,10 @@ handle (request& rq, response& rs)
                   // still recognize that the rebuild was forced.
                   //
                   if (b->force == force_state::forcing)
+                  {
                     b->force = force_state::forced;
+                    rebuild_forced_build = true;
+                  }
 
                   b->agent_fingerprint = move (agent_fp);
                   b->agent_challenge = move (cl);
@@ -1364,21 +1497,58 @@ handle (request& rq, response& rs)
                   build_db_->update (b);
                 }
 
+                shared_ptr<build_tenant> t (
+                  build_db_->load<build_tenant> (b->tenant));
+
                 // Archive an interactive tenant.
                 //
                 if (bp.interactive)
                 {
-                  shared_ptr<build_tenant> t (
-                    build_db_->load<build_tenant> (b->id.package.tenant));
-
                   t->archived = true;
                   build_db_->update (t);
                 }
 
-                // Finally, prepare the task response manifest.
+                // Finally, stash the service notification information, if
+                // present, and prepare the task response manifest.
                 //
+                if (t->service)
+                {
+                  auto i (tenant_service_map_.find (t->service->type));
+
+                  if (i != tenant_service_map_.end ())
+                  {
+                    const tenant_service_base* s (i->second.get ());
+
+                    tsb = dynamic_cast<const tenant_service_build_building*> (s);
+                    tsq = dynamic_cast<const tenant_service_build_queued*> (s);
+
+                    if (tsq != nullptr)
+                    {
+                      qbs = queue_builds (*p, *b);
+
+                      // If we ought to call the
+                      // tenant_service_build_queued::build_queued() callback,
+                      // then also set the package tenant's queued timestamp
+                      // to the current time to prevent the notifications race
+                      // (see tenant::queued_timestamp for details).
+                      //
+                      if (!qbs.empty ()  ||
+                          !initial_state ||
+                          (*initial_state != build_state::queued &&
+                           !rebuild_forced_build))
+                      {
+                        t->queued_timestamp = system_clock::now ();
+                        build_db_->update (t);
+                      }
+                    }
+
+                    if (tsb != nullptr || tsq != nullptr)
+                      tss = make_pair (move (*t->service), b);
+                  }
+                }
+
                 tsm = task (
-                  move (b), move (p), move (pc), move (bp.interactive), cm);
+                  *b, move (*p), move (pc), move (bp.interactive), cm);
 
                 break; // Bail out from the package configurations loop.
               }
@@ -1493,6 +1663,11 @@ handle (request& rq, response& rs)
                 {
                   assert (b->status);
 
+                  initial_state = build_state::built;
+
+                  rebuild_interrupted_rebuild =
+                    (b->timestamp > b->soft_timestamp);
+
                   b->state = build_state::building;
 
                   // Save the interactive build login information into the
@@ -1535,8 +1710,45 @@ handle (request& rq, response& rs)
 
                   build_db_->update (b);
 
+                  // Stash the service notification information, if present,
+                  // and prepare the task response manifest.
+                  //
+                  if (t->service)
+                  {
+                    auto i (tenant_service_map_.find (t->service->type));
+
+                    if (i != tenant_service_map_.end ())
+                    {
+                      const tenant_service_base* s (i->second.get ());
+
+                      tsb = dynamic_cast<const tenant_service_build_building*> (s);
+                      tsq = dynamic_cast<const tenant_service_build_queued*> (s);
+
+                      if (tsq != nullptr)
+                      {
+                        qbs = queue_builds (*p, *b);
+
+                        // If we ought to call the
+                        // tenant_service_build_queued::build_queued()
+                        // callback, then also set the package tenant's queued
+                        // timestamp to the current time to prevent the
+                        // notifications race (see tenant::queued_timestamp
+                        // for details).
+                        //
+                        if (!qbs.empty () || !rebuild_interrupted_rebuild)
+                        {
+                          t->queued_timestamp = system_clock::now ();
+                          build_db_->update (t);
+                        }
+                      }
+
+                      if (tsb != nullptr || tsq != nullptr)
+                        tss = make_pair (move (*t->service), b);
+                    }
+                  }
+
                   tsm = task (
-                    move (b), move (p), move (*pc), move (t->interactive), cm);
+                    *b, move (*p), move (*pc), move (t->interactive), cm);
                 }
               }
             }
@@ -1557,6 +1769,73 @@ handle (request& rq, response& rs)
           if (!tsm.session.empty ())
             break;
         }
+      }
+
+      // If the tenant-associated third-party service needs to be notified
+      // about the queued builds, then call the
+      // tenant_service_build_queued::build_queued() callback function and
+      // update the service state, if requested.
+      //
+      if (tsq != nullptr)
+      {
+        assert (tss); // Wouldn't be here otherwise.
+
+        const tenant_service& ss (tss->first);
+
+        // If the task build has no initial state (is just created), then
+        // temporarily move it into the list of the queued builds until the
+        // `queued` notification is delivered. Afterwards, restore it so that
+        // the `building` notification can also be sent.
+        //
+        build& b (*tss->second);
+        bool restore_build (false);
+
+        if (!initial_state)
+        {
+          qbs.push_back (move (b));
+          restore_build = true;
+        }
+
+        if (!qbs.empty ())
+        {
+          if (auto f = tsq->build_queued (ss, qbs, nullopt /* initial_state */))
+            update_tenant_service_state (conn, qbs.back ().tenant, f);
+        }
+
+        // Send the `queued` notification for the task build, unless it is
+        // already sent, and update the service state, if requested.
+        //
+        if (initial_state                         &&
+            *initial_state != build_state::queued &&
+            !rebuild_interrupted_rebuild          &&
+            !rebuild_forced_build)
+        {
+          qbs.clear ();
+          qbs.push_back (move (b));
+          restore_build = true;
+
+          if (auto f = tsq->build_queued (ss, qbs, initial_state))
+            update_tenant_service_state (conn, qbs.back ().tenant, f);
+        }
+
+        if (restore_build)
+          b = move (qbs.back ());
+      }
+
+      // If a third-party service needs to be notified about the package
+      // build, then call the tenant_service_build_built::build_building()
+      // callback function and, if requested, update the tenant-associated
+      // service state.
+      //
+      if (tsb != nullptr)
+      {
+        assert (tss); // Wouldn't be here otherwise.
+
+        const tenant_service& ss (tss->first);
+        const build& b (*tss->second);
+
+        if (auto f = tsb->build_building (ss, b))
+          update_tenant_service_state (conn, b.tenant, f);
       }
     }
   }

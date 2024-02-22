@@ -15,7 +15,8 @@
 
 #include <libbutl/process.hxx>
 #include <libbutl/fdstream.hxx>
-#include <libbutl/process-io.hxx> // operator<<(ostream, process_args)
+#include <libbutl/process-io.hxx>      // operator<<(ostream, process_args)
+#include <libbutl/manifest-parser.hxx>
 
 using namespace std;
 using namespace butl;

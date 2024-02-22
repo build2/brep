@@ -802,7 +802,7 @@ handle (request& rq, response& rs)
     // Print the package built configurations in the time-descending order.
     //
     for (auto& b: build_db_->query<build> (
-           (query::id.package == pkg->id && sq) +
+           (query::id.package == pkg->id && query::state != "queued" && sq) +
            "ORDER BY" + query::timestamp + "DESC"))
     {
       string ts (butl::to_string (b.timestamp,

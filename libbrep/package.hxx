@@ -20,7 +20,7 @@
 //
 #define LIBBREP_PACKAGE_SCHEMA_VERSION_BASE 27
 
-#pragma db model version(LIBBREP_PACKAGE_SCHEMA_VERSION_BASE, 29, closed)
+#pragma db model version(LIBBREP_PACKAGE_SCHEMA_VERSION_BASE, 30, closed)
 
 namespace brep
 {
@@ -241,30 +241,61 @@ namespace brep
     // Create the tenant object with the timestamp set to now and the archived
     // flag set to false.
     //
-    explicit
-    tenant (string id, bool private_, optional<string> interactive);
+    tenant (string id,
+            bool private_,
+            optional<string> interactive,
+            optional<tenant_service>);
 
     string id;
 
     // If true, display the packages in the web interface only in the tenant
     // view mode.
     //
-    bool private_;                // Note: foreign-mapped in build.
+    bool private_;                        // Note: foreign-mapped in build.
 
     // Interactive package build breakpoint.
     //
     // If present, then packages from this tenant will only be built
     // interactively and only non-interactively otherwise.
     //
-    optional<string> interactive; // Note: foreign-mapped in build.
+    optional<string> interactive;         // Note: foreign-mapped in build.
 
     timestamp creation_timestamp;
-    bool archived = false;        // Note: foreign-mapped in build.
+    bool archived = false;                // Note: foreign-mapped in build.
+
+    optional<tenant_service> service;     // Note: foreign-mapped in build.
+
+    // Note that due to the implementation complexity and performance
+    // considerations, the service notifications are not synchronized. This
+    // leads to a potential race, so that before we have sent the `queued`
+    // notification for a package build, some other thread (potentially in a
+    // different process) could have already sent the `building` notification
+    // for it. It feels like there is no easy way to reliably fix that.
+    // Instead, we just decrease the probability of such a notifications
+    // sequence failure by delaying builds of the freshly queued packages for
+    // some time.  Specifically, whenever the `queued` notification is ought
+    // to be sent (normally out of the database transaction, since it likely
+    // sends an HTTP request, etc) the tenant's queued_timestamp member is set
+    // to the current time. During the configured time interval since that
+    // time point the build tasks may not be issued for the tenant's packages.
+    //
+    // Also note that while there are similar potential races for other
+    // notification sequences, their probability is rather low due to the
+    // natural reasons (non-zero build task execution time, etc) and thus we
+    // just ignore them.
+    //
+    optional<timestamp> queued_timestamp; // Note: foreign-mapped in build.
 
     // Database mapping.
     //
     #pragma db member(id) id
     #pragma db member(private_)
+
+    #pragma db index("tenant_service_i") \
+      unique                             \
+      members(service.id, service.type)
+
+    #pragma db index member(service.id)
 
   private:
     friend class odb::access;

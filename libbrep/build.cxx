@@ -12,6 +12,7 @@ namespace brep
   {
     switch (s)
     {
+    case build_state::queued:   return "queued";
     case build_state::building: return "building";
     case build_state::built:    return "built";
     }
@@ -22,7 +23,8 @@ namespace brep
   build_state
   to_build_state (const string& s)
   {
-         if (s == "building") return build_state::building;
+         if (s == "queued")   return build_state::queued;
+    else if (s == "building") return build_state::building;
     else if (s == "built")    return build_state::built;
     else throw invalid_argument ("invalid build state '" + s + '\'');
   }
@@ -89,6 +91,96 @@ namespace brep
         controller_checksum (move (ccs)),
         machine_checksum (move (mcs))
   {
+  }
+
+  build::
+  build (string tnt,
+         package_name_type pnm,
+         version pvr,
+         target_triplet trg,
+         string tcf,
+         string pcf,
+         string tnm, version tvr)
+      : id (package_id (move (tnt), move (pnm), pvr),
+            move (trg),
+            move (tcf),
+            move (pcf),
+            move (tnm), tvr),
+        tenant (id.package.tenant),
+        package_name (id.package.name),
+        package_version (move (pvr)),
+        target (id.target),
+        target_config_name (id.target_config_name),
+        package_config_name (id.package_config_name),
+        toolchain_name (id.toolchain_name),
+        toolchain_version (move (tvr)),
+        state (build_state::queued),
+        timestamp (timestamp_type::clock::now ()),
+        force (force_state::unforced)
+  {
+  }
+
+  build::
+  build (build&& b)
+      : id (move (b.id)),
+        tenant (id.package.tenant),
+        package_name (id.package.name),
+        package_version (move (b.package_version)),
+        target (id.target),
+        target_config_name (id.target_config_name),
+        package_config_name (id.package_config_name),
+        toolchain_name (id.toolchain_name),
+        toolchain_version (move (b.toolchain_version)),
+        state (b.state),
+        interactive (move (b.interactive)),
+        timestamp (b.timestamp),
+        force (b.force),
+        status (b.status),
+        soft_timestamp (b.soft_timestamp),
+        hard_timestamp (b.hard_timestamp),
+        agent_fingerprint (move (b.agent_fingerprint)),
+        agent_challenge (move (b.agent_challenge)),
+        machine (move (b.machine)),
+        machine_summary (move (b.machine_summary)),
+        results (move (b.results)),
+        results_section (move (b.results_section)),
+        controller_checksum (move (b.controller_checksum)),
+        machine_checksum (move (b.machine_checksum)),
+        agent_checksum (move (b.agent_checksum)),
+        worker_checksum (move (b.worker_checksum)),
+        dependency_checksum (move (b.dependency_checksum))
+  {
+  }
+
+  build& build::
+  operator= (build&& b)
+  {
+    if (this != &b)
+    {
+      id = move (b.id);
+      package_version = move (b.package_version);
+      toolchain_version = move (b.toolchain_version);
+      state = b.state;
+      interactive = move (b.interactive);
+      timestamp = b.timestamp;
+      force = b.force;
+      status = b.status;
+      soft_timestamp = b.soft_timestamp;
+      hard_timestamp = b.hard_timestamp;
+      agent_fingerprint = move (b.agent_fingerprint);
+      agent_challenge = move (b.agent_challenge);
+      machine = move (b.machine);
+      machine_summary = move (b.machine_summary);
+      results = move (b.results);
+      results_section = move (b.results_section);
+      controller_checksum = move (b.controller_checksum);
+      machine_checksum = move (b.machine_checksum);
+      agent_checksum = move (b.agent_checksum);
+      worker_checksum = move (b.worker_checksum);
+      dependency_checksum = move (b.dependency_checksum);
+    }
+
+    return *this;
   }
 
   // build_delay

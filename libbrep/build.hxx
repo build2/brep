@@ -28,7 +28,7 @@
 //
 #define LIBBREP_BUILD_SCHEMA_VERSION_BASE 20
 
-#pragma db model version(LIBBREP_BUILD_SCHEMA_VERSION_BASE, 23, closed)
+#pragma db model version(LIBBREP_BUILD_SCHEMA_VERSION_BASE, 24, closed)
 
 // We have to keep these mappings at the global scope instead of inside the
 // brep namespace because they need to be also effective in the bbot namespace
@@ -129,8 +129,14 @@ namespace brep
 
   // build_state
   //
+  // The queued build state is semantically equivalent to a non-existent
+  // build. It is only used for those tenants, which have a third-party
+  // service associated that requires the `queued` notifications (see
+  // mod/tenant-service.hxx for background).
+  //
   enum class build_state: std::uint8_t
   {
+    queued,
     building,
     built
   };
@@ -211,6 +217,23 @@ namespace brep
            string machine, string machine_summary,
            string controller_checksum,
            string machine_checksum);
+
+    // Create the build object with the queued state.
+    //
+    build (string tenant,
+           package_name_type, version,
+           target_triplet,
+           string target_config_name,
+           string package_config_name,
+           string toolchain_name, version toolchain_version);
+
+    // Move-only type.
+    //
+    build (build&&);
+    build& operator= (build&&);
+
+    build (const build&) = delete;
+    build& operator= (const build&) = delete;
 
     build_id id;
 
@@ -315,9 +338,6 @@ namespace brep
 
     #pragma db member(results_section) load(lazy) update(always)
 
-    build (const build&) = delete;
-    build& operator= (const build&) = delete;
-
   private:
     friend class odb::access;
 
@@ -377,7 +397,7 @@ namespace brep
     canonical_version version_;
   };
 
-  // Build of an existing buildable package.
+  // Builds of existing buildable packages.
   //
   #pragma db view                                                      \
     object(build)                                                      \
@@ -406,6 +426,19 @@ namespace brep
     // Database mapping.
     //
     #pragma db member(result) column("count(" + build::id.package.name + ")")
+  };
+
+  // Ids of existing buildable package builds.
+  //
+  #pragma db view object(build)                                       \
+    object(build_package inner:                                       \
+           brep::operator== (build::id.package, build_package::id) && \
+           build_package::buildable)
+  struct package_build_id
+  {
+    build_id id;
+
+    operator build_id& () {return id;}
   };
 
   // Used to track the package build delays since the last build or, if not

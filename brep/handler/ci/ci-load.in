@@ -108,6 +108,13 @@ declare -A packages
 #
 spec=
 
+# Third party service information which, if specified, needs to be associated
+# with the being created tenant.
+#
+service_id=
+service_type=
+service_data=
+
 while IFS=: read -ru "$manifest_parser_ofd" -d '' n v; do
   case "$n" in
     repository)  repository="$v"  ;;
@@ -122,6 +129,10 @@ while IFS=: read -ru "$manifest_parser_ofd" -d '' n v; do
       fi
       spec="$spec$v"
       ;;
+
+    service-id)   service_id="$v"   ;;
+    service-type) service_type="$v" ;;
+    service-data) service_data="$v" ;;
   esac
 done
 
@@ -139,6 +150,12 @@ fi
 
 if [[ -n "$simulate" && "$simulate" != "success" ]]; then
   exit_with_manifest 400 "unrecognized simulation outcome '$simulate'"
+fi
+
+# Use the generated reference if the tenant service id is not specified.
+#
+if [[ -n "$service_type" && -z "$service_id" ]]; then
+  service_id="$reference"
 fi
 
 message_suffix=
@@ -304,6 +321,16 @@ loader_options+=(--force --shallow --tenant "$reference")
 #
 if [[ -n "$interactive" ]]; then
   loader_options+=(--interactive "$interactive")
+fi
+
+# Pass the tenant service information, if specified, to the loader.
+#
+if [[ -n "$service_id" ]]; then
+  loader_options+=(--service-id "$service_id" --service-type "$service_type")
+
+  if [[ -n "$service_data" ]]; then
+    loader_options+=(--service-data "$service_data")
+  fi
 fi
 
 run "$loader" "${loader_options[@]}" "$loadtab"

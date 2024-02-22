@@ -9,6 +9,7 @@
 #include <vector>
 #include <iosfwd>
 #include <chrono>
+#include <memory>    // enable_shared_from_this
 #include <cstdint>   // uint16_t
 #include <cstddef>   // size_t
 #include <utility>   // move()
@@ -236,7 +237,7 @@ namespace web
   // directories (e.g., apache/) if you need to see the code that
   // does this.
   //
-  class handler
+  class handler: public std::enable_shared_from_this<handler>
   {
   public:
     virtual

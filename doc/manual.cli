@@ -341,11 +341,22 @@ repository: <url>
 timestamp: <date-time>
 [client-ip]: <string>
 [user-agent]: <string>
+[service-id]: <string>
+[service-type]: <string>
+[service-data]: <string>
 \
 
 The \c{package} value can be repeated multiple times. The \c{timestamp} value
 is in the ISO-8601 \c{<YYYY>-<MM>-<DD>T<hh>:<mm>:<ss>Z} form (always
 UTC). Note also that \c{client-ip} can be IPv4 or IPv6.
+
+Note that some CI service implementations may serve as backends for
+third-party services. The latter may initiate CI tasks, providing all the
+required information via some custom protocol, and expect the CI service to
+notify it about the progress. In this case the third-party service type as
+well as optionally the third-party id and custom state data can be
+communicated to the underlying CI handler program via the respective
+\c{service-*} manifest values.
 
 
 \h#ci-overrides-manifest|CI Overrides Manifest|

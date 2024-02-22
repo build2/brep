@@ -77,6 +77,28 @@ class options
      breakpoint. Implies \cb{--private}."
   };
 
+  std::string --service-id
+  {
+    "<id>",
+    "Third party service information to associate with the being created
+     tenant. Requires the \cb{--tenant} and \cb{--service-type} options to be
+     specified."
+  };
+
+  std::string --service-type
+  {
+    "<type>",
+    "Type of the service to associate with the being created tenant. Requires
+     the \cb{--service-id} option to be specified."
+  };
+
+  std::string --service-data
+  {
+    "<data>",
+    "Service data to associate with the being created tenant. Requires the
+     \cb{--service-id} option to be specified."
+  };
+
   brep::path --overrides-file
   {
     "<file>",
