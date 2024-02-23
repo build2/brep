@@ -85,8 +85,8 @@ namespace brep
 {
   // GitHub-specific types.
   //
-  // @@ TMP A brep::repository here would clash with the pre-existing
-  //        brep::repository.
+  // Note that having this types directly in brep causes clashes (e.g., for
+  // the repository name).
   //
   namespace gh
   {
@@ -193,7 +193,9 @@ namespace brep
   // Throw system_error(EINVAL) if the status line could not be parsed.
   //
   // Note that this implementation is almost identical to that of bpkg's
-  // start_curl() function in fetch.cxx.
+  // start_curl() function in fetch.cxx. @@ KAREN: let's factor this
+  // to static butl::curl function (note: needs to throw some generic
+  // exception).
   //
   static uint16_t
   read_status_code (ifdstream& in)
@@ -202,10 +204,6 @@ namespace brep
     // (containing just CRLF). Not being able to reach such a line is an error,
     // which is the reason for the exception mask choice. When done, we will
     // restore the original exception mask.
-    //
-    //   @@ TMP Presumably curl would already have failed if the server's
-    //          response was malformed, right? So if we get here the only way to
-    //          get EOF would be an I/O error?
     //
     ifdstream::iostate es (in.exceptions ());
 
@@ -300,6 +298,9 @@ namespace brep
   //
   //   "HeaderName: header value"
   //
+  // Throw invalid_json_input if unable to parse the response and system_error
+  // in other cases.
+  //
   template<typename T>
   static uint16_t
   github_post (T& rs, const string& ep, const strings& hdrs)
@@ -325,16 +326,15 @@ namespace brep
       // causes curl to exit with status 22 in case of an error HTTP response
       // status code (>= 400) otherwise we can't get the status code.
       //
+      // @@ KAREN: fix butl::curl (detect if --no-fail or --fail is passed
+      //    explicitly).
+      //
       // Note that butl::curl also adds --location to make curl follow redirects
       // (which is recommended by GitHub).
       //
       // The API version `2022-11-28` is the only one currently supported. If
       // the X-GitHub-Api-Version header is not passed this version will be
       // chosen by default.
-      //
-      // @@ TMP Although this request does not have a body, can't pass a nullfd
-      //        stdin because it will cause butl::curl to fail if the method is
-      //        POST.
       //
       fdpipe errp (fdopen_pipe ()); // stderr pipe.
 
@@ -355,9 +355,12 @@ namespace brep
       int sc; // Status code.
       try
       {
-        ifdstream in (c.in.release (), fdstream_mode::skip);
-
         c.out.close (); // No input required.
+
+        // Note: re-open in/out so that they get automatically closed on
+        // exception.
+        //
+        ifdstream in (c.in.release (), fdstream_mode::skip);
 
         // Read HTTP status code.
         //
@@ -385,18 +388,13 @@ namespace brep
             (string ("unable to read curl stdout: ") + e.what ()).c_str ());
         }
       }
-      catch (const json::invalid_json_input& e)
+      catch (const json::invalid_json_input&)
       {
         // If the process exits with non-zero status, assume the JSON error is
         // due to that and fall through.
         //
         if (c.wait ())
-        {
-          throw_generic_error (
-            EINVAL,
-            (string ("malformed JSON response from GitHub: ") + e.what ())
-            .c_str ());
-        }
+          throw;
       }
 
       if (!c.wait ())
@@ -500,11 +498,11 @@ namespace brep
       }
       catch (const json::invalid_json_input& e)
       {
+        // @@ error (line/column/location)
+
         throw invalid_request (400, "malformed JSON in request body");
       }
 
-      // @@ TODO: log and ignore unknown.
-      //
       if (cs.action == "requested")
       {
       }
@@ -520,7 +518,13 @@ namespace brep
         // ignore?
       }
       else
+      {
+        // @@ error unknown action (we can't really ignore).
+
+        // @@ Ignore empty response.
+
         throw invalid_request (400, "unsupported action: " + cs.action);
+      }
 
       cout << "<check_suite webhook>" << endl << cs << endl;
 
@@ -541,8 +545,7 @@ namespace brep
       }
       catch (const system_error& e)
       {
-        fail << "unable to generate JWT (errno=" << e.code () << "): "
-             << e.what ();
+        fail << "unable to generate JWT (errno=" << e.code () << "): " << e;
       }
 
       // Authenticate to GitHub as an app installation.
@@ -569,9 +572,15 @@ namespace brep
         //
         if (sc != 201)
         {
+          // @@ fail (log status)
+          //
           throw runtime_error ("error status code received from GitHub: " +
                                to_string (sc));
         }
+      }
+      catch (const json::invalid_json_input& e)
+      {
+        // @@ fail (line/column/location)
       }
       catch (const system_error& e)
       {
