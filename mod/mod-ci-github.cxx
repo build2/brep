@@ -360,6 +360,9 @@ namespace brep
         // Note: re-open in/out so that they get automatically closed on
         // exception.
         //
+        //   @@ TMP What if c.out.close() above throws io_error? Or are the
+        //          odds just too low (given that it's empty) to matter?
+        //
         ifdstream in (c.in.release (), fdstream_mode::skip);
 
         // Read HTTP status code.
@@ -498,9 +501,12 @@ namespace brep
       }
       catch (const json::invalid_json_input& e)
       {
-        // @@ error (line/column/location)
+        string m ("malformed JSON in " + e.name + " request body");
 
-        throw invalid_request (400, "malformed JSON in request body");
+        error << m << " [line " << e.line << ", column " << e.column
+              << ", byte offset " << e.position << "]: " << e;
+
+        throw invalid_request (400, move (m));
       }
 
       if (cs.action == "requested")
@@ -519,11 +525,12 @@ namespace brep
       }
       else
       {
-        // @@ error unknown action (we can't really ignore).
+        // Ignore unknown actions by sending a 200 response but also log an
+        // error.
+        //
+        error << "unknown action '" << cs.action << "' in check_suite webhook";
 
-        // @@ Ignore empty response.
-
-        throw invalid_request (400, "unsupported action: " + cs.action);
+        return true;
       }
 
       cout << "<check_suite webhook>" << endl << cs << endl;
@@ -572,15 +579,18 @@ namespace brep
         //
         if (sc != 201)
         {
-          // @@ fail (log status)
-          //
-          throw runtime_error ("error status code received from GitHub: " +
-                               to_string (sc));
+          fail << "unable to get installation access token: "
+               << "error HTTP response status " << sc
+               << " received from GitHub";
         }
       }
       catch (const json::invalid_json_input& e)
       {
-        // @@ fail (line/column/location)
+        // Note: e.name is the GitHub API endpoint.
+        //
+        fail << "malformed JSON in response from " << e.name << " [line "
+             << e.line << ", column " << e.column << ", byte offset "
+             << e.position << "]: " << e;
       }
       catch (const system_error& e)
       {
