@@ -184,111 +184,6 @@ namespace brep
       s, unknown_mode::fail, unknown_mode::fail);
   }
 
-  // Read the HTTP response status code from an input stream.
-  //
-  // Parse the status code from the HTTP status line, skip over the remaining
-  // headers (leaving the stream at the beginning of the response body), and
-  // return the status code.
-  //
-  // Throw system_error(EINVAL) if the status line could not be parsed.
-  //
-  // Note that this implementation is almost identical to that of bpkg's
-  // start_curl() function in fetch.cxx. @@ KAREN: let's factor this
-  // to static butl::curl function (note: needs to throw some generic
-  // exception).
-  //
-  static uint16_t
-  read_status_code (ifdstream& in)
-  {
-    // After getting the status code we will read until the empty line
-    // (containing just CRLF). Not being able to reach such a line is an error,
-    // which is the reason for the exception mask choice. When done, we will
-    // restore the original exception mask.
-    //
-    ifdstream::iostate es (in.exceptions ());
-
-    in.exceptions (
-      ifdstream::badbit | ifdstream::failbit | ifdstream::eofbit);
-
-    // Parse and return the HTTP status code. Return 0 if the argument is
-    // invalid.
-    //
-    auto status_code = [] (const string& s)
-    {
-      char* e (nullptr);
-      unsigned long c (strtoul (s.c_str (), &e, 10)); // Can't throw.
-      assert (e != nullptr);
-
-      return *e == '\0' && c >= 100 && c < 600
-        ? static_cast<uint16_t> (c)
-        : 0;
-    };
-
-    // Read the CRLF-terminated line from the stream stripping the trailing
-    // CRLF.
-    //
-    auto read_line = [&in] ()
-    {
-      string l;
-      getline (in, l); // Strips the trailing LF (0xA).
-
-      // Note that on POSIX CRLF is not automatically translated into LF, so
-      // we need to strip CR (0xD) manually.
-      //
-      if (!l.empty () && l.back () == '\r')
-        l.pop_back ();
-
-      return l;
-    };
-
-    auto read_status = [&read_line, &status_code] () -> uint16_t
-    {
-      string l (read_line ());
-
-      for (;;) // Breakout loop.
-      {
-        if (l.compare (0, 5, "HTTP/") != 0)
-          break;
-
-        size_t p (l.find (' ', 5));           // The protocol end.
-        if (p == string::npos)
-          break;
-
-        p = l.find_first_not_of (' ', p + 1); // The code start.
-        if (p == string::npos)
-          break;
-
-        size_t e (l.find (' ', p + 1));       // The code end.
-        if (e == string::npos)
-          break;
-
-        uint16_t c (status_code (string (l, p, e - p)));
-        if (c == 0)
-          break;
-
-        return c;
-      }
-
-      throw_generic_error (
-        EINVAL,
-        ("invalid HTTP response status line '" + l + "'").c_str ());
-    };
-
-    uint16_t sc (read_status ());
-
-    if (sc == 100)
-    {
-      while (!read_line ().empty ()) ; // Skips the interim response.
-      sc = read_status ();             // Reads the final status code.
-    }
-
-    while (!read_line ().empty ()) ;   // Skips headers.
-
-    in.exceptions (es);
-
-    return sc;
-  }
-
   // Send a POST request to the GitHub API endpoint `ep`, parse GitHub's JSON
   // response into `rs` (only for 200 codes), and return the HTTP status code.
   //
@@ -298,8 +193,9 @@ namespace brep
   //
   //   "HeaderName: header value"
   //
-  // Throw invalid_json_input if unable to parse the response and system_error
-  // in other cases.
+  // Throw invalid_argument if unable to parse the response headers,
+  // invalid_json_input (derived from invalid_argument) if unable to parse the
+  // response body, and system_error in other cases.
   //
   template<typename T>
   static uint16_t
@@ -362,9 +258,7 @@ namespace brep
         //
         ifdstream in (c.in.release (), fdstream_mode::skip);
 
-        // Read HTTP status code.
-        //
-        sc = read_status_code (in);
+        sc = curl::read_http_status (in).code; // May throw invalid_argument.
 
         // Parse the response body if the status code is in the 200 range.
         //
@@ -590,6 +484,10 @@ namespace brep
         fail << "malformed JSON in response from " << e.name << ", line: "
              << e.line << ", column: " << e.column << ", byte offset: "
              << e.position << ", error: " << e;
+      }
+      catch (const invalid_argument& e)
+      {
+        fail << "malformed header(s) in response: " << e;
       }
       catch (const system_error& e)
       {
