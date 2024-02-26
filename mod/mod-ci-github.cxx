@@ -587,11 +587,9 @@ namespace brep
       {
         // Note: e.name is the GitHub API endpoint.
         //
-        // @@ Redo as above.
-        //
-        fail << "malformed JSON in response from " << e.name << " [line "
-             << e.line << ", column " << e.column << ", byte offset "
-             << e.position << "]: " << e;
+        fail << "malformed JSON in response from " << e.name << ", line: "
+             << e.line << ", column: " << e.column << ", byte offset: "
+             << e.position << ", error: " << e;
       }
       catch (const system_error& e)
       {
@@ -613,6 +611,18 @@ namespace brep
 
   using event = json::event;
 
+  // Throw invalid_json_input when a required member `m` is missing from a
+  // JSON object `o`.
+  //
+  [[noreturn]] static void
+  missing_member (const json::parser& p, const char* o, const char* m)
+  {
+    throw json::invalid_json_input (
+      p.input_name,
+      p.line (), p.column (), p.position (),
+      o + string (" object is missing member `") + m + "`");
+  }
+
   // check_suite
   //
   gh::check_suite::
@@ -620,7 +630,7 @@ namespace brep
   {
     p.next_expect (event::begin_object);
 
-    bool id (false), hb (false), hs (false), bf (false), at (false);
+    bool i (false), hb (false), hs (false), bf (false), at (false);
 
     // Skip unknown/uninteresting members.
     //
@@ -631,18 +641,19 @@ namespace brep
         return p.name () == s ? (v = true) : false;
       };
 
-      if      (n == "id")          id = p.next_expect_number<uint64_t> ();
+      if      (c (i, "id"))           id = p.next_expect_number<uint64_t> ();
       else if (c (hb, "head_branch")) head_branch = p.next_expect_string ();
-      else if (n == "head_sha")    head_sha = p.next_expect_string ();
-      else if (n == "before")      before = p.next_expect_string ();
-      else if (n == "after")       after = p.next_expect_string ();
+      else if (c (hs, "head_sha"))    head_sha = p.next_expect_string ();
+      else if (c (bf, "before"))      before = p.next_expect_string ();
+      else if (c (at, "after"))       after = p.next_expect_string ();
       else p.next_expect_value_skip ();
     }
 
+    if (!i)  missing_member (p, "check_suite", "id");
     if (!hb) missing_member (p, "check_suite", "head_branch");
-
-    // @@ What if we did not see required members?
-    //    Throw invalid_json_input.
+    if (!hs) missing_member (p, "check_suite", "head_sha");
+    if (!bf) missing_member (p, "check_suite", "before");
+    if (!at) missing_member (p, "check_suite", "after");
   }
 
   static ostream&
@@ -664,17 +675,26 @@ namespace brep
   {
     p.next_expect (event::begin_object);
 
+    bool nm (false), fn (false), db (false);
+
     // Skip unknown/uninteresting members.
     //
     while (p.next_expect (event::name, event::end_object))
     {
-      const string& n (p.name ());
+      auto c = [&p] (bool& v, const char* s)
+      {
+        return p.name () == s ? (v = true) : false;
+      };
 
-      if      (n == "name")           name = p.next_expect_string ();
-      else if (n == "full_name")      full_name = p.next_expect_string ();
-      else if (n == "default_branch") default_branch = p.next_expect_string ();
+      if      (c (nm, "name"))           name = p.next_expect_string ();
+      else if (c (fn, "full_name"))      full_name = p.next_expect_string ();
+      else if (c (db, "default_branch")) default_branch = p.next_expect_string ();
       else p.next_expect_value_skip ();
     }
+
+    if (!nm) missing_member (p, "repository", "name");
+    if (!fn) missing_member (p, "repository", "full_name");
+    if (!db) missing_member (p, "repository", "default_branch");
   }
 
   static ostream&
@@ -694,15 +714,22 @@ namespace brep
   {
     p.next_expect (event::begin_object);
 
+    bool i (false);
+
     // Skip unknown/uninteresting members.
     //
     while (p.next_expect (event::name, event::end_object))
     {
-      const string& n (p.name ());
+      auto c = [&p] (bool& v, const char* s)
+      {
+        return p.name () == s ? (v = true) : false;
+      };
 
-      if (n == "id") id = p.next_expect_number<uint64_t> ();
+      if (c (i, "id")) id = p.next_expect_number<uint64_t> ();
       else p.next_expect_value_skip ();
     }
+
+    if (!i) missing_member (p, "installation", "id");
   }
 
   static ostream&
@@ -720,18 +747,28 @@ namespace brep
   {
     p.next_expect (event::begin_object);
 
+    bool ac (false), cs (false), rp (false), in (false);
+
     // Skip unknown/uninteresting members.
     //
     while (p.next_expect (event::name, event::end_object))
     {
-      const string& n (p.name ());
+      auto c = [&p] (bool& v, const char* s)
+      {
+        return p.name () == s ? (v = true) : false;
+      };
 
-      if      (n == "action")         action = p.next_expect_string ();
-      else if (n == "check_suite")    check_suite = gh::check_suite (p);
-      else if (n == "repository")     repository = gh::repository (p);
-      else if (n == "installation")   installation = gh::installation (p);
+      if      (c (ac, "action"))       action = p.next_expect_string ();
+      else if (c (cs, "check_suite"))  check_suite = gh::check_suite (p);
+      else if (c (rp, "repository"))   repository = gh::repository (p);
+      else if (c (in, "installation")) installation = gh::installation (p);
       else p.next_expect_value_skip ();
     }
+
+    if (!ac) missing_member (p, "check_suite_event", "action");
+    if (!cs) missing_member (p, "check_suite_event", "check_suite");
+    if (!rp) missing_member (p, "check_suite_event", "repository");
+    if (!in) missing_member (p, "check_suite_event", "installation");
   }
 
   static ostream&
@@ -760,21 +797,28 @@ namespace brep
   {
     p.next_expect (event::begin_object);
 
+    bool tk (false), ea (false);
+
     // Skip unknown/uninteresting members.
     //
     while (p.next_expect (event::name, event::end_object))
     {
-      const string& n (p.name ());
+      auto c = [&p] (bool& v, const char* s)
+      {
+        return p.name () == s ? (v = true) : false;
+      };
 
-      if (n == "token")
-        token = p.next_expect_string ();
-      else if (n == "expires_at")
+      if      (c (tk, "token"))      token = p.next_expect_string ();
+      else if (c (ea, "expires_at"))
       {
         const string& s (p.next_expect_string ());
         expires_at = from_string (s.c_str (), "%Y-%m-%dT%TZ", false /* local */);
       }
       else p.next_expect_value_skip ();
     }
+
+    if (!tk) missing_member (p, "installation_access_token", "token");
+    if (!ea) missing_member (p, "installation_access_token", "expires_at");
   }
 
   static ostream&
