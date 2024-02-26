@@ -218,12 +218,9 @@ namespace brep
       // Pass --include to print the HTTP status line (followed by the response
       // headers) so that we can get the response status code.
       //
-      // Pass --no-fail to disable the --fail option added by butl::curl which
-      // causes curl to exit with status 22 in case of an error HTTP response
-      // status code (>= 400) otherwise we can't get the status code.
-      //
-      // @@ KAREN: fix butl::curl (detect if --no-fail or --fail is passed
-      //    explicitly).
+      // Suppress the --fail option which causes curl to exit with status 22
+      // in case of an error HTTP response status code (>= 400) otherwise we
+      // can't get the status code.
       //
       // Note that butl::curl also adds --location to make curl follow redirects
       // (which is recommended by GitHub).
@@ -237,9 +234,10 @@ namespace brep
       curl c (path ("-"),
               path ("-"), // Write response to curl::in.
               process::pipe (errp.in.get (), move (errp.out)),
-              curl::post, "https://api.github.com/" + ep,
+              curl::post,
+              curl::flags::no_fail,
+              "https://api.github.com/" + ep,
               "--include", // Output response headers for status code.
-              "--no-fail", // Don't exit with 22 if response status code >= 400.
               "--header", "Accept: application/vnd.github+json",
               "--header", "X-GitHub-Api-Version: 2022-11-28",
               move (hdr_opts));
