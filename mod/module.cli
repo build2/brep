@@ -845,15 +845,15 @@ namespace brep
     {
     };
 
-    // @@ TODO Is etc/brep-module.conf updated manually?
+    // @@ TODO Is etc/brep-module.conf updated manually? Yes, will need to
+    //    replicate there eventually.
     //
     class ci_github: ci_start, ci_cancel,
                      build, build_db,
                      handler,
                      openssl_options
     {
-      // GitHub CI-specific options (e.g., request timeout when invoking
-      // GitHub APIs).
+      // GitHub CI-specific options.
       //
 
       size_t ci-github-app-id

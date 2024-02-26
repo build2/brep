@@ -360,9 +360,6 @@ namespace brep
         // Note: re-open in/out so that they get automatically closed on
         // exception.
         //
-        //   @@ TMP What if c.out.close() above throws io_error? Or are the
-        //          odds just too low (given that it's empty) to matter?
-        //
         ifdstream in (c.in.release (), fdstream_mode::skip);
 
         // Read HTTP status code.
@@ -373,7 +370,10 @@ namespace brep
         //
         if (sc >= 200 && sc < 300)
         {
-          json::parser p (in, ep);
+          // Use endpoint name as input name (useful to have it propagated
+          // in exceptions).
+          //
+          json::parser p (in, ep /* name */);
           rs = T (p);
         }
 
@@ -503,8 +503,8 @@ namespace brep
       {
         string m ("malformed JSON in " + e.name + " request body");
 
-        error << m << " [line " << e.line << ", column " << e.column
-              << ", byte offset " << e.position << "]: " << e;
+        error << m << ", line: " << e.line << ", column: " << e.column
+              << ", byte offset: " << e.position << ", error: " << e;
 
         throw invalid_request (400, move (m));
       }
@@ -525,8 +525,8 @@ namespace brep
       }
       else
       {
-        // Ignore unknown actions by sending a 200 response but also log an
-        // error.
+        // Ignore unknown actions by sending a 200 response with empty body
+        // but also log as an error since we want to notice new actions.
         //
         error << "unknown action '" << cs.action << "' in check_suite webhook";
 
@@ -580,13 +580,14 @@ namespace brep
         if (sc != 201)
         {
           fail << "unable to get installation access token: "
-               << "error HTTP response status " << sc
-               << " received from GitHub";
+               << "error HTTP response status " << sc;
         }
       }
       catch (const json::invalid_json_input& e)
       {
         // Note: e.name is the GitHub API endpoint.
+        //
+        // @@ Redo as above.
         //
         fail << "malformed JSON in response from " << e.name << " [line "
              << e.line << ", column " << e.column << ", byte offset "
@@ -619,19 +620,29 @@ namespace brep
   {
     p.next_expect (event::begin_object);
 
+    bool id (false), hb (false), hs (false), bf (false), at (false);
+
     // Skip unknown/uninteresting members.
     //
     while (p.next_expect (event::name, event::end_object))
     {
-      const string& n (p.name ());
+      auto c = [&p] (bool& v, const char* s)
+      {
+        return p.name () == s ? (v = true) : false;
+      };
 
       if      (n == "id")          id = p.next_expect_number<uint64_t> ();
-      else if (n == "head_branch") head_branch = p.next_expect_string ();
+      else if (c (hb, "head_branch")) head_branch = p.next_expect_string ();
       else if (n == "head_sha")    head_sha = p.next_expect_string ();
       else if (n == "before")      before = p.next_expect_string ();
       else if (n == "after")       after = p.next_expect_string ();
       else p.next_expect_value_skip ();
     }
+
+    if (!hb) missing_member (p, "check_suite", "head_branch");
+
+    // @@ What if we did not see required members?
+    //    Throw invalid_json_input.
   }
 
   static ostream&
