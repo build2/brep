@@ -231,7 +231,7 @@ namespace brep
       //
       fdpipe errp (fdopen_pipe ()); // stderr pipe.
 
-      curl c (path ("-"),
+      curl c (nullfd,
               path ("-"), // Write response to curl::in.
               process::pipe (errp.in.get (), move (errp.out)),
               curl::post,
@@ -249,8 +249,6 @@ namespace brep
       int sc; // Status code.
       try
       {
-        c.out.close (); // No input required.
-
         // Note: re-open in/out so that they get automatically closed on
         // exception.
         //
