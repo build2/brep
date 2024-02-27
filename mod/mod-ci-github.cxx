@@ -33,51 +33,6 @@
 //    https://en.wikipedia.org/wiki/HMAC#Definition. A suitable implementation
 //    is provided by OpenSSL.
 
-// @@ Move to function bodies below.
-
-// @@ Authenticating to use the API
-//
-//    There are three types of authentication:
-//
-//    1) Authenticating as an app. Used to access parts of the API concerning
-//       the app itself such as getting the list of installations. (Need to
-//       authenticate as an app as part of authenticating as an app
-//       installation.)
-//
-//    2) Authenticating as an app installation (on a user or organisation
-//       account). Used to access resources belonging to the user/repository
-//       or organisation the app is installed in.
-//
-//    3) Authenticating as a user. Used to perform actions as the user.
-//
-//    We need to authenticate as an app installation (2).
-//
-//    How to authenticate as an app installation
-//
-//    Reference:
-//    https://docs.github.com/en/apps/creating-github-apps/authenticating-with-a-github-app/authenticating-as-a-github-app-installation
-//
-//    The final authentication token we need is an installation access token
-//    (IAT), valid for one hour, which we will pass in the `Authentication`
-//    header of our Github API requests:
-//
-//      Authorization: Bearer <INSTALLATION_ACCESS_TOKEN>
-//
-//    To generate an IAT:
-//
-//    - Generate a JSON Web Token (JWT)
-//
-//    - Get the installation ID. This will be included in the webhook request
-//      in our case
-//
-//    - Send a POST to /app/installations/<INSTALLATION_ID>/access_tokens
-//      which includes the JWT (`Authorization: Bearer <JWT>`). The response
-//      will include the IAT. Can pass the name of the repository included in
-//      the webhook request to restrict access, otherwise we get access to all
-//      repos covered by the installation if installed on an organisation for
-//      example.
-//
-
 using namespace std;
 using namespace butl;
 using namespace web;
@@ -108,7 +63,7 @@ namespace brep
 
     HANDLER_DIAG;
 
-    // @@ TODO: diable service is HMAC is not specified in config.
+    // @@ TODO: disable service if HMAC is not specified in config.
     //
     if (false)
       throw invalid_request (404, "CI request submission disabled");
@@ -116,6 +71,8 @@ namespace brep
     // Process headers.
     //
     string event;
+    // @@ TMP Shouldn't we also error<< in some of these header problem cases?
+    //
     {
       bool content_type (false);
 
@@ -233,13 +190,13 @@ namespace brep
     }
   }
 
-  bool
-  handle_check_suite_request (check_suite_event) const
+  bool ci_github::
+  handle_check_suite_request (check_suite_event cs) const
   {
     cout << "<check_suite webhook>" << endl << cs << endl;
 
     installation_access_token iat (
-      obtain_installation_access_token (generate_jwt ()));
+      obtain_installation_access_token (cs.installation.id, generate_jwt ()));
 
     cout << endl << "<installation_access_token>" << endl << iat << endl;
 
@@ -380,7 +337,7 @@ namespace brep
     }
   }
 
-  void string
+  string ci_github::
   generate_jwt () const
   {
     string jwt;
@@ -389,33 +346,76 @@ namespace brep
       // Set token's "issued at" time 60 seconds in the past to combat clock
       // drift (as recommended by GitHub).
       //
-      jwt = gen_jwt (
-        *options_,
-        options_->ci_github_app_private_key (),
-        to_string (options_->ci_github_app_id ()),
-        chrono::seconds (options_->ci_github_jwt_validity_period ()),
-        chrono::seconds (60));
+      jwt = brep::generate_jwt (
+          *options_,
+          options_->ci_github_app_private_key (),
+          to_string (options_->ci_github_app_id ()),
+          chrono::seconds (options_->ci_github_jwt_validity_period ()),
+          chrono::seconds (60));
 
       cout << "JWT: " << jwt << endl;
     }
     catch (const system_error& e)
     {
+      HANDLER_DIAG;
+
       fail << "unable to generate JWT (errno=" << e.code () << "): " << e;
     }
+
+    return jwt;
   }
 
-  // Authenticate to GitHub as an app installation.
+  // There are three types of GitHub API authentication:
   //
-  gh::installation_access_token
-  obtain_installation_access_token (string jwt) const
+  //   1) Authenticating as an app. Used to access parts of the API concerning
+  //      the app itself such as getting the list of installations. (Need to
+  //      authenticate as an app as part of authenticating as an app
+  //      installation.)
+  //
+  //   2) Authenticating as an app installation (on a user or organisation
+  //      account). Used to access resources belonging to the user/repository
+  //      or organisation the app is installed in.
+  //
+  //   3) Authenticating as a user. Used to perform actions as the user.
+  //
+  // We need to authenticate as an app installation (2).
+  //
+  // How to authenticate as an app installation
+  //
+  // Reference:
+  // https://docs.github.com/en/apps/creating-github-apps/authenticating-with-a-github-app/authenticating-as-a-github-app-installation
+  //
+  // The final authentication token we need is an installation access token
+  // (IAT), valid for one hour, which we will pass in the `Authentication`
+  // header of our Github API requests:
+  //
+  //   Authorization: Bearer <INSTALLATION_ACCESS_TOKEN>
+  //
+  // To generate an IAT:
+  //
+  // - Generate a JSON Web Token (JWT)
+  //
+  // - Get the installation ID. This will be included in the webhook request
+  //   in our case
+  //
+  // - Send a POST to /app/installations/<INSTALLATION_ID>/access_tokens which
+  //   includes the JWT (`Authorization: Bearer <JWT>`). The response will
+  //   include the IAT. Can pass the name of the repository included in the
+  //   webhook request to restrict access, otherwise we get access to all
+  //   repos covered by the installation if installed on an organisation for
+  //   example.
+  //
+  installation_access_token ci_github::
+  obtain_installation_access_token (uint64_t iid, string jwt) const
   {
+    HANDLER_DIAG;
+
     installation_access_token iat;
     try
     {
       // API endpoint.
       //
-      string ep ("app/installations/" + to_string (cs.installation.id) +
-                 "/access_tokens");
+      string ep ("app/installations/" + to_string (iid) + "/access_tokens");
 
       int sc (github_post (iat, ep, strings {"Authorization: Bearer " + jwt}));
 
@@ -452,6 +452,8 @@ namespace brep
       fail << "unable to get installation access token (errno=" << e.code ()
            << "): " << e.what ();
     }
+
+    return iat;
   }
 
   // The rest is GitHub request/response type parsing and printing.

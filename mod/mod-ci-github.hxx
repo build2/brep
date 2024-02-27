@@ -29,7 +29,9 @@ namespace brep
   //
   namespace gh
   {
-    // The "check_suite" object within a check_quite webhook request.
+    namespace json = butl::json;
+
+    // The "check_suite" object within a check_suite webhook request.
     //
     struct check_suite
     {
@@ -131,15 +133,15 @@ namespace brep
     // Handle the check_suite event `requested` and `rerequested` actions.
     //
     bool
-    handle_check_suite_request (check_suite_event) const;
+    handle_check_suite_request (gh::check_suite_event) const;
 
-    void string
+    string
     generate_jwt () const;
 
     // Authenticate to GitHub as an app installation.
     //
     gh::installation_access_token
-    obtain_installation_access_token (string jwt) const;
+    obtain_installation_access_token (uint64_t install_id, string jwt) const;
 
   private:
     shared_ptr<options::ci_github> options_;
