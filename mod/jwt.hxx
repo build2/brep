@@ -30,11 +30,11 @@ namespace brep
   // Return the token or throw std::system_error in case of an error.
   //
   string
-  gen_jwt (const options::openssl_options&,
-           const path& private_key,
-           const string& issuer,
-           const std::chrono::seconds& validity_period,
-           const std::chrono::seconds& backdate = std::chrono::seconds (60));
+  generate_jwt (const options::openssl_options&,
+                const path& private_key,
+                const string& issuer,
+                const std::chrono::seconds& validity_period,
+                const std::chrono::seconds& backdate = std::chrono::seconds (60));
 }
 
 #endif
