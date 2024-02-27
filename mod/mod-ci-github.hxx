@@ -31,7 +31,7 @@ namespace brep
   {
     namespace json = butl::json;
 
-    // The "check_suite" object within a check_suite webhook request.
+    // The "check_suite" object within a check_suite webhook event request.
     //
     struct check_suite
     {
@@ -69,6 +69,8 @@ namespace brep
       installation () = default;
     };
 
+    // The check_suite webhook event request.
+    //
     struct check_suite_event
     {
       string action;
