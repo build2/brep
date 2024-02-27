@@ -70,9 +70,16 @@ namespace brep
 
     // Process headers.
     //
-    string event;
     // @@ TMP Shouldn't we also error<< in some of these header problem cases?
     //
+    // @@ TMP From GitHub docs: "You can create webhooks that subscribe to the
+    //        events listed on this page."
+    //
+    //        So it seems appropriate to generally use the term "event" (which
+    //        we already do for the most part), and "webhook event" only when
+    //        more context would be useful?
+    //
+    string event; // Webhook event.
     {
       bool content_type (false);
 
@@ -113,8 +120,9 @@ namespace brep
         throw invalid_request (400, "missing x-github-event header");
     }
 
-    // There is an event (specified in the x-github-event header) and each event
-    // contains a bunch of actions (specified in the JSON request body).
+    // There is a webhook event (specified in the x-github-event header) and
+    // each event contains a bunch of actions (specified in the JSON request
+    // body).
     //
     // Note: "GitHub continues to add new event types and new actions to
     // existing event types." As a result we ignore known actions that we are
@@ -127,7 +135,7 @@ namespace brep
       check_suite_event cs;
       try
       {
-        json::parser p (rq.content (64 * 1024), "check_suite webhook");
+        json::parser p (rq.content (64 * 1024), "check_suite event");
 
         cs = check_suite_event (p);
       }
@@ -169,7 +177,7 @@ namespace brep
         // Ignore unknown actions by sending a 200 response with empty body
         // but also log as an error since we want to notice new actions.
         //
-        error << "unknown action '" << cs.action << "' in check_suite webhook";
+        error << "unknown action '" << cs.action << "' in check_suite event";
 
         return true;
       }
@@ -193,7 +201,7 @@ namespace brep
   bool ci_github::
   handle_check_suite_request (check_suite_event cs) const
   {
-    cout << "<check_suite webhook>" << endl << cs << endl;
+    cout << "<check_suite event>" << endl << cs << endl;
 
     installation_access_token iat (
       obtain_installation_access_token (cs.installation.id, generate_jwt ()));
