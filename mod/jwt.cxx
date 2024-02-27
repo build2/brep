@@ -52,11 +52,11 @@ using namespace butl;
 //   base64url($header) + '.' + base64url($payload) + '.' + base64url($signature)
 //
 string brep::
-gen_jwt (const options::openssl_options& o,
-         const path& pk,
-         const string& iss,
-         const chrono::seconds& vp,
-         const chrono::seconds& bd)
+generate_jwt (const options::openssl_options& o,
+              const path& pk,
+              const string& iss,
+              const chrono::seconds& vp,
+              const chrono::seconds& bd)
 {
   // Create the header.
   //
