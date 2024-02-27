@@ -33,6 +33,8 @@
 //    https://en.wikipedia.org/wiki/HMAC#Definition. A suitable implementation
 //    is provided by OpenSSL.
 
+// @@ Move to function bodies below.
+
 // @@ Authenticating to use the API
 //
 //    There are three types of authentication:
@@ -83,91 +85,6 @@ using namespace brep::cli;
 
 namespace brep
 {
-  // GitHub-specific types.
-  //
-  // Note that having this types directly in brep causes clashes (e.g., for
-  // the repository name).
-  //
-  namespace gh
-  {
-    // The "check_suite" object within a check_quite webhook request.
-    //
-    struct check_suite
-    {
-      uint64_t id;
-      string head_branch;
-      string head_sha;
-      string before;
-      string after;
-
-      explicit
-      check_suite (json::parser&);
-
-      check_suite () = default;
-    };
-
-    struct repository
-    {
-      string name;
-      string full_name;
-      string default_branch;
-
-      explicit
-      repository (json::parser&);
-
-      repository () = default;
-    };
-
-    struct installation
-    {
-      uint64_t id;
-
-      explicit
-      installation (json::parser&);
-
-      installation () = default;
-    };
-
-    struct check_suite_event
-    {
-      string action;
-      gh::check_suite check_suite;
-      gh::repository repository;
-      gh::installation installation;
-
-      explicit
-      check_suite_event (json::parser&);
-
-      check_suite_event () = default;
-    };
-
-    struct installation_access_token
-    {
-      string token;
-      timestamp expires_at;
-
-      explicit
-      installation_access_token (json::parser&);
-
-      installation_access_token () = default;
-    };
-
-    static ostream&
-    operator<< (ostream&, const check_suite&);
-
-    static ostream&
-    operator<< (ostream&, const repository&);
-
-    static ostream&
-    operator<< (ostream&, const installation&);
-
-    static ostream&
-    operator<< (ostream&, const check_suite_event&);
-
-    static ostream&
-    operator<< (ostream&, const installation_access_token&);
-  }
-
   using namespace gh;
 
   ci_github::
@@ -182,6 +99,151 @@ namespace brep
   {
     options_ = make_shared<options::ci_github> (
       s, unknown_mode::fail, unknown_mode::fail);
+  }
+
+  bool ci_github::
+  handle (request& rq, response&)
+  {
+    using namespace bpkg;
+
+    HANDLER_DIAG;
+
+    // @@ TODO: diable service is HMAC is not specified in config.
+    //
+    if (false)
+      throw invalid_request (404, "CI request submission disabled");
+
+    // Process headers.
+    //
+    string event;
+    {
+      bool content_type (false);
+
+      for (const name_value& h: rq.headers ())
+      {
+        if (icasecmp (h.name, "x-github-delivery") == 0)
+        {
+          // @@ TODO Check that delivery UUID has not been received before
+          //         (replay attack).
+        }
+        else if (icasecmp (h.name, "content-type") == 0)
+        {
+          if (!h.value)
+            throw invalid_request (400, "missing content-type value");
+
+          if (icasecmp (*h.value, "application/json") != 0)
+          {
+            throw invalid_request (400,
+                                   "invalid content-type value: '" + *h.value +
+                                   '\'');
+          }
+
+          content_type = true;
+        }
+        else if (icasecmp (h.name, "x-github-event") == 0)
+        {
+          if (!h.value)
+            throw invalid_request (400, "missing x-github-event value");
+
+          event = *h.value;
+        }
+      }
+
+      if (!content_type)
+        throw invalid_request (400, "missing content-type header");
+
+      if (event.empty ())
+        throw invalid_request (400, "missing x-github-event header");
+    }
+
+    // There is an event (specified in the x-github-event header) and each event
+    // contains a bunch of actions (specified in the JSON request body).
+    //
+    // Note: "GitHub continues to add new event types and new actions to
+    // existing event types." As a result we ignore known actions that we are
+    // not interested in and log and ignore unknown actions. The thinking here
+    // is that we want be "notified" of new actions at which point we can decide
+    // whether to ignore them or to handle.
+    //
+    if (event == "check_suite")
+    {
+      check_suite_event cs;
+      try
+      {
+        json::parser p (rq.content (64 * 1024), "check_suite webhook");
+
+        cs = check_suite_event (p);
+      }
+      catch (const json::invalid_json_input& e)
+      {
+        string m ("malformed JSON in " + e.name + " request body");
+
+        error << m << ", line: " << e.line << ", column: " << e.column
+              << ", byte offset: " << e.position << ", error: " << e;
+
+        throw invalid_request (400, move (m));
+      }
+
+      if (cs.action == "requested")
+      {
+        return handle_check_suite_request (move (cs));
+      }
+      else if (cs.action == "rerequested")
+      {
+        // Someone manually requested to re-run the check runs in this check
+        // suite. Treat as a new request.
+        //
+        return handle_check_suite_request (move (cs));
+      }
+      else if (cs.action == "completed")
+      {
+        // GitHub thinks that "all the check runs in this check suite have
+        // completed and a conclusion is available". Looks like this one we
+        // ignore?
+        //
+        // @@ TODO What if our bookkeeping says otherwise? See conclusion
+        //    field which includes timedout. Need to come back to this once
+        //    have the "happy path" implemented.
+        //
+        return true;
+      }
+      else
+      {
+        // Ignore unknown actions by sending a 200 response with empty body
+        // but also log as an error since we want to notice new actions.
+        //
+        error << "unknown action '" << cs.action << "' in check_suite webhook";
+
+        return true;
+      }
+    }
+    else if (event == "pull_request")
+    {
+      // @@ TODO
+
+      throw invalid_request (501, "pull request events not implemented yet");
+    }
+    else
+    {
+      // Log to investigate.
+      //
+      error << "unexpected event '" << event << "'";
+
+      throw invalid_request (400, "unexpected event: '" + event + "'");
+    }
+  }
+
+  bool
+  handle_check_suite_request (check_suite_event) const
+  {
+    cout << "<check_suite webhook>" << endl << cs << endl;
+
+    installation_access_token iat (
+      obtain_installation_access_token (generate_jwt ()));
+
+    cout << endl << "<installation_access_token>" << endl << iat << endl;
+
+    return true;
   }
 
   // Send a POST request to the GitHub API endpoint `ep`, parse GitHub's JSON
@@ -237,6 +299,7 @@ namespace brep
               curl::post,
               curl::flags::no_fail,
               "https://api.github.com/" + ep,
+              "--no-fail", // Don't fail if response status code >= 400.
               "--include", // Output response headers for status code.
               "--header", "Accept: application/vnd.github+json",
               "--header", "X-GitHub-Api-Version: 2022-11-28",
@@ -317,192 +380,82 @@ namespace brep
     }
   }
 
-  bool ci_github::
-  handle (request& rq, response&)
+  void string
+  generate_jwt () const
   {
-    using namespace bpkg;
-
-    HANDLER_DIAG;
-
-    // @@ TODO
-    if (false)
-      throw invalid_request (404, "CI request submission disabled");
-
-    // Process headers.
-    //
-    string event;
+    string jwt;
+    try
     {
-      bool content_type (false);
-
-      for (const name_value& h: rq.headers ())
-      {
-        if (icasecmp (h.name, "x-github-delivery") == 0)
-        {
-          // @@ TODO Check that delivery UUID has not been received before
-          //         (replay attack).
-        }
-        else if (icasecmp (h.name, "content-type") == 0)
-        {
-          if (!h.value)
-            throw invalid_request (400, "missing content-type value");
-
-          if (icasecmp (*h.value, "application/json") != 0)
-          {
-            throw invalid_request (400,
-                                   "invalid content-type value: '" + *h.value +
-                                   '\'');
-          }
-
-          content_type = true;
-        }
-        else if (icasecmp (h.name, "x-github-event") == 0)
-        {
-          if (!h.value)
-            throw invalid_request (400, "missing x-github-event value");
-
-          event = *h.value;
-        }
-      }
-
-      if (!content_type)
-        throw invalid_request (400, "missing content-type header");
-
-      if (event.empty ())
-        throw invalid_request (400, "missing x-github-event header");
-    }
-
-    // There is an event (specified in the x-github-event header) and each event
-    // contains a bunch of actions (specified in the JSON request body).
-    //
-    // Note: "GitHub continues to add new event types and new actions to
-    // existing event types." As a result we ignore known actions that we are
-    // not interested in and log and ignore unknown actions. The thinking here
-    // is that we want be "notified" of new actions at which point we can decide
-    // whether to ignore them or to handle.
-    //
-    if (event == "check_suite")
-    {
-      check_suite_event cs;
-      try
-      {
-        json::parser p (rq.content (64 * 1024), "check_suite webhook");
-
-        cs = check_suite_event (p);
-      }
-      catch (const json::invalid_json_input& e)
-      {
-        string m ("malformed JSON in " + e.name + " request body");
-
-        error << m << ", line: " << e.line << ", column: " << e.column
-              << ", byte offset: " << e.position << ", error: " << e;
-
-        throw invalid_request (400, move (m));
-      }
-
-      if (cs.action == "requested")
-      {
-      }
-      else if (cs.action == "rerequested")
-      {
-        // Someone manually requested to re-run the check runs in this check
-        // suite.
-      }
-      else if (cs.action == "completed")
-      {
-        // GitHub thinks that "all the check runs in this check suite have
-        // completed and a conclusion is available". Looks like this one we
-        // ignore?
-      }
-      else
-      {
-        // Ignore unknown actions by sending a 200 response with empty body
-        // but also log as an error since we want to notice new actions.
-        //
-        error << "unknown action '" << cs.action << "' in check_suite webhook";
-
-        return true;
-      }
-
-      cout << "<check_suite webhook>" << endl << cs << endl;
-
-      string jwt;
-      try
-      {
-        // Set token's "issued at" time 60 seconds in the past to combat clock
-        // drift (as recommended by GitHub).
-        //
-        jwt = gen_jwt (
-          *options_,
-          options_->ci_github_app_private_key (),
-          to_string (options_->ci_github_app_id ()),
-          chrono::seconds (options_->ci_github_jwt_validity_period ()),
-          chrono::seconds (60));
-
-        cout << "JWT: " << jwt << endl;
-      }
-      catch (const system_error& e)
-      {
-        fail << "unable to generate JWT (errno=" << e.code () << "): " << e;
-      }
-
-      // Authenticate to GitHub as an app installation.
+      // Set token's "issued at" time 60 seconds in the past to combat clock
+      // drift (as recommended by GitHub).
       //
-      installation_access_token iat;
-      try
-      {
-        // API endpoint.
-        //
-        string ep ("app/installations/" + to_string (cs.installation.id) +
-                   "/access_tokens");
+      jwt = gen_jwt (
+        *options_,
+        options_->ci_github_app_private_key (),
+        to_string (options_->ci_github_app_id ()),
+        chrono::seconds (options_->ci_github_jwt_validity_period ()),
+        chrono::seconds (60));
 
-        int sc (github_post (iat, ep, strings {"Authorization: Bearer " + jwt}));
-
-        // Possible response status codes from the access_tokens endpoint:
-        //
-        // 201 Created
-        // 401 Requires authentication
-        // 403 Forbidden
-        // 404 Resource not found
-        // 422 Validation failed, or the endpoint has been spammed.
-        //
-        // Note that the payloads of non-201 status codes are undocumented.
-        //
-        if (sc != 201)
-        {
-          fail << "unable to get installation access token: "
-               << "error HTTP response status " << sc;
-        }
-      }
-      catch (const json::invalid_json_input& e)
-      {
-        // Note: e.name is the GitHub API endpoint.
-        //
-        fail << "malformed JSON in response from " << e.name << ", line: "
-             << e.line << ", column: " << e.column << ", byte offset: "
-             << e.position << ", error: " << e;
-      }
-      catch (const invalid_argument& e)
-      {
-        fail << "malformed header(s) in response: " << e;
-      }
-      catch (const system_error& e)
-      {
-        fail << "unable to get installation access token (errno=" << e.code ()
-             << "): " << e.what ();
-      }
-
-      cout << endl << "<installation_access_token>" << endl << iat << endl;
-
-      return true;
+      cout << "JWT: " << jwt << endl;
     }
-    else if (event == "pull_request")
+    catch (const system_error& e)
     {
-      throw invalid_request (501, "pull request events not implemented yet");
+      fail << "unable to generate JWT (errno=" << e.code () << "): " << e;
     }
-    else
-      throw invalid_request (400, "unexpected event: '" + event + "'");
   }
 
+  // Authenticate to GitHub as an app installation.
+  //
+  gh::installation_access_token
+  obtain_installation_access_token (string jwt) const
+  {
+    installation_access_token iat;
+    try
+    {
+      // API endpoint.
+      //
+      string ep ("app/installations/" + to_string (cs.installation.id) +
+                 "/access_tokens");
+
+      int sc (github_post (iat, ep, strings {"Authorization: Bearer " + jwt}));
+
+      // Possible response status codes from the access_tokens endpoint:
+      //
+      // 201 Created
+      // 401 Requires authentication
+      // 403 Forbidden
+      // 404 Resource not found
+      // 422 Validation failed, or the endpoint has been spammed.
+      //
+      // Note that the payloads of non-201 status codes are undocumented.
+      //
+      if (sc != 201)
+      {
+        fail << "unable to get installation access token: "
+             << "error HTTP response status " << sc;
+      }
+    }
+    catch (const json::invalid_json_input& e)
+    {
+      // Note: e.name is the GitHub API endpoint.
+      //
+      fail << "malformed JSON in response from " << e.name << ", line: "
+           << e.line << ", column: " << e.column << ", byte offset: "
+           << e.position << ", error: " << e;
+    }
+    catch (const invalid_argument& e)
+    {
+      fail << "malformed header(s) in response: " << e;
+    }
+    catch (const system_error& e)
+    {
+      fail << "unable to get installation access token (errno=" << e.code ()
+           << "): " << e.what ();
+    }
+  }
+
+  // The rest is GitHub request/response type parsing and printing.
+  //
   using event = json::event;
 
   // Throw invalid_json_input when a required member `m` is missing from a
@@ -514,7 +467,7 @@ namespace brep
     throw json::invalid_json_input (
       p.input_name,
       p.line (), p.column (), p.position (),
-      o + string (" object is missing member `") + m + "`");
+      o + string (" object is missing member '") + m + '\'');
   }
 
   // check_suite
@@ -535,7 +488,7 @@ namespace brep
         return p.name () == s ? (v = true) : false;
       };
 
-      if      (c (i, "id"))           id = p.next_expect_number<uint64_t> ();
+      if      (c (i,  "id"))          id = p.next_expect_number<uint64_t> ();
       else if (c (hb, "head_branch")) head_branch = p.next_expect_string ();
       else if (c (hs, "head_sha"))    head_sha = p.next_expect_string ();
       else if (c (bf, "before"))      before = p.next_expect_string ();
