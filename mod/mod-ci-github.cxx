@@ -10,7 +10,7 @@
 #include <mod/module-options.hxx>
 
 #include <stdexcept>
-#include <iostream>
+#include <iostream> // @@ TODO Remove once debug output has been removed.
 
 // @@ TODO
 //
@@ -22,6 +22,7 @@
 //
 //    Webhooks:
 //    https://docs.github.com/en/webhooks/using-webhooks/best-practices-for-using-webhooks
+//    https://docs.github.com/en/webhooks/using-webhooks/validating-webhook-deliveries
 //
 //    REST API:
 //    https://docs.github.com/en/rest/using-the-rest-api/best-practices-for-using-the-rest-api?apiVersion=2022-11-28
@@ -85,6 +86,8 @@ namespace brep
 
       for (const name_value& h: rq.headers ())
       {
+        // This event's UUID.
+        //
         if (icasecmp (h.name, "x-github-delivery") == 0)
         {
           // @@ TODO Check that delivery UUID has not been received before
@@ -104,6 +107,8 @@ namespace brep
 
           content_type = true;
         }
+        // The webhook event.
+        //
         else if (icasecmp (h.name, "x-github-event") == 0)
         {
           if (!h.value)
@@ -513,7 +518,7 @@ namespace brep
     if (!at) missing_member (p, "check_suite", "after");
   }
 
-  static ostream&
+  ostream&
   gh::operator<< (ostream& os, const check_suite& cs)
   {
     os << "id: " << cs.id << endl
@@ -554,7 +559,7 @@ namespace brep
     if (!db) missing_member (p, "repository", "default_branch");
   }
 
-  static ostream&
+  ostream&
   gh::operator<< (ostream& os, const repository& rep)
   {
     os << "name: " << rep.name << endl
@@ -589,7 +594,7 @@ namespace brep
     if (!i) missing_member (p, "installation", "id");
   }
 
-  static ostream&
+  ostream&
   gh::operator<< (ostream& os, const installation& i)
   {
     os << "id: " << i.id << endl;
@@ -628,7 +633,7 @@ namespace brep
     if (!in) missing_member (p, "check_suite_event", "installation");
   }
 
-  static ostream&
+  ostream&
   gh::operator<< (ostream& os, const check_suite_event& cs)
   {
     os << "action: " << cs.action << endl;
@@ -678,7 +683,7 @@ namespace brep
     if (!ea) missing_member (p, "installation_access_token", "expires_at");
   }
 
-  static ostream&
+  ostream&
   gh::operator<< (ostream& os, const installation_access_token& t)
   {
     os << "token: " << t.token << endl;
