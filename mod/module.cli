@@ -862,6 +862,12 @@ namespace brep
         "The GitHub App ID. Found in the app's settings on GitHub."
       }
 
+      string ci-github-app-webhook-secret
+      {
+        "<secret>",
+        "The GitHub app's configured webhook secret."
+      }
+
       path ci-github-app-private-key
       {
         "<path>",
