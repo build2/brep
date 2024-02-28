@@ -862,11 +862,18 @@ namespace brep
         "The GitHub App ID. Found in the app's settings on GitHub."
       }
 
+      string ci-github-app-webhook-secret
+      {
+        "<secret>",
+        "The GitHub App's configured webhook secret. If not set, then the
+         GitHub CI service is disabled."
+      }
+
       path ci-github-app-private-key
       {
         "<path>",
         "The private key used during GitHub API authentication. Created in
-         the GitHub app's settings."
+         the GitHub App's settings."
       }
 
       uint16_t ci-github-jwt-validity-period = 600

@@ -7,6 +7,7 @@
 #include <libbutl/json/parser.hxx>
 
 #include <mod/jwt.hxx>
+#include <mod/hmac.hxx>
 #include <mod/module-options.hxx>
 
 #include <stdexcept>
@@ -64,10 +65,8 @@ namespace brep
 
     HANDLER_DIAG;
 
-    // @@ TODO: disable service if HMAC is not specified in config.
-    //
-    if (false)
-      throw invalid_request (404, "CI request submission disabled");
+    if (!options_->ci_github_app_webhook_secret_specified ())
+      throw invalid_request (404, "GitHub CI request submission disabled");
 
     // Process headers.
     //
@@ -81,14 +80,35 @@ namespace brep
     //        more context would be useful?
     //
     string event; // Webhook event.
+    string hmac;  // Received HMAC.
     {
       bool content_type (false);
 
       for (const name_value& h: rq.headers ())
       {
+        // HMAC authenticating this request. Note that it won't be present
+        // unless a webhook secret has been set in the GitHub app's settings.
+        //
+        if (icasecmp (h.name, "x-hub-signature-256") == 0)
+        {
+          if (!h.value)
+            throw invalid_request (400, "missing x-hub-signature-256 value");
+
+          // Parse the x-hub-signature-256 header value. For example:
+          //
+          // sha256=5e82258...
+          //
+          // Check for the presence of the "sha256=" prefix and then strip it
+          // to leave only the HMAC value.
+          //
+          if (h.value->find ("sha256=", 0, 7) == string::npos)
+            throw invalid_request (400, "invalid x-hub-signature-256 value");
+
+          hmac = h.value->substr (7);
+        }
         // This event's UUID.
         //
-        if (icasecmp (h.name, "x-github-delivery") == 0)
+        else if (icasecmp (h.name, "x-github-delivery") == 0)
         {
           // @@ TODO Check that delivery UUID has not been received before
           //         (replay attack).
@@ -123,6 +143,59 @@ namespace brep
 
       if (event.empty ())
         throw invalid_request (400, "missing x-github-event header");
+
+      if (hmac.empty ())
+        throw invalid_request (400, "missing x-hub-signature-256 header");
+    }
+
+    // Read the entire request body into a buffer because we need to compute
+    // an HMAC over it and then parse it as JSON. The alternative of reading
+    // from the stream twice works out to be more complicated (see also @@
+    // TODO item in web/server/module.hxx).
+    //
+    string body;
+    {
+      // Note that even though we may not need caching right now, we may later
+      // (e.g., to support cancel) so let's just enable it right away.
+      //
+      size_t limit (128 * 1024);
+
+      istream& is (rq.content (limit, limit));
+
+      try
+      {
+        getline (is, body, '\0');
+      }
+      catch (const io_error& e)
+      {
+        fail << "unable to read request body: " << e;
+      }
+    }
+
+    // Verify the received HMAC.
+    //
+    // Compute the HMAC value over the request body using the configured
+    // webhook secret as key and compare it to the received HMAC.
+    //
+    try
+    {
+      string h (
+        compute_hmac (*options_,
+                      body.data (), body.size (),
+                      options_->ci_github_app_webhook_secret ().c_str ()));
+
+      if (!icasecmp (h, hmac))
+      {
+        string m ("computed HMAC does not match received HMAC");
+
+        error << m;
+
+        throw invalid_request (400, move (m));
+      }
+    }
+    catch (const system_error& e)
+    {
+      fail << "unable to compute request HMAC: " << e;
     }
 
     // There is a webhook event (specified in the x-github-event header) and
@@ -140,7 +213,7 @@ namespace brep
       check_suite_event cs;
       try
       {
-        json::parser p (rq.content (64 * 1024), "check_suite event");
+        json::parser p (body.data (), body.size (), "check_suite event");
 
         cs = check_suite_event (p);
       }

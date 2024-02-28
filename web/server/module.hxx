@@ -82,6 +82,11 @@ namespace web
   using name_values = std::vector<name_value>;
   using butl::path;
 
+  // @@ TODO: Expose the request input stream rewinding support provided by
+  //          web::apache::request::rewind(). Might come in useful in cases
+  //          where more than one thing needs to be done with the request
+  //          body, e.g., compute its MAC and then parse its contents.
+  //
   class request
   {
   public:
