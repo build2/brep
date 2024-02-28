@@ -4,8 +4,6 @@
 #ifndef MOD_MOD_CI_GITHUB_HXX
 #define MOD_MOD_CI_GITHUB_HXX
 
-#include <web/xhtml/fragment.hxx>
-
 #include <libbrep/types.hxx>
 #include <libbrep/utility.hxx>
 
@@ -95,19 +93,19 @@ namespace brep
       installation_access_token () = default;
     };
 
-    static ostream&
+    ostream&
     operator<< (ostream&, const check_suite&);
 
-    static ostream&
+    ostream&
     operator<< (ostream&, const repository&);
 
-    static ostream&
+    ostream&
     operator<< (ostream&, const installation&);
 
-    static ostream&
+    ostream&
     operator<< (ostream&, const check_suite_event&);
 
-    static ostream&
+    ostream&
     operator<< (ostream&, const installation_access_token&);
   }
 
