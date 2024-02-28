@@ -24,9 +24,6 @@ namespace brep
   // the "issued at" time in order to combat potential clock drift (which can
   // cause the token to be not valid yet).
   //
-  //   @@ TODO Is there a standard term? "drift" or "drift value" seems to be
-  //           used quite often.
-  //
   // Return the token or throw std::system_error in case of an error.
   //
   string
