@@ -7,7 +7,7 @@ using namespace butl;
 
 string brep::
 compute_hmac (const options::openssl_options& o,
-              const vector<char>& m,
+              const void* m, size_t l,
               const char* k)
 {
   try
@@ -45,7 +45,7 @@ compute_hmac (const options::openssl_options& o,
 
       // Write the message to openssl's input.
       //
-      out.write (m.data (), m.size ());
+      out.write (static_cast<const char*> (m), l);
       out.close ();
 
       // Read the HMAC value from openssl's output.

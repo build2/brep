@@ -153,7 +153,7 @@ namespace brep
     // from the stream twice works out to be more complicated (see also @@
     // TODO item in web/server/module.hxx).
     //
-    vector<char> body; // Change to string, use getline('\0')
+    string body;
     {
       // Note that even though we may not need caching right now, we may later
       // (e.g., to support cancel) so let's just enable it right away.
@@ -162,23 +162,9 @@ namespace brep
 
       istream& is (rq.content (limit, limit));
 
-      // Note that istream::read() sets failbit if unable to read the
-      // requested number of bytes.
-      //
-      is.exceptions (istream::badbit);
-
       try
       {
-        size_t n (0); // Total bytes read.
-
-        while (!eof (is))
-        {
-          body.resize (n + 8192);
-          is.read (body.data () + n, 8192);
-          n += is.gcount ();
-        }
-
-        body.resize (n);
+        getline (is, body, '\0');
       }
       catch (const io_error& e)
       {
@@ -195,10 +181,10 @@ namespace brep
     {
       string h (
         compute_hmac (*options_,
-                      body,
+                      body.data (), body.size (),
                       options_->ci_github_app_webhook_secret ().c_str ()));
 
-      if (!icasecmp (hmac, r_hmac))
+      if (!icasecmp (h, hmac))
       {
         string m ("computed HMAC does not match received HMAC");
 
