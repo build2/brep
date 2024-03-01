@@ -66,11 +66,7 @@ namespace brep
     HANDLER_DIAG;
 
     if (!options_->ci_github_app_webhook_secret_specified ())
-    {
-      error << "webhook secret not configured";
-
-      throw invalid_request (404, "CI request submission disabled");
-    }
+      throw invalid_request (404, "GitHub CI request submission disabled");
 
     // Process headers.
     //
@@ -83,8 +79,8 @@ namespace brep
     //        we already do for the most part), and "webhook event" only when
     //        more context would be useful?
     //
-    string event;  // Webhook event.
-    string r_hmac; // Received HMAC.
+    string event; // Webhook event.
+    string hmac;  // Received HMAC.
     {
       bool content_type (false);
 
@@ -98,7 +94,17 @@ namespace brep
           if (!h.value)
             throw invalid_request (400, "missing x-hub-signature-256 value");
 
-          r_hmac = *h.value;
+          // Parse the x-hub-signature-256 header value. For example:
+          //
+          // sha256=5e82258...
+          //
+          // Check for the presence of the "sha256=" prefix and then strip it
+          // to leave only the HMAC value.
+          //
+          if (h.value->find ("sha256=", 0, 7) == string::npos)
+            throw invalid_request (400, "invalid x-hub-signature-256 value");
+
+          hmac = h.value->substr (7);
         }
         // This event's UUID.
         //
@@ -132,44 +138,29 @@ namespace brep
         }
       }
 
-      // Parse the x-hub-signature-256 header value. For example:
-      //
-      // sha256=5e822587094c68e646db8b916da1db2056d92f1dea4252136a533b4147a30cb7
-      //
-      // Check for the presence of the "sha256=" prefix and then strip it to
-      // leave only the HMAC.
-      //
-      if (r_hmac.find ("sha256=", 0, 7) == string::npos)
-      {
-        throw invalid_request (400,
-                               "invalid x-hub-signature-256 value: '" +
-                                   r_hmac + '\'');
-      }
-      r_hmac = r_hmac.substr (7);
-
       if (!content_type)
         throw invalid_request (400, "missing content-type header");
 
       if (event.empty ())
         throw invalid_request (400, "missing x-github-event header");
+
+      if (hmac.empty ())
+        throw invalid_request (400, "missing x-hub-signature-256 header");
     }
 
     // Read the entire request body into a buffer because we need to compute
     // an HMAC over it and then parse it as JSON. The alternative of reading
-    // from the stream twice works out to be more complicated and expensive.
+    // from the stream twice works out to be more complicated (see also @@
+    // TODO item in web/server/module.hxx).
     //
-    // @@ TMP Although it is possible (with a bit of work) to rewind the
-    //        request's input stream, in that case we'd have to read from it
-    //        twice (once for the HMAC and once for the JSON parsing) instead
-    //        of just this once, temp buffer(s) would be necessary, and we'd
-    //        still be storing the entire request body in memory anyway (just
-    //        not here).
-    //
-    vector<char> body;
+    vector<char> body; // Change to string, use getline('\0')
     {
-      // Note: buffer=0 disables caching.
+      // Note that even though we may not need caching right now, we may later
+      // (e.g., to support cancel) so let's just enable it right away.
       //
-      istream& is (rq.content (64 * 1024, 0 /* buffer */));
+      size_t limit (128 * 1024);
+
+      istream& is (rq.content (limit, limit));
 
       // Note that istream::read() sets failbit if unable to read the
       // requested number of bytes.
@@ -197,18 +188,16 @@ namespace brep
 
     // Verify the received HMAC.
     //
-    // Compute the HMAC over the request body using the configured webhook
-    // secret as key and compare it to the received HMAC.
+    // Compute the HMAC value over the request body using the configured
+    // webhook secret as key and compare it to the received HMAC.
     //
     try
     {
-      string hmac (
-          compute_hmac (*options_,
-                        body,
-                        options_->ci_github_app_webhook_secret ().c_str ()));
+      string h (
+        compute_hmac (*options_,
+                      body,
+                      options_->ci_github_app_webhook_secret ().c_str ()));
 
-      // @@ TODO GitHub recommends constant-time comparison (timing attack).
-      //
       if (!icasecmp (hmac, r_hmac))
       {
         string m ("computed HMAC does not match received HMAC");

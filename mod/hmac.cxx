@@ -14,9 +14,12 @@ compute_hmac (const options::openssl_options& o,
   {
     fdpipe errp (fdopen_pipe ()); // stderr pipe.
 
-    // To compute an HMAC over stdin with the key "secret":
+    // To compute an HMAC over stdin with the key <secret>:
     //
-    //   openssl mac -digest SHA256 -macopt "key:secret" HMAC
+    //   openssl mac -digest SHA256 -macopt "key:<secret>" HMAC
+    //
+    // Note that here we assume both output and diagnostics will fit into pipe
+    // buffers and don't poll both with fdselect().
     //
     openssl os (path ("-"), // Read message from openssl::out.
                 path ("-"), // Write output to openssl::in.
@@ -29,13 +32,13 @@ compute_hmac (const options::openssl_options& o,
 
     ifdstream err (move (errp.in));
 
-    string h; // The HMAC.
+    string h; // The HMAC value.
     try
     {
-      // In case of exception, skip and close input after output.
+      // In case of an exception, skip and close input after output.
       //
       // Note: re-open in/out so that they get automatically closed on
-      // exception.
+      // an exception.
       //
       ifdstream in (os.in.release (), fdstream_mode::skip);
       ofdstream out (os.out.release ());
@@ -45,7 +48,7 @@ compute_hmac (const options::openssl_options& o,
       out.write (m.data (), m.size ());
       out.close ();
 
-      // Read the HMAC from openssl's output.
+      // Read the HMAC value from openssl's output.
       //
       h = in.read_text ();
       in.close ();
