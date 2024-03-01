@@ -9,9 +9,9 @@
 namespace brep
 {
   // Compute the HMAC-SHA256 message authentication code over a message using
-  // the given key.
+  // the given key (alpha-numeric string, not encoded).
   //
-  // Return the HMAC or throw std::system_error in case of an error.
+  // Return the HMAC value or throw std::system_error in case of an error.
   //
   // Example output:
   //
