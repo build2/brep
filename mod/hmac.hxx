@@ -22,7 +22,7 @@ namespace brep
   //
   string
   compute_hmac (const options::openssl_options&,
-                const vector<char>& message,
+                const void* message, size_t len,
                 const char* key);
 }
 
