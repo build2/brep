@@ -236,6 +236,10 @@ namespace brep
         // Someone manually requested to re-run the check runs in this check
         // suite. Treat as a new request.
         //
+        // @@ TMP Creating check_runs with same names as before will update
+        //        the existing check_runs on GitHub (as opposed to creating
+        //        new check_runs with the same names).
+        //
         return handle_check_suite_request (move (cs));
       }
       else if (cs.action == "completed")
