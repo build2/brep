@@ -134,7 +134,7 @@ namespace brep
 #else
         ci_ (make_shared<ci> ()),
 #endif
-        ci_github_ (make_shared<ci_github> ()),
+        ci_github_ (make_shared<ci_github> (*tenant_service_map_)),
         upload_ (make_shared<upload> ())
   {
   }
@@ -206,7 +206,7 @@ namespace brep
         ci_github_ (
           r.initialized_
           ? r.ci_github_
-          : make_shared<ci_github> (*r.ci_github_)),
+          : make_shared<ci_github> (*r.ci_github_, *tenant_service_map_)),
         upload_ (
           r.initialized_
           ? r.upload_
