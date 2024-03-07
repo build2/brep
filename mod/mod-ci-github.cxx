@@ -45,17 +45,41 @@ namespace brep
   using namespace gh;
 
   ci_github::
-  ci_github (const ci_github& r)
+  ci_github (tenant_service_map& tsm)
+      : tenant_service_map_ (tsm)
+  {
+  }
+
+  ci_github::
+  ci_github (const ci_github& r, tenant_service_map& tsm)
       : handler (r),
-        options_ (r.initialized_ ? r.options_ : nullptr)
+        ci_start (r),
+        options_ (r.initialized_ ? r.options_ : nullptr),
+        tenant_service_map_ (tsm)
   {
   }
 
   void ci_github::
   init (scanner& s)
   {
+    {
+      shared_ptr<tenant_service_base> ts (
+        dynamic_pointer_cast<tenant_service_base> (shared_from_this ()));
+
+      assert (ts != nullptr); // By definition.
+
+      tenant_service_map_["ci-github"] = move (ts);
+    }
+
     options_ = make_shared<options::ci_github> (
       s, unknown_mode::fail, unknown_mode::fail);
+
+    // Prepare for the CI requests handling, if configured.
+    //
+    if (options_->ci_github_app_webhook_secret_specified ())
+    {
+      ci_start::init (make_shared<options::ci_start> (*options_));
+    }
   }
 
   bool ci_github::
@@ -281,8 +305,10 @@ namespace brep
   }
 
   bool ci_github::
-  handle_check_suite_request (check_suite_event cs) const
+  handle_check_suite_request (check_suite_event cs)
   {
+    HANDLER_DIAG;
+
     cout << "<check_suite event>" << endl << cs << endl;
 
     installation_access_token iat (
@@ -290,7 +316,101 @@ namespace brep
 
     cout << endl << "<installation_access_token>" << endl << iat << endl;
 
+    repository_location rl (cs.repository.clone_url + '#' +
+                                cs.check_suite.head_branch,
+                            repository_type::git);
+
+    optional<start_result> r (start (error,
+                                     warn,
+                                     verb_ ? &trace : nullptr,
+                                     tenant_service ("", "ci-github"),
+                                     move (rl),
+                                     vector<package> {},
+                                     nullopt, // client_ip,
+                                     nullopt  // user_agent,
+                                     ));
+
+    if (!r)
+      fail << "unable to start CI";
+
     return true;
+  }
+
+  function<optional<string> (const brep::tenant_service&)> brep::ci_github::
+  build_queued (const tenant_service&,
+                const vector<build>& bs,
+                optional<build_state> initial_state) const
+  {
+    // return [&bs, initial_state] (const tenant_service& ts)
+    // {
+    //   optional<string> r (ts.data);
+
+    //   for (const build& b: bs)
+    //   {
+    //     string s ((!initial_state
+    //                ? "queued "
+    //                : "queued " + to_string (*initial_state) + ' ') +
+    //               b.package_name.string () + '/'                   +
+    //               b.package_version.string () + '/'                +
+    //               b.target.string () + '/'                         +
+    //               b.target_config_name + '/'                       +
+    //               b.package_config_name + '/'                      +
+    //               b.toolchain_name + '/'                           +
+    //               b.toolchain_version.string ());
+
+    //     if (r)
+    //     {
+    //       *r += ", ";
+    //       *r += s;
+    //     }
+    //     else
+    //       r = move (s);
+    //   }
+
+    //   return r;
+    // };
+
+    return nullptr;
+  }
+
+  function<optional<string> (const brep::tenant_service&)> brep::ci_github::
+  build_building (const tenant_service&, const build& b) const
+  {
+    // return [&b] (const tenant_service& ts)
+    // {
+    //   string s ("building "                       +
+    //             b.package_name.string () + '/'    +
+    //             b.package_version.string () + '/' +
+    //             b.target.string () + '/'          +
+    //             b.target_config_name + '/'        +
+    //             b.package_config_name + '/'       +
+    //             b.toolchain_name + '/'            +
+    //             b.toolchain_version.string ());
+
+    //   return ts.data ? *ts.data + ", " + s : s;
+    // };
+
+    return nullptr;
+  }
+
+  function<optional<string> (const brep::tenant_service&)> brep::ci_github::
+  build_built (const tenant_service&, const build& b) const
+  {
+    // return [&b] (const tenant_service& ts)
+    // {
+    //   string s ("built "                          +
+    //             b.package_name.string () + '/'    +
+    //             b.package_version.string () + '/' +
+    //             b.target.string () + '/'          +
+    //             b.target_config_name + '/'        +
+    //             b.package_config_name + '/'       +
+    //             b.toolchain_name + '/'            +
+    //             b.toolchain_version.string ());
+
+    //   return ts.data ? *ts.data + ", " + s : s;
+    // };
+
+    return nullptr;
   }
 
   // Send a POST request to the GitHub API endpoint `ep`, parse GitHub's JSON
@@ -614,7 +734,7 @@ namespace brep
   {
     p.next_expect (event::begin_object);
 
-    bool nm (false), fn (false), db (false);
+    bool nm (false), fn (false), db (false), cu (false);
 
     // Skip unknown/uninteresting members.
     //
@@ -628,12 +748,14 @@ namespace brep
       if      (c (nm, "name"))           name = p.next_expect_string ();
       else if (c (fn, "full_name"))      full_name = p.next_expect_string ();
       else if (c (db, "default_branch")) default_branch = p.next_expect_string ();
+      else if (c (cu, "clone_url"))      clone_url = p.next_expect_string ();
       else p.next_expect_value_skip ();
     }
 
     if (!nm) missing_member (p, "repository", "name");
     if (!fn) missing_member (p, "repository", "full_name");
     if (!db) missing_member (p, "repository", "default_branch");
+    if (!cu) missing_member (p, "repository", "clone_url");
   }
 
   ostream&
@@ -641,7 +763,8 @@ namespace brep
   {
     os << "name: " << rep.name << endl
        << "full_name: " << rep.full_name << endl
-       << "default_branch: " << rep.default_branch << endl;
+       << "default_branch: " << rep.default_branch << endl
+       << "clone_url: " << rep.clone_url << endl;
 
     return os;
   }
