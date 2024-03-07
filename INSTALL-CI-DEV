@@ -19,7 +19,7 @@ Here we assume that the brep instance is already configured according to the
 instructions in the INSTALL-DEV file. Now, the instance needs to additionally
 be configured as the build2 build bot controller and the CI request service,
 as it is described in the INSTALL file. This, in particular, requires to
-specify the build-config and the number of ci-* configuration options in the
+specify the build-config and a number of ci-* configuration options in the
 brep module configuration file. For example:
 
 $ mkdir ~/brep
@@ -34,7 +34,7 @@ Edit brep-module.conf:
 - Uncomment the Builds=?builds menu.
 - Set the build-config option as <HOME>/brep/config/buildtab.
 - Set the ci-data option as <HOME>/brep/ci-data.
-- Set the ci-handler option as <BREP-OUT-ROOT>/brep/handler/ci/brep-ci-load.
+- Set the ci-handler option as <BREP-OUT-ROOT>/brep/brep/handler/ci/brep-ci-load.
 
 - Add the following options:
 
