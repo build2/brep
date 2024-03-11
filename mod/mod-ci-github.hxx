@@ -25,8 +25,21 @@ namespace brep
 {
   // GitHub request/response types.
   //
-  // Note that having this types directly in brep causes clashes (e.g., for
-  // the repository name).
+  // Note that the GitHub REST and GraphQL APIs use different ID types and
+  // values. In the REST API they are usually integers (but sometimes
+  // strings!) whereas in GraphQL they are always strings (note:
+  // base64-encoded and opaque, not just the REST ID value as a string).
+  //
+  // In both APIs the ID field is called `id`, but REST responses and webhook
+  // events also contain the corresponding GraphQL object's ID in the
+  // `node_id` field.
+  //
+  // In the structures below we always use the RESP API/webhook names for ID
+  // fields. I.e., `id` always refers to the REST/webhook ID, and `node_id`
+  // always refers to the GraphQL ID.
+  //
+  // Note that having the below types directly in brep causes clashes (e.g.,
+  // for the repository name).
   //
   namespace gh
   {
@@ -50,6 +63,7 @@ namespace brep
 
     struct repository
     {
+      string node_id;
       string name;
       string full_name;
       string default_branch;
