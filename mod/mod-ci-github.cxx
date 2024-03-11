@@ -5,6 +5,7 @@
 
 #include <libbutl/curl.hxx>
 #include <libbutl/json/parser.hxx>
+#include <libbutl/json/serializer.hxx>
 
 #include <mod/jwt.hxx>
 #include <mod/hmac.hxx>
@@ -304,6 +305,162 @@ namespace brep
     }
   }
 
+  // GraphQL serialization functions.
+  //
+  // The GraphQL spec:
+  //   https://spec.graphql.org/
+  //
+  // The GitHub GraphQL API reference:
+  //   https://docs.github.com/en/graphql/reference/
+  //
+
+  // Check that a string is a valid GraphQL name.
+  //
+  // GraphQL names can contain only alphanumeric characters and underscores
+  // and cannot begin with a digit.
+  //
+  // Return the name or throw invalid_argument if it is invalid.
+  //
+  static const string&
+  gq_name (const string& v)
+  {
+    if (v.empty () || digit (v[0]))
+      throw invalid_argument ("invalid GraphQL name: '" + v + '\'');
+
+    for (char c: v)
+    {
+      if (!alnum (c) && c != '_')
+      {
+        throw invalid_argument ("invalid character in GraphQL name: '" + c +
+                                '\'');
+      }
+    }
+
+    return v;
+  }
+
+  // Serialize a string to GraphQL.
+  //
+  // Return the serialized string or throw invalid_argument if the string is
+  // invalid.
+  //
+  static string
+  gq_string (const string& v)
+  {
+    string b;
+    json::buffer_serializer s (b);
+
+    try
+    {
+      s.value (v);
+    }
+    catch (const json::invalid_json_output&)
+    {
+      throw invalid_argument ("invalid GraphQL string: '" + v + '\'');
+    }
+
+    return b;
+  }
+
+  // Serialize an int to GraphQL.
+  //
+  static string
+  gq_int (uint64_t v)
+  {
+    string b;
+    json::buffer_serializer s (b);
+    s.value (v);
+    return b;
+  }
+
+  // Serialize a boolean to GraphQL.
+  //
+  static string
+  gq_boolean (bool v)
+  {
+    string b;
+    json::buffer_serializer s (b);
+    s.value (v);
+    return b;
+  }
+
+  // Check that a string is a valid GraphQL enum value.
+  //
+  // GraphQL enum values can be any GraphQL name except for `true`, `false`,
+  // or `null`.
+  //
+  // Return the enum value or throw invalid_argument if it is invalid.
+  //
+  static const string&
+  gq_enum (const string& v)
+  {
+    if (v == "true" || v == "false" || v == "null")
+      throw invalid_argument ("invalid GraphQL enum value: '" + v + '\'');
+
+    return gq_name (v);
+  }
+
+  // Serialize `createCheckRun` GraphQL mutations for one or more builds.
+  //
+  static string
+  gq_check_runs (const string& ri, // Repository ID
+                 const string& hs, // Head SHA
+                 const vector<build>& bs)
+  {
+    // Check run status values.
+    //
+    const string queued      ("QUEUED");
+    const string in_progress ("IN_PROGRESS");
+    const string completed   ("COMPLETED");
+
+    ostringstream os;
+
+    os << "mutation {\n";
+
+    // Serialize a `createCheckRun` for each build.
+    //
+    size_t cn (0); // Check run number.
+
+    for (const build& b: bs)
+    {
+      string al ("cr" + to_string (cn++)); // Field alias
+      string nm (b.package_name.string () + '-' + b.target_config_name); // Name
+
+      os << gq_name (al) << ":createCheckRun(input: {"              << '\n'
+         << "  name: "         << gq_string (nm) << ','             << '\n'
+         << "  repositoryId: " << gq_string (ri) << ','             << '\n'
+         << "  headSha: "      << gq_string (hs) << ','             << '\n'
+         << "  status: "       << gq_enum (queued)                  << '\n'
+         << "})"                                                    << '\n'
+        // Specify the selection set (fields to be returned).
+        //
+         << "{"                                                     << '\n'
+         << "  CheckRun {"                                          << '\n'
+         << "    id,"                                               << '\n'
+         << "    name,"                                             << '\n'
+         << "    status"                                            << '\n'
+         << "  }"                                                   << '\n'
+         << "}"                                                     << '\n';
+    }
+
+    os << "}\n";
+
+    return os.str ();
+  }
+
+  // Serialize an "update check run" for a build to JSON for the REST API.
+  //
+  // @@ TMP We're going to have to do the check run updates using the REST API
+  //        because the GraphQL API check run updates take only an ID (which
+  //        we would have to store) whereas the REST version takes a name.
+  //
+  // static string
+  // rest_check_run (uint64_t ri,      // Repository ID
+  //                 const string& hs, // Head SHA
+  //                 const build& b)
+  // {
+  // }
+
   bool ci_github::
   handle_check_suite_request (check_suite_event cs)
   {
@@ -320,18 +477,42 @@ namespace brep
                                 cs.check_suite.head_branch,
                             repository_type::git);
 
-    optional<start_result> r (start (error,
-                                     warn,
-                                     verb_ ? &trace : nullptr,
-                                     tenant_service ("", "ci-github"),
-                                     move (rl),
-                                     vector<package> {},
-                                     nullopt, // client_ip,
-                                     nullopt  // user_agent,
-                                     ));
+    // optional<start_result> r (start (error,
+    //                                  warn,
+    //                                  verb_ ? &trace : nullptr,
+    //                                  tenant_service ("", "ci-github"),
+    //                                  move (rl),
+    //                                  vector<package> {},
+    //                                  nullopt, // client_ip,
+    //                                  nullopt  // user_agent,
+    //                                  ));
 
-    if (!r)
-      fail << "unable to start CI";
+    // if (!r)
+    //   fail << "unable to start CI";
+
+    vector<build> builds;
+    builds.emplace_back ("tenant",
+                         build::package_name_type (cs.repository.name),
+                         brep::version ("1.2.3"),
+                         target_triplet ("x86_64-linux-gnu"),
+                         "linux_debian_12",
+                         "default",
+                         "gcc",
+                         brep::version ("4.5.6"));
+
+    builds.emplace_back ("tenant",
+                         build::package_name_type (cs.repository.name),
+                         brep::version ("1.2.3"),
+                         target_triplet ("x86_64-linux-gnu"),
+                         "linux_fedora_37",
+                         "default",
+                         "clang",
+                         brep::version ("4.5.6"));
+
+    cout << gq_check_runs (cs.repository.node_id,
+                           cs.check_suite.head_sha,
+                           builds)
+         << endl;
 
     return true;
   }
@@ -734,7 +915,7 @@ namespace brep
   {
     p.next_expect (event::begin_object);
 
-    bool nm (false), fn (false), db (false), cu (false);
+    bool ni (false), nm (false), fn (false), db (false), cu (false);
 
     // Skip unknown/uninteresting members.
     //
@@ -745,13 +926,15 @@ namespace brep
         return p.name () == s ? (v = true) : false;
       };
 
-      if      (c (nm, "name"))           name = p.next_expect_string ();
+      if      (c (ni, "node_id"))        node_id = p.next_expect_string ();
+      else if (c (nm, "name"))           name = p.next_expect_string ();
       else if (c (fn, "full_name"))      full_name = p.next_expect_string ();
       else if (c (db, "default_branch")) default_branch = p.next_expect_string ();
       else if (c (cu, "clone_url"))      clone_url = p.next_expect_string ();
       else p.next_expect_value_skip ();
     }
 
+    if (!ni) missing_member (p, "repository", "node_id");
     if (!nm) missing_member (p, "repository", "name");
     if (!fn) missing_member (p, "repository", "full_name");
     if (!db) missing_member (p, "repository", "default_branch");
@@ -761,7 +944,8 @@ namespace brep
   ostream&
   gh::operator<< (ostream& os, const repository& rep)
   {
-    os << "name: " << rep.name << endl
+    os << "node_id: " << rep.node_id << endl
+       << "name: " << rep.name << endl
        << "full_name: " << rep.full_name << endl
        << "default_branch: " << rep.default_branch << endl
        << "clone_url: " << rep.clone_url << endl;
