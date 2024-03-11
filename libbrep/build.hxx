@@ -28,7 +28,7 @@
 //
 #define LIBBREP_BUILD_SCHEMA_VERSION_BASE 20
 
-#pragma db model version(LIBBREP_BUILD_SCHEMA_VERSION_BASE, 24, closed)
+#pragma db model version(LIBBREP_BUILD_SCHEMA_VERSION_BASE, 25, closed)
 
 // We have to keep these mappings at the global scope instead of inside the
 // brep namespace because they need to be also effective in the bbot namespace
@@ -230,6 +230,13 @@ namespace brep
 
   using bbot::operation_results;
 
+  #pragma db value
+  struct build_machine
+  {
+    string name;
+    string summary;
+  };
+
   #pragma db object pointer(shared_ptr) session
   class build
   {
@@ -249,7 +256,8 @@ namespace brep
            optional<string> interactive,
            optional<string> agent_fingerprint,
            optional<string> agent_challenge,
-           string machine, string machine_summary,
+           build_machine,
+           vector<build_machine> auxiliary_machines,
            string controller_checksum,
            string machine_checksum);
 
@@ -261,6 +269,21 @@ namespace brep
            string target_config_name,
            string package_config_name,
            string toolchain_name, version toolchain_version);
+
+    // Create the build object with the built state, the specified status and
+    // operation results, all the timestamps set to now, and the force state
+    // set to unforced.
+    //
+    build (string tenant,
+           package_name_type, version,
+           target_triplet,
+           string target_config_name,
+           string package_config_name,
+           string toolchain_name, version toolchain_version,
+           result_status,
+           operation_results,
+           build_machine,
+           vector<build_machine> auxiliary_machines = {});
 
     // Move-only type.
     //
@@ -325,8 +348,9 @@ namespace brep
     optional<string> agent_fingerprint;
     optional<string> agent_challenge;
 
-    string machine;
-    string machine_summary;
+    build_machine machine;
+    vector<build_machine> auxiliary_machines;
+    odb::section auxiliary_machines_section;
 
     // Note that the logs are stored as std::string/TEXT which is Ok since
     // they are UTF-8 and our database is UTF-8.
@@ -367,6 +391,19 @@ namespace brep
     // Speed-up queries with ordering the result by the timestamp.
     //
     #pragma db member(timestamp) index
+
+    #pragma db member(machine) transient
+
+    #pragma db member(machine_name) virtual(std::string) \
+      access(machine.name) column("machine")
+
+    #pragma db member(machine_summary) virtual(std::string) \
+      access(machine.summary)
+
+    #pragma db member(auxiliary_machines) id_column("") value_column("") \
+      section(auxiliary_machines_section)
+
+    #pragma db member(auxiliary_machines_section) load(lazy) update(always)
 
     #pragma db member(results) id_column("") value_column("") \
       section(results_section)

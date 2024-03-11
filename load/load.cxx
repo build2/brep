@@ -621,6 +621,7 @@ load_packages (const shared_ptr<repository>& rp,
           move (ts),
           move (pm.builds),
           move (pm.build_constraints),
+          move (pm.build_auxiliaries),
           move (pm.build_configs),
           move (pm.location),
           move (pm.fragment),
@@ -634,6 +635,8 @@ load_packages (const shared_ptr<repository>& rp,
                                   move (pm.version),
                                   move (pm.builds),
                                   move (pm.build_constraints),
+                                  move (pm.build_auxiliaries),
+                                  move (pm.build_configs),
                                   rp);
 
       db.persist (p);

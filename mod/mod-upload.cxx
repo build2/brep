@@ -82,9 +82,6 @@ init (scanner& s)
 
     build_result_module::init (*options_, *options_);
   }
-
-  if (options_->root ().empty ())
-    options_->root (dir_path ("/"));
 }
 
 bool brep::upload::
@@ -499,8 +496,8 @@ handle (request& rq, response& rs)
       s.next ("toolchain-version", sess.toolchain_version.string ());
       s.next ("repository-name", rep->canonical_name);
 
-      s.next ("machine-name", bld->machine);
-      s.next ("machine-summary", bld->machine_summary);
+      s.next ("machine-name", bld->machine.name);
+      s.next ("machine-summary", bld->machine.summary);
 
       // Serialize the request parameters.
       //

@@ -81,6 +81,7 @@ namespace brep
            small_vector<test_dependency, 1> ts,
            build_class_exprs bs,
            build_constraints_type bc,
+           build_auxiliaries_type ac,
            build_package_configs bcs,
            optional<path> lc,
            optional<string> fr,
@@ -114,28 +115,17 @@ namespace brep
         tests (move (ts)),
         builds (move (bs)),
         build_constraints (move (bc)),
+        build_auxiliaries (move (ac)),
+        build_configs (move (bcs)),
         internal_repository (move (rp)),
         location (move (lc)),
         fragment (move (fr)),
         sha256sum (move (sh))
   {
-    // Add the default build configuration at the beginning, unless it is
-    // specified explicitly.
+    // The default configuration is always added by the package manifest
+    // parser (see libbpkg/manifest.cxx for details).
     //
-    if (find_if (bcs.begin (), bcs.end (),
-                 [] (const build_package_config& c)
-                 {return c.name == "default";}) != bcs.end ())
-    {
-      build_configs = move (bcs);
-    }
-    else
-    {
-      build_configs.reserve (bcs.size () + 1);
-      build_configs.emplace_back ("default");
-      build_configs.insert (build_configs.end (),
-                            make_move_iterator (bcs.begin ()),
-                            make_move_iterator (bcs.end ()));
-    }
+    assert (find ("default", build_configs) != nullptr);
 
     if (stub ())
       unbuildable_reason = brep::unbuildable_reason::stub;
@@ -152,6 +142,8 @@ namespace brep
            version_type vr,
            build_class_exprs bs,
            build_constraints_type bc,
+           build_auxiliaries_type ac,
+           build_package_configs bcs,
            shared_ptr<repository_type> rp)
       : id (rp->tenant, move (nm), vr),
         tenant (id.tenant),
@@ -159,11 +151,18 @@ namespace brep
         version (move (vr)),
         builds (move (bs)),
         build_constraints (move (bc)),
+        build_auxiliaries (move (ac)),
+        build_configs (move (bcs)),
         buildable (false),
         unbuildable_reason (stub ()
                             ? brep::unbuildable_reason::stub
                             : brep::unbuildable_reason::external)
   {
+    // The default configuration is always added by the package manifest
+    // parser (see libbpkg/manifest.cxx for details).
+    //
+    assert (find ("default", build_configs) != nullptr);
+
     assert (!rp->internal);
     other_repositories.emplace_back (move (rp));
   }

@@ -6,11 +6,15 @@
 -- package-extra.sql file for details.
 --
 
+DROP FOREIGN TABLE IF EXISTS build_package_config_auxiliaries;
+
 DROP FOREIGN TABLE IF EXISTS build_package_config_constraints;
 
 DROP FOREIGN TABLE IF EXISTS build_package_config_builds;
 
 DROP FOREIGN TABLE IF EXISTS build_package_configs;
+
+DROP FOREIGN TABLE IF EXISTS build_package_auxiliaries;
 
 DROP FOREIGN TABLE IF EXISTS build_package_constraints;
 
@@ -187,6 +191,22 @@ CREATE FOREIGN TABLE build_package_constraints (
   comment TEXT NOT NULL)
 SERVER package_server OPTIONS (table_name 'package_build_constraints');
 
+-- The foreign table for the build_package object auxiliaries member (that is
+-- of a container type).
+--
+CREATE FOREIGN TABLE build_package_auxiliaries (
+  tenant TEXT NOT NULL,
+  name CITEXT NOT NULL,
+  version_epoch INTEGER NOT NULL,
+  version_canonical_upstream TEXT NOT NULL,
+  version_canonical_release TEXT NOT NULL COLLATE "C",
+  version_revision INTEGER NOT NULL,
+  index BIGINT NOT NULL,
+  environment_name TEXT NOT NULL,
+  config TEXT NOT NULL,
+  comment TEXT NOT NULL)
+SERVER package_server OPTIONS (table_name 'package_build_auxiliaries');
+
 -- The foreign tables for the build_package object configs member (that is a
 -- container of values containing containers.
 --
@@ -236,3 +256,17 @@ CREATE FOREIGN TABLE build_package_config_constraints (
   target TEXT NULL,
   comment TEXT NOT NULL)
 SERVER package_server OPTIONS (table_name 'package_build_config_constraints');
+
+CREATE FOREIGN TABLE build_package_config_auxiliaries (
+  tenant TEXT NOT NULL,
+  name CITEXT NOT NULL,
+  version_epoch INTEGER NOT NULL,
+  version_canonical_upstream TEXT NOT NULL,
+  version_canonical_release TEXT NOT NULL COLLATE "C",
+  version_revision INTEGER NOT NULL,
+  config_index BIGINT NOT NULL,
+  index BIGINT NOT NULL,
+  environment_name TEXT NOT NULL,
+  config TEXT NOT NULL,
+  comment TEXT NOT NULL)
+SERVER package_server OPTIONS (table_name 'package_build_config_auxiliaries');

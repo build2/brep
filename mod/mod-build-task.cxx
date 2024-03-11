@@ -32,9 +32,9 @@
 #include <libbrep/build-package.hxx>
 #include <libbrep/build-package-odb.hxx>
 
-#include <mod/build-target-config.hxx>
-
+#include <mod/build.hxx>               // send_notification_email()
 #include <mod/module-options.hxx>
+#include <mod/build-target-config.hxx>
 
 using namespace std;
 using namespace butl;
@@ -52,10 +52,12 @@ rand (size_t min_val, size_t max_val)
   // Note that size_t is not whitelisted as a type the
   // uniform_int_distribution class template can be instantiated with.
   //
-  return static_cast<size_t> (
-    uniform_int_distribution<unsigned long long> (
-      static_cast<unsigned long long> (min_val),
-      static_cast<unsigned long long> (max_val)) (rand_gen));
+  return min_val == max_val
+         ? min_val
+         : static_cast<size_t> (
+             uniform_int_distribution<unsigned long long> (
+               static_cast<unsigned long long> (min_val),
+               static_cast<unsigned long long> (max_val)) (rand_gen));
 }
 
 brep::build_task::
@@ -227,9 +229,16 @@ handle (request& rq, response& rs)
     agent_fp = move (tqm.fingerprint);
   }
 
-  task_response_manifest tsm;
+  // The resulting task manifest and the related build, package, and
+  // configuration objects. Note that the latter 3 are only meaningful if the
+  // session in the task manifest is not empty.
+  //
+  task_response_manifest      task_response;
+  shared_ptr<build>           task_build;
+  shared_ptr<build_package>   task_package;
+  const build_package_config* task_config;
 
-  auto serialize_task_response_manifest = [&tsm, &rs] ()
+  auto serialize_task_response_manifest = [&task_response, &rs] ()
   {
     // @@ Probably it would be a good idea to also send some cache control
     //    headers to avoid caching by HTTP proxies. That would require
@@ -238,7 +247,7 @@ handle (request& rq, response& rs)
 
     manifest_serializer s (rs.content (200, "text/manifest;charset=utf-8"),
                            "task_response_manifest");
-    tsm.serialize (s);
+    task_response.serialize (s);
   };
 
   interactive_mode imode (tqm.effective_interactive_mode ());
@@ -278,12 +287,13 @@ handle (request& rq, response& rs)
 
   for (const build_target_config& c: *target_conf_)
   {
-    for (auto& m: tqm.machines)
+    for (machine_header_manifest& m: tqm.machines)
     {
-      // The same story as in exclude() from build-config.cxx.
-      //
+      if (m.effective_role () == machine_role::build)
       try
       {
+        // The same story as in exclude() from build-target-config.cxx.
+        //
         if (path_match (dash_components_to_path (m.name),
                         dash_components_to_path (c.machine_pattern),
                         dir_path () /* start */,
@@ -295,6 +305,36 @@ handle (request& rq, response& rs)
         }
       }
       catch (const invalid_path&) {}
+    }
+  }
+
+  // Collect the auxiliary configurations/machines available for the build.
+  //
+  struct auxiliary_config_machine
+  {
+    string config;
+    const machine_header_manifest* machine;
+  };
+
+  vector<auxiliary_config_machine> auxiliary_config_machines;
+
+  for (const machine_header_manifest& m: tqm.machines)
+  {
+    if (m.effective_role () == machine_role::auxiliary)
+    {
+      // Derive the auxiliary configuration name by stripping the first
+      // (architecture) component from the machine name.
+      //
+      size_t p (m.name.find ('-'));
+
+      if (p == string::npos || p == 0 || p == m.name.size () - 1)
+        throw invalid_request (400,
+                               (string ("no ") +
+                                (p == 0 ? "architecture" : "OS") +
+                                " component in machine name '" + m.name + "'"));
+
+      auxiliary_config_machines.push_back (
+        auxiliary_config_machine {string (m.name, p + 1), &m});
     }
   }
 
@@ -319,8 +359,10 @@ handle (request& rq, response& rs)
     // transaction.
     //
     auto task = [this] (const build& b,
-                        build_package&& p,
-                        build_package_config&& pc,
+                        const build_package& p,
+                        const build_package_config& pc,
+                        small_vector<bpkg::test_dependency, 1>&& tests,
+                        vector<auxiliary_machine>&& ams,
                         optional<string>&& interactive,
                         const config_machine& cm) -> task_response_manifest
     {
@@ -351,81 +393,27 @@ handle (request& rq, response& rs)
       if (r->certificate_fingerprint)
         fps.emplace_back (move (*r->certificate_fingerprint));
 
-      // Exclude external test packages which exclude the task build
-      // configuration.
-      //
-      small_vector<bpkg::test_dependency, 1> tests;
-
-      build_db_->load (p, p.requirements_tests_section);
-
-      for (const build_test_dependency& td: p.tests)
-      {
-        // Don't exclude unresolved external tests.
-        //
-        // Note that this may result in the build task failure. However,
-        // silently excluding such tests could end up with missed software
-        // bugs which feels much worse.
-        //
-        if (td.package != nullptr)
-        {
-          shared_ptr<build_package> p (td.package.load ());
-
-          // Use the default test package configuration.
-          //
-          // Note that potentially the test package default configuration may
-          // contain some (bpkg) arguments associated, but we currently don't
-          // provide build bot worker with such information. This, however, is
-          // probably too far fetched so let's keep it simple for now.
-          //
-          const build_package_config* pc (find ("default", p->configs));
-          assert (pc != nullptr); // Must always be present.
-
-          // Use the `all` class as a least restrictive default underlying
-          // build class set. Note that we should only apply the explicit
-          // build restrictions to the external test packages (think about
-          // the `builds: all` and `builds: -windows` manifest values for
-          // the primary and external test packages, respectively).
-          //
-          build_db_->load (*p, p->constraints_section);
-
-          if (exclude (*pc,
-                       p->builds,
-                       p->constraints,
-                       *cm.config,
-                       nullptr /* reason */,
-                       true /* default_all_ucs */))
-            continue;
-        }
-
-        tests.emplace_back (move (td.name),
-                            td.type,
-                            td.buildtime,
-                            move (td.constraint),
-                            move (td.enable),
-                            move (td.reflect));
-      }
-
-      package_name& pn (p.id.name);
+      const package_name& pn (p.id.name);
 
       bool module_pkg (pn.string ().compare (0, 10, "libbuild2-") == 0);
 
       // Note that the auxiliary environment is crafted by the bbot agent
       // after the auxiliary machines are booted.
       //
-      task_manifest task (move (pn),
-                          move (p.version),
+      task_manifest task (pn,
+                          p.version,
                           move (r->location),
                           move (fps),
-                          move (p.requirements),
+                          p.requirements,
                           move (tests),
                           b.dependency_checksum,
                           cm.machine->name,
-                          {} /* auxiliary_machines */, // @@ TMP AUXILIARY
+                          move (ams),
                           cm.config->target,
                           cm.config->environment,
                           nullopt /* auxiliary_environment */,
                           cm.config->args,
-                          move (pc.arguments),
+                          pc.arguments,
                           belongs (*cm.config, module_pkg ? "build2" : "host"),
                           cm.config->warning_regexes,
                           move (interactive),
@@ -836,9 +824,9 @@ handle (request& rq, response& rs)
       // If there are any non-archived interactive build tenants, then the
       // chosen randomization approach doesn't really work since interactive
       // tenants must be preferred over non-interactive ones, which is
-      // achieved by proper ordering of the package query result (see
-      // below). Thus, we just disable randomization if there are any
-      // interactive tenants.
+      // achieved by proper ordering of the package query result (see below).
+      // Thus, we just disable randomization if there are any interactive
+      // tenants.
       //
       // But shouldn't we randomize the order between packages in multiple
       // interactive tenants? Given that such a tenant may only contain a
@@ -992,6 +980,12 @@ handle (request& rq, response& rs)
 
       // Return the machine id as a machine checksum.
       //
+      // Note that we don't include auxiliary machine ids into this checksum
+      // since a different machine will most likely get picked for a pattern.
+      // And we view all auxiliary machines that match a pattern as equal for
+      // testing purposes (in other words, pattern is not the way to get
+      // coverage).
+      //
       auto machine_checksum = [] (const machine_header_manifest& m)
       {
         return m.id;
@@ -1102,7 +1096,232 @@ handle (request& rq, response& rs)
         return r;
       };
 
-      for (bool done (false); tsm.session.empty () && !done; )
+      // Collect the auxiliary machines required for testing of the specified
+      // package configuration and the external test packages, if present for
+      // the specified target configuration (task_auxiliary_machines),
+      // together with the auxiliary machines information that needs to be
+      // persisted in the database as a part of the build object
+      // (build_auxiliary_machines, which is parallel to
+      // task_auxiliary_machines). While at it collect the involved test
+      // dependencies. Return nullopt if any auxiliary configuration patterns
+      // may not be resolved to the auxiliary machines (no matching
+      // configuration, auxiliary machines RAM limit is exceeded, etc).
+      //
+      // Note that if the same auxiliary environment name is used for multiple
+      // packages (for example, for the main and tests packages or for the
+      // tests and examples packages, etc), then a shared auxiliary machine is
+      // used for all these packages. In this case all the respective
+      // configuration patterns must match the configuration derived from this
+      // machine name. If they don't, then return nullopt. The thinking here
+      // is that on the next task request a machine whose derived
+      // configuration matches all the patterns can potentially be picked.
+      //
+      struct collect_auxiliaries_result
+      {
+        vector<auxiliary_machine>              task_auxiliary_machines;
+        vector<build_machine>                  build_auxiliary_machines;
+        small_vector<bpkg::test_dependency, 1> tests;
+      };
+
+      auto collect_auxiliaries = [&tqm, &auxiliary_config_machines, this]
+                                 (const shared_ptr<build_package>& p,
+                                  const build_package_config& pc,
+                                  const build_target_config& tc)
+        -> optional<collect_auxiliaries_result>
+      {
+        // The list of the picked build auxiliary machines together with the
+        // environment names they have been picked for.
+        //
+        vector<pair<auxiliary_config_machine, string>> picked_machines;
+
+        // Try to randomly pick the auxiliary machine that matches the
+        // specified pattern and which can be supplied with the minimum
+        // required RAM, if specified. Return false if such a machine is not
+        // available. If a machine is already picked for the specified
+        // environment name, then return true if the machine's configuration
+        // matches the specified pattern and false otherwise.
+        //
+        auto pick_machine =
+          [&tqm,
+           &picked_machines,
+           used_ram = uint64_t (0),
+           available_machines = auxiliary_config_machines]
+          (const build_auxiliary& ba) mutable -> bool
+        {
+          vector<size_t> ams; // Indexes of the available matching machines.
+          optional<uint64_t> ar (tqm.auxiliary_ram);
+
+          // If the machine configuration name pattern (which is legal) or any
+          // of the machine configuration names (illegal) are invalid paths,
+          // then we assume we cannot pick the machine.
+          //
+          try
+          {
+            // The same story as in exclude() from build-target-config.cxx.
+            //
+            auto match = [pattern = dash_components_to_path (ba.config)]
+                         (const string& config)
+            {
+              return path_match (dash_components_to_path (config),
+                                 pattern,
+                                 dir_path () /* start */,
+                                 path_match_flags::match_absent);
+            };
+
+            // Check if a machine is already picked for the specified
+            // environment name.
+            //
+            for (const auto& m: picked_machines)
+            {
+              if (m.second == ba.environment_name)
+                return match (m.first.config);
+            }
+
+            // Collect the matching machines from the list of the available
+            // machines and bail out if there are none.
+            //
+            for (size_t i (0); i != available_machines.size (); ++i)
+            {
+              const auxiliary_config_machine& m (available_machines[i]);
+              optional<uint64_t> mr (m.machine->ram_minimum);
+
+              if (match (m.config) && (!mr || !ar || used_ram + *mr <= *ar))
+                ams.push_back (i);
+            }
+
+            if (ams.empty ())
+              return false;
+          }
+          catch (const invalid_path&)
+          {
+            return false;
+          }
+
+          // Pick the matching machine randomly.
+          //
+          size_t i (ams[rand (0, ams.size () - 1)]);
+          auxiliary_config_machine& cm (available_machines[i]);
+
+          // Bump the used RAM.
+          //
+          if (optional<uint64_t> r = cm.machine->ram_minimum)
+            used_ram += *r;
+
+          // Move out the picked machine from the available machines list.
+          //
+          picked_machines.emplace_back (move (cm), ba.environment_name);
+          available_machines.erase (available_machines.begin () + i);
+          return true;
+        };
+
+        // Collect auxiliary machines for the main package build configuration.
+        //
+        for (const build_auxiliary& ba:
+               pc.effective_auxiliaries (p->auxiliaries))
+        {
+          if (!pick_machine (ba))
+            return nullopt; // No matched auxiliary machine.
+        }
+
+        // Collect the test packages and the auxiliary machines for their
+        // default build configurations. Exclude external test packages which
+        // exclude the task build configuration.
+        //
+        small_vector<bpkg::test_dependency, 1> tests;
+
+        build_db_->load (*p, p->requirements_tests_section);
+
+        for (const build_test_dependency& td: p->tests)
+        {
+          // Don't exclude unresolved external tests.
+          //
+          // Note that this may result in the build task failure. However,
+          // silently excluding such tests could end up with missed software
+          // bugs which feels much worse.
+          //
+          if (td.package != nullptr)
+          {
+            shared_ptr<build_package> tp (td.package.load ());
+
+            // Use the default test package configuration.
+            //
+            // Note that potentially the test package default configuration
+            // may contain some (bpkg) arguments associated, but we currently
+            // don't provide build bot worker with such information. This,
+            // however, is probably too far fetched so let's keep it simple
+            // for now.
+            //
+            const build_package_config* tpc (find ("default", tp->configs));
+            assert (tpc != nullptr); // Must always be present.
+
+            // Use the `all` class as a least restrictive default underlying
+            // build class set. Note that we should only apply the explicit
+            // build restrictions to the external test packages (think about
+            // the `builds: all` and `builds: -windows` manifest values for
+            // the primary and external test packages, respectively).
+            //
+            build_db_->load (*tp, tp->constraints_section);
+
+            if (exclude (*tpc,
+                         tp->builds,
+                         tp->constraints,
+                         tc,
+                         nullptr /* reason */,
+                         true /* default_all_ucs */))
+              continue;
+
+            for (const build_auxiliary& ba:
+                   tpc->effective_auxiliaries (tp->auxiliaries))
+            {
+              if (!pick_machine (ba))
+                return nullopt; // No matched auxiliary machine.
+            }
+          }
+
+          tests.emplace_back (td.name,
+                              td.type,
+                              td.buildtime,
+                              td.constraint,
+                              td.enable,
+                              td.reflect);
+        }
+
+        vector<auxiliary_machine> tms;
+        vector<build_machine> bms;
+
+        tms.reserve (picked_machines.size ());
+        bms.reserve (picked_machines.size ());
+
+        for (pair<auxiliary_config_machine, string>& pm: picked_machines)
+        {
+          const machine_header_manifest& m (*pm.first.machine);
+          tms.push_back (auxiliary_machine {m.name, move (pm.second)});
+          bms.push_back (build_machine {m.name, m.summary});
+        }
+
+        return collect_auxiliaries_result {
+          move (tms), move (bms), move (tests)};
+      };
+
+      // While at it, collect the aborted for various reasons builds
+      // (interactive builds in multiple configurations, builds with too many
+      // auxiliary machines, etc) to send the notification emails at the end
+      // of the request handling.
+      //
+      struct aborted_build
+      {
+        shared_ptr<build>           b;
+        shared_ptr<build_package>   p;
+        const build_package_config* pc;
+        const char*                 what;
+      };
+      vector<aborted_build> aborted_builds;
+
+      // Note: is only used for crafting of the notification email subjects.
+      //
+      bool unforced (true);
+
+      for (bool done (false); task_response.session.empty () && !done; )
       {
         transaction t (conn->begin ());
 
@@ -1248,9 +1467,9 @@ handle (request& rq, response& rs)
             //
             struct build_config
             {
-              package_id                 pid;
-              string                     pc;
-              const build_target_config* tc;
+              shared_ptr<build_package>   p;
+              const build_package_config* pc;
+              const build_target_config*  tc;
             };
 
             small_vector<build_config, 1> build_configs;
@@ -1272,8 +1491,7 @@ handle (request& rq, response& rs)
                 for (const auto& tc: *target_conf_)
                 {
                   if (!exclude (pc, p->builds, p->constraints, tc))
-                    build_configs.push_back (
-                      build_config {p->id, pc.name, &tc});
+                    build_configs.push_back (build_config {p, &pc, &tc});
                 }
               }
             }
@@ -1287,10 +1505,11 @@ handle (request& rq, response& rs)
               //
               for (build_config& c: build_configs)
               {
-                const string& pc (c.pc);
+                shared_ptr<build_package>& p (c.p);
+                const string& pc (c.pc->name);
                 const build_target_config& tc (*c.tc);
 
-                build_id bid (c.pid,
+                build_id bid (p->id,
                               tc.target,
                               tc.name,
                               pc,
@@ -1305,40 +1524,30 @@ handle (request& rq, response& rs)
 
                 if (b == nullptr)
                 {
-                  b = make_shared<build> (
-                    move (bid.package.tenant),
-                    move (bid.package.name),
-                    p->version,
-                    move (bid.target),
-                    move (bid.target_config_name),
-                    move (bid.package_config_name),
-                    move (bid.toolchain_name),
-                    toolchain_version,
-                    nullopt             /* interactive */,
-                    nullopt             /* agent_fp */,
-                    nullopt             /* agent_challenge */,
-                    "brep"              /* machine */,
-                    "build task module" /* machine_summary */,
-                    ""                  /* controller_checksum */,
-                    ""                  /* machine_checksum */);
-
-                  b->state  = build_state::built;
-                  b->status = result_status::abort;
-
-                  b->soft_timestamp = b->timestamp;
-                  b->hard_timestamp = b->soft_timestamp;
-
-                  // Mark the section as loaded, so results are updated.
-                  //
-                  b->results_section.load ();
-
-                  b->results.push_back (
-                    operation_result {
-                      "configure",
-                      result_status::abort,
-                      "error: multiple configurations for interactive build\n"});
+                  b = make_shared<build> (move (bid.package.tenant),
+                                          move (bid.package.name),
+                                          p->version,
+                                          move (bid.target),
+                                          move (bid.target_config_name),
+                                          move (bid.package_config_name),
+                                          move (bid.toolchain_name),
+                                          toolchain_version,
+                                          result_status::abort,
+                                          operation_results ({
+                                            operation_result {
+                                              "configure",
+                                              result_status::abort,
+                                              "error: multiple configurations "
+                                              "for interactive build\n"}}),
+                                          build_machine {
+                                            "brep", "build task module"});
 
                   build_db_->persist (b);
+
+                  // Schedule the build notification email.
+                  //
+                  aborted_builds.push_back (aborted_build {
+                      move (b), move (p), c.pc, "build"});
                 }
               }
 
@@ -1351,7 +1560,7 @@ handle (request& rq, response& rs)
             }
           }
 
-          for (build_package_config& pc: p->configs)
+          for (const build_package_config& pc: p->configs)
           {
             pkg_config = pc.name;
 
@@ -1389,17 +1598,23 @@ handle (request& rq, response& rs)
             if (!configs.empty ())
             {
               // Find the first build configuration that is not excluded by
-              // the package configuration.
+              // the package configuration and for which all the requested
+              // auxiliary machines can be provided.
               //
               auto i (configs.begin ());
               auto e (configs.end ());
 
               build_db_->load (*p, p->constraints_section);
 
-              for (;
-                   i != e &&
-                   exclude (pc, p->builds, p->constraints, *i->second.config);
-                   ++i) ;
+              optional<collect_auxiliaries_result> aux;
+              for (; i != e; ++i)
+              {
+                const build_target_config& tc (*i->second.config);
+
+                if (!exclude (pc, p->builds, p->constraints, tc) &&
+                    (aux = collect_auxiliaries (p, pc, tc)))
+                  break;
+              }
 
               if (i != e)
               {
@@ -1440,8 +1655,9 @@ handle (request& rq, response& rs)
                                           move (login),
                                           move (agent_fp),
                                           move (cl),
-                                          mh.name,
-                                          move (mh.summary),
+                                          build_machine {
+                                            mh.name, move (mh.summary)},
+                                          move (aux->build_auxiliary_machines),
                                           controller_checksum (*cm.config),
                                           machine_checksum (*cm.machine));
 
@@ -1467,6 +1683,8 @@ handle (request& rq, response& rs)
                   b->state = build_state::building;
                   b->interactive = move (login);
 
+                  unforced = (b->force == force_state::unforced);
+
                   // Switch the force state not to reissue the task after the
                   // forced rebuild timeout. Note that the result handler will
                   // still recognize that the rebuild was forced.
@@ -1479,8 +1697,15 @@ handle (request& rq, response& rs)
 
                   b->agent_fingerprint = move (agent_fp);
                   b->agent_challenge = move (cl);
-                  b->machine = mh.name;
-                  b->machine_summary = move (mh.summary);
+                  b->machine = build_machine {mh.name, move (mh.summary)};
+
+                  // Mark the section as loaded, so auxiliary_machines are
+                  // updated.
+                  //
+                  b->auxiliary_machines_section.load ();
+
+                  b->auxiliary_machines =
+                    move (aux->build_auxiliary_machines);
 
                   string ccs (controller_checksum (*cm.config));
                   string mcs (machine_checksum (*cm.machine));
@@ -1552,8 +1777,17 @@ handle (request& rq, response& rs)
                   }
                 }
 
-                tsm = task (
-                  *b, move (*p), move (pc), move (bp.interactive), cm);
+                task_response = task (*b,
+                                      *p,
+                                      pc,
+                                      move (aux->tests),
+                                      move (aux->task_auxiliary_machines),
+                                      move (bp.interactive),
+                                      cm);
+
+                task_build = move (b);
+                task_package = move (p);
+                task_config = &pc;
 
                 break; // Bail out from the package configurations loop.
               }
@@ -1563,7 +1797,7 @@ handle (request& rq, response& rs)
           // If the task response manifest is prepared, then bail out from the
           // package loop, commit the transaction and respond.
           //
-          if (!tsm.session.empty ())
+          if (!task_response.session.empty ())
             break;
         }
 
@@ -1573,7 +1807,7 @@ handle (request& rq, response& rs)
       // If we don't have an unbuilt package, then let's see if we have a
       // build configuration to rebuild.
       //
-      if (tsm.session.empty () && !rebuilds.empty ())
+      if (task_response.session.empty () && !rebuilds.empty ())
       {
         // Sort the configuration rebuild list with the following sort
         // priority:
@@ -1636,9 +1870,10 @@ handle (request& rq, response& rs)
               assert (i != conf_machines.end ());
               const config_machine& cm (i->second);
 
-              // Rebuild the package if still present, is buildable, doesn't
-              // exclude the configuration, and matches the request's
-              // interactive mode.
+              // Rebuild the package configuration if still present, is
+              // buildable, doesn't exclude the target configuration, can be
+              // provided with all the requested auxiliary machines, and
+              // matches the request's interactive mode.
               //
               // Note that while change of the latter seems rather far fetched,
               // let's check it for good measure.
@@ -1664,7 +1899,11 @@ handle (request& rq, response& rs)
               {
                 build_db_->load (*p, p->constraints_section);
 
-                if (!exclude (*pc, p->builds, p->constraints, *cm.config))
+                const build_target_config& tc (*cm.config);
+
+                optional<collect_auxiliaries_result> aux;
+                if (!exclude (*pc, p->builds, p->constraints, tc) &&
+                    (aux = collect_auxiliaries (p, *pc, tc)))
                 {
                   assert (b->status);
 
@@ -1684,14 +1923,23 @@ handle (request& rq, response& rs)
                     ? tqm.interactive_login
                     : nullopt;
 
+                  unforced = (b->force == force_state::unforced);
+
                   // Can't move from, as may need them on the next iteration.
                   //
                   b->agent_fingerprint = agent_fp;
                   b->agent_challenge = cl;
 
                   const machine_header_manifest& mh (*cm.machine);
-                  b->machine = mh.name;
-                  b->machine_summary = mh.summary;
+                  b->machine = build_machine {mh.name,  mh.summary};
+
+                  // Mark the section as loaded, so auxiliary_machines are
+                  // updated.
+                  //
+                  b->auxiliary_machines_section.load ();
+
+                  b->auxiliary_machines =
+                    move (aux->build_auxiliary_machines);
 
                   // Issue the hard rebuild if the timeout expired, rebuild is
                   // forced, or the configuration or machine has changed.
@@ -1752,8 +2000,17 @@ handle (request& rq, response& rs)
                     }
                   }
 
-                  tsm = task (
-                    *b, move (*p), move (*pc), move (t->interactive), cm);
+                  task_response = task (*b,
+                                        *p,
+                                        *pc,
+                                        move (aux->tests),
+                                        move (aux->task_auxiliary_machines),
+                                        move (t->interactive),
+                                        cm);
+
+                  task_build = move (b);
+                  task_package = move (p);
+                  task_config = pc;
                 }
               }
             }
@@ -1765,13 +2022,13 @@ handle (request& rq, response& rs)
             // Just try with the next rebuild. But first, reset the task
             // response manifest that we may have prepared.
             //
-            tsm = task_response_manifest ();
+            task_response = task_response_manifest ();
           }
 
           // If the task response manifest is prepared, then bail out from the
           // package configuration rebuilds loop and respond.
           //
-          if (!tsm.session.empty ())
+          if (!task_response.session.empty ())
             break;
         }
       }
@@ -1842,6 +2099,131 @@ handle (request& rq, response& rs)
         if (auto f = tsb->build_building (ss, b))
           update_tenant_service_state (conn, b.tenant, f);
       }
+
+      // If the task response manifest is prepared, then check that the number
+      // of the build auxiliary machines is less than 10. If that's not the
+      // case, then turn the build into the built state with the abort status.
+      //
+      if (task_response.task->auxiliary_machines.size () > 9)
+      {
+        // Respond with the no-task manifest.
+        //
+        task_response = task_response_manifest ();
+
+        // If the package tenant has a third-party service state associated
+        // with it, then check if the tenant_service_build_built callback is
+        // registered for the type of the associated service. If it is, then
+        // stash the state, the build object, and the callback pointer for the
+        // subsequent service `built` notification.
+        //
+        const tenant_service_build_built* tsb (nullptr);
+        optional<pair<tenant_service, shared_ptr<build>>> tss;
+        {
+          transaction t (conn->begin ());
+
+          shared_ptr<build> b (build_db_->find<build> (task_build->id));
+
+          // For good measure, check that the build object is in the building
+          // state and has not been updated.
+          //
+          if (b->state == build_state::building &&
+              b->timestamp == task_build->timestamp)
+          {
+            b->state  = build_state::built;
+            b->status = result_status::abort;
+            b->force  = force_state::unforced;
+
+            // Cleanup the interactive build login information.
+            //
+            b->interactive = nullopt;
+
+            // Cleanup the authentication data.
+            //
+            b->agent_fingerprint = nullopt;
+            b->agent_challenge = nullopt;
+
+            b->timestamp = system_clock::now ();
+            b->soft_timestamp = b->timestamp;
+            b->hard_timestamp = b->soft_timestamp;
+
+            // Mark the section as loaded, so results are updated.
+            //
+            b->results_section.load ();
+
+            b->results = operation_results ({
+                operation_result {
+                  "configure",
+                  result_status::abort,
+                  "error: not more than 9 auxiliary machines are allowed"}});
+
+            b->agent_checksum      = nullopt;
+            b->worker_checksum     = nullopt;
+            b->dependency_checksum = nullopt;
+
+            build_db_->update (b);
+
+            // Schedule the `built` notification, if the
+            // tenant_service_build_built callback is registered for the
+            // tenant.
+            //
+            shared_ptr<build_tenant> t (
+              build_db_->load<build_tenant> (b->tenant));
+
+            if (t->service)
+            {
+              auto i (tenant_service_map_.find (t->service->type));
+
+              if (i != tenant_service_map_.end ())
+              {
+                tsb = dynamic_cast<const tenant_service_build_built*> (
+                  i->second.get ());
+
+                // If required, stash the service notification information.
+                //
+                if (tsb != nullptr)
+                  tss = make_pair (move (*t->service), b);
+              }
+            }
+
+            // Schedule the build notification email.
+            //
+            aborted_builds.push_back (
+              aborted_build {move (b),
+                             move (task_package),
+                             task_config,
+                             unforced ? "build" : "rebuild"});
+          }
+
+          t.commit ();
+        }
+
+        // If a third-party service needs to be notified about the built
+        // package, then call the tenant_service_build_built::build_built()
+        // callback function and update the service state, if requested.
+        //
+        if (tsb != nullptr)
+        {
+          assert (tss); // Wouldn't be here otherwise.
+
+          const tenant_service& ss (tss->first);
+          const build& b (*tss->second);
+
+          if (auto f = tsb->build_built (ss, b))
+            update_tenant_service_state (conn, b.tenant, f);
+        }
+      }
+
+      // Send notification emails for all the aborted builds.
+      //
+      for (const aborted_build& ab: aborted_builds)
+        send_notification_email (*options_,
+                                 conn,
+                                 *ab.b,
+                                 *ab.p,
+                                 *ab.pc,
+                                 ab.what,
+                                 error,
+                                 verb_ >= 2 ? &trace : nullptr);
     }
   }
 

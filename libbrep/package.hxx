@@ -20,7 +20,7 @@
 //
 #define LIBBREP_PACKAGE_SCHEMA_VERSION_BASE 27
 
-#pragma db model version(LIBBREP_PACKAGE_SCHEMA_VERSION_BASE, 30, closed)
+#pragma db model version(LIBBREP_PACKAGE_SCHEMA_VERSION_BASE, 31, closed)
 
 namespace brep
 {
@@ -453,11 +453,11 @@ namespace brep
     using dependencies_type = brep::dependencies;
     using requirements_type = brep::requirements;
     using build_constraints_type = brep::build_constraints;
+    using build_auxiliaries_type = brep::build_auxiliaries;
 
     // Create internal package object.
     //
-    // Note: adds the default build package config at the first position if it
-    // is not present yet.
+    // Note: the default build package config is expected to always be present.
     //
     package (package_name,
              version_type,
@@ -485,6 +485,7 @@ namespace brep
              small_vector<test_dependency, 1> tests,
              build_class_exprs,
              build_constraints_type,
+             build_auxiliaries_type,
              build_package_configs,
              optional<path> location,
              optional<string> fragment,
@@ -500,14 +501,20 @@ namespace brep
     //
     // External package can also be a separate test for some primary package
     // (and belong to a complement but yet external repository), and so we may
-    // need its build class expressions and constraints to decide if to build
-    // it together with the primary package or not (see test-exclude task
-    // manifest value for details).
+    // need its build class expressions, constraints, and configurations to
+    // decide if to build it together with the primary package or not (see
+    // test-exclude task manifest value for details). Additionally, when the
+    // test package is being built the auxiliary machines may also be
+    // required.
+    //
+    // Note: the default build package config is expected to always be present.
     //
     package (package_name name,
              version_type,
              build_class_exprs,
              build_constraints_type,
+             build_auxiliaries_type,
+             build_package_configs,
              shared_ptr<repository_type>);
 
     bool
@@ -561,11 +568,12 @@ namespace brep
     requirements_type requirements;           // Note: foreign-mapped in build.
     small_vector<test_dependency, 1> tests;   // Note: foreign-mapped in build.
 
-    // Common build classes/constraints that apply to all configurations
-    // unless overridden.
+    // Common build classes, constraints, and auxiliaries that apply to all
+    // configurations unless overridden.
     //
     build_class_exprs builds;                 // Note: foreign-mapped in build.
     build_constraints_type build_constraints; // Note: foreign-mapped in build.
+    build_auxiliaries_type build_auxiliaries; // Note: foreign-mapped in build.
 
     build_package_configs build_configs; // Note: foreign-mapped in build.
 
@@ -718,9 +726,14 @@ namespace brep
     #pragma db member(build_constraints) id_column("") value_column("") \
       section(build_section)
 
+    // build_auxiliaries
+    //
+    #pragma db member(build_auxiliaries) id_column("") value_column("") \
+      section(build_section)
+
     // build_configs
     //
-    // Note that build_package_config::{builds,constraints} are
+    // Note that build_package_config::{builds,constraints,auxiliaries} are
     // persisted/loaded via the separate nested containers (see commons.hxx
     // for details).
     //
@@ -746,6 +759,17 @@ namespace brep
       set(brep::build_package_config_constraints cs;                      \
           odb::nested_set (cs, std::move (?));                            \
           move (cs).to_configs (this.build_configs))                      \
+      id_column("") key_column("") value_column("")                       \
+      section(build_section)
+
+    #pragma db member(build_config_auxiliaries)                           \
+      virtual(build_auxiliaries_map)                                      \
+      after(build_config_constraints)                                     \
+      get(odb::nested_get (                                               \
+            brep::build_package_config_auxiliaries (this.build_configs))) \
+      set(brep::build_package_config_auxiliaries as;                      \
+          odb::nested_set (as, std::move (?));                            \
+          move (as).to_configs (this.build_configs))                      \
       id_column("") key_column("") value_column("")                       \
       section(build_section)
 

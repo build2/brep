@@ -31,7 +31,7 @@ namespace brep
       }
     };
 
-    class handler
+    class repository_url
     {
       string host
       {
@@ -51,7 +51,29 @@ namespace brep
          Specify '\cb{/}' to use the web server root
          (\cb{http://example.org/})."
       }
+    };
 
+    class build_email_notification: repository_email, repository_url
+    {
+      std::map<string, build_email> build-toolchain-email
+      {
+        "<name>=<mode>",
+        "Enable or disable package build notification emails. The valid <mode>
+         values are \cb{none}, \cb{latest}, and \cb{all}. If \cb{all} is
+         specified for a toolchain name, then emails are sent according to the
+         \cb{build-*email} package manifest values when all versions of a
+         package are built with this toolchain. If \cb{latest} is specified,
+         then for this toolchain name the emails are only sent for the latest
+         version of a package. If \cb{none} is specified, then no emails are
+         sent for this toolchain name. By default the \cb{latest} mode is
+         assumed. Repeat this option to enable/disable emails for multiple
+         toolchains. See \l{bpkg#manifest-package Package Manifest} for
+         details on \cb{build-*email} values."
+      }
+    };
+
+    class handler
+    {
       string tenant-name = "tenant"
       {
         "<name>",
@@ -486,7 +508,7 @@ namespace brep
     // Handler options.
     //
 
-    class packages: search, package_db, page, handler
+    class packages: search, package_db, page, repository_url, handler
     {
       string search-title = "Packages"
       {
@@ -504,13 +526,18 @@ namespace brep
       }
     };
 
-    class package_details: package, search, package_db, page, handler
+    class package_details: package, package_db,
+                           search,
+                           page,
+                           repository_url,
+                           handler
     {
     };
 
     class package_version_details: package, package_db,
                                    build, build_db,
                                    page,
+                                   repository_url,
                                    handler
     {
       dir_path bindist-root
@@ -538,11 +565,14 @@ namespace brep
       }
     };
 
-    class repository_details: package_db, page, handler
+    class repository_details: package_db, page, repository_url, handler
     {
     };
 
-    class build_task: build, build_db, build_upload, handler
+    class build_task: build, build_db,
+                      build_upload,
+                      build_email_notification,
+                      handler
     {
       size_t build-task-request-max-size = 102400
       {
@@ -583,7 +613,9 @@ namespace brep
       }
     };
 
-    class build_result: build, package_db, build_db, repository_email, handler
+    class build_result: build, build_db,
+                        build_email_notification,
+                        handler
     {
       size_t build-result-request-max-size = 10485760
       {
@@ -593,25 +625,9 @@ namespace brep
          face of recoverable failures (deadlock, loss of connection, etc). The
          default is 10M."
       }
-
-      std::map<string, build_email> build-toolchain-email
-      {
-        "<name>=<mode>",
-        "Enable or disable package build notification emails. The valid <mode>
-         values are \cb{none}, \cb{latest}, and \cb{all}. If \cb{all} is
-         specified for a toolchain name, then emails are sent according to the
-         \cb{build-*email} package manifest values when all versions of a
-         package are built with this toolchain. If \cb{latest} is specified,
-         then for this toolchain name the emails are only sent for the latest
-         version of a package. If \cb{none} is specified, then no emails are
-         sent for this toolchain name. By default the \cb{latest} mode is
-         assumed. Repeat this option to enable/disable emails for multiple
-         toolchains. See \l{bpkg#manifest-package Package Manifest} for
-         details on \cb{build-*email} values."
-      }
     };
 
-    class build_log: build, build_db, handler
+    class build_log: build, build_db, repository_url, handler
     {
     };
 
@@ -619,7 +635,7 @@ namespace brep
     {
     };
 
-    class builds: build, build_db, page, handler
+    class builds: build, build_db, page, repository_url, handler
     {
       uint16_t build-page-entries = 20
       {
@@ -634,7 +650,7 @@ namespace brep
       }
     };
 
-    class build_configs: build, page, handler
+    class build_configs: build, page, repository_url, handler
     {
       uint16_t build-config-page-entries = 20
       {
@@ -649,7 +665,7 @@ namespace brep
       }
     };
 
-    class submit: page, repository_email, handler
+    class submit: page, repository_email, repository_url, handler
     {
       dir_path submit-data
       {
@@ -784,7 +800,7 @@ namespace brep
     {
     };
 
-    class ci: ci_start, page, handler
+    class ci: ci_start, page, repository_url, handler
     {
       // Classic CI-specific options.
       //
@@ -810,7 +826,7 @@ namespace brep
     {
     };
 
-    class repository_root: handler
+    class repository_root: repository_url, handler
     {
       string root-global-view = "packages"
       {

@@ -347,6 +347,13 @@ namespace brep
 
   #pragma db value(build_constraint) definition
 
+  // build_auxiliaries
+  //
+  using bpkg::build_auxiliary;
+  using build_auxiliaries = vector<build_auxiliary>;
+
+  #pragma db value(build_auxiliary) definition
+
   // email
   //
   using bpkg::email;
@@ -360,10 +367,6 @@ namespace brep
 
   #pragma db value(build_package_config) definition
 
-  // @@ TMP AUXILIARY
-  //
-  #pragma db member(build_package_config::auxiliaries) transient
-
   // 1 for the default configuration which is always present.
   //
   using build_package_configs = small_vector<build_package_config, 1>;
@@ -376,11 +379,12 @@ namespace brep
 
   // Note that ODB doesn't support containers of value types which contain
   // containers. Thus, we will persist/load
-  // package_build_config::{builds,constraint} via the separate nested
-  // containers using the adapter classes.
+  // package_build_config::{builds,constraint,auxiliaries} via the separate
+  // nested containers using the adapter classes.
+  //
+  // build_package_config::builds
   //
   #pragma db member(build_package_config::builds) transient
-  #pragma db member(build_package_config::constraints) transient
 
   using build_class_expr_key = odb::nested_key<build_class_exprs>;
   using build_class_exprs_map = std::map<build_class_expr_key, build_class_expr>;
@@ -419,6 +423,10 @@ namespace brep
     }
   };
 
+  // build_package_config::constraints
+  //
+  #pragma db member(build_package_config::constraints) transient
+
   using build_constraint_key = odb::nested_key<build_constraints>;
   using build_constraints_map = std::map<build_constraint_key, build_constraint>;
 
@@ -453,6 +461,47 @@ namespace brep
       auto i (cs.begin ());
       for (build_constraints& bcs: *this)
         i++->constraints = move (bcs);
+    }
+  };
+
+  // build_package_config::auxiliaries
+  //
+  #pragma db member(build_package_config::auxiliaries) transient
+
+  using build_auxiliary_key = odb::nested_key<build_auxiliaries>;
+  using build_auxiliaries_map = std::map<build_auxiliary_key, build_auxiliary>;
+
+  #pragma db value(build_auxiliary_key)
+  #pragma db member(build_auxiliary_key::outer) column("config_index")
+  #pragma db member(build_auxiliary_key::inner) column("index")
+
+  // Adapter for build_package_config::auxiliaries.
+  //
+  class build_package_config_auxiliaries:
+    public small_vector<build_auxiliaries, 1> // 1 as for build_package_configs.
+  {
+  public:
+    build_package_config_auxiliaries () = default;
+
+    explicit
+    build_package_config_auxiliaries (const build_package_configs& cs)
+    {
+      reserve (cs.size ());
+      for (const build_package_config& c: cs)
+        push_back (c.auxiliaries);
+    }
+
+    void
+    to_configs (build_package_configs& cs) &&
+    {
+      // Note that the empty trailing entries will be missing (see ODB's
+      // nested-container.hxx for details).
+      //
+      assert (size () <= cs.size ());
+
+      auto i (cs.begin ());
+      for (build_auxiliaries& bas: *this)
+        i++->auxiliaries = move (bas);
     }
   };
 

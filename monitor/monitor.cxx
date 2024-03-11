@@ -832,6 +832,19 @@ namespace brep
             {
               for (const build_target_config& tc: configs)
               {
+                // Note that we also don't build a package configuration if we
+                // are unable to assign all the required auxiliary machines
+                // for the build (see mod/mod-build-task.cxx for details).
+                // That means that we will also report delays which happen due
+                // to such an inability, which can potentially be not only
+                // because of the infrastructural problem but also because of
+                // an error in the package manifest (build auxiliary
+                // configuration pattern doesn't match any machine
+                // configuration anymore, etc). It doesn't seem easy to
+                // distinguish here which type of problem causes a delay.
+                // Thus, for now let's wait and see if it ever becomes a
+                // problem.
+                //
                 if (exclude (pc,
                              p->builds,
                              p->constraints,

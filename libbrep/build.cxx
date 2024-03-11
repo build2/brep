@@ -65,7 +65,8 @@ namespace brep
          string tnm, version tvr,
          optional<string> inr,
          optional<string> afp, optional<string> ach,
-         string mnm, string msm,
+         build_machine mcn,
+         vector<build_machine> ams,
          string ccs,
          string mcs)
       : id (package_id (move (tnt), move (pnm), pvr),
@@ -86,8 +87,8 @@ namespace brep
         timestamp (timestamp_type::clock::now ()),
         force (force_state::unforced),
         agent_fingerprint (move (afp)), agent_challenge (move (ach)),
-        machine (move (mnm)),
-        machine_summary (move (msm)),
+        machine (move (mcn)),
+        auxiliary_machines (move (ams)),
         controller_checksum (move (ccs)),
         machine_checksum (move (mcs))
   {
@@ -121,6 +122,43 @@ namespace brep
   }
 
   build::
+  build (string tnt,
+         package_name_type pnm,
+         version pvr,
+         target_triplet trg,
+         string tcf,
+         string pcf,
+         string tnm, version tvr,
+         result_status rst,
+         operation_results ors,
+         build_machine mcn,
+         vector<build_machine> ams)
+      : id (package_id (move (tnt), move (pnm), pvr),
+            move (trg),
+            move (tcf),
+            move (pcf),
+            move (tnm), tvr),
+        tenant (id.package.tenant),
+        package_name (id.package.name),
+        package_version (move (pvr)),
+        target (id.target),
+        target_config_name (id.target_config_name),
+        package_config_name (id.package_config_name),
+        toolchain_name (id.toolchain_name),
+        toolchain_version (move (tvr)),
+        state (build_state::built),
+        timestamp (timestamp_type::clock::now ()),
+        force (force_state::unforced),
+        status (rst),
+        soft_timestamp (timestamp),
+        hard_timestamp (timestamp),
+        machine (move (mcn)),
+        auxiliary_machines (move (ams)),
+        results (move (ors))
+  {
+  }
+
+  build::
   build (build&& b)
       : id (move (b.id)),
         tenant (id.package.tenant),
@@ -141,7 +179,8 @@ namespace brep
         agent_fingerprint (move (b.agent_fingerprint)),
         agent_challenge (move (b.agent_challenge)),
         machine (move (b.machine)),
-        machine_summary (move (b.machine_summary)),
+        auxiliary_machines (move (b.auxiliary_machines)),
+        auxiliary_machines_section (move (b.auxiliary_machines_section)),
         results (move (b.results)),
         results_section (move (b.results_section)),
         controller_checksum (move (b.controller_checksum)),
@@ -170,7 +209,8 @@ namespace brep
       agent_fingerprint = move (b.agent_fingerprint);
       agent_challenge = move (b.agent_challenge);
       machine = move (b.machine);
-      machine_summary = move (b.machine_summary);
+      auxiliary_machines = move (b.auxiliary_machines);
+      auxiliary_machines_section = move (b.auxiliary_machines_section);
       results = move (b.results);
       results_section = move (b.results_section);
       controller_checksum = move (b.controller_checksum);

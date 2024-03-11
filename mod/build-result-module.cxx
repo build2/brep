@@ -4,7 +4,9 @@
 #include <mod/build-result-module.hxx>
 
 #include <libbutl/openssl.hxx>
+#include <libbutl/fdstream.hxx>
 #include <libbutl/process-io.hxx>
+#include <libbutl/semantic-version.hxx>
 
 namespace brep
 {

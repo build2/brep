@@ -229,9 +229,14 @@ handle (request& rq, response& rs)
 
     b = move (pb.build);
     if (b->state != build_state::built)
+    {
       config_expired ("state is " + to_string (b->state));
+    }
     else
+    {
       build_db_->load (*b, b->results_section);
+      build_db_->load (*b, b->auxiliary_machines_section);
+    }
 
     t.commit ();
   }
@@ -250,14 +255,20 @@ handle (request& rq, response& rs)
     if (!b->tenant.empty ())
       os << options_->tenant_name () << ": " << b->tenant << endl << endl;
 
-    os << "package:    " << b->package_name << endl
-       << "version:    " << b->package_version << endl
-       << "toolchain:  " << b->toolchain_name << '-' << b->toolchain_version << endl
-       << "target:     " << b->target << endl
-       << "tgt config: " << b->target_config_name << endl
-       << "pkg config: " << b->package_config_name << endl
-       << "machine:    " << b->machine << " (" << b->machine_summary << ")" << endl
-       << "timestamp:  ";
+    os << "package:           " << b->package_name           << endl
+       << "version:           " << b->package_version        << endl
+       << "toolchain:         " << b->toolchain_name << '-'
+                                << b->toolchain_version      << endl
+       << "target:            " << b->target << endl
+       << "target config:     " << b->target_config_name     << endl
+       << "package config:    " << b->package_config_name    << endl
+       << "build machine:     " << b->machine.name << " -- "
+                                << b->machine.summary        << endl;
+
+    for (const build_machine& m: b->auxiliary_machines)
+      os << "auxiliary machine: " << m.name << " -- " << m.summary << endl;
+
+    os << "timestamp:         ";
 
     butl::to_stream (os,
                      b->timestamp,

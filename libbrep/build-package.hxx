@@ -132,11 +132,13 @@ namespace brep
     lazy_shared_ptr<build_repository> internal_repository;
     bool buildable;
 
-    // Mapped to the package object builds, build_constraints, and
-    // build_configs members using the PostgreSQL foreign table mechanism.
+    // Mapped to the package object builds, build_constraints,
+    // build_auxiliaries, and build_configs members using the PostgreSQL
+    // foreign table mechanism.
     //
     build_class_exprs     builds;
     build_constraints     constraints;
+    build_auxiliaries     auxiliaries;
     build_package_configs configs;
 
     // Group the builds and constraints members of this object as well as of
@@ -191,7 +193,7 @@ namespace brep
 
     #pragma db member(requirements_tests_section) load(lazy) update(always)
 
-    // builds and constraints
+    // builds, constraints, and auxiliaries
     //
     #pragma db member(builds) id_column("") value_column("") \
       section(constraints_section)
@@ -199,9 +201,12 @@ namespace brep
     #pragma db member(constraints) id_column("") value_column("") \
       section(constraints_section)
 
+    #pragma db member(auxiliaries) id_column("") value_column("") \
+      section(constraints_section)
+
     // configs
     //
-    // Note that build_package_config::{builds,constraints} are
+    // Note that build_package_config::{builds,constraints,auxiliaries} are
     // persisted/loaded via the separate nested containers (see commons.hxx
     // for details).
     //
@@ -226,6 +231,17 @@ namespace brep
       set(brep::build_package_config_constraints cs;                \
           odb::nested_set (cs, std::move (?));                      \
           move (cs).to_configs (this.configs))                      \
+      id_column("") key_column("") value_column("")                 \
+      section(constraints_section)
+
+    #pragma db member(config_auxiliaries)                           \
+      virtual(build_auxiliaries_map)                                \
+      after(config_constraints)                                     \
+      get(odb::nested_get (                                         \
+            brep::build_package_config_auxiliaries (this.configs))) \
+      set(brep::build_package_config_auxiliaries as;                \
+          odb::nested_set (as, std::move (?));                      \
+          move (as).to_configs (this.configs))                      \
       id_column("") key_column("") value_column("")                 \
       section(constraints_section)
 

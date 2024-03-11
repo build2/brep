@@ -6,12 +6,8 @@
 #include <odb/database.hxx>
 #include <odb/transaction.hxx>
 
-#include <libbutl/sendmail.hxx>
-#include <libbutl/fdstream.hxx>
-#include <libbutl/process-io.hxx>
 #include <libbutl/manifest-parser.hxx>
 #include <libbutl/manifest-serializer.hxx>
-#include <libbutl/semantic-version.hxx>
 
 #include <libbbot/manifest.hxx>
 
@@ -19,10 +15,10 @@
 
 #include <libbrep/build.hxx>
 #include <libbrep/build-odb.hxx>
-#include <libbrep/package.hxx>
-#include <libbrep/package-odb.hxx>
+#include <libbrep/build-package.hxx>
+#include <libbrep/build-package-odb.hxx>
 
-#include <mod/build.hxx>          // *_url()
+#include <mod/build.hxx>          // send_notification_email()
 #include <mod/module-options.hxx>
 #include <mod/tenant-service.hxx>
 
@@ -171,11 +167,6 @@ handle (request& rq, response&)
     tc = i->second;
   }
 
-  auto print_args = [&trace, this] (const char* args[], size_t n)
-  {
-    l2 ([&]{trace << process_args {args, n};});
-  };
-
   // Load and update the package build configuration (if present).
   //
   // NULL if the package build doesn't exist or is not updated for any reason
@@ -189,15 +180,11 @@ handle (request& rq, response&)
   // Not NULL if bld is not NULL.
   //
   shared_ptr<build_package> pkg;
-  const build_package_config* cfg (nullptr);
+  build_package_config* cfg (nullptr);
 
-  // True if the built package version is the latest buildable version of this
-  // package in the tenant.
+  // Don't send email to the build-email address for the success-to-success
+  // status change, unless the build was forced.
   //
-  // Note: is only meaningful if bld is not NULL.
-  //
-  bool latest_version (false);
-
   bool build_notify (false);
   bool unforced (true);
 
@@ -314,6 +301,12 @@ handle (request& rq, response&)
           // greater then its soft_timestamp as an indication that the build
           // object represents the interrupted rebuild (see the build_task
           // handler for details).
+          //
+          // @@ Actually, we also unable to restore the pre-rebuild machine
+          //    and auxiliary machines, which are also displayed in the build
+          //    log and may potentially be confusing. Should we drop them from
+          //    the log in this case or replace with the "machine: unknown"
+          //    record?
 
           build_db_->update (b);
         }
@@ -414,9 +407,6 @@ handle (request& rq, response&)
 
         unforced = (b->force == force_state::unforced);
 
-        // Don't send email to the build-email address for the
-        // success-to-success status change, unless the build was forced.
-        //
         build_notify = !(rs == result_status::success &&
                          b->status                    &&
                          *b->status == rs             &&
@@ -477,27 +467,7 @@ handle (request& rq, response&)
             build_db_->load (*pkg, pkg->constraints_section);
 
             if (!exclude (*cfg, pkg->builds, pkg->constraints, *tc))
-            {
               bld = b;
-
-              // While at it, check if the built package version is the latest
-              // buildable version of this package.
-              //
-              // Ideally we would like to avoid this query unless necessary
-              // (mode is latest and package manifest has build-*-email
-              // values), but that will make things quite hairy so let's
-              // keep it simple for now.
-              //
-              const auto& id (query<buildable_package>::build_package::id);
-
-              buildable_package p (
-                build_db_->query_value<buildable_package> (
-                  (id.tenant == b->tenant && id.name == b->package_name) +
-                  order_by_version_desc (id.version)                     +
-                  "LIMIT 1"));
-
-              latest_version = (p.package->version == b->package_version);
-            }
           }
         }
         else
@@ -552,115 +522,22 @@ handle (request& rq, response&)
       update_tenant_service_state (conn, b.tenant, f);
   }
 
-  if (bld == nullptr)
-    return true;
-
-  // Bail out if sending build notification emails is disabled for this
-  // toolchain for this package.
-  //
+  if (bld != nullptr)
   {
-    const map<string, build_email>& tes (options_->build_toolchain_email ());
-    auto i (tes.find (bld->id.toolchain_name));
-    build_email mode (i != tes.end () ? i->second : build_email::latest);
-
-    if (mode == build_email::none ||
-        (mode == build_email::latest && !latest_version))
-      return true;
-  }
-
-  string subj ((unforced ? "build " : "rebuild ")   +
-               to_string (*bld->status) + ": "      +
-               bld->package_name.string () + '/'    +
-               bld->package_version.string () + ' ' +
-               bld->target_config_name + '/'        +
-               bld->target.string () + ' '          +
-               bld->package_config_name + ' '       +
-               bld->toolchain_name + '-' + bld->toolchain_version.string ());
-
-  // Send notification emails to the interested parties.
-  //
-  auto send_email = [&bld, &subj, &error, &trace, &print_args, this]
-                    (const string& to)
-  {
-    try
-    {
-      l2 ([&]{trace << "email '" << subj << "' to " << to;});
-
-      // Redirect the diagnostics to webserver error log.
-      //
-      // Note: if using this somewhere else, then need to factor out all this
-      // exit status handling code.
-      //
-      sendmail sm (print_args,
-                   2,
-                   options_->email (),
-                   subj,
-                   {to});
-
-      if (bld->results.empty ())
-        sm.out << "No operation results available." << endl;
-      else
-      {
-        const string& host (options_->host ());
-        const dir_path& root (options_->root ());
-
-        ostream& os (sm.out);
-
-        assert (bld->status);
-        os << "combined: " << *bld->status << endl << endl
-           << "  " << build_log_url (host, root, *bld) << endl << endl;
-
-        for (const auto& r: bld->results)
-          os << r.operation << ": " << r.status << endl << endl
-             << "  " << build_log_url (host, root, *bld, &r.operation)
-             << endl << endl;
-
-        os << "Force rebuild (enter the reason, use '+' instead of spaces):"
-           << endl << endl
-           << "  " << build_force_url (host, root, *bld) << endl;
-      }
-
-      sm.out.close ();
-
-      if (!sm.wait ())
-        error << "sendmail " << *sm.exit;
-    }
-    // Handle process_error and io_error (both derive from system_error).
+    // Don't sent the notification email for success-to-success status change,
+    // etc.
     //
-    catch (const system_error& e)
-    {
-      error << "sendmail error: " << e;
-    }
-  };
+    if (!build_notify)
+      (cfg->email ? cfg->email : pkg->build_email) = email ();
 
-  // Send the build notification email if a non-empty package build email is
-  // specified.
-  //
-  if (build_notify)
-  {
-    if (const optional<email>& e = cfg->effective_email (pkg->build_email))
-    {
-      if (!e->empty ())
-        send_email (*pkg->build_email);
-    }
-  }
-
-  assert (bld->status);
-
-  // Send the build warning/error notification emails, if requested.
-  //
-  if (*bld->status >= result_status::warning)
-  {
-    if (const optional<email>& e =
-          cfg->effective_warning_email (pkg->build_warning_email))
-      send_email (*e);
-  }
-
-  if (*bld->status >= result_status::error)
-  {
-    if (const optional<email>& e =
-        cfg->effective_error_email (pkg->build_error_email))
-      send_email (*e);
+    send_notification_email (*options_,
+                             conn,
+                             *bld,
+                             *pkg,
+                             *cfg,
+                             unforced ? "build" : "rebuild",
+                             error,
+                             verb_ >= 2 ? &trace : nullptr);
   }
 
   return true;
