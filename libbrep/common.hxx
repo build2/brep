@@ -360,6 +360,10 @@ namespace brep
 
   #pragma db value(build_package_config) definition
 
+  // @@ TMP AUXILIARY
+  //
+  #pragma db member(build_package_config::auxiliaries) transient
+
   // 1 for the default configuration which is always present.
   //
   using build_package_configs = small_vector<build_package_config, 1>;

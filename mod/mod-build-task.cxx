@@ -409,6 +409,9 @@ handle (request& rq, response& rs)
 
       bool module_pkg (pn.string ().compare (0, 10, "libbuild2-") == 0);
 
+      // Note that the auxiliary environment is crafted by the bbot agent
+      // after the auxiliary machines are booted.
+      //
       task_manifest task (move (pn),
                           move (p.version),
                           move (r->location),
@@ -417,8 +420,10 @@ handle (request& rq, response& rs)
                           move (tests),
                           b.dependency_checksum,
                           cm.machine->name,
+                          {} /* auxiliary_machines */, // @@ TMP AUXILIARY
                           cm.config->target,
                           cm.config->environment,
+                          "" /* auxiliary_environment */,
                           cm.config->args,
                           move (pc.arguments),
                           belongs (*cm.config, module_pkg ? "build2" : "host"),
