@@ -586,15 +586,18 @@ namespace brep
          default is 10M."
       }
 
-      std::map<string, bool> build-toolchain-email
+      std::map<string, build_email> build-toolchain-email
       {
-        "<name>=<bool>",
-        "Enable or disable package build notification emails. If \cb{true} is
+        "<name>=<mode>",
+        "Enable or disable package build notification emails. The valid <mode>
+         values are \cb{none}, \cb{latest}, and \cb{all}. If \cb{all} is
          specified for a toolchain name, then emails are sent according to the
-         \cb{build-*email} package manifest values when the package is built
-         with this toolchain. If \cb{false} is specified, then no emails are
-         sent for this toolchain name. By default build notification emails
-         are enabled. Repeat this option to enable/disable emails for multiple
+         \cb{build-*email} package manifest values when all versions of a
+         package are built with this toolchain. If \cb{latest} is specified,
+         then for this toolchain name the emails are only sent for the latest
+         version of a package. If \cb{none} is specified, then no emails are
+         sent for this toolchain name. By default the \cb{latest} mode is
+         assumed. Repeat this option to enable/disable emails for multiple
          toolchains. See \l{bpkg#manifest-package Package Manifest} for
          details on \cb{build-*email} values."
       }

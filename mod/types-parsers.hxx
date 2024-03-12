@@ -99,6 +99,13 @@ namespace brep
       static void
       parse (build_order&, bool&, scanner&);
     };
+
+    template <>
+    struct parser<build_email>
+    {
+      static void
+      parse (build_email&, bool&, scanner&);
+    };
   }
 }
 

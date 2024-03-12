@@ -191,6 +191,13 @@ handle (request& rq, response&)
   shared_ptr<build_package> pkg;
   const build_package_config* cfg (nullptr);
 
+  // True if the built package version is the latest buildable version of this
+  // package in the tenant.
+  //
+  // Note: is only meaningful if bld is not NULL.
+  //
+  bool latest_version (false);
+
   bool build_notify (false);
   bool unforced (true);
 
@@ -470,7 +477,27 @@ handle (request& rq, response&)
             build_db_->load (*pkg, pkg->constraints_section);
 
             if (!exclude (*cfg, pkg->builds, pkg->constraints, *tc))
+            {
               bld = b;
+
+              // While at it, check if the built package version is the latest
+              // buildable version of this package.
+              //
+              // Ideally we would like to avoid this query unless necessary
+              // (mode is latest and package manifest has build-*-email
+              // values), but that will make things quite hairy so let's
+              // keep it simple for now.
+              //
+              const auto& id (query<buildable_package>::build_package::id);
+
+              buildable_package p (
+                build_db_->query_value<buildable_package> (
+                  (id.tenant == b->tenant && id.name == b->package_name) +
+                  order_by_version_desc (id.version)                     +
+                  "LIMIT 1"));
+
+              latest_version = (p.package->version == b->package_version);
+            }
           }
         }
         else
@@ -529,13 +556,15 @@ handle (request& rq, response&)
     return true;
 
   // Bail out if sending build notification emails is disabled for this
-  // toolchain.
+  // toolchain for this package.
   //
   {
-    const map<string, bool>& tes (options_->build_toolchain_email ());
-
+    const map<string, build_email>& tes (options_->build_toolchain_email ());
     auto i (tes.find (bld->id.toolchain_name));
-    if (i != tes.end () && !i->second)
+    build_email mode (i != tes.end () ? i->second : build_email::latest);
+
+    if (mode == build_email::none ||
+        (mode == build_email::latest && !latest_version))
       return true;
   }
 

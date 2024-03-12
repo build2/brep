@@ -261,5 +261,27 @@ namespace brep
       else
         throw invalid_value (o, v);
     }
+
+    // Parse build_email.
+    //
+    void parser<build_email>::
+    parse (build_email& x, bool& xs, scanner& s)
+    {
+      xs = true;
+      const char* o (s.next ());
+
+      if (!s.more ())
+        throw missing_value (o);
+
+      const string v (s.next ());
+      if (v == "none")
+        x = build_email::none;
+      else if (v == "latest")
+        x = build_email::latest;
+      else if (v == "all")
+        x = build_email::all;
+      else
+        throw invalid_value (o, v);
+    }
   }
 }

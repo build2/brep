@@ -31,6 +31,13 @@ namespace brep
     stable,
     random
   };
+
+  enum class build_email
+  {
+    none,
+    latest, // Only send emails for the latest package versions.
+    all
+  };
 }
 
 #endif // MOD_OPTIONS_TYPES_HXX
