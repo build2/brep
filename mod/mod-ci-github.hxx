@@ -49,7 +49,7 @@ namespace brep
     //
     struct check_suite
     {
-      uint64_t id;
+      uint64_t id; // @@ Switch to node_id?
       string head_branch;
       string head_sha;
       string before;
