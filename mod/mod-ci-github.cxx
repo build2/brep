@@ -305,6 +305,64 @@ namespace brep
     }
   }
 
+  // Tenant service data.
+  //
+  struct service_data
+  {
+    string installation_access_token;
+    string repository_id;
+    string head_sha;
+
+    // Construct from JSON.
+    //
+    explicit
+    service_data (const string& json);
+
+    // Serialize fields to JSON.
+    //
+    static string
+    json (const string& iat, const string& rid, const string& hs);
+  };
+
+  bool ci_github::
+  handle_check_suite_request (check_suite_event cs)
+  {
+    HANDLER_DIAG;
+
+    cout << "<check_suite event>" << endl << cs << endl;
+
+    installation_access_token iat (
+      obtain_installation_access_token (cs.installation.id, generate_jwt ()));
+
+    cout << endl << "<installation_access_token>" << endl << iat << endl;
+
+    // Submit the CI request.
+    //
+    repository_location rl (cs.repository.clone_url + '#' +
+                                cs.check_suite.head_branch,
+                            repository_type::git);
+
+    string sd (service_data::json (iat.token,
+                                   cs.repository.node_id,
+                                   cs.check_suite.head_sha));
+
+    optional<start_result> r (
+        start (error,
+               warn,
+               verb_ ? &trace : nullptr,
+               tenant_service ("", "ci-github", move (sd)),
+               move (rl),
+               vector<package> {},
+               nullopt, // client_ip
+               nullopt  // user_agent
+               ));
+
+    if (!r)
+      fail << "unable to submit CI request";
+
+    return true;
+  }
+
   // GraphQL serialization functions.
   //
   // The GraphQL spec:
@@ -367,6 +425,7 @@ namespace brep
 
   // Serialize an int to GraphQL.
   //
+#if 0
   static string
   gq_int (uint64_t v)
   {
@@ -375,6 +434,7 @@ namespace brep
     s.value (v);
     return b;
   }
+#endif
 
   // Serialize a boolean to GraphQL.
   //
@@ -400,7 +460,21 @@ namespace brep
     return gq_name (v);
   }
 
-  // Serialize `createCheckRun` GraphQL mutations for one or more builds.
+  // Create a check_run name from a build.
+  //
+  static string
+  check_run_name (const build& b)
+  {
+    return b.package_name.string () + '/'    +
+           b.package_version.string () + '/' +
+           b.target.string () + '/'          +
+           b.target_config_name + '/'        +
+           b.package_config_name + '/'       +
+           b.toolchain_name + '/'            +
+           b.toolchain_version.string ();
+  }
+
+  // Serialize `createCheckRun` mutations for one or more builds to GraphQL.
   //
   static string
   queue_check_runs (const string& ri, // Repository ID
@@ -421,13 +495,7 @@ namespace brep
 
       // Check run name.
       //
-      string nm (b.package_name.string () + '/'    +
-                 b.package_version.string () + '/' +
-                 b.target.string () + '/'          +
-                 b.target_config_name + '/'        +
-                 b.package_config_name + '/'       +
-                 b.toolchain_name + '/'            +
-                 b.toolchain_version.string ());
+      string nm (check_run_name (b));
 
       os << gq_name (al) << ":createCheckRun(input: {"              << '\n'
          << "  name: "         << gq_str (nm) << ','                << '\n'
@@ -438,7 +506,7 @@ namespace brep
         // Specify the selection set (fields to be returned).
         //
          << "{"                                                     << '\n'
-         << "  CheckRun {"                                          << '\n'
+         << "  checkRun {"                                          << '\n'
          << "    id,"                                               << '\n'
          << "    name,"                                             << '\n'
          << "    status"                                            << '\n'
@@ -451,139 +519,165 @@ namespace brep
     return os.str ();
   }
 
-  bool ci_github::
-  handle_check_suite_request (check_suite_event cs)
+  // Serialize a GraphQL operation (query/mutation) into a GraphQL request.
+  //
+  // This is essentially a JSON object with a "query" string member containing
+  // the GraphQL operation. For example:
+  //
+  // { "query": "mutation { cr0:createCheckRun(... }" }
+  //
+  static string
+  graphql_request (const string& o)
   {
-    HANDLER_DIAG;
+    string b;
+    json::buffer_serializer s (b);
 
-    cout << "<check_suite event>" << endl << cs << endl;
+    s.begin_object ();
+    s.member ("query", o);
+    s.end_object ();
 
-    installation_access_token iat (
-      obtain_installation_access_token (cs.installation.id, generate_jwt ()));
-
-    cout << endl << "<installation_access_token>" << endl << iat << endl;
-
-    repository_location rl (cs.repository.clone_url + '#' +
-                                cs.check_suite.head_branch,
-                            repository_type::git);
-
-#if 0
-    optional<start_result> r (start (error,
-                                     warn,
-                                     verb_ ? &trace : nullptr,
-                                     tenant_service ("", "ci-github"),
-                                     move (rl),
-                                     vector<package> {},
-                                     nullopt, client_ip,
-                                     nullopt  user_agent,
-                                     ));
-
-    if (!r)
-      fail << "unable to start CI";
-#endif
-
-    vector<build> builds;
-    builds.emplace_back ("tenant",
-                         build::package_name_type (cs.repository.name),
-                         brep::version ("1.2.3"),
-                         target_triplet ("x86_64-linux-gnu"),
-                         "linux_debian_12",
-                         "default",
-                         "gcc",
-                         brep::version ("4.5.6"));
-
-    builds.emplace_back ("tenant",
-                         build::package_name_type (cs.repository.name),
-                         brep::version ("1.2.3"),
-                         target_triplet ("x86_64-linux-gnu"),
-                         "linux_fedora_37",
-                         "default",
-                         "clang",
-                         brep::version ("4.5.6"));
-
-    cout << queue_check_runs (cs.repository.node_id,
-                              cs.check_suite.head_sha,
-                              builds)
-         << endl;
-
-    return true;
+    return b;
   }
 
-  function<optional<string> (const brep::tenant_service&)> brep::ci_github::
-  build_queued (const tenant_service&,
-                const vector<build>& bs,
-                optional<build_state> initial_state) const
+  // Parse a response to a check_run GraphQL mutation such as `createCheckRun`
+  // or `updateCheckRun`.
+  //
+  // Return the received check run objects or throw runtime_error if the
+  // response indicated errors and invalid_json_input if the GitHub response
+  // contained invalid JSON.
+  //
+  // The response format is defined in the GraphQL spec:
+  // https://spec.graphql.org/October2021/#sec-Response.
+  //
+  // Example response:
+  //
+  // {
+  //   "data": {
+  //     "cr0": {
+  //       "checkRun": {
+  //         "id": "CR_kwDOLc8CoM8AAAAFQ5GqPg",
+  //         "name": "libb2/0.98.1+2/x86_64-linux-gnu/linux_debian_12-gcc_13.1-O3/default/dev/0.17.0-a.1",
+  //         "status": "QUEUED"
+  //       }
+  //     },
+  //     "cr1": {
+  //       "checkRun": {
+  //         "id": "CR_kwDOLc8CoM8AAAAFQ5GqhQ",
+  //         "name": "libb2/0.98.1+2/x86_64-linux-gnu/linux_debian_12-gcc_13.1/default/dev/0.17.0-a.1",
+  //         "status": "QUEUED"
+  //       }
+  //     }
+  //   }
+  // }
+  //
+  // @@ TODO Handle response errors properly.
+  //
+  static vector<check_run>
+  parse_check_runs_response (json::parser& p)
   {
-    // return [&bs, initial_state] (const tenant_service& ts)
-    // {
-    //   optional<string> r (ts.data);
+    using event = json::event;
 
-    //   for (const build& b: bs)
-    //   {
-    //     string s ((!initial_state
-    //                ? "queued "
-    //                : "queued " + to_string (*initial_state) + ' ') +
-    //               b.package_name.string () + '/'                   +
-    //               b.package_version.string () + '/'                +
-    //               b.target.string () + '/'                         +
-    //               b.target_config_name + '/'                       +
-    //               b.package_config_name + '/'                      +
-    //               b.toolchain_name + '/'                           +
-    //               b.toolchain_version.string ());
+    auto throw_json = [&p] [[noreturn]] (const string& m)
+    {
+      throw json::invalid_json_input (
+        p.input_name,
+        p.line (), p.column (), p.position (),
+        m);
+    };
 
-    //     if (r)
-    //     {
-    //       *r += ", ";
-    //       *r += s;
-    //     }
-    //     else
-    //       r = move (s);
-    //   }
+    vector<check_run> r;
 
-    //   return r;
-    // };
+    // True if the data/errors fields are present.
+    //
+    // Although the spec merely recommends that the `errors` field, if
+    // present, comes before the `data` field, assume it always does because
+    // letting the client parse data in the presence of field errors
+    // (unexpected nulls) would not make sense.
+    //
+    bool dat (false), err (false);
 
-    return nullptr;
-  }
+    p.next_expect (event::begin_object);
 
-  function<optional<string> (const brep::tenant_service&)> brep::ci_github::
-  build_building (const tenant_service&, const build& b) const
-  {
-    // return [&b] (const tenant_service& ts)
-    // {
-    //   string s ("building "                       +
-    //             b.package_name.string () + '/'    +
-    //             b.package_version.string () + '/' +
-    //             b.target.string () + '/'          +
-    //             b.target_config_name + '/'        +
-    //             b.package_config_name + '/'       +
-    //             b.toolchain_name + '/'            +
-    //             b.toolchain_version.string ());
+    while (p.next_expect (event::name, event::end_object))
+    {
+      if (p.name () == "data")
+      {
+        dat = true;
 
-    //   return ts.data ? *ts.data + ", " + s : s;
-    // };
+        // Currently we're not handling fields that are null due to field
+        // errors (see below for details) so don't parse any further.
+        //
+        if (err)
+          break;
 
-    return nullptr;
-  }
+        p.next_expect (event::begin_object);
 
-  function<optional<string> (const brep::tenant_service&)> brep::ci_github::
-  build_built (const tenant_service&, const build& b) const
-  {
-    // return [&b] (const tenant_service& ts)
-    // {
-    //   string s ("built "                          +
-    //             b.package_name.string () + '/'    +
-    //             b.package_version.string () + '/' +
-    //             b.target.string () + '/'          +
-    //             b.target_config_name + '/'        +
-    //             b.package_config_name + '/'       +
-    //             b.toolchain_name + '/'            +
-    //             b.toolchain_version.string ());
+        // Parse the "cr0".."crN" members (field aliases).
+        //
+        while (p.next_expect (event::name, event::end_object))
+        {
+          // Parse `"crN": { "checkRun":`.
+          //
+          if (p.name () != "cr" + to_string (r.size ()))
+            throw_json ("unexpected field alias: '" + p.name () + '\'');
+          p.next_expect (event::begin_object);
+          p.next_expect_name ("checkRun");
 
-    //   return ts.data ? *ts.data + ", " + s : s;
-    // };
+          r.emplace_back (p); // Parse the check_run object.
 
-    return nullptr;
+          p.next_expect (event::end_object); // Parse end of crN object.
+        }
+
+        if (r.empty ())
+          throw_json ("data object is empty");
+      }
+      else if (p.name () == "errors")
+      {
+        // Don't stop parsing because the error semantics depends on whether
+        // or not `data` is present.
+        //
+        err = true; // Handled below.
+      }
+      else
+      {
+        // The spec says the response will never contain any top-level fields
+        // other than data, errors, and extensions.
+        //
+        if (p.name () != "extensions")
+        {
+          throw_json ("unexpected top-level GraphQL response field: '" +
+                      p.name () + '\'');
+        }
+
+        p.next_expect_value_skip ();
+      }
+    }
+
+    // If the `errors` field was present in the response, error(s) occurred
+    // before or during execution of the operation.
+    //
+    // If the `data` field was not present the errors are request errors which
+    // occur before execution and are typically the client's fault.
+    //
+    // If the `data` field was also present in the response the errors are
+    // field errors which occur during execution and are typically the GraphQL
+    // endpoint's fault, and some fields in `data` that should not be are
+    // likely to be null.
+    //
+    if (err)
+    {
+      if (dat)
+      {
+        // @@ TODO: Consider parsing partial data?
+        //
+        throw runtime_error ("field error(s) received from GraphQL endpoint; "
+                             "incomplete data received");
+      }
+      else
+        throw runtime_error ("request error(s) received from GraphQL endpoint");
+    }
+
+    return r;
   }
 
   // Send a POST request to the GitHub API endpoint `ep`, parse GitHub's JSON
@@ -599,9 +693,12 @@ namespace brep
   // invalid_json_input (derived from invalid_argument) if unable to parse the
   // response body, and system_error in other cases.
   //
-  template<typename T>
+  template <typename T>
   static uint16_t
-  github_post (T& rs, const string& ep, const strings& hdrs)
+  github_post (T& rs,
+               const string& ep,
+               const strings& hdrs,
+               const string& body = "")
   {
     // Convert the header values to curl header option/value pairs.
     //
@@ -633,7 +730,7 @@ namespace brep
       //
       fdpipe errp (fdopen_pipe ()); // stderr pipe.
 
-      curl c (nullfd,
+      curl c (path ("-"), // Read input from curl::out.
               path ("-"), // Write response to curl::in.
               process::pipe (errp.in.get (), move (errp.out)),
               curl::post,
@@ -656,6 +753,13 @@ namespace brep
         // exception.
         //
         ifdstream in (c.in.release (), fdstream_mode::skip);
+        ofdstream out (c.out.release ());
+
+        // Write request body to out.
+        //
+        if (!body.empty ())
+          out << body;
+        out.close ();
 
         sc = curl::read_http_status (in).code; // May throw invalid_argument.
 
@@ -718,6 +822,132 @@ namespace brep
         e.code ().value (),
         (string ("unable to read curl stderr : ") + e.what ()).c_str ());
     }
+  }
+
+  function<optional<string> (const brep::tenant_service&)> brep::ci_github::
+  build_queued (const tenant_service& ts,
+                const vector<build>& bs,
+                optional<build_state> /* initial_state */) const
+  {
+    HANDLER_DIAG;
+
+    service_data sd (*ts.data);
+
+    // Queue a check_run for each build.
+    //
+    string rq (graphql_request (
+        queue_check_runs (sd.repository_id, sd.head_sha, bs)));
+
+    // Response type which parses a GraphQL response containing multiple
+    // check_run objects.
+    //
+    struct resp
+    {
+      vector<check_run> check_runs; // Received check runs.
+
+      resp (json::parser& p) : check_runs (parse_check_runs_response (p)) {}
+
+      resp () = default;
+    } rs;
+
+    try
+    {
+      uint16_t sc (github_post (
+          rs,
+          "graphql", // API Endpoint.
+          strings {"Authorization: Bearer " + sd.installation_access_token},
+          move (rq)));
+
+      if (sc != 200)
+      {
+        fail << "failed to queue check runs: "
+             << "error HTTP response status " << sc;
+      }
+    }
+    catch (const json::invalid_json_input& e)
+    {
+      // Note: e.name is the GitHub API endpoint.
+      //
+      fail << "malformed JSON in response from " << e.name << ", line: "
+           << e.line << ", column: " << e.column << ", byte offset: "
+           << e.position << ", error: " << e;
+    }
+    catch (const invalid_argument& e)
+    {
+      fail << "malformed header(s) in response: " << e;
+    }
+    catch (const system_error& e)
+    {
+      fail << "unable to queue check runs (errno=" << e.code ()
+           << "): " << e.what ();
+    }
+    catch (const runtime_error& e) // From parse_check_runs_response().
+    {
+      // GitHub response contained error(s) (could be ours or theirs at this
+      // point).
+      //
+      fail << "unable to queue check runs: " << e;
+    }
+
+    if (rs.check_runs.size () != bs.size ())
+      fail << "unexpected number of check_run objects in response";
+
+    // Validate the check runs in the response against the builds.
+    //
+    for (size_t i (0); i != rs.check_runs.size (); ++i)
+    {
+      const build& b (bs[i]);
+      const check_run& cr (rs.check_runs[i]);
+
+      if (cr.name != check_run_name (b))
+        fail << "unexpected check_run name: '" + cr.name + '\'';
+      else if (cr.status != "QUEUED")
+        fail << "unexpected check_run status: '" + cr.status + '\'';
+
+      cout << "<check_run>" << endl << cr << endl;
+    }
+
+    return nullptr;
+  }
+
+  function<optional<string> (const brep::tenant_service&)> brep::ci_github::
+  build_building (const tenant_service&, const build&) const
+  {
+    // return [&b] (const tenant_service& ts)
+    // {
+    //   string s ("building "                       +
+    //             b.package_name.string () + '/'    +
+    //             b.package_version.string () + '/' +
+    //             b.target.string () + '/'          +
+    //             b.target_config_name + '/'        +
+    //             b.package_config_name + '/'       +
+    //             b.toolchain_name + '/'            +
+    //             b.toolchain_version.string ());
+
+    //   return ts.data ? *ts.data + ", " + s : s;
+    // };
+
+    return nullptr;
+  }
+
+  function<optional<string> (const brep::tenant_service&)> brep::ci_github::
+  build_built (const tenant_service&, const build&) const
+  {
+    // return [&b] (const tenant_service& ts)
+    // {
+    //   string s ("built "                          +
+    //             b.package_name.string () + '/'    +
+    //             b.package_version.string () + '/' +
+    //             b.target.string () + '/'          +
+    //             b.target_config_name + '/'        +
+    //             b.package_config_name + '/'       +
+    //             b.toolchain_name + '/'            +
+    //             b.toolchain_version.string ());
+
+    //   return ts.data ? *ts.data + ", " + s : s;
+    // };
+
+    return nullptr;
   }
 
   string ci_github::
@@ -839,9 +1069,37 @@ namespace brep
     return iat;
   }
 
+  using event = json::event;
+
+  service_data::
+  service_data (const string& json)
+  {
+    json::parser p (json.data (), json.size (), "service_data");
+
+    p.next_expect (event::begin_object);
+    installation_access_token = p.next_expect_member_string ("iat");
+    repository_id = p.next_expect_member_string ("rid");
+    head_sha = p.next_expect_member_string ("hs");
+    p.next_expect (event::end_object);
+  }
+
+  string service_data::
+  json (const string& iat, const string& rid, const string& hs)
+  {
+    string b;
+    json::buffer_serializer s (b);
+
+    s.begin_object ();
+    s.member ("iat", iat);
+    s.member ("rid", rid);
+    s.member ("hs", hs);
+    s.end_object ();
+
+    return b;
+  }
+
   // The rest is GitHub request/response type parsing and printing.
   //
-  using event = json::event;
 
   // Throw invalid_json_input when a required member `m` is missing from a
   // JSON object `o`.
@@ -896,6 +1154,42 @@ namespace brep
        << "head_sha: " << cs.head_sha << endl
        << "before: " << cs.before << endl
        << "after: " << cs.after << endl;
+
+    return os;
+  }
+
+  // check_run
+  //
+  gh::check_run::
+  check_run (json::parser& p)
+  {
+    p.next_expect (event::begin_object);
+
+    bool ni (false), nm (false), st (false);
+
+    while (p.next_expect (event::name, event::end_object))
+    {
+      auto c = [&p] (bool& v, const char* s)
+      {
+        return p.name () == s ? (v = true) : false;
+      };
+
+      if      (c (ni, "id"))     node_id = p.next_expect_string ();
+      else if (c (nm, "name"))   name = p.next_expect_string ();
+      else if (c (st, "status")) status = p.next_expect_string ();
+    }
+
+    if (!ni) missing_member (p, "check_run", "id");
+    if (!nm) missing_member (p, "check_run", "name");
+    if (!st) missing_member (p, "check_run", "status");
+  }
+
+  ostream&
+  gh::operator<< (ostream& os, const check_run& cr)
+  {
+    os << "id: " << cr.node_id << endl
+       << "name: " << cr.name << endl
+       << "status: " << cr.status << endl;
 
     return os;
   }
