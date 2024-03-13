@@ -317,7 +317,7 @@ namespace brep
   // Check that a string is a valid GraphQL name.
   //
   // GraphQL names can contain only alphanumeric characters and underscores
-  // and cannot begin with a digit.
+  // and cannot begin with a digit (so basically a C identifier).
   //
   // Return the name or throw invalid_argument if it is invalid.
   //
@@ -345,8 +345,11 @@ namespace brep
   // invalid.
   //
   static string
-  gq_string (const string& v)
+  gq_str (const string& v)
   {
+    // GraphQL strings are the same as JSON strings so we use the JSON
+    // serializer.
+    //
     string b;
     json::buffer_serializer s (b);
 
@@ -375,13 +378,10 @@ namespace brep
 
   // Serialize a boolean to GraphQL.
   //
-  static string
-  gq_boolean (bool v)
+  static inline string
+  gq_bool (bool v)
   {
-    string b;
-    json::buffer_serializer s (b);
-    s.value (v);
-    return b;
+    return v ? "true" : "false";
   }
 
   // Check that a string is a valid GraphQL enum value.
@@ -403,34 +403,31 @@ namespace brep
   // Serialize `createCheckRun` GraphQL mutations for one or more builds.
   //
   static string
-  gq_check_runs (const string& ri, // Repository ID
-                 const string& hs, // Head SHA
-                 const vector<build>& bs)
+  queue_check_runs (const string& ri, // Repository ID
+                    const string& hs, // Head SHA
+                    const vector<build>& bs)
   {
-    // Check run status values.
-    //
-    const string queued      ("QUEUED");
-    const string in_progress ("IN_PROGRESS");
-    const string completed   ("COMPLETED");
-
     ostringstream os;
 
-    os << "mutation {\n";
+    os << "mutation {"                                              << '\n';
 
     // Serialize a `createCheckRun` for each build.
     //
-    size_t cn (0); // Check run number.
-
-    for (const build& b: bs)
+    for (size_t i (0); i != bs.size (); ++i)
     {
-      string al ("cr" + to_string (cn++)); // Field alias
-      string nm (b.package_name.string () + '-' + b.target_config_name); // Name
+      const build& b (bs[i]);
+
+      string al ("cr" + to_string (i)); // Field alias.
+
+      // @@ TODO: revise.
+      //
+      string nm (b.package_name.string () + '/' + b.target_config_name); // Name
 
       os << gq_name (al) << ":createCheckRun(input: {"              << '\n'
-         << "  name: "         << gq_string (nm) << ','             << '\n'
-         << "  repositoryId: " << gq_string (ri) << ','             << '\n'
-         << "  headSha: "      << gq_string (hs) << ','             << '\n'
-         << "  status: "       << gq_enum (queued)                  << '\n'
+         << "  name: "         << gq_str (nm) << ','                << '\n'
+         << "  repositoryId: " << gq_str (ri) << ','                << '\n'
+         << "  headSha: "      << gq_str (hs) << ','                << '\n'
+         << "  status: "       << gq_enum ("QUEUED")                << '\n'
          << "})"                                                    << '\n'
         // Specify the selection set (fields to be returned).
         //
@@ -443,7 +440,7 @@ namespace brep
          << "}"                                                     << '\n';
     }
 
-    os << "}\n";
+    os << "}"                                                       << '\n';
 
     return os.str ();
   }
@@ -477,18 +474,20 @@ namespace brep
                                 cs.check_suite.head_branch,
                             repository_type::git);
 
-    // optional<start_result> r (start (error,
-    //                                  warn,
-    //                                  verb_ ? &trace : nullptr,
-    //                                  tenant_service ("", "ci-github"),
-    //                                  move (rl),
-    //                                  vector<package> {},
-    //                                  nullopt, // client_ip,
-    //                                  nullopt  // user_agent,
-    //                                  ));
+#if 0
+    optional<start_result> r (start (error,
+                                     warn,
+                                     verb_ ? &trace : nullptr,
+                                     tenant_service ("", "ci-github"),
+                                     move (rl),
+                                     vector<package> {},
+                                     nullopt, client_ip,
+                                     nullopt  user_agent,
+                                     ));
 
-    // if (!r)
-    //   fail << "unable to start CI";
+    if (!r)
+      fail << "unable to start CI";
+#endif
 
     vector<build> builds;
     builds.emplace_back ("tenant",
