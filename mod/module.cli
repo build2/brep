@@ -494,6 +494,14 @@ namespace brep
         "Package search page title. It is placed inside XHTML5 <title>
          element."
       }
+
+      web::xhtml::fragment search-description
+      {
+        "<xhtml>",
+        "Package search page description. If specified, it is displayed
+         before the search form on the first page only. The value is
+         treated as an XHTML5 fragment."
+      }
     };
 
     class package_details: package, search, package_db, page, handler

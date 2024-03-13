@@ -136,6 +136,16 @@ handle (request& rq, response& rs)
     <<     DIV_HEADER (options_->logo (), options_->menu (), root, tenant)
     <<     DIV(ID="content");
 
+  // On the first page print the search page description, if specified.
+  //
+  if (page == 0)
+  {
+    const web::xhtml::fragment& desc (options_->search_description ());
+
+    if (!desc.empty ())
+      s << DIV(ID="search-description") << desc << ~DIV;
+  }
+
   // If the tenant is empty then we are in the global view and will display
   // packages from all the public tenants.
   //

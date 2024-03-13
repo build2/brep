@@ -204,9 +204,9 @@ namespace brep
       {
         x = fragment (v, o);
       }
-      catch (const xml::parsing&)
+      catch (const xml::parsing& e)
       {
-        throw invalid_value (o, v);
+        throw invalid_value (o, v, e.what ());
       }
     }
 
