@@ -61,6 +61,18 @@ namespace brep
       check_suite () = default;
     };
 
+    struct check_run
+    {
+      string node_id;
+      string name;
+      string status;
+
+      explicit
+      check_run (json::parser&);
+
+      check_run () = default;
+    };
+
     struct repository
     {
       string node_id;
@@ -113,6 +125,9 @@ namespace brep
 
     ostream&
     operator<< (ostream&, const check_suite&);
+
+    ostream&
+    operator<< (ostream&, const check_run&);
 
     ostream&
     operator<< (ostream&, const repository&);
