@@ -1068,16 +1068,23 @@ find (const lazy_shared_ptr<repository>& r,
   return false;
 }
 
-// Resolve package run-time dependencies and external tests. Make sure that
-// the best matching dependency belongs to the package repositories, their
+// Resolve package regular dependencies and external tests. Make sure that the
+// best matching dependency belongs to the package repositories, their
 // complements, recursively, or their immediate prerequisite repositories
-// (only for run-time dependencies). Set the buildable flag to false for the
-// resolved external tests packages. Fail if unable to resolve a dependency,
-// unless ignore_unresolved is true in which case leave this dependency
-// NULL. Should be called once per internal package.
+// (only for regular dependencies). Set the buildable flag to false for the
+// resolved external tests packages. Fail if unable to resolve a regular
+// dependency, unless ignore_unresolved is true in which case leave this
+// dependency NULL. Fail if unable to resolve an external test, unless
+// ignore_unresolved or ignore_unresolved_tests is true in which case leave
+// this dependency NULL, if ignore_unresolved_tests is false, and remove the
+// respective tests manifest entry otherwise. Should be called once per
+// internal package.
 //
 static void
-resolve_dependencies (package& p, database& db, bool ignore_unresolved)
+resolve_dependencies (package& p,
+                      database& db,
+                      bool ignore_unresolved,
+                      bool ignore_unresolved_tests)
 {
   using brep::dependency;
   using brep::dependency_alternative;
@@ -1179,10 +1186,10 @@ resolve_dependencies (package& p, database& db, bool ignore_unresolved)
     return false;
   };
 
-  auto bail = [&p] (const dependency& d, const char* what)
+  auto bail = [&p] (const dependency& d, const string& what)
   {
-    cerr << "error: can't resolve " << what << " " << d << " for the package "
-         << p.name << " " << p.version << endl
+    cerr << "error: can't resolve " << what << ' ' << d << " for the package "
+         << p.name << ' ' << p.version << endl
          << "  info: repository " << p.internal_repository.load ()->location
          << " appears to be broken" << endl;
 
@@ -1206,10 +1213,23 @@ resolve_dependencies (package& p, database& db, bool ignore_unresolved)
     }
   }
 
-  for (brep::test_dependency& td: p.tests)
+  for (auto i (p.tests.begin ()); i != p.tests.end (); )
   {
-    if (!resolve (td, true /* test */) && !ignore_unresolved)
-      bail (td, td.name.string ().c_str ());
+    brep::test_dependency& td (*i);
+
+    if (!resolve (td, true /* test */))
+    {
+      if (!ignore_unresolved && !ignore_unresolved_tests)
+        bail (td, to_string (td.type));
+
+      if (ignore_unresolved_tests)
+      {
+        i = p.tests.erase (i);
+        continue;
+      }
+    }
+
+    ++i;
   }
 
   db.update (p); // Update the package state.
@@ -1710,7 +1730,10 @@ try
              db.query<package> (
                query::id.tenant == tnt &&
                query::internal_repository.canonical_name.is_not_null ()))
-        resolve_dependencies (p, db, ops.shallow ());
+        resolve_dependencies (p,
+                              db,
+                              ops.shallow (),
+                              ops.ignore_unresolved_tests ());
 
       if (!ops.shallow ())
       {

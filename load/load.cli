@@ -57,6 +57,14 @@ class options
      don't detect package dependency cycles."
   };
 
+  bool --ignore-unresolved-tests
+  {
+    "Ignore tests, examples, and benchmarks package manifest entries which
+     cannot be resolved from the main package's complement repositories,
+     recursively. Note that in contrast to --shallow option, such entries will
+     be removed from the main package manifests outright."
+  }
+
   std::string --tenant
   {
     "<id>",

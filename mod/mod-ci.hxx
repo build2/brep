@@ -72,7 +72,7 @@ namespace brep
 
   private:
     virtual void
-    init (cli::scanner&);
+    init (cli::scanner&) override;
 
   private:
     shared_ptr<options::ci> options_;
