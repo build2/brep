@@ -419,9 +419,15 @@ namespace brep
 
       string al ("cr" + to_string (i)); // Field alias.
 
-      // @@ TODO: revise.
+      // Check run name.
       //
-      string nm (b.package_name.string () + '/' + b.target_config_name); // Name
+      string nm (b.package_name.string () + '/'    +
+                 b.package_version.string () + '/' +
+                 b.target.string () + '/'          +
+                 b.target_config_name + '/'        +
+                 b.package_config_name + '/'       +
+                 b.toolchain_name + '/'            +
+                 b.toolchain_version.string ());
 
       os << gq_name (al) << ":createCheckRun(input: {"              << '\n'
          << "  name: "         << gq_str (nm) << ','                << '\n'
@@ -444,19 +450,6 @@ namespace brep
 
     return os.str ();
   }
-
-  // Serialize an "update check run" for a build to JSON for the REST API.
-  //
-  // @@ TMP We're going to have to do the check run updates using the REST API
-  //        because the GraphQL API check run updates take only an ID (which
-  //        we would have to store) whereas the REST version takes a name.
-  //
-  // static string
-  // rest_check_run (uint64_t ri,      // Repository ID
-  //                 const string& hs, // Head SHA
-  //                 const build& b)
-  // {
-  // }
 
   bool ci_github::
   handle_check_suite_request (check_suite_event cs)
@@ -508,9 +501,9 @@ namespace brep
                          "clang",
                          brep::version ("4.5.6"));
 
-    cout << gq_check_runs (cs.repository.node_id,
-                           cs.check_suite.head_sha,
-                           builds)
+    cout << queue_check_runs (cs.repository.node_id,
+                              cs.check_suite.head_sha,
+                              builds)
          << endl;
 
     return true;
