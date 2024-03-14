@@ -423,7 +423,7 @@ handle (request& rq, response& rs)
                           {} /* auxiliary_machines */, // @@ TMP AUXILIARY
                           cm.config->target,
                           cm.config->environment,
-                          "" /* auxiliary_environment */,
+                          nullopt /* auxiliary_environment */,
                           cm.config->args,
                           move (pc.arguments),
                           belongs (*cm.config, module_pkg ? "build2" : "host"),
