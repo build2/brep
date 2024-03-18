@@ -372,14 +372,13 @@ namespace brep
                                    cs.repository.node_id,
                                    cs.check_suite.head_sha));
 
-    // @@ TODO: use GitHub check suite id. I think node_id?
-    //
-
     optional<start_result> r (
         start (error,
                warn,
                verb_ ? &trace : nullptr,
-               tenant_service ("", "ci-github", move (sd)),
+               tenant_service (move (cs.check_suite.node_id),
+                               "ci-github",
+                               move (sd)),
                move (rl),
                vector<package> {},
                nullopt, // client_ip
@@ -1229,7 +1228,8 @@ namespace brep
   {
     p.next_expect (event::begin_object);
 
-    bool i (false), hb (false), hs (false), bf (false), at (false);
+    bool i (false), ni (false), hb (false), hs (false), bf (false),
+        at (false);
 
     // Skip unknown/uninteresting members.
     //
@@ -1241,6 +1241,7 @@ namespace brep
       };
 
       if      (c (i,  "id"))          id = p.next_expect_number<uint64_t> ();
+      else if (c (ni, "node_id"))     node_id = p.next_expect_string ();
       else if (c (hb, "head_branch")) head_branch = p.next_expect_string ();
       else if (c (hs, "head_sha"))    head_sha = p.next_expect_string ();
       else if (c (bf, "before"))      before = p.next_expect_string ();
@@ -1249,6 +1250,7 @@ namespace brep
     }
 
     if (!i)  missing_member (p, "check_suite", "id");
+    if (!ni) missing_member (p, "check_suite", "node_id");
     if (!hb) missing_member (p, "check_suite", "head_branch");
     if (!hs) missing_member (p, "check_suite", "head_sha");
     if (!bf) missing_member (p, "check_suite", "before");
@@ -1259,6 +1261,7 @@ namespace brep
   gh::operator<< (ostream& os, const check_suite& cs)
   {
     os << "id: " << cs.id << endl
+       << "node_id: " << cs.node_id << endl
        << "head_branch: " << cs.head_branch << endl
        << "head_sha: " << cs.head_sha << endl
        << "before: " << cs.before << endl
