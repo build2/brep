@@ -305,15 +305,27 @@ namespace brep
     }
   }
 
-  // Tenant service data.
+  // Service data associated with the tenant/check suite.
+  //
+  // It is always a top-level JSON object and the first member is always the
+  // schema version.
   //
   struct service_data
   {
-    string installation_access_token;
-    string repository_id;
+    // The data schema version. Note: must be first member in the object.
+    //
+    uint64_t version = 1;
+
+    // Check suite-global data.
+    //
+    installation_access_token installation_access;
+
+    string repository_id; // GitHub-internal opaque repository id.
     string head_sha;
 
     // Construct from JSON.
+    //
+    // @@ Load version and check that == 1.
     //
     explicit
     service_data (const string& json);
@@ -328,6 +340,9 @@ namespace brep
   handle_check_suite_request (check_suite_event cs)
   {
     HANDLER_DIAG;
+
+    // @@ Let's turn this into l3 traces (grep for l2 to see examples).
+    //
 
     cout << "<check_suite event>" << endl << cs << endl;
 
@@ -345,6 +360,9 @@ namespace brep
     string sd (service_data::json (iat.token,
                                    cs.repository.node_id,
                                    cs.check_suite.head_sha));
+
+    // @@ TODO: use GitHub check suite id. I think node_id?
+    //
 
     optional<start_result> r (
         start (error,
@@ -849,6 +867,9 @@ namespace brep
 
       resp () = default;
     } rs;
+
+    // @@ TODO: need to check if installation access token expired. If so,
+    //    get new one and update it in the service_data.
 
     try
     {
