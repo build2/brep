@@ -320,12 +320,13 @@ namespace brep
     //
     installation_access_token installation_access;
 
+    uint64_t installation_id;
     string repository_id; // GitHub-internal opaque repository id.
     string head_sha;
 
     // Construct from JSON.
     //
-    // @@ Load version and check that == 1.
+    // Throw runtime_error if the schema version is not supported.
     //
     explicit
     service_data (const string& json);
@@ -333,7 +334,15 @@ namespace brep
     // Serialize fields to JSON.
     //
     static string
-    json (const string& iat, const string& rid, const string& hs);
+    json (const string& iat_token, timestamp iat_expires_at,
+          uint64_t installation_id,
+          const string& repository_id,
+          const string& head_sha);
+
+    // Serialize to JSON.
+    //
+    string
+    json () const;
   };
 
   bool ci_github::
@@ -358,6 +367,8 @@ namespace brep
                             repository_type::git);
 
     string sd (service_data::json (iat.token,
+                                   iat.expires_at,
+                                   cs.installation.id,
                                    cs.repository.node_id,
                                    cs.check_suite.head_sha));
 
@@ -849,6 +860,9 @@ namespace brep
   {
     HANDLER_DIAG;
 
+    // @@ TMP May throw so perhaps should fail here, but then what do we do
+    //        inside the returned function, where fail won't be available?
+    //
     service_data sd (*ts.data);
 
     // Queue a check_run for each build.
@@ -868,15 +882,26 @@ namespace brep
       resp () = default;
     } rs;
 
-    // @@ TODO: need to check if installation access token expired. If so,
-    //    get new one and update it in the service_data.
+    // Get a new installation access token if the current one has expired.
+    //
+    optional<installation_access_token> new_iat;
+
+    // @@ TMP Can't remember exactly how many minutes you said to use.
+    //
+    if (system_clock::now () >
+        sd.installation_access.expires_at - chrono::minutes (5))
+    {
+      new_iat = obtain_installation_access_token (sd.installation_id,
+                                                  generate_jwt ());
+    }
 
     try
     {
       uint16_t sc (github_post (
           rs,
           "graphql", // API Endpoint.
-          strings {"Authorization: Bearer " + sd.installation_access_token},
+          strings {"Authorization: Bearer " +
+                   (new_iat ? *new_iat : sd.installation_access).token},
           move (rq)));
 
       if (sc != 200)
@@ -928,7 +953,15 @@ namespace brep
       cout << "<check_run>" << endl << cr << endl;
     }
 
-    return nullptr;
+    return [new_iat] (const tenant_service& ts)
+    {
+      service_data sd (*ts.data);
+
+      if (new_iat)
+        sd.installation_access = move (*new_iat);
+
+      return sd.json ();
+    };
   }
 
   function<optional<string> (const brep::tenant_service&)> brep::ci_github::
@@ -1090,6 +1123,21 @@ namespace brep
     return iat;
   }
 
+  static string
+  to_iso8601 (timestamp t)
+  {
+    return butl::to_string (t,
+                            "%Y-%m-%dT%TZ",
+                            false /* special */,
+                            false /* local */);
+  }
+
+  static timestamp
+  from_iso8601 (const string& s)
+  {
+    return butl::from_string (s.c_str (), "%Y-%m-%dT%TZ", false /* local */);
+  }
+
   using event = json::event;
 
   service_data::
@@ -1098,25 +1146,65 @@ namespace brep
     json::parser p (json.data (), json.size (), "service_data");
 
     p.next_expect (event::begin_object);
-    installation_access_token = p.next_expect_member_string ("iat");
+
+    // Throw if the schema version is not supported.
+    //
+    version = p.next_expect_member_number<uint64_t> ("version");
+    if (version != 1)
+    {
+      throw runtime_error ("unsupported service_data schema version: " +
+                           to_string (version));
+    }
+
+    // Installation access token.
+    //
+    p.next_expect_member_object ("iat");
+    installation_access.token = p.next_expect_member_string ("tok");
+    installation_access.expires_at =
+        from_iso8601 (p.next_expect_member_string ("exp"));
+    p.next_expect (event::end_object);
+
+    installation_id = p.next_expect_member_number<uint64_t> ("iid");
     repository_id = p.next_expect_member_string ("rid");
     head_sha = p.next_expect_member_string ("hs");
+
     p.next_expect (event::end_object);
   }
 
   string service_data::
-  json (const string& iat, const string& rid, const string& hs)
+  json (const string& iat_token, timestamp iat_expires_at,
+        uint64_t installation_id,
+        const string& repository_id,
+        const string& head_sha)
   {
     string b;
     json::buffer_serializer s (b);
 
     s.begin_object ();
-    s.member ("iat", iat);
-    s.member ("rid", rid);
-    s.member ("hs", hs);
+
+    s.member ("version", 1);
+
+    // Installation access token.
+    //
+    s.member_begin_object ("iat");
+    s.member ("tok", iat_token);
+    s.member ("exp", to_iso8601 (iat_expires_at));
+    s.end_object ();
+
+    s.member ("iid", installation_id);
+    s.member ("rid", repository_id);
+    s.member ("hs", head_sha);
+
     s.end_object ();
 
     return b;
+  }
+
+  string service_data::
+  json () const
+  {
+    return json (installation_access.token, installation_access.expires_at,
+                 installation_id, repository_id, head_sha);
   }
 
   // The rest is GitHub request/response type parsing and printing.
@@ -1362,11 +1450,7 @@ namespace brep
       };
 
       if      (c (tk, "token"))      token = p.next_expect_string ();
-      else if (c (ea, "expires_at"))
-      {
-        const string& s (p.next_expect_string ());
-        expires_at = from_string (s.c_str (), "%Y-%m-%dT%TZ", false /* local */);
-      }
+      else if (c (ea, "expires_at")) expires_at = from_iso8601 (p.next_expect_string ());
       else p.next_expect_value_skip ();
     }
 
