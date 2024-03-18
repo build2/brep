@@ -49,7 +49,8 @@ namespace brep
     //
     struct check_suite
     {
-      uint64_t id; // @@ Switch to node_id?
+      uint64_t id; // Note: used for installation access token (REST API).
+      string node_id;
       string head_branch;
       string head_sha;
       string before;
