@@ -168,13 +168,25 @@ namespace brep
     virtual function<optional<string> (const tenant_service&)>
     build_queued (const tenant_service&,
                   const vector<build>&,
-                  optional<build_state> initial_state) const override;
+                  optional<build_state> initial_state,
+                  const fail_mark<server_error>& fail,
+                  const basic_mark& error,
+                  const basic_mark& warn,
+                  const basic_mark& trace) const override;
 
     virtual function<optional<string> (const tenant_service&)>
-    build_building (const tenant_service&, const build&) const override;
+    build_building (const tenant_service&, const build&,
+                    const fail_mark<server_error>& fail,
+                    const basic_mark& error,
+                    const basic_mark& warn,
+                    const basic_mark& trace) const override;
 
     virtual function<optional<string> (const tenant_service&)>
-    build_built (const tenant_service&, const build&) const override;
+    build_built (const tenant_service&, const build&,
+                 const fail_mark<server_error>& fail,
+                 const basic_mark& error,
+                 const basic_mark& warn,
+                 const basic_mark& trace) const override;
 
   private:
     virtual void
