@@ -855,7 +855,11 @@ namespace brep
   function<optional<string> (const brep::tenant_service&)> brep::ci_github::
   build_queued (const tenant_service& ts,
                 const vector<build>& bs,
-                optional<build_state> /* initial_state */) const
+                optional<build_state> /* initial_state */,
+                const fail_mark<server_error>& fail,
+                const basic_mark& error,
+                const basic_mark& warn,
+                const basic_mark& trace) const
   {
     HANDLER_DIAG;
 
@@ -964,7 +968,11 @@ namespace brep
   }
 
   function<optional<string> (const brep::tenant_service&)> brep::ci_github::
-  build_building (const tenant_service&, const build&) const
+  build_building (const tenant_service&, const build&,
+                  const fail_mark<server_error>&,
+                  const basic_mark&,
+                  const basic_mark&,
+                  const basic_mark&) const
   {
     // return [&b] (const tenant_service& ts)
     // {
@@ -984,7 +992,11 @@ namespace brep
   }
 
   function<optional<string> (const brep::tenant_service&)> brep::ci_github::
-  build_built (const tenant_service&, const build&) const
+  build_built (const tenant_service&, const build&,
+               const fail_mark<server_error>&,
+               const basic_mark&,
+               const basic_mark&,
+               const basic_mark&) const
   {
     // return [&b] (const tenant_service& ts)
     // {
