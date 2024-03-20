@@ -120,6 +120,8 @@ namespace brep
       explicit
       installation_access_token (json::parser&);
 
+      installation_access_token (const string& token, timestamp expires_at);
+
       installation_access_token () = default;
     };
 
@@ -171,21 +173,21 @@ namespace brep
                   const fail_mark<server_error>& fail,
                   const basic_mark& error,
                   const basic_mark& warn,
-                  const basic_mark& trace) const override;
+                  const basic_mark& trace) const noexcept override;
 
     virtual function<optional<string> (const tenant_service&)>
     build_building (const tenant_service&, const build&,
                     const fail_mark<server_error>& fail,
                     const basic_mark& error,
                     const basic_mark& warn,
-                    const basic_mark& trace) const override;
+                    const basic_mark& trace) const noexcept override;
 
     virtual function<optional<string> (const tenant_service&)>
     build_built (const tenant_service&, const build&,
                  const fail_mark<server_error>& fail,
                  const basic_mark& error,
                  const basic_mark& warn,
-                 const basic_mark& trace) const override;
+                 const basic_mark& trace) const noexcept override;
 
   private:
     virtual void
@@ -196,13 +198,15 @@ namespace brep
     bool
     handle_check_suite_request (gh::check_suite_event);
 
-    string
-    generate_jwt () const;
+    optional<string>
+    generate_jwt (const basic_mark& trace, const basic_mark& error) const;
 
     // Authenticate to GitHub as an app installation.
     //
-    gh::installation_access_token
-    obtain_installation_access_token (uint64_t install_id, string jwt) const;
+    optional<gh::installation_access_token>
+    obtain_installation_access_token (uint64_t install_id,
+                                      string jwt,
+                                      const basic_mark& error) const;
 
   private:
     shared_ptr<options::ci_github> options_;
