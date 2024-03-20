@@ -12,7 +12,6 @@
 #include <mod/module-options.hxx>
 
 #include <stdexcept>
-#include <iostream> // @@ TODO Remove once debug output has been removed.
 
 // @@ TODO
 //
@@ -350,15 +349,12 @@ namespace brep
   {
     HANDLER_DIAG;
 
-    // @@ Let's turn this into l3 traces (grep for l2 to see examples).
-    //
-
-    cout << "<check_suite event>" << endl << cs << endl;
+    l3 ([&]{trace << "check_suite event { " << cs << " }";});
 
     installation_access_token iat (
       obtain_installation_access_token (cs.installation.id, generate_jwt ()));
 
-    cout << endl << "<installation_access_token>" << endl << iat << endl;
+    l3 ([&]{trace << "installation_access_token { " << iat << " }";});
 
     // Submit the CI request.
     //
@@ -861,8 +857,6 @@ namespace brep
                 const basic_mark& warn,
                 const basic_mark& trace) const
   {
-    HANDLER_DIAG;
-
     // @@ TMP May throw so perhaps should fail here, but then what do we do
     //        inside the returned function, where fail won't be available?
     //
@@ -953,7 +947,7 @@ namespace brep
       else if (cr.status != "QUEUED")
         fail << "unexpected check_run status: '" + cr.status + '\'';
 
-      cout << "<check_run>" << endl << cr << endl;
+      l3 ([&]{trace << "check_run { " << cr << " }";});
     }
 
     return [new_iat] (const tenant_service& ts)
@@ -1018,6 +1012,8 @@ namespace brep
   string ci_github::
   generate_jwt () const
   {
+    HANDLER_DIAG;
+
     string jwt;
     try
     {
@@ -1031,12 +1027,10 @@ namespace brep
           chrono::seconds (options_->ci_github_jwt_validity_period ()),
           chrono::seconds (60));
 
-      cout << "JWT: " << jwt << endl;
+      l3 ([&]{trace << "JWT: " << jwt;});
     }
     catch (const system_error& e)
     {
-      HANDLER_DIAG;
-
       fail << "unable to generate JWT (errno=" << e.code () << "): " << e;
     }
 
@@ -1272,12 +1266,12 @@ namespace brep
   ostream&
   gh::operator<< (ostream& os, const check_suite& cs)
   {
-    os << "id: " << cs.id << endl
-       << "node_id: " << cs.node_id << endl
-       << "head_branch: " << cs.head_branch << endl
-       << "head_sha: " << cs.head_sha << endl
-       << "before: " << cs.before << endl
-       << "after: " << cs.after << endl;
+    os << "id: " << cs.id
+       << ", node_id: " << cs.node_id
+       << ", head_branch: " << cs.head_branch
+       << ", head_sha: " << cs.head_sha
+       << ", before: " << cs.before
+       << ", after: " << cs.after;
 
     return os;
   }
@@ -1311,9 +1305,9 @@ namespace brep
   ostream&
   gh::operator<< (ostream& os, const check_run& cr)
   {
-    os << "id: " << cr.node_id << endl
-       << "name: " << cr.name << endl
-       << "status: " << cr.status << endl;
+    os << "id: " << cr.node_id
+       << ", name: " << cr.name
+       << ", status: " << cr.status;
 
     return os;
   }
@@ -1354,11 +1348,11 @@ namespace brep
   ostream&
   gh::operator<< (ostream& os, const repository& rep)
   {
-    os << "node_id: " << rep.node_id << endl
-       << "name: " << rep.name << endl
-       << "full_name: " << rep.full_name << endl
-       << "default_branch: " << rep.default_branch << endl
-       << "clone_url: " << rep.clone_url << endl;
+    os << "node_id: " << rep.node_id
+       << ", name: " << rep.name
+       << ", full_name: " << rep.full_name
+       << ", default_branch: " << rep.default_branch
+       << ", clone_url: " << rep.clone_url;
 
     return os;
   }
@@ -1391,7 +1385,7 @@ namespace brep
   ostream&
   gh::operator<< (ostream& os, const installation& i)
   {
-    os << "id: " << i.id << endl;
+    os << "id: " << i.id;
 
     return os;
   }
@@ -1430,10 +1424,10 @@ namespace brep
   ostream&
   gh::operator<< (ostream& os, const check_suite_event& cs)
   {
-    os << "action: " << cs.action << endl;
-    os << "<check_suite>" << endl << cs.check_suite;
-    os << "<repository>" << endl << cs.repository;
-    os << "<installation>" << endl << cs.installation;
+    os << "action: " << cs.action;
+    os << ", check_suite { " << cs.check_suite << " }";
+    os << ", repository { "  << cs.repository << " }";
+    os << ", installation { " << cs.installation << " }";
 
     return os;
   }
@@ -1476,9 +1470,8 @@ namespace brep
   ostream&
   gh::operator<< (ostream& os, const installation_access_token& t)
   {
-    os << "token: " << t.token << endl;
-    os << "expires_at: ";
-    butl::operator<< (os, t.expires_at) << endl;
+    os << "token: " << t.token << ", expires_at: ";
+    butl::operator<< (os, t.expires_at);
 
     return os;
   }
