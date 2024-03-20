@@ -93,6 +93,7 @@ namespace brep
 
     template <class F> void l1 (const F& f) const {if (verb_ >= 1) f ();}
     template <class F> void l2 (const F& f) const {if (verb_ >= 2) f ();}
+    template <class F> void l3 (const F& f) const {if (verb_ >= 3) f ();}
 
     // Set to true when the handler is successfully initialized.
     //
