@@ -1234,8 +1234,7 @@ namespace brep
   {
     p.next_expect (event::begin_object);
 
-    bool i (false), ni (false), hb (false), hs (false), bf (false),
-        at (false);
+    bool ni (false), hb (false), hs (false), bf (false), at (false);
 
     // Skip unknown/uninteresting members.
     //
@@ -1246,8 +1245,7 @@ namespace brep
         return p.name () == s ? (v = true) : false;
       };
 
-      if      (c (i,  "id"))          id = p.next_expect_number<uint64_t> ();
-      else if (c (ni, "node_id"))     node_id = p.next_expect_string ();
+      if      (c (ni, "node_id"))     node_id = p.next_expect_string ();
       else if (c (hb, "head_branch")) head_branch = p.next_expect_string ();
       else if (c (hs, "head_sha"))    head_sha = p.next_expect_string ();
       else if (c (bf, "before"))      before = p.next_expect_string ();
@@ -1255,7 +1253,6 @@ namespace brep
       else p.next_expect_value_skip ();
     }
 
-    if (!i)  missing_member (p, "check_suite", "id");
     if (!ni) missing_member (p, "check_suite", "node_id");
     if (!hb) missing_member (p, "check_suite", "head_branch");
     if (!hs) missing_member (p, "check_suite", "head_sha");
@@ -1266,8 +1263,7 @@ namespace brep
   ostream&
   gh::operator<< (ostream& os, const check_suite& cs)
   {
-    os << "id: " << cs.id
-       << ", node_id: " << cs.node_id
+    os << "node_id: " << cs.node_id
        << ", head_branch: " << cs.head_branch
        << ", head_sha: " << cs.head_sha
        << ", before: " << cs.before
@@ -1305,7 +1301,7 @@ namespace brep
   ostream&
   gh::operator<< (ostream& os, const check_run& cr)
   {
-    os << "id: " << cr.node_id
+    os << "node_id: " << cr.node_id
        << ", name: " << cr.name
        << ", status: " << cr.status;
 
