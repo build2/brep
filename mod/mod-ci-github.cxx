@@ -42,6 +42,10 @@ using namespace brep::cli;
 
 namespace brep
 {
+  // Operation failed, diagnostics has already been issued.
+  //
+  struct failed {};
+
   using namespace gh;
 
   ci_github::
@@ -330,15 +334,13 @@ namespace brep
     explicit
     service_data (const string& json);
 
-    // @@ Let's add ctor rather.
-    //
-    // Serialize fields to JSON.
-    //
-    static string
-    json (const string& iat_token, timestamp iat_expires_at,
-          uint64_t installation_id,
-          const string& repository_id,
-          const string& head_sha);
+    service_data (string iat_token,
+                  timestamp iat_expires_at,
+                  uint64_t installation_id,
+                  string repository_id,
+                  string head_sha);
+
+    service_data () = default;
 
     // Serialize to JSON.
     //
@@ -357,10 +359,15 @@ namespace brep
     if (!jwt)
       throw failed ();
 
-    installation_access_token iat (
-      obtain_installation_access_token (cs.installation.id, move (*jwt)));
+    optional<installation_access_token> iat (
+        obtain_installation_access_token (cs.installation.id,
+                                          move (*jwt),
+                                          error));
 
-    l3 ([&]{trace << "installation_access_token { " << iat << " }";});
+    if (!iat)
+      throw failed ();
+
+    l3 ([&]{trace << "installation_access_token { " << *iat << " }";});
 
     // Submit the CI request.
     //
@@ -368,11 +375,12 @@ namespace brep
                                 cs.check_suite.head_branch,
                             repository_type::git);
 
-    string sd (service_data::json (iat.token,
-                                   iat.expires_at,
-                                   cs.installation.id,
-                                   cs.repository.node_id,
-                                   cs.check_suite.head_sha));
+    string sd (service_data (move (iat->token),
+                             iat->expires_at,
+                             cs.installation.id,
+                             move (cs.repository.node_id),
+                             move (cs.check_suite.head_sha))
+                   .json ());
 
     optional<start_result> r (
         start (error,
@@ -858,14 +866,21 @@ namespace brep
   build_queued (const tenant_service& ts,
                 const vector<build>& bs,
                 optional<build_state> /* initial_state */,
-                const fail_mark<server_error>& fail,
+                const fail_mark<server_error>& /* fail */,
                 const basic_mark& error,
-                const basic_mark& warn,
-                const basic_mark& trace) const
+                const basic_mark& /* warn */,
+                const basic_mark& trace) const noexcept
   {
-    // @@ Handle invalid_argument and error<<....
-    //
-    service_data sd (*ts.data);
+    service_data sd;
+    try
+    {
+      sd = service_data (*ts.data);
+    }
+    catch (const invalid_argument& e)
+    {
+      error << "failed to parse service data: " << e;
+      return nullptr;
+    }
 
     // Queue a check_run for each build.
     //
@@ -888,17 +903,17 @@ namespace brep
     //
     optional<installation_access_token> new_iat;
 
-    // @@ Subtract when receive.
-    //
-    if (system_clock::now () >
-        sd.installation_access.expires_at - chrono::minutes (5))
+    if (system_clock::now () > sd.installation_access.expires_at)
     {
       optional<string> jwt (generate_jwt (trace, error));
       if (!jwt)
         return nullptr;
 
       new_iat = obtain_installation_access_token (sd.installation_id,
-                                                  generate_jwt ());
+                                                  move (*jwt),
+                                                  error);
+      if (!new_iat)
+        return nullptr;
     }
 
     try
@@ -912,39 +927,45 @@ namespace brep
 
       if (sc != 200)
       {
-        // @@ error<<
-
-        fail << "failed to queue check runs: "
-             << "error HTTP response status " << sc;
+        error << "failed to queue check runs: "
+              << "error HTTP response status " << sc;
+        return nullptr;
       }
     }
     catch (const json::invalid_json_input& e)
     {
       // Note: e.name is the GitHub API endpoint.
       //
-      fail << "malformed JSON in response from " << e.name << ", line: "
-           << e.line << ", column: " << e.column << ", byte offset: "
-           << e.position << ", error: " << e;
+      error << "malformed JSON in response from " << e.name << ", line: "
+            << e.line << ", column: " << e.column << ", byte offset: "
+            << e.position << ", error: " << e;
+      return nullptr;
     }
     catch (const invalid_argument& e)
     {
-      fail << "malformed header(s) in response: " << e;
+      error << "malformed header(s) in response: " << e;
+      return nullptr;
     }
     catch (const system_error& e)
     {
-      fail << "unable to queue check runs (errno=" << e.code ()
-           << "): " << e.what ();
+      error << "unable to queue check runs (errno=" << e.code ()
+            << "): " << e.what ();
+      return nullptr;
     }
     catch (const runtime_error& e) // From parse_check_runs_response().
     {
       // GitHub response contained error(s) (could be ours or theirs at this
       // point).
       //
-      fail << "unable to queue check runs: " << e;
+      error << "unable to queue check runs: " << e;
+      return nullptr;
     }
 
     if (rs.check_runs.size () != bs.size ())
-      fail << "unexpected number of check_run objects in response";
+    {
+      error << "unexpected number of check_run objects in response";
+      return nullptr;
+    }
 
     // Validate the check runs in the response against the builds.
     //
@@ -954,18 +975,38 @@ namespace brep
       const check_run& cr (rs.check_runs[i]);
 
       if (cr.name != check_run_name (b))
-        fail << "unexpected check_run name: '" + cr.name + '\'';
+      {
+        error << "unexpected check_run name: '" + cr.name + '\'';
+        return nullptr;
+      }
       else if (cr.status != "QUEUED")
-        fail << "unexpected check_run status: '" + cr.status + '\'';
+      {
+        error << "unexpected check_run status: '" + cr.status + '\'';
+        return nullptr;
+      }
 
       l3 ([&]{trace << "check_run { " << cr << " }";});
     }
 
-    return [iat = move (new_iat)] (const tenant_service& ts)
+    return [iat = move (new_iat)] (const tenant_service& ts) -> optional<string>
     {
-      // @@ Handle invalid_argument and error<<....
-      //
-      service_data sd (*ts.data);
+      service_data sd;
+      try
+      {
+        sd = service_data (*ts.data);
+      }
+      catch (const invalid_argument& e)
+      {
+        // @@ TODO: error<<....
+        //
+        //          It looks like saving log_writer in this lambda would be
+        //          safe, but not 100% sure. Also, the log entry will say
+        //          build_queued() which is not entirely accurate. Maybe OK
+        //          for a lambda but what about a real function?
+        //
+        // error << "failed to parse service data: " << e;
+        return nullopt;
+      }
 
       if (iat)
         sd.installation_access = move (*iat);
@@ -979,7 +1020,7 @@ namespace brep
                   const fail_mark<server_error>&,
                   const basic_mark&,
                   const basic_mark&,
-                  const basic_mark&) const
+                  const basic_mark&) const noexcept
   {
     // return [&b] (const tenant_service& ts)
     // {
@@ -1003,7 +1044,7 @@ namespace brep
                const fail_mark<server_error>&,
                const basic_mark&,
                const basic_mark&,
-               const basic_mark&) const
+               const basic_mark&) const noexcept
   {
     // return [&b] (const tenant_service& ts)
     // {
@@ -1090,11 +1131,11 @@ namespace brep
   //   repos covered by the installation if installed on an organisation for
   //   example.
   //
-  installation_access_token ci_github::
-  obtain_installation_access_token (uint64_t iid, string jwt) const
+  optional<installation_access_token>
+  ci_github::obtain_installation_access_token (uint64_t iid,
+                                               string jwt,
+                                               const basic_mark& error) const
   {
-    HANDLER_DIAG; // @@ Likewise.
-
     installation_access_token iat;
     try
     {
@@ -1116,26 +1157,34 @@ namespace brep
       //
       if (sc != 201)
       {
-        fail << "unable to get installation access token: "
-             << "error HTTP response status " << sc;
+        error << "unable to get installation access token: "
+              << "error HTTP response status " << sc;
+        return nullopt;
       }
+
+      // Create a clock drift safety window.
+      //
+      iat.expires_at -= chrono::minutes (5);
     }
     catch (const json::invalid_json_input& e)
     {
       // Note: e.name is the GitHub API endpoint.
       //
-      fail << "malformed JSON in response from " << e.name << ", line: "
-           << e.line << ", column: " << e.column << ", byte offset: "
-           << e.position << ", error: " << e;
+      error << "malformed JSON in response from " << e.name << ", line: "
+            << e.line << ", column: " << e.column << ", byte offset: "
+            << e.position << ", error: " << e;
+      return nullopt;
     }
     catch (const invalid_argument& e)
     {
-      fail << "malformed header(s) in response: " << e;
+      error << "malformed header(s) in response: " << e;
+      return nullopt;
     }
     catch (const system_error& e)
     {
-      fail << "unable to get installation access token (errno=" << e.code ()
-           << "): " << e.what ();
+      error << "unable to get installation access token (errno=" << e.code ()
+            << "): " << e.what ();
+      return nullopt;
     }
 
     return iat;
@@ -1170,8 +1219,8 @@ namespace brep
     version = p.next_expect_member_number<uint64_t> ("version");
     if (version != 1)
     {
-      throw runtime_error ("unsupported service_data schema version: " +
-                           to_string (version));
+      throw invalid_argument ("unsupported service_data schema version: " +
+                              to_string (version));
     }
 
     // Installation access token.
@@ -1189,11 +1238,21 @@ namespace brep
     p.next_expect (event::end_object);
   }
 
+  service_data::
+  service_data (string iat_tok,
+                timestamp iat_ea,
+                uint64_t iid,
+                string rid,
+                string hs)
+      : installation_access (move (iat_tok), iat_ea),
+        installation_id (iid),
+        repository_id (move (rid)),
+        head_sha (move (hs))
+  {
+  }
+
   string service_data::
-  json (const string& iat_token, timestamp iat_expires_at,
-        uint64_t installation_id,
-        const string& repository_id,
-        const string& head_sha)
+  json () const
   {
     string b;
     json::buffer_serializer s (b);
@@ -1205,8 +1264,8 @@ namespace brep
     // Installation access token.
     //
     s.member_begin_object ("iat");
-    s.member ("tok", iat_token);
-    s.member ("exp", to_iso8601 (iat_expires_at));
+    s.member ("tok", installation_access.token);
+    s.member ("exp", to_iso8601 (installation_access.expires_at));
     s.end_object ();
 
     s.member ("iid", installation_id);
@@ -1216,13 +1275,6 @@ namespace brep
     s.end_object ();
 
     return b;
-  }
-
-  string service_data::
-  json () const
-  {
-    return json (installation_access.token, installation_access.expires_at,
-                 installation_id, repository_id, head_sha);
   }
 
   // The rest is GitHub request/response type parsing and printing.
@@ -1474,6 +1526,12 @@ namespace brep
 
     if (!tk) missing_member (p, "installation_access_token", "token");
     if (!ea) missing_member (p, "installation_access_token", "expires_at");
+  }
+
+  gh::installation_access_token::installation_access_token (const string& tk,
+                                                            timestamp ea)
+      : token (tk), expires_at (ea)
+  {
   }
 
   ostream&
