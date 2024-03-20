@@ -325,11 +325,13 @@ namespace brep
 
     // Construct from JSON.
     //
-    // Throw runtime_error if the schema version is not supported.
+    // Throw invalid_argument if the schema version is not supported.
     //
     explicit
     service_data (const string& json);
 
+    // @@ Let's add ctor rather.
+    //
     // Serialize fields to JSON.
     //
     static string
@@ -351,8 +353,12 @@ namespace brep
 
     l3 ([&]{trace << "check_suite event { " << cs << " }";});
 
+    optional<string> jwt (generate_jwt (trace, error));
+    if (!jwt)
+      throw failed ();
+
     installation_access_token iat (
-      obtain_installation_access_token (cs.installation.id, generate_jwt ()));
+      obtain_installation_access_token (cs.installation.id, move (*jwt)));
 
     l3 ([&]{trace << "installation_access_token { " << iat << " }";});
 
@@ -857,8 +863,7 @@ namespace brep
                 const basic_mark& warn,
                 const basic_mark& trace) const
   {
-    // @@ TMP May throw so perhaps should fail here, but then what do we do
-    //        inside the returned function, where fail won't be available?
+    // @@ Handle invalid_argument and error<<....
     //
     service_data sd (*ts.data);
 
@@ -883,11 +888,15 @@ namespace brep
     //
     optional<installation_access_token> new_iat;
 
-    // @@ TMP Can't remember exactly how many minutes you said to use.
+    // @@ Subtract when receive.
     //
     if (system_clock::now () >
         sd.installation_access.expires_at - chrono::minutes (5))
     {
+      optional<string> jwt (generate_jwt (trace, error));
+      if (!jwt)
+        return nullptr;
+
       new_iat = obtain_installation_access_token (sd.installation_id,
                                                   generate_jwt ());
     }
@@ -903,6 +912,8 @@ namespace brep
 
       if (sc != 200)
       {
+        // @@ error<<
+
         fail << "failed to queue check runs: "
              << "error HTTP response status " << sc;
       }
@@ -950,12 +961,14 @@ namespace brep
       l3 ([&]{trace << "check_run { " << cr << " }";});
     }
 
-    return [new_iat] (const tenant_service& ts)
+    return [iat = move (new_iat)] (const tenant_service& ts)
     {
+      // @@ Handle invalid_argument and error<<....
+      //
       service_data sd (*ts.data);
 
-      if (new_iat)
-        sd.installation_access = move (*new_iat);
+      if (iat)
+        sd.installation_access = move (*iat);
 
       return sd.json ();
     };
@@ -1009,11 +1022,10 @@ namespace brep
     return nullptr;
   }
 
-  string ci_github::
-  generate_jwt () const
+  optional<string> ci_github::
+  generate_jwt (const basic_mark& trace,
+                const basic_mark& error) const
   {
-    HANDLER_DIAG;
-
     string jwt;
     try
     {
@@ -1031,7 +1043,8 @@ namespace brep
     }
     catch (const system_error& e)
     {
-      fail << "unable to generate JWT (errno=" << e.code () << "): " << e;
+      error << "unable to generate JWT (errno=" << e.code () << "): " << e;
+      return nullopt;
     }
 
     return jwt;
@@ -1080,7 +1093,7 @@ namespace brep
   installation_access_token ci_github::
   obtain_installation_access_token (uint64_t iid, string jwt) const
   {
-    HANDLER_DIAG;
+    HANDLER_DIAG; // @@ Likewise.
 
     installation_access_token iat;
     try
