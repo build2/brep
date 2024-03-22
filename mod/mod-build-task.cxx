@@ -2104,7 +2104,8 @@ handle (request& rq, response& rs)
       // of the build auxiliary machines is less than 10. If that's not the
       // case, then turn the build into the built state with the abort status.
       //
-      if (task_response.task->auxiliary_machines.size () > 9)
+      if (task_response.task &&
+          task_response.task->auxiliary_machines.size () > 9)
       {
         // Respond with the no-task manifest.
         //
