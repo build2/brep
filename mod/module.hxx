@@ -194,7 +194,7 @@ namespace brep
     log* log_ {nullptr}; // Diagnostics backend provided by the web server.
 
   private:
-    // Extract function name from a __PRETTY_FUNCTION__.
+    // Extract the full-qualified function name from a __PRETTY_FUNCTION__.
     // Throw invalid_argument if fail to parse.
     //
     static string

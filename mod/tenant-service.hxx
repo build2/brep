@@ -11,6 +11,8 @@
 
 #include <libbrep/build.hxx>
 
+#include <mod/diagnostics.hxx>
+
 namespace brep
 {
   class tenant_service_base
@@ -82,26 +84,57 @@ namespace brep
     virtual function<optional<string> (const tenant_service&)>
     build_queued (const tenant_service&,
                   const vector<build>&,
-                  optional<build_state> initial_state) const = 0;
+                  optional<build_state> initial_state,
+                  const diag_epilogue& log_writer) const noexcept = 0;
   };
 
   class tenant_service_build_building: public virtual tenant_service_base
   {
   public:
     virtual function<optional<string> (const tenant_service&)>
-    build_building (const tenant_service&, const build&) const = 0;
+    build_building (const tenant_service&,
+                    const build&,
+                    const diag_epilogue& log_writer) const noexcept = 0;
   };
 
   class tenant_service_build_built: public virtual tenant_service_base
   {
   public:
     virtual function<optional<string> (const tenant_service&)>
-    build_built (const tenant_service&, const build&) const = 0;
+    build_built (const tenant_service&,
+                 const build&,
+                 const diag_epilogue& log_writer) const noexcept = 0;
   };
 
   // Map of service type (tenant_service::type) to service.
   //
   using tenant_service_map = std::map<string, shared_ptr<tenant_service_base>>;
+
+  // Every notification callback function that needs to produce any
+  // diagnostics shall begin with:
+  //
+  // NOTIFICATION_DIAG (log_writer);
+  //
+  // This will instantiate the error, warn, info, and trace diagnostics
+  // streams with the function's name.
+  //
+  // Note that a callback function is not expected to throw any exceptions.
+  // This is, in particular, why this macro doesn't instantiate the fail
+  // diagnostics stream.
+  //
+#define NOTIFICATION_DIAG(log_writer)                                   \
+  const basic_mark error (severity::error,                              \
+                          log_writer,                                   \
+                          __PRETTY_FUNCTION__);                         \
+  const basic_mark warn (severity::warning,                             \
+                         log_writer,                                    \
+                         __PRETTY_FUNCTION__);                          \
+  const basic_mark info (severity::info,                                \
+                         log_writer,                                    \
+                         __PRETTY_FUNCTION__);                          \
+  const basic_mark trace (severity::trace,                              \
+                          log_writer,                                   \
+                          __PRETTY_FUNCTION__)
 }
 
 #endif // MOD_TENANT_SERVICE_HXX

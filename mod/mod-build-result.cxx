@@ -503,7 +503,7 @@ handle (request& rq, response&)
     vector<build> qbs;
     qbs.push_back (move (*tss->second));
 
-    if (auto f = tsq->build_queued (ss, qbs, build_state::building))
+    if (auto f = tsq->build_queued (ss, qbs, build_state::building, log_writer_))
       update_tenant_service_state (conn, qbs.back ().tenant, f);
   }
 
@@ -518,7 +518,7 @@ handle (request& rq, response&)
     const tenant_service& ss (tss->first);
     const build& b (*tss->second);
 
-    if (auto f = tsb->build_built (ss, b))
+    if (auto f = tsb->build_built (ss, b, log_writer_))
       update_tenant_service_state (conn, b.tenant, f);
   }
 

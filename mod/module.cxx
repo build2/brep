@@ -241,23 +241,46 @@ namespace brep
     initialized_ = m.initialized_;
   }
 
-// For function func declared like this:
-// using B = std::string (*)(int);
-// using A = B (*)(int,int);
-// A func(B (*)(char),B (*)(wchar_t));
-// __PRETTY_FUNCTION__ looks like this:
-// virtual std::string (* (* brep::search::func(std::string (* (*)(char))(int)
-// ,std::string (* (*)(wchar_t))(int)) const)(int, int))(int)
-//
+  // Here are examples of __PRETTY_FUNCTION__ for some function declarations:
+  //
+  // 1) virtual bool brep::search::handle (web::request&, web::response&);
+  //
+  //    virtual bool brep::search::handle(web::request&, web::response&)
+  //
+  // 2) using B = std::string (*) (int);
+  //    virtual B brep::search::func ();
+  //
+  //    virtual std::string (* brep::search::func())(int)
+  //
+  // 3) using B = std::string (*) (int);
+  //    using A = B (*) (int,int);
+  //    virtual A brep::search::func (B (*) (char), B (*) (wchar_t));
+  //
+  //    virtual std::string (* (* brep::search::func(std::string (* (*)(char))(int), std::string (* (*)(wchar_t))(int)))(int, int))(int)
+  //
+  // 4) using X = std::function<butl::optional<std::string> (int)> (*) (std::function<butl::optional<std::string> (long)>);
+  //    X brep::search::func (std::function<butl::optional<std::string> (char)> (*) (std::function<butl::optional<std::string> (wchar_t)>));
+  //
+  //    std::function<std::optional<std::__cxx11::basic_string<char> >(int)> (* brep::search::func(std::function<std::optional<std::__cxx11::basic_string<char> >(char)> (*)(std::function<std::optional<std::__cxx11::basic_string<char> >(wchar_t)>)))(std::function<std::optional<std::__cxx11::basic_string<char> >(long int)>)
+  //
+  // 5) using X = std::function<butl::optional<std::string> (int)> (*) (std::function<butl::optional<std::string> (long)>);
+  //    using Y = X (*) (int);
+  //    Y brep::search::func (const char*);
+  //
+  //    std::function<std::optional<std::__cxx11::basic_string<char> >(int)> (* (* brep::search::func(const char*))(int))(std::function<std::optional<std::__cxx11::basic_string<char> >(long int)>)
+  //
   string handler::
   func_name (const char* pretty_name)
   {
-    const char* e (strchr (pretty_name, ')'));
+    // Position at the last ')' character, which is either the end of the
+    // function's arguments list or the returned function type argument list.
+    //
+    const char* e (strrchr (pretty_name, ')'));
 
     if (e && e > pretty_name)
     {
-      // Position e at last matching '(' which is the beginning of the
-      // argument list..
+      // Position e at the matching '(' character which is the beginning of
+      // the mentioned argument list.
       //
       size_t d (1);
 
@@ -273,11 +296,15 @@ namespace brep
 
       if (!d && e > pretty_name)
       {
-        // Position e at the character following the function name.
+        // Position e at the character which follows the function name.
         //
-        while (e > pretty_name &&
-               (*e != '(' || *(e - 1) == ' ' || *(e - 1) == ')'))
-          --e;
+        // Specifically, go further to the left and stop at the '(' character
+        // which is preceded by the character other than ' ', ')', of '>'.
+        //
+        for (char c;
+             e > pretty_name &&
+             !(*e == '(' && (c = *(e - 1)) != ' ' && c != ')' && c != '>');
+             --e) ;
 
         if (e > pretty_name)
         {

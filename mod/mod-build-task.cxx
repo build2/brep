@@ -2060,7 +2060,10 @@ handle (request& rq, response& rs)
 
         if (!qbs.empty ())
         {
-          if (auto f = tsq->build_queued (ss, qbs, nullopt /* initial_state */))
+          if (auto f = tsq->build_queued (ss,
+                                          qbs,
+                                          nullopt /* initial_state */,
+                                          log_writer_))
             update_tenant_service_state (conn, qbs.back ().tenant, f);
         }
 
@@ -2076,7 +2079,7 @@ handle (request& rq, response& rs)
           qbs.push_back (move (b));
           restore_build = true;
 
-          if (auto f = tsq->build_queued (ss, qbs, initial_state))
+          if (auto f = tsq->build_queued (ss, qbs, initial_state, log_writer_))
             update_tenant_service_state (conn, qbs.back ().tenant, f);
         }
 
@@ -2096,7 +2099,7 @@ handle (request& rq, response& rs)
         const tenant_service& ss (tss->first);
         const build& b (*tss->second);
 
-        if (auto f = tsb->build_building (ss, b))
+        if (auto f = tsb->build_building (ss, b, log_writer_))
           update_tenant_service_state (conn, b.tenant, f);
       }
 
@@ -2209,7 +2212,7 @@ handle (request& rq, response& rs)
           const tenant_service& ss (tss->first);
           const build& b (*tss->second);
 
-          if (auto f = tsb->build_built (ss, b))
+          if (auto f = tsb->build_built (ss, b, log_writer_))
             update_tenant_service_state (conn, b.tenant, f);
         }
       }

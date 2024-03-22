@@ -280,7 +280,7 @@ handle (request& rq, response& rs)
     vector<build> qbs;
     qbs.push_back (move (b));
 
-    if (auto f = tsq->build_queued (ss, qbs, build_state::building))
+    if (auto f = tsq->build_queued (ss, qbs, build_state::building, log_writer_))
       update_tenant_service_state (conn, qbs.back ().tenant, f);
   }
 
