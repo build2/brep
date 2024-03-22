@@ -1006,12 +1006,13 @@ handle (request& rq, response& rs)
       // Also, if the tenant_service_build_queued callback is registered, then
       // create, persist, and stash the queued build objects for all the
       // unbuilt by the current toolchain and not yet queued configurations of
-      // the package the build task is created for. Note that for the task
-      // build, we need to make sure that the third-party service receives the
-      // `queued` notification prior to the `building` notification (see
-      // mod/tenant-service.hxx for valid transitions). The `queued`
-      // notification is assumed to be already sent for the build if the
-      // respective object exists and any of the following is true for it:
+      // the package the build task is created for and calculate the hints.
+      // Note that for the task build, we need to make sure that the
+      // third-party service receives the `queued` notification prior to the
+      // `building` notification (see mod/tenant-service.hxx for valid
+      // transitions). The `queued` notification is assumed to be already sent
+      // for the build if the respective object exists and any of the
+      // following is true for it:
       //
       // - It is in the queued state (initial_state is build_state::queued).
       //
@@ -1025,6 +1026,7 @@ handle (request& rq, response& rs)
       const tenant_service_build_queued* tsq (nullptr);
       optional<pair<tenant_service, shared_ptr<build>>> tss;
       vector<build> qbs;
+      tenant_service_build_queued::build_queued_hints qhs;
       optional<build_state> initial_state;
       bool rebuild_forced_build (false);
       bool rebuild_interrupted_rebuild (false);
@@ -1094,6 +1096,16 @@ handle (request& rq, response& rs)
         }
 
         return r;
+      };
+
+      auto queue_hints = [this] (const build_package& p)
+      {
+        buildable_package_count tpc (
+          build_db_->query_value<buildable_package_count> (
+            query<buildable_package_count>::build_tenant::id == p.id.tenant));
+
+        return tenant_service_build_queued::build_queued_hints {
+          tpc == 1, p.configs.size () == 1};
       };
 
       // Collect the auxiliary machines required for testing of the specified
@@ -1767,6 +1779,8 @@ handle (request& rq, response& rs)
                           (*initial_state != build_state::queued &&
                            !rebuild_forced_build))
                       {
+                        qhs = queue_hints (*p);
+
                         t->queued_timestamp = system_clock::now ();
                         build_db_->update (t);
                       }
@@ -1990,6 +2004,8 @@ handle (request& rq, response& rs)
                         //
                         if (!qbs.empty () || !rebuild_interrupted_rebuild)
                         {
+                          qhs = queue_hints (*p);
+
                           t->queued_timestamp = system_clock::now ();
                           build_db_->update (t);
                         }
@@ -2063,6 +2079,7 @@ handle (request& rq, response& rs)
           if (auto f = tsq->build_queued (ss,
                                           qbs,
                                           nullopt /* initial_state */,
+                                          qhs,
                                           log_writer_))
             update_tenant_service_state (conn, qbs.back ().tenant, f);
         }
@@ -2079,7 +2096,11 @@ handle (request& rq, response& rs)
           qbs.push_back (move (b));
           restore_build = true;
 
-          if (auto f = tsq->build_queued (ss, qbs, initial_state, log_writer_))
+          if (auto f = tsq->build_queued (ss,
+                                          qbs,
+                                          initial_state,
+                                          qhs,
+                                          log_writer_))
             update_tenant_service_state (conn, qbs.back ().tenant, f);
         }
 

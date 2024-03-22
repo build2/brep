@@ -199,12 +199,13 @@ handle (request& rq, response&)
   //
   // If the package build is interrupted and the tenant_service_build_queued
   // callback is associated with the package tenant, then stash the state, the
-  // build object, and the callback pointer for the subsequent service
-  // `queued` notification.
+  // build object, and the callback pointer and calculate the hints for the
+  // subsequent service `queued` notification.
   //
   const tenant_service_build_built* tsb (nullptr);
   const tenant_service_build_queued* tsq (nullptr);
   optional<pair<tenant_service, shared_ptr<build>>> tss;
+  tenant_service_build_queued::build_queued_hints qhs;
 
   // Note that if the session authentication fails (probably due to the
   // authentication settings change), then we log this case with the warning
@@ -342,6 +343,20 @@ handle (request& rq, response&)
         //
         if (tsq != nullptr)
         {
+          // Calculate the tenant service hints.
+          //
+          buildable_package_count tpc (
+            build_db_->query_value<buildable_package_count> (
+              query<buildable_package_count>::build_tenant::id == t->id));
+
+          shared_ptr<build_package> p (
+            build_db_->load<build_package> (b->id.package));
+
+          qhs = tenant_service_build_queued::build_queued_hints {
+            tpc == 1, p->configs.size () == 1};
+
+          // Set the package tenant's queued timestamp.
+          //
           t->queued_timestamp = system_clock::now ();
           build_db_->update (t);
         }
@@ -503,7 +518,11 @@ handle (request& rq, response&)
     vector<build> qbs;
     qbs.push_back (move (*tss->second));
 
-    if (auto f = tsq->build_queued (ss, qbs, build_state::building, log_writer_))
+    if (auto f = tsq->build_queued (ss,
+                                    qbs,
+                                    build_state::building,
+                                    qhs,
+                                    log_writer_))
       update_tenant_service_state (conn, qbs.back ().tenant, f);
   }
 

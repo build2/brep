@@ -62,6 +62,7 @@ namespace brep
     build_queued (const tenant_service&,
                   const vector<build>&,
                   optional<build_state> initial_state,
+                  const build_queued_hints&,
                   const diag_epilogue& log_writer) const noexcept override;
 
     virtual function<optional<string> (const tenant_service&)>

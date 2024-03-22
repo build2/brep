@@ -392,12 +392,16 @@ function<optional<string> (const brep::tenant_service&)> brep::ci::
 build_queued (const tenant_service&,
               const vector<build>& bs,
               optional<build_state> initial_state,
+              const build_queued_hints& hints,
               const diag_epilogue& log_writer) const noexcept
 {
   NOTIFICATION_DIAG (log_writer);
 
   l2 ([&]{trace << "initial_state: "
-                << (initial_state ? to_string (*initial_state) : "none");});
+                << (initial_state ? to_string (*initial_state) : "none")
+                << ", hints "
+                << static_cast<size_t> (hints.single_package_version) << ' '
+                << static_cast<size_t> (hints.single_package_config);});
 
   return [&bs, initial_state] (const tenant_service& ts)
          {

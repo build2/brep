@@ -62,7 +62,7 @@ namespace brep
   // Each build notification is in its own interface since a service may not
   // be interested in all of them while computing the information to pass is
   // expensive.
-  //
+
   class tenant_service_build_queued: public virtual tenant_service_base
   {
   public:
@@ -74,17 +74,32 @@ namespace brep
     //
     // The passed initial_state indicates the logical initial state and is
     // either absent, `building` (interrupted), or `built` (rebuild). Note
-    // that all the passed build objects have the same initial state.
+    // that all the passed build objects are for the same package version and
+    // have the same initial state.
     //
     // The implementation of this and the below functions should normally not
     // need to make any decisions based on the passed build::state. Rather,
     // the function name suffix (_queued, _building, _built) signify the
     // logical end state.
     //
+    // The build_queued_hints can be used to omit certain components from the
+    // build id. If single_package_version is true, then this tenant contains
+    // a single (non-test) package version and this package name and package
+    // version can be omitted. If single_package_config is true, then the
+    // package version being built only has the default package configuration
+    // and thus it can be omitted.
+    //
+    struct build_queued_hints
+    {
+      bool single_package_version;
+      bool single_package_config;
+    };
+
     virtual function<optional<string> (const tenant_service&)>
     build_queued (const tenant_service&,
                   const vector<build>&,
                   optional<build_state> initial_state,
+                  const build_queued_hints&,
                   const diag_epilogue& log_writer) const noexcept = 0;
   };
 

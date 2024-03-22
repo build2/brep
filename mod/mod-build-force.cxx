@@ -10,6 +10,8 @@
 
 #include <libbrep/build.hxx>
 #include <libbrep/build-odb.hxx>
+#include <libbrep/build-package.hxx>
+#include <libbrep/build-package-odb.hxx>
 
 #include <mod/module-options.hxx>
 #include <mod/tenant-service.hxx>
@@ -184,10 +186,11 @@ handle (request& rq, response& rs)
   // If the incomplete package build is being forced to rebuild and the
   // tenant_service_build_queued callback is associated with the package
   // tenant, then stash the state, the build object, and the callback pointer
-  // for the subsequent service `queued` notification.
+  // and calculate the hints for the subsequent service `queued` notification.
   //
   const tenant_service_build_queued* tsq (nullptr);
   optional<pair<tenant_service, shared_ptr<build>>> tss;
+  tenant_service_build_queued::build_queued_hints qhs;
 
   connection_ptr conn (build_db_->connection ());
   {
@@ -244,13 +247,27 @@ handle (request& rq, response& rs)
             tsq = dynamic_cast<const tenant_service_build_queued*> (
               i->second.get ());
 
+            // If we ought to call the
+            // tenant_service_build_queued::build_queued() callback, then also
+            // set the package tenant's queued timestamp to the current time
+            // to prevent the notifications race (see tenant::queued_timestamp
+            // for details).
+            //
             if (tsq != nullptr)
             {
-              // If we ought to call the
-              // tenant_service_build_queued::build_queued() callback, then
-              // also set the package tenant's queued timestamp to the current
-              // time to prevent the notifications race (see
-              // tenant::queued_timestamp for details).
+              // Calculate the tenant service hints.
+              //
+              buildable_package_count tpc (
+                build_db_->query_value<buildable_package_count> (
+                  query<buildable_package_count>::build_tenant::id == t->id));
+
+              shared_ptr<build_package> p (
+                build_db_->load<build_package> (b->id.package));
+
+              qhs = tenant_service_build_queued::build_queued_hints {
+                tpc == 1, p->configs.size () == 1};
+
+              // Set the package tenant's queued timestamp.
               //
               t->queued_timestamp = system_clock::now ();
               build_db_->update (t);
@@ -280,7 +297,11 @@ handle (request& rq, response& rs)
     vector<build> qbs;
     qbs.push_back (move (b));
 
-    if (auto f = tsq->build_queued (ss, qbs, build_state::building, log_writer_))
+    if (auto f = tsq->build_queued (ss,
+                                    qbs,
+                                    build_state::building,
+                                    qhs,
+                                    log_writer_))
       update_tenant_service_state (conn, qbs.back ().tenant, f);
   }
 
