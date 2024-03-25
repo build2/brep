@@ -120,7 +120,7 @@ namespace brep
       explicit
       installation_access_token (json::parser&);
 
-      installation_access_token (const string& token, timestamp expires_at);
+      installation_access_token (const string& token, timestamp expires_at); // @@ move?
 
       installation_access_token () = default;
     };
