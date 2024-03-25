@@ -400,8 +400,8 @@ build_queued (const tenant_service&,
   l2 ([&]{trace << "initial_state: "
                 << (initial_state ? to_string (*initial_state) : "none")
                 << ", hints "
-                << static_cast<size_t> (hints.single_package_version) << ' '
-                << static_cast<size_t> (hints.single_package_config);});
+                << hints.single_package_version << ' '
+                << hints.single_package_config;});
 
   return [&bs, initial_state] (const tenant_service& ts)
          {
