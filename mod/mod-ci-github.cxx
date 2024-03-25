@@ -866,11 +866,11 @@ namespace brep
   build_queued (const tenant_service& ts,
                 const vector<build>& bs,
                 optional<build_state> /* initial_state */,
-                const fail_mark<server_error>& /* fail */,
-                const basic_mark& error,
-                const basic_mark& /* warn */,
-                const basic_mark& trace) const noexcept
+                const build_queued_hints&,
+                const diag_epilogue& log_writer) const noexcept
   {
+    NOTIFICATION_DIAG (log_writer);
+
     service_data sd;
     try
     {
@@ -1017,49 +1017,15 @@ namespace brep
 
   function<optional<string> (const brep::tenant_service&)> brep::ci_github::
   build_building (const tenant_service&, const build&,
-                  const fail_mark<server_error>&,
-                  const basic_mark&,
-                  const basic_mark&,
-                  const basic_mark&) const noexcept
+                  const diag_epilogue& /* log_writer */) const noexcept
   {
-    // return [&b] (const tenant_service& ts)
-    // {
-    //   string s ("building "                       +
-    //             b.package_name.string () + '/'    +
-    //             b.package_version.string () + '/' +
-    //             b.target.string () + '/'          +
-    //             b.target_config_name + '/'        +
-    //             b.package_config_name + '/'       +
-    //             b.toolchain_name + '/'            +
-    //             b.toolchain_version.string ());
-
-    //   return ts.data ? *ts.data + ", " + s : s;
-    // };
-
     return nullptr;
   }
 
   function<optional<string> (const brep::tenant_service&)> brep::ci_github::
   build_built (const tenant_service&, const build&,
-               const fail_mark<server_error>&,
-               const basic_mark&,
-               const basic_mark&,
-               const basic_mark&) const noexcept
+               const diag_epilogue& /* log_writer */) const noexcept
   {
-    // return [&b] (const tenant_service& ts)
-    // {
-    //   string s ("built "                          +
-    //             b.package_name.string () + '/'    +
-    //             b.package_version.string () + '/' +
-    //             b.target.string () + '/'          +
-    //             b.target_config_name + '/'        +
-    //             b.package_config_name + '/'       +
-    //             b.toolchain_name + '/'            +
-    //             b.toolchain_version.string ());
-
-    //   return ts.data ? *ts.data + ", " + s : s;
-    // };
-
     return nullptr;
   }
 
