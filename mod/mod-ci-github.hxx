@@ -170,24 +170,16 @@ namespace brep
     build_queued (const tenant_service&,
                   const vector<build>&,
                   optional<build_state> initial_state,
-                  const fail_mark<server_error>& fail,
-                  const basic_mark& error,
-                  const basic_mark& warn,
-                  const basic_mark& trace) const noexcept override;
+                  const build_queued_hints&,
+                  const diag_epilogue& log_writer) const noexcept override;
 
     virtual function<optional<string> (const tenant_service&)>
     build_building (const tenant_service&, const build&,
-                    const fail_mark<server_error>& fail,
-                    const basic_mark& error,
-                    const basic_mark& warn,
-                    const basic_mark& trace) const noexcept override;
+                    const diag_epilogue& log_writer) const noexcept override;
 
     virtual function<optional<string> (const tenant_service&)>
     build_built (const tenant_service&, const build&,
-                 const fail_mark<server_error>& fail,
-                 const basic_mark& error,
-                 const basic_mark& warn,
-                 const basic_mark& trace) const noexcept override;
+                 const diag_epilogue& log_writer) const noexcept override;
 
   private:
     virtual void
