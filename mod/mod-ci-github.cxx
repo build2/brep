@@ -42,10 +42,6 @@ using namespace brep::cli;
 
 namespace brep
 {
-  // Operation failed, diagnostics has already been issued.
-  //
-  struct failed {}; // @@ server_error
-
   using namespace gh;
 
   ci_github::
@@ -367,7 +363,7 @@ namespace brep
 
     optional<string> jwt (generate_jwt (trace, error));
     if (!jwt)
-      throw failed ();
+      throw server_error ();
 
     optional<installation_access_token> iat (
         obtain_installation_access_token (cs.installation.id,
@@ -375,7 +371,7 @@ namespace brep
                                           error));
 
     if (!iat)
-      throw failed ();
+      throw server_error ();
 
     l3 ([&]{trace << "installation_access_token { " << *iat << " }";});
 
@@ -508,27 +504,37 @@ namespace brep
     return gq_name (v);
   }
 
+  using build_queued_hints = tenant_service_build_queued::build_queued_hints;
+
   // Create a check_run name from a build. If the second argument is not
   // NULL, return an abbreviated id if possible.
   //
   static string
-  check_run_name (const build& b, const build_queued_hints* hs = nullptr)
+  check_run_name (const build& b, const build_queued_hints* bqh = nullptr)
   {
-    return b.package_name.string () + '/'    +
-           b.package_version.string () + '/' +
-           b.target_config_name + '/'        +
-           b.target.string () + '/'          +
-           b.package_config_name + '/'       +
-           b.toolchain_name + '-'            +
-           b.toolchain_version.string ();
+    string r;
+
+    if (bqh == nullptr || !bqh->single_package_version)
+      r += b.package_name.string () + '/' + b.package_version.string () + '/';
+
+    r += b.target_config_name + '/' + b.target.string () + '/';
+
+    if (bqh == nullptr || !bqh->single_package_config)
+      r += b.package_config_name + '/';
+
+    r += b.toolchain_name + '-' + b.toolchain_version.string ();
+
+    return r;
   }
 
   // Serialize `createCheckRun` mutations for one or more builds to GraphQL.
   //
   static string
-  queue_check_runs (const string& ri, // Repository ID
-                    const string& hs, // Head SHA
-                    const vector<build>& bs)
+  queue_check_runs (
+      const string& ri, // Repository ID
+      const string& hs, // Head SHA
+      const vector<build>& bs,
+      const build_queued_hints* bqh)
   {
     ostringstream os;
 
@@ -544,7 +550,7 @@ namespace brep
 
       // Check run name.
       //
-      string nm (check_run_name (b));
+      string nm (check_run_name (b, bqh));
 
       os << gq_name (al) << ":createCheckRun(input: {"              << '\n'
          << "  name: "         << gq_str (nm) << ','                << '\n'
@@ -873,11 +879,11 @@ namespace brep
     }
   }
 
-  function<optional<string> (const brep::tenant_service&)> brep::ci_github::
+  function<optional<string> (const tenant_service&)> ci_github::
   build_queued (const tenant_service& ts,
                 const vector<build>& bs,
                 optional<build_state> /* initial_state */,
-                const build_queued_hints&,
+                const build_queued_hints& hs,
                 const diag_epilogue& log_writer) const noexcept
   {
     NOTIFICATION_DIAG (log_writer);
@@ -895,9 +901,8 @@ namespace brep
 
     // Queue a check_run for each build.
     //
-    string rq (
-      graphql_request (
-        queue_check_runs (sd.repository_id, sd.head_sha, bs)));
+    string rq (graphql_request (
+        queue_check_runs (sd.repository_id, sd.head_sha, bs, &hs)));
 
     // Response type which parses a GraphQL response containing multiple
     // check_run objects.
@@ -986,7 +991,7 @@ namespace brep
       const build& b (bs[i]);
       const check_run& cr (rs.check_runs[i]);
 
-      if (cr.name != check_run_name (b))
+      if (cr.name != check_run_name (b, &hs))
       {
         error << "unexpected check_run name: '" + cr.name + '\'';
         return nullptr;
@@ -1203,15 +1208,16 @@ namespace brep
 
     // Installation access token.
     //
-    p.next_expect_member_object ("iat");
-    installation_access.token = p.next_expect_member_string ("tok");
+    p.next_expect_member_object ("installation_access");
+    installation_access.token = p.next_expect_member_string ("token");
     installation_access.expires_at =
-        from_iso8601 (p.next_expect_member_string ("exp"));
+        from_iso8601 (p.next_expect_member_string ("expires_at"));
     p.next_expect (event::end_object);
 
-    installation_id = p.next_expect_member_number<uint64_t> ("iid");
-    repository_id = p.next_expect_member_string ("rid");
-    head_sha = p.next_expect_member_string ("hs");
+    installation_id =
+        p.next_expect_member_number<uint64_t> ("installation_id");
+    repository_id = p.next_expect_member_string ("repository_id");
+    head_sha = p.next_expect_member_string ("head_sha");
 
     p.next_expect (event::end_object);
   }
@@ -1303,8 +1309,8 @@ namespace brep
     if (!at) missing_member (p, "check_suite", "after");
   }
 
-  ostream&
-  gh::operator<< (ostream& os, const check_suite& cs) // gh:: on new line (and in other places)
+  ostream& gh::
+  operator<< (ostream& os, const check_suite& cs)
   {
     os << "node_id: " << cs.node_id
        << ", head_branch: " << cs.head_branch
@@ -1341,8 +1347,8 @@ namespace brep
     if (!st) missing_member (p, "check_run", "status");
   }
 
-  ostream&
-  gh::operator<< (ostream& os, const check_run& cr)
+  ostream& gh::
+  operator<< (ostream& os, const check_run& cr)
   {
     os << "node_id: " << cr.node_id
        << ", name: " << cr.name
@@ -1384,8 +1390,8 @@ namespace brep
     if (!cu) missing_member (p, "repository", "clone_url");
   }
 
-  ostream&
-  gh::operator<< (ostream& os, const repository& rep)
+  ostream& gh::
+  operator<< (ostream& os, const repository& rep)
   {
     os << "node_id: " << rep.node_id
        << ", name: " << rep.name
@@ -1421,8 +1427,8 @@ namespace brep
     if (!i) missing_member (p, "installation", "id");
   }
 
-  ostream&
-  gh::operator<< (ostream& os, const installation& i)
+  ostream& gh::
+  operator<< (ostream& os, const installation& i)
   {
     os << "id: " << i.id;
 
@@ -1460,8 +1466,8 @@ namespace brep
     if (!in) missing_member (p, "check_suite_event", "installation");
   }
 
-  ostream&
-  gh::operator<< (ostream& os, const check_suite_event& cs)
+  ostream& gh::
+  operator<< (ostream& os, const check_suite_event& cs)
   {
     os << "action: " << cs.action;
     os << ", check_suite { " << cs.check_suite << " }";
@@ -1506,14 +1512,14 @@ namespace brep
     if (!ea) missing_member (p, "installation_access_token", "expires_at");
   }
 
-  gh::installation_access_token::installation_access_token (const string& tk,
-                                                            timestamp ea)
-      : token (tk), expires_at (ea)
+  gh::installation_access_token::
+  installation_access_token (string tk, timestamp ea)
+      : token (move (tk)), expires_at (ea)
   {
   }
 
-  ostream&
-  gh::operator<< (ostream& os, const installation_access_token& t)
+  ostream& gh::
+  operator<< (ostream& os, const installation_access_token& t)
   {
     os << "token: " << t.token << ", expires_at: ";
     butl::operator<< (os, t.expires_at);

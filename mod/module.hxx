@@ -41,6 +41,8 @@ namespace brep
     diag_data data;
 
     server_error (diag_data&& d): data (move (d)) {}
+
+    server_error () = default;
   };
 
   // Every handler member function that needs to produce any diagnostics
