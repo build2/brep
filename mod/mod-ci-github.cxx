@@ -44,7 +44,7 @@ namespace brep
 {
   // Operation failed, diagnostics has already been issued.
   //
-  struct failed {};
+  struct failed {}; // @@ server_error
 
   using namespace gh;
 
@@ -327,6 +327,16 @@ namespace brep
     string repository_id; // GitHub-internal opaque repository id.
     string head_sha;
 
+    enum class check_run_state {queued, building, built};
+
+    struct check_run
+    {
+      string          build_id; // Full build id.
+      string          node_id;  // GitHub id.
+      check_run_state state;
+    };
+    vector<check_run> check_runs;
+
     // Construct from JSON.
     //
     // Throw invalid_argument if the schema version is not supported.
@@ -498,17 +508,18 @@ namespace brep
     return gq_name (v);
   }
 
-  // Create a check_run name from a build.
+  // Create a check_run name from a build. If the second argument is not
+  // NULL, return an abbreviated id if possible.
   //
   static string
-  check_run_name (const build& b)
+  check_run_name (const build& b, const build_queued_hints* hs = nullptr)
   {
     return b.package_name.string () + '/'    +
            b.package_version.string () + '/' +
-           b.target.string () + '/'          +
            b.target_config_name + '/'        +
+           b.target.string () + '/'          +
            b.package_config_name + '/'       +
-           b.toolchain_name + '/'            +
+           b.toolchain_name + '-'            +
            b.toolchain_version.string ();
   }
 
@@ -884,7 +895,8 @@ namespace brep
 
     // Queue a check_run for each build.
     //
-    string rq (graphql_request (
+    string rq (
+      graphql_request (
         queue_check_runs (sd.repository_id, sd.head_sha, bs)));
 
     // Response type which parses a GraphQL response containing multiple
@@ -927,8 +939,8 @@ namespace brep
 
       if (sc != 200)
       {
-        error << "failed to queue check runs: "
-              << "error HTTP response status " << sc;
+        error << "failed to queue check runs: error HTTP response status "
+              << sc;
         return nullptr;
       }
     }
@@ -1015,14 +1027,14 @@ namespace brep
     };
   }
 
-  function<optional<string> (const brep::tenant_service&)> brep::ci_github::
+  function<optional<string> (const tenant_service&)> ci_github::
   build_building (const tenant_service&, const build&,
                   const diag_epilogue& /* log_writer */) const noexcept
   {
     return nullptr;
   }
 
-  function<optional<string> (const brep::tenant_service&)> brep::ci_github::
+  function<optional<string> (const tenant_service&)> ci_github::
   build_built (const tenant_service&, const build&,
                const diag_epilogue& /* log_writer */) const noexcept
   {
@@ -1097,10 +1109,10 @@ namespace brep
   //   repos covered by the installation if installed on an organisation for
   //   example.
   //
-  optional<installation_access_token>
-  ci_github::obtain_installation_access_token (uint64_t iid,
-                                               string jwt,
-                                               const basic_mark& error) const
+  optional<installation_access_token> ci_github::
+  obtain_installation_access_token (uint64_t iid,
+                                    string jwt,
+                                    const basic_mark& error) const
   {
     installation_access_token iat;
     try
@@ -1123,8 +1135,8 @@ namespace brep
       //
       if (sc != 201)
       {
-        error << "unable to get installation access token: "
-              << "error HTTP response status " << sc;
+        error << "unable to get installation access token: error HTTP "
+              << "response status " << sc;
         return nullopt;
       }
 
@@ -1229,14 +1241,14 @@ namespace brep
 
     // Installation access token.
     //
-    s.member_begin_object ("iat");
-    s.member ("tok", installation_access.token);
-    s.member ("exp", to_iso8601 (installation_access.expires_at));
+    s.member_begin_object ("installation_access");
+    s.member ("token", installation_access.token);
+    s.member ("expires_at", to_iso8601 (installation_access.expires_at));
     s.end_object ();
 
-    s.member ("iid", installation_id);
-    s.member ("rid", repository_id);
-    s.member ("hs", head_sha);
+    s.member ("installation_id", installation_id);
+    s.member ("repository_id", repository_id);
+    s.member ("head_sha", head_sha);
 
     s.end_object ();
 
@@ -1292,7 +1304,7 @@ namespace brep
   }
 
   ostream&
-  gh::operator<< (ostream& os, const check_suite& cs)
+  gh::operator<< (ostream& os, const check_suite& cs) // gh:: on new line (and in other places)
   {
     os << "node_id: " << cs.node_id
        << ", head_branch: " << cs.head_branch
