@@ -323,15 +323,18 @@ namespace brep
     string repository_id; // GitHub-internal opaque repository id.
     string head_sha;
 
-    enum class check_run_state {queued, building, built};
-
     struct check_run
     {
       string          build_id; // Full build id.
       string          node_id;  // GitHub id.
-      check_run_state state;
+      build_state     state;
     };
     vector<check_run> check_runs;
+
+    // Return the check run with the specified build ID or nullptr if not
+    // found.
+    //
+    check_run* find_check_run (const string& build_id);
 
     // Construct from JSON.
     //
@@ -530,11 +533,10 @@ namespace brep
   // Serialize `createCheckRun` mutations for one or more builds to GraphQL.
   //
   static string
-  queue_check_runs (
-      const string& ri, // Repository ID
-      const string& hs, // Head SHA
-      const vector<build>& bs,
-      const build_queued_hints* bqh)
+  queue_check_runs (const string& ri, // Repository ID
+                    const string& hs, // Head SHA
+                    const vector<const build*>& bs,
+                    const build_queued_hints* bqh)
   {
     ostringstream os;
 
@@ -544,7 +546,7 @@ namespace brep
     //
     for (size_t i (0); i != bs.size (); ++i)
     {
-      const build& b (bs[i]);
+      const build& b (*bs[i]);
 
       string al ("cr" + to_string (i)); // Field alias.
 
@@ -881,8 +883,8 @@ namespace brep
 
   function<optional<string> (const tenant_service&)> ci_github::
   build_queued (const tenant_service& ts,
-                const vector<build>& bs,
-                optional<build_state> /* initial_state */,
+                const vector<build>& builds,
+                optional<build_state> initial_state,
                 const build_queued_hints& hs,
                 const diag_epilogue& log_writer) const noexcept
   {
@@ -898,6 +900,29 @@ namespace brep
       error << "failed to parse service data: " << e;
       return nullptr;
     }
+
+    // All builds except those for which this notification is out of order and
+    // thus would cause a spurious backwards state transition.
+    //
+    vector<const build*> bs;
+
+    // Exclude builds for which this is an out of order notification.
+    //
+    for (const build& b: builds)
+    {
+      // Include this build if this is a legitimate transition back to queued
+      // from another state or it doesn't already have a stored check run.
+      //
+      // @@ TMP There could already be check runs from other packages/versions
+      //        so this search is likely to be N^2 or worse. Should we make
+      //        this a binsearch or something?
+      //
+      if (initial_state || sd.find_check_run (check_run_name (b)) == nullptr)
+        bs.push_back (&b);
+    }
+
+    if (bs.empty ()) // Notification is out of order for all builds.
+      return nullptr;
 
     // Queue a check_run for each build.
     //
@@ -988,7 +1013,7 @@ namespace brep
     //
     for (size_t i (0); i != rs.check_runs.size (); ++i)
     {
-      const build& b (bs[i]);
+      const build& b (*bs[i]);
       const check_run& cr (rs.check_runs[i]);
 
       if (cr.name != check_run_name (b, &hs))
@@ -1005,7 +1030,12 @@ namespace brep
       l3 ([&]{trace << "check_run { " << cr << " }";});
     }
 
-    return [iat = move (new_iat)] (const tenant_service& ts) -> optional<string>
+    // rcrs: received check runs.
+    //
+    return [bs = move (bs),
+            iat = move (new_iat),
+            rcrs = move (rs.check_runs),
+            initial_state] (const tenant_service& ts) -> optional<string>
     {
       service_data sd;
       try
@@ -1014,19 +1044,47 @@ namespace brep
       }
       catch (const invalid_argument& e)
       {
-        // @@ TODO: error<<....
-        //
-        //          It looks like saving log_writer in this lambda would be
-        //          safe, but not 100% sure. Also, the log entry will say
-        //          build_queued() which is not entirely accurate. Maybe OK
-        //          for a lambda but what about a real function?
-        //
+        // @@ TODO
         // error << "failed to parse service data: " << e;
         return nullopt;
       }
 
       if (iat)
         sd.installation_access = move (*iat);
+
+      // Note that we've already removed all builds for which this
+      // notification is out of order.
+      //
+      for (size_t i (0); i != bs.size (); ++i)
+      {
+        string bid (check_run_name (*bs[i])); // Full build ID.
+
+        if (!initial_state)
+        {
+          // Initial queued notification: add new check run.
+          //
+          sd.check_runs.emplace_back (move (bid),
+                                      move (rcrs[i].node_id),
+                                      build_state::queued);
+        }
+        else
+        {
+          // building->queued or built->queued: update existing check run.
+          //
+          service_data::check_run* scr (sd.find_check_run (bid));
+
+          if (scr == nullptr) // @@ TMP Shouldn't be possible, right?
+          {
+            // @@ TODO error<<
+            //
+            return nullopt;
+          }
+
+          assert (scr->state == *initial_state);
+
+          scr->state = build_state::queued;
+        }
+      }
 
       return sd.json ();
     };
@@ -1219,6 +1277,17 @@ namespace brep
     repository_id = p.next_expect_member_string ("repository_id");
     head_sha = p.next_expect_member_string ("head_sha");
 
+    p.next_expect_member_array ("check_runs");
+    while (p.next_expect (event::begin_object, event::end_array))
+    {
+      check_runs.emplace_back (
+          p.next_expect_member_string ("build_id"),
+          p.next_expect_member_string ("node_id"),
+          to_build_state (p.next_expect_member_string ("state")));
+
+      p.next_expect (event::end_object);
+    }
+
     p.next_expect (event::end_object);
   }
 
@@ -1256,9 +1325,31 @@ namespace brep
     s.member ("repository_id", repository_id);
     s.member ("head_sha", head_sha);
 
+    s.member_begin_array ("check_runs");
+    for (const check_run& cr: check_runs)
+    {
+      s.begin_object ();
+      s.member ("build_id", cr.build_id);
+      s.member ("node_id", cr.node_id);
+      s.member ("state", to_string (cr.state));
+      s.end_object ();
+    }
+    s.end_array ();
+
     s.end_object ();
 
     return b;
+  }
+
+  service_data::check_run* service_data::
+  find_check_run (const string& bid)
+  {
+    for (check_run& cr: check_runs)
+    {
+      if (cr.build_id == bid)
+        return &cr;
+    }
+    return nullptr;
   }
 
   // The rest is GitHub request/response type parsing and printing.
