@@ -1257,19 +1257,25 @@ handle (request& rq, response& rs)
 
             // Try to use the test package configuration named the same as the
             // current configuration of the main package. If there is no such
-            // a configuration or it excludes the current target
-            // configuration, then fallback to using the default configuration
-            // (which must exist). If in this case the default configuration
-            // excludes the current target configuration, then exclude this
-            // external test package from the build task.
+            // a configuration, then fallback to using the default
+            // configuration (which must exist). If the selected test package
+            // configuration excludes the current target configuration, then
+            // exclude this external test package from the build task.
             //
-            // Note that potentially the test package default configuration
+            // Note that potentially the selected test package configuration
             // may contain some (bpkg) arguments associated, but we currently
             // don't provide build bot worker with such information. This,
             // however, is probably too far fetched so let's keep it simple
             // for now.
             //
             const build_package_config* tpc (find (pc.name, tp->configs));
+
+            if (tpc == nullptr)
+            {
+              tpc = find ("default", tp->configs);
+
+              assert (tpc != nullptr); // Must always be present.
+            }
 
             // Use the `all` class as a least restrictive default underlying
             // build class set. Note that we should only apply the explicit
@@ -1279,32 +1285,13 @@ handle (request& rq, response& rs)
             //
             build_db_->load (*tp, tp->constraints_section);
 
-            if (tpc == nullptr ||
-                exclude (*tpc,
+            if (exclude (*tpc,
                          tp->builds,
                          tp->constraints,
                          tc,
                          nullptr /* reason */,
                          true /* default_all_ucs */))
-            {
-              // If the current package configuration is "default", then we
-              // cannot fallback and just exclude the test package outright.
-              //
-              if (pc.name == "default")
-                continue;
-
-              tpc = find ("default", tp->configs);
-
-              assert (tpc != nullptr); // Must always be present.
-
-              if (exclude (*tpc,
-                           tp->builds,
-                           tp->constraints,
-                           tc,
-                           nullptr /* reason */,
-                           true /* default_all_ucs */))
-                continue;
-            }
+              continue;
 
             for (const build_auxiliary& ba:
                    tpc->effective_auxiliaries (tp->auxiliaries))
