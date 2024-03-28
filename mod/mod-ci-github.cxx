@@ -1073,6 +1073,9 @@ namespace brep
             rcrs = move (rs.check_runs), // @@ crs
             initial_state] (const tenant_service& ts) -> optional<string>
     {
+      // NOTE: this lambda may be called repeatedly (e.g., due to transaction
+      // being aborted) and so should not move out of its captures.
+
       service_data sd;
       try
       {
