@@ -323,18 +323,24 @@ namespace brep
     string repository_id; // GitHub-internal opaque repository id.
     string head_sha;
 
+    // Absent state means we were unable to (conclusively) notify GitHub about
+    // the last state transition (e.g., due to a transient network error). The
+    // "conclusively" part means that the notification may or may not have
+    // gone through. Note: node_id can be absent for the same reason.
+    //
     struct check_run
     {
-      string          build_id; // Full build id.
-      string          node_id;  // GitHub id.
-      build_state     state;
+      string                build_id; // Full build id.
+      optional<string>      node_id;  // GitHub id.
+      optional<build_state> state;
     };
     vector<check_run> check_runs;
 
     // Return the check run with the specified build ID or nullptr if not
     // found.
     //
-    check_run* find_check_run (const string& build_id);
+    check_run*
+    find_check_run (const string& build_id);
 
     // Construct from JSON.
     //
@@ -518,14 +524,27 @@ namespace brep
     string r;
 
     if (bqh == nullptr || !bqh->single_package_version)
-      r += b.package_name.string () + '/' + b.package_version.string () + '/';
+    {
+      r += b.package_name.string ();
+      r += '/';
+      r += b.package_version.string ();
+      r += '/';
+    }
 
-    r += b.target_config_name + '/' + b.target.string () + '/';
+    r += b.target_config_name;
+    r += '/';
+    r += b.target.string ();
+    r += '/';
 
     if (bqh == nullptr || !bqh->single_package_config)
-      r += b.package_config_name + '/';
+    {
+      r += b.package_config_name;
+      r += '/';
+    }
 
-    r += b.toolchain_name + '-' + b.toolchain_version.string ();
+    r += b.toolchain_name;
+    r += '-';
+    r += b.toolchain_version.string ();
 
     return r;
   }
@@ -884,7 +903,7 @@ namespace brep
   function<optional<string> (const tenant_service&)> ci_github::
   build_queued (const tenant_service& ts,
                 const vector<build>& builds,
-                optional<build_state> initial_state,
+                optional<build_state> istate,
                 const build_queued_hints& hs,
                 const diag_epilogue& log_writer) const noexcept
   {
@@ -904,7 +923,8 @@ namespace brep
     // All builds except those for which this notification is out of order and
     // thus would cause a spurious backwards state transition.
     //
-    vector<const build*> bs;
+    vector<const build*> bs; // @@ reference_wrapper
+    vector<service_data::check_run> crs; // Parallel to bs.
 
     // Exclude builds for which this is an out of order notification.
     //
@@ -912,13 +932,24 @@ namespace brep
     {
       // Include this build if this is a legitimate transition back to queued
       // from another state or it doesn't already have a stored check run.
+      // Note: never go back on the built state.
       //
-      // @@ TMP There could already be check runs from other packages/versions
-      //        so this search is likely to be N^2 or worse. Should we make
-      //        this a binsearch or something?
-      //
-      if (initial_state || sd.find_check_run (check_run_name (b)) == nullptr)
+      const check_run* cr (sd.find_check_run (check_run_name (b)));
+
+      if (cr == nullptr ||
+          !cr->state    ||
+          (cr->state != build_state::built &&
+           (istate && *istate == build_state::building))) // Interrupted.
+      {
+        // @@ Move cr out of sd.
+
+        cr->state = nullopt;
         bs.push_back (&b);
+      }
+      else
+      {
+        // @@ warn with some information
+      }
     }
 
     if (bs.empty ()) // Notification is out of order for all builds.
@@ -926,53 +957,89 @@ namespace brep
 
     // Queue a check_run for each build.
     //
-    string rq (graphql_request (
+    string rq (
+      graphql_request (
         queue_check_runs (sd.repository_id, sd.head_sha, bs, &hs)));
 
-    // Response type which parses a GraphQL response containing multiple
-    // check_run objects.
-    //
-    struct resp
-    {
-      vector<check_run> check_runs; // Received check runs.
-
-      resp (json::parser& p) : check_runs (parse_check_runs_response (p)) {}
-
-      resp () = default;
-    } rs;
+    // What if we could not notify GitHub about some check runs due to, say, a
+    // transient network? In this case we save them with the absent state
+    // hoping for things to improve when we try to issue building or built
+    // notifications.
 
     // Get a new installation access token if the current one has expired.
     //
+    const installation_access_token* iat (nullptr);
     optional<installation_access_token> new_iat;
 
     if (system_clock::now () > sd.installation_access.expires_at)
     {
-      optional<string> jwt (generate_jwt (trace, error));
-      if (!jwt)
-        return nullptr;
-
-      new_iat = obtain_installation_access_token (sd.installation_id,
-                                                  move (*jwt),
-                                                  error);
-      if (!new_iat)
-        return nullptr;
+      if (optional<string> jwt = generate_jwt (trace, error))
+      {
+        new_iat = obtain_installation_access_token (sd.installation_id,
+                                                    move (*jwt),
+                                                    error);
+        if (new_iat)
+          iat = &*new_iat;
+      }
     }
+    else
+      iat = &sd.installation_access;
 
+    if (iat != nullptr)
     try
     {
-      uint16_t sc (github_post (
+      // Response type which parses a GraphQL response containing multiple
+      // check_run objects.
+      //
+      struct resp
+      {
+        vector<check_run> check_runs; // Received check runs.
+
+        resp (json::parser& p) : check_runs (parse_check_runs_response (p)) {}
+
+        resp () = default;
+      } rs;
+
+      uint16_t sc (
+        github_post (
           rs,
           "graphql", // API Endpoint.
-          strings {"Authorization: Bearer " +
-                   (new_iat ? *new_iat : sd.installation_access).token},
+          strings {"Authorization: Bearer " + iat->token},
           move (rq)));
 
-      if (sc != 200)
+      if (sc == 200)
       {
+        if (rs.check_runs.size () == bs.size ())
+        {
+          // Validate the check runs in the response against the builds.
+          //
+          for (size_t i (0); i != rs.check_runs.size (); ++i)
+          {
+            const build& b (*bs[i]);
+            const check_run& cr (rs.check_runs[i]);
+
+            if (cr.name != check_run_name (b, &hs))
+            {
+              error << "unexpected check_run name: '" + cr.name + '\'';
+            }
+            else if (cr.status != "QUEUED")
+            {
+              error << "unexpected check_run status: '" + cr.status + '\'';
+            }
+            else
+            {
+              // @@ Move out node_id, set state to queued.
+
+              l3 ([&]{trace << "check_run { " << cr << " }";});
+            }
+          }
+        }
+        else
+          error << "unexpected number of check_run objects in response";
+      }
+      else
         error << "failed to queue check runs: error HTTP response status "
               << sc;
-        return nullptr;
-      }
     }
     catch (const json::invalid_json_input& e)
     {
@@ -981,18 +1048,15 @@ namespace brep
       error << "malformed JSON in response from " << e.name << ", line: "
             << e.line << ", column: " << e.column << ", byte offset: "
             << e.position << ", error: " << e;
-      return nullptr;
     }
     catch (const invalid_argument& e)
     {
       error << "malformed header(s) in response: " << e;
-      return nullptr;
     }
     catch (const system_error& e)
     {
-      error << "unable to queue check runs (errno=" << e.code ()
-            << "): " << e.what ();
-      return nullptr;
+      error << "unable to queue check runs (errno=" << e.code () << "): "
+            << e.what ();
     }
     catch (const runtime_error& e) // From parse_check_runs_response().
     {
@@ -1000,41 +1064,13 @@ namespace brep
       // point).
       //
       error << "unable to queue check runs: " << e;
-      return nullptr;
-    }
-
-    if (rs.check_runs.size () != bs.size ())
-    {
-      error << "unexpected number of check_run objects in response";
-      return nullptr;
-    }
-
-    // Validate the check runs in the response against the builds.
-    //
-    for (size_t i (0); i != rs.check_runs.size (); ++i)
-    {
-      const build& b (*bs[i]);
-      const check_run& cr (rs.check_runs[i]);
-
-      if (cr.name != check_run_name (b, &hs))
-      {
-        error << "unexpected check_run name: '" + cr.name + '\'';
-        return nullptr;
-      }
-      else if (cr.status != "QUEUED")
-      {
-        error << "unexpected check_run status: '" + cr.status + '\'';
-        return nullptr;
-      }
-
-      l3 ([&]{trace << "check_run { " << cr << " }";});
     }
 
     // rcrs: received check runs.
     //
     return [bs = move (bs),
             iat = move (new_iat),
-            rcrs = move (rs.check_runs),
+            rcrs = move (rs.check_runs), // @@ crs
             initial_state] (const tenant_service& ts) -> optional<string>
     {
       service_data sd;
