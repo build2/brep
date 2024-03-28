@@ -554,7 +554,7 @@ namespace brep
   static string
   queue_check_runs (const string& ri, // Repository ID
                     const string& hs, // Head SHA
-                    const vector<const build*>& bs,
+                    const vector<reference_wrapper<const build>>& bs,
                     const build_queued_hints* bqh)
   {
     ostringstream os;
@@ -565,7 +565,7 @@ namespace brep
     //
     for (size_t i (0); i != bs.size (); ++i)
     {
-      const build& b (*bs[i]);
+      const build& b (bs[i]);
 
       string al ("cr" + to_string (i)); // Field alias.
 
@@ -923,7 +923,7 @@ namespace brep
     // All builds except those for which this notification is out of order and
     // thus would cause a spurious backwards state transition.
     //
-    vector<const build*> bs; // @@ reference_wrapper
+    vector<reference_wrapper<const build>> bs;
     vector<service_data::check_run> crs; // Parallel to bs.
 
     // Exclude builds for which this is an out of order notification.
@@ -934,21 +934,30 @@ namespace brep
       // from another state or it doesn't already have a stored check run.
       // Note: never go back on the built state.
       //
-      const check_run* cr (sd.find_check_run (check_run_name (b)));
+      string bid (check_run_name (b)); // Full Build ID.
 
+      const service_data::check_run* cr (sd.find_check_run (bid));
+
+      // @@ TMP This doesn't catch the case of an out-of-order initial queued
+      //        following a building or built when the network was down (and
+      //        thus cr->state is absent). We could end up setting the state
+      //        to queued on GH when it should be building or built.
+      //
       if (cr == nullptr ||
           !cr->state    ||
           (cr->state != build_state::built &&
            (istate && *istate == build_state::building))) // Interrupted.
       {
-        // @@ Move cr out of sd.
+        if (cr != nullptr)
+          crs.emplace_back (move (*cr)).state = nullopt;
+        else
+          crs.emplace_back (move (bid), nullopt, nullopt);
 
-        cr->state = nullopt;
-        bs.push_back (&b);
+        bs.push_back (b);
       }
       else
       {
-        // @@ warn with some information
+        // @@ TODO warn with some information
       }
     }
 
@@ -956,6 +965,8 @@ namespace brep
       return nullptr;
 
     // Queue a check_run for each build.
+    //
+    // @@ TODO updateCheckRun() if this is building->queued.
     //
     string rq (
       graphql_request (
@@ -968,7 +979,7 @@ namespace brep
 
     // Get a new installation access token if the current one has expired.
     //
-    const installation_access_token* iat (nullptr);
+    const installation_access_token* iat;
     optional<installation_access_token> new_iat;
 
     if (system_clock::now () > sd.installation_access.expires_at)
@@ -978,6 +989,7 @@ namespace brep
         new_iat = obtain_installation_access_token (sd.installation_id,
                                                     move (*jwt),
                                                     error);
+
         if (new_iat)
           iat = &*new_iat;
       }
@@ -986,92 +998,92 @@ namespace brep
       iat = &sd.installation_access;
 
     if (iat != nullptr)
-    try
     {
-      // Response type which parses a GraphQL response containing multiple
-      // check_run objects.
-      //
-      struct resp
+      try
       {
-        vector<check_run> check_runs; // Received check runs.
-
-        resp (json::parser& p) : check_runs (parse_check_runs_response (p)) {}
-
-        resp () = default;
-      } rs;
-
-      uint16_t sc (
-        github_post (
-          rs,
-          "graphql", // API Endpoint.
-          strings {"Authorization: Bearer " + iat->token},
-          move (rq)));
-
-      if (sc == 200)
-      {
-        if (rs.check_runs.size () == bs.size ())
+        // Response type which parses a GraphQL response containing multiple
+        // check_run objects.
+        //
+        struct resp
         {
-          // Validate the check runs in the response against the builds.
-          //
-          for (size_t i (0); i != rs.check_runs.size (); ++i)
+          vector<check_run> check_runs; // Received check runs.
+
+          resp (json::parser& p) : check_runs (parse_check_runs_response (p)) {}
+
+          resp () = default;
+        } rs;
+
+        uint16_t sc (
+          github_post (
+            rs,
+            "graphql", // API Endpoint.
+            strings {"Authorization: Bearer " + iat->token},
+            move (rq)));
+
+        if (sc == 200)
+        {
+          if (rs.check_runs.size () == bs.size ())
           {
-            const build& b (*bs[i]);
-            const check_run& cr (rs.check_runs[i]);
+            // Validate the check runs in the response against the builds.
+            //
+            for (size_t i (0); i != rs.check_runs.size (); ++i)
+            {
+              const build& b (bs[i]);
+              const check_run& rcr (rs.check_runs[i]); // Received check run.
 
-            if (cr.name != check_run_name (b, &hs))
-            {
-              error << "unexpected check_run name: '" + cr.name + '\'';
-            }
-            else if (cr.status != "QUEUED")
-            {
-              error << "unexpected check_run status: '" + cr.status + '\'';
-            }
-            else
-            {
-              // @@ Move out node_id, set state to queued.
+              if (rcr.name != check_run_name (b, &hs))
+                error << "unexpected check_run name: '" + rcr.name + '\'';
+              else if (rcr.status != "QUEUED")
+                error << "unexpected check_run status: '" + rcr.status + '\'';
+              else
+              {
+                l3 ([&]{trace << "check_run { " << rcr << " }";});
 
-              l3 ([&]{trace << "check_run { " << cr << " }";});
+                service_data::check_run& cr (crs[i]);
+
+                if (!cr.node_id)
+                  cr.node_id = move (rcr.node_id);
+
+                cr.state = build_state::queued;
+              }
             }
           }
+          else
+            error << "unexpected number of check_run objects in response";
         }
         else
-          error << "unexpected number of check_run objects in response";
+          error << "failed to queue check runs: error HTTP response status "
+                << sc;
       }
-      else
-        error << "failed to queue check runs: error HTTP response status "
-              << sc;
-    }
-    catch (const json::invalid_json_input& e)
-    {
-      // Note: e.name is the GitHub API endpoint.
-      //
-      error << "malformed JSON in response from " << e.name << ", line: "
-            << e.line << ", column: " << e.column << ", byte offset: "
-            << e.position << ", error: " << e;
-    }
-    catch (const invalid_argument& e)
-    {
-      error << "malformed header(s) in response: " << e;
-    }
-    catch (const system_error& e)
-    {
-      error << "unable to queue check runs (errno=" << e.code () << "): "
-            << e.what ();
-    }
-    catch (const runtime_error& e) // From parse_check_runs_response().
-    {
-      // GitHub response contained error(s) (could be ours or theirs at this
-      // point).
-      //
-      error << "unable to queue check runs: " << e;
+      catch (const json::invalid_json_input& e)
+      {
+        // Note: e.name is the GitHub API endpoint.
+        //
+        error << "malformed JSON in response from " << e.name << ", line: "
+              << e.line << ", column: " << e.column << ", byte offset: "
+              << e.position << ", error: " << e;
+      }
+      catch (const invalid_argument& e)
+      {
+        error << "malformed header(s) in response: " << e;
+      }
+      catch (const system_error& e)
+      {
+        error << "unable to queue check runs (errno=" << e.code () << "): "
+              << e.what ();
+      }
+      catch (const runtime_error& e) // From parse_check_runs_response().
+      {
+        // GitHub response contained error(s) (could be ours or theirs at this
+        // point).
+        //
+        error << "unable to queue check runs: " << e;
+      }
     }
 
-    // rcrs: received check runs.
-    //
     return [bs = move (bs),
             iat = move (new_iat),
-            rcrs = move (rs.check_runs), // @@ crs
-            initial_state] (const tenant_service& ts) -> optional<string>
+            crs = move (crs)] (const tenant_service& ts) -> optional<string>
     {
       // NOTE: this lambda may be called repeatedly (e.g., due to transaction
       // being aborted) and so should not move out of its captures.
@@ -1089,40 +1101,27 @@ namespace brep
       }
 
       if (iat)
-        sd.installation_access = move (*iat);
+        sd.installation_access = *iat;
 
       // Note that we've already removed all builds for which this
       // notification is out of order.
       //
       for (size_t i (0); i != bs.size (); ++i)
       {
-        string bid (check_run_name (*bs[i])); // Full build ID.
+        const service_data::check_run& cr (crs[i]);
 
-        if (!initial_state)
+        // Update stored check run if it exists, otherwise store check run for
+        // the first time.
+        //
+        if (service_data::check_run* scr = sd.find_check_run (cr.build_id))
         {
-          // Initial queued notification: add new check run.
-          //
-          sd.check_runs.emplace_back (move (bid),
-                                      move (rcrs[i].node_id),
-                                      build_state::queued);
+          if (!scr->node_id)
+            scr->node_id = cr.node_id;
+
+          scr->state = cr.state;
         }
         else
-        {
-          // building->queued or built->queued: update existing check run.
-          //
-          service_data::check_run* scr (sd.find_check_run (bid));
-
-          if (scr == nullptr) // @@ TMP Shouldn't be possible, right?
-          {
-            // @@ TODO error<<
-            //
-            return nullopt;
-          }
-
-          assert (scr->state == *initial_state);
-
-          scr->state = build_state::queued;
-        }
+          sd.check_runs.push_back (cr);
       }
 
       return sd.json ();
@@ -1369,8 +1368,8 @@ namespace brep
     {
       s.begin_object ();
       s.member ("build_id", cr.build_id);
-      s.member ("node_id", cr.node_id);
-      s.member ("state", to_string (cr.state));
+      s.member ("node_id", *cr.node_id);
+      s.member ("state", to_string (*cr.state));
       s.end_object ();
     }
     s.end_array ();
