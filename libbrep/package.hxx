@@ -20,7 +20,7 @@
 //
 #define LIBBREP_PACKAGE_SCHEMA_VERSION_BASE 27
 
-#pragma db model version(LIBBREP_PACKAGE_SCHEMA_VERSION_BASE, 31, closed)
+#pragma db model version(LIBBREP_PACKAGE_SCHEMA_VERSION_BASE, 32, closed)
 
 namespace brep
 {
@@ -285,6 +285,27 @@ namespace brep
     // just ignore them.
     //
     optional<timestamp> queued_timestamp; // Note: foreign-mapped in build.
+
+    // Note that after the package tenant is created but before the first
+    // build object is created, there is no easy way to produce a list of
+    // unbuilt package configurations. That would require to know the build
+    // toolchain(s), which are normally extracted from the build objects.
+    // Thus, the empty unbuilt package configurations list is ambiguous and
+    // can either mean that no more package configurations can be built or
+    // that we have not enough information to produce the list. To
+    // disambiguate the empty list in the interface, in the latter case we
+    // want to display the question mark instead of 0 as an unbuilt package
+    // configurations count. To achieve this we will stash the build toolchain
+    // in the tenant when a package from this tenant is considered for a build
+    // for the first time but no configuration is picked for the build (the
+    // target configurations are excluded, an auxiliary machine is not
+    // available, etc). We will also use the stashed toolchain as a fallback
+    // until we are able to retrieve the toolchain(s) from the tenant builds
+    // to produce the unbuilt package configurations list.
+    //
+    // Note: foreign-mapped in build.
+    //
+    optional<brep::build_toolchain> build_toolchain;
 
     // Database mapping.
     //

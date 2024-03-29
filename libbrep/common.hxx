@@ -354,6 +354,15 @@ namespace brep
 
   #pragma db value(build_auxiliary) definition
 
+  // build_toolchain
+  //
+  #pragma db value
+  struct build_toolchain
+  {
+    string name;
+    brep::version version;
+  };
+
   // email
   //
   using bpkg::email;

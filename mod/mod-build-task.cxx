@@ -231,7 +231,7 @@ handle (request& rq, response& rs)
 
   // The resulting task manifest and the related build, package, and
   // configuration objects. Note that the latter 3 are only meaningful if the
-  // session in the task manifest is not empty.
+  // the task manifest is present.
   //
   task_response_manifest      task_response;
   shared_ptr<build>           task_build;
@@ -1344,9 +1344,9 @@ handle (request& rq, response& rs)
       //
       bool unforced (true);
 
-      for (bool done (false); task_response.session.empty () && !done; )
+      for (bool done (false); !task_response.task && !done; )
       {
-        transaction t (conn->begin ());
+        transaction tr (conn->begin ());
 
         // We need to be careful in the random package ordering mode not to
         // miss the end after having wrapped around.
@@ -1381,7 +1381,7 @@ handle (request& rq, response& rs)
         //
         if (chunk_size == 0)
         {
-          t.commit ();
+          tr.commit ();
 
           if (start_offset != 0 && offset >= start_offset)
             offset = 0;
@@ -1398,11 +1398,23 @@ handle (request& rq, response& rs)
         // to bail out in the random package ordering mode for some reason (no
         // more untried positions, need to restart, etc).
         //
+        // Note that it is not uncommon for the sequentially examined packages
+        // to belong to the same tenant (single tenant mode, etc). Thus, we
+        // will cache the loaded tenant objects.
+        //
+        shared_ptr<build_tenant> t;
+
         for (auto& bp: packages)
         {
           shared_ptr<build_package>& p (bp.package);
 
           id = p->id;
+
+          // Reset the tenant cache if the current package belongs to a
+          // different tenant.
+          //
+          if (t != nullptr && t->id != id.tenant)
+            t = nullptr;
 
           // If we are in the random package ordering mode, then cache the
           // tenant the start offset refers to, if not cached yet, and check
@@ -1463,8 +1475,6 @@ handle (request& rq, response& rs)
           //
           if (bp.interactive)
           {
-            shared_ptr<build_tenant> t;
-
             // Note that the tenant can be archived via some other package on
             // some previous iteration. Skip the package if that's the case.
             //
@@ -1473,7 +1483,9 @@ handle (request& rq, response& rs)
             //
             if (!bp.archived)
             {
-              t = build_db_->load<build_tenant> (id.tenant);
+              if (t == nullptr)
+                t = build_db_->load<build_tenant> (id.tenant);
+
               bp.archived = t->archived;
             }
 
@@ -1583,6 +1595,14 @@ handle (request& rq, response& rs)
             }
           }
 
+          // If true, then the package is (being) built for some
+          // configurations.
+          //
+          // Note that since we only query the built and forced rebuild
+          // objects there can be false negatives.
+          //
+          bool package_built (false);
+
           for (const build_package_config& pc: p->configs)
           {
             pkg_config = pc.name;
@@ -1596,6 +1616,9 @@ handle (request& rq, response& rs)
             //
             config_machines configs (conf_machines); // Make copy for this pkg.
             auto pkg_builds (bld_prep_query.execute ());
+
+            if (!package_built && !pkg_builds.empty ())
+              package_built = true;
 
             for (auto i (pkg_builds.begin ()); i != pkg_builds.end (); ++i)
             {
@@ -1750,8 +1773,8 @@ handle (request& rq, response& rs)
                   build_db_->update (b);
                 }
 
-                shared_ptr<build_tenant> t (
-                  build_db_->load<build_tenant> (b->tenant));
+                if (t == nullptr)
+                  t = build_db_->load<build_tenant> (b->tenant);
 
                 // Archive an interactive tenant.
                 //
@@ -1798,7 +1821,7 @@ handle (request& rq, response& rs)
                     }
 
                     if (tsb != nullptr || tsq != nullptr)
-                      tss = make_pair (move (*t->service), b);
+                      tss = make_pair (*t->service, b);
                   }
                 }
 
@@ -1814,25 +1837,51 @@ handle (request& rq, response& rs)
                 task_package = move (p);
                 task_config = &pc;
 
+                package_built = true;
+
                 break; // Bail out from the package configurations loop.
               }
             }
           }
 
-          // If the task response manifest is prepared, then bail out from the
-          // package loop, commit the transaction and respond.
+          // If the task manifest is prepared, then bail out from the package
+          // loop, commit the transaction and respond. Otherwise, stash the
+          // build toolchain into the tenant, unless it is already stashed or
+          // the current package already has some configurations (being)
+          // built.
           //
-          if (!task_response.session.empty ())
+          if (!task_response.task)
+          {
+            // Note that since there can be false negatives for the
+            // package_built flag (see above), there can be redundant tenant
+            // queries which, however, seems harmless (query uses the primary
+            // key and the object memory footprint is small).
+            //
+            if (!package_built)
+            {
+              if (t == nullptr)
+                t = build_db_->load<build_tenant> (p->id.tenant);
+
+              if (!t->toolchain)
+              {
+                t->toolchain = build_toolchain {toolchain_name,
+                                                toolchain_version};
+
+                build_db_->update (t);
+              }
+            }
+          }
+          else
             break;
         }
 
-        t.commit ();
+        tr.commit ();
       }
 
       // If we don't have an unbuilt package, then let's see if we have a
       // build configuration to rebuild.
       //
-      if (task_response.session.empty () && !rebuilds.empty ())
+      if (!task_response.task && !rebuilds.empty ())
       {
         // Sort the configuration rebuild list with the following sort
         // priority:
@@ -2047,15 +2096,15 @@ handle (request& rq, response& rs)
           catch (const odb::deadlock&)
           {
             // Just try with the next rebuild. But first, reset the task
-            // response manifest that we may have prepared.
+            // manifest and the session that we may have prepared.
             //
             task_response = task_response_manifest ();
           }
 
-          // If the task response manifest is prepared, then bail out from the
-          // package configuration rebuilds loop and respond.
+          // If the task manifest is prepared, then bail out from the package
+          // configuration rebuilds loop and respond.
           //
-          if (!task_response.session.empty ())
+          if (task_response.task)
             break;
         }
       }
@@ -2135,9 +2184,9 @@ handle (request& rq, response& rs)
           update_tenant_service_state (conn, b.tenant, f);
       }
 
-      // If the task response manifest is prepared, then check that the number
-      // of the build auxiliary machines is less than 10. If that's not the
-      // case, then turn the build into the built state with the abort status.
+      // If the task manifest is prepared, then check that the number of the
+      // build auxiliary machines is less than 10. If that's not the case,
+      // then turn the build into the built state with the abort status.
       //
       if (task_response.task &&
           task_response.task->auxiliary_machines.size () > 9)

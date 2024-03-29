@@ -82,21 +82,24 @@ namespace brep
 
   // Generate counter element.
   //
-  // It could be redunant to distinguish between singular and plural word forms
-  // if it wouldn't be so cheap in English, and phrase '1 Packages' wouldn't
-  // look that ugly.
+  // If the count argument is nullopt, then it is assumed that the count is
+  // unknown and the '?' character is printed instead of the number.
+  //
+  // Note that it could be redunant to distinguish between singular and plural
+  // word forms if it wouldn't be so cheap in English, and phrase '1 Packages'
+  // wouldn't look that ugly.
   //
   class DIV_COUNTER
   {
   public:
-    DIV_COUNTER (size_t c, const char* s, const char* p)
+    DIV_COUNTER (optional<size_t> c, const char* s, const char* p)
         : count_ (c), singular_ (s), plural_ (p) {}
 
     void
     operator() (xml::serializer&) const;
 
   private:
-    size_t count_;
+    optional<size_t> count_;
     const char* singular_;
     const char* plural_;
   };

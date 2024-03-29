@@ -393,8 +393,11 @@ handle (request& rq, response& rs)
   if (!tenant.empty ())
     tn = tenant;
 
-  // Return the list of distinct toolchain name/version pairs. The build db
-  // transaction must be started.
+  // Return the list of distinct toolchain name/version pairs. If no builds
+  // are present for the tenant, then fallback to the toolchain recorded in
+  // the tenant object, if present.
+  //
+  // Note: the build db transaction must be started.
   //
   using toolchains = vector<pair<string, version>>;
 
@@ -410,11 +413,19 @@ handle (request& rq, response& rs)
                                   false /* first */)))
       r.emplace_back (move (t.name), move (t.version));
 
+    if (r.empty ())
+    {
+      shared_ptr<build_tenant> t (build_db_->find<build_tenant> (tenant));
+
+      if (t != nullptr && t->toolchain)
+        r.emplace_back (t->toolchain->name, t->toolchain->version);
+    }
+
     return r;
   };
 
   auto print_form = [&s, &params, this] (const toolchains& toolchains,
-                                         size_t build_count)
+                                         optional<size_t> build_count)
   {
     // Print the package builds filter form on the first page only.
     //
@@ -525,7 +536,7 @@ handle (request& rq, response& rs)
       conf_ids.push_back (c.first);
   }
 
-  size_t count;
+  optional<size_t> count;
   size_t page (params.page ());
 
   if (params.result () != "unbuilt") // Print package build configurations.
@@ -656,7 +667,7 @@ handle (request& rq, response& rs)
           --print;
         }
 
-        ++count;
+        ++(*count);
       }
     }
 
@@ -937,7 +948,7 @@ handle (request& rq, response& rs)
         count = npos - ncur;
       }
       else
-        count = 0;
+        count = nullopt; // Unknown count.
     }
 
     // Print the filter form.
@@ -1148,7 +1159,11 @@ handle (request& rq, response& rs)
   add_filter ("pc", pkg_cfg);
   add_filter ("rs", params.result (), "*");
 
-  s <<       DIV_PAGER (page, count, page_configs, options_->build_pages (), u)
+  s <<       DIV_PAGER (page,
+                        count ? *count : 0,
+                        page_configs,
+                        options_->build_pages (),
+                        u)
     <<     ~DIV
     <<   ~BODY
     << ~HTML;

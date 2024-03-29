@@ -37,6 +37,7 @@ namespace brep
     bool archived;
     optional<tenant_service> service;
     optional<timestamp> queued_timestamp;
+    optional<build_toolchain> toolchain;
 
     // Database mapping.
     //

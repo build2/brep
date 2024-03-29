@@ -1,4 +1,16 @@
 <changelog xmlns="http://www.codesynthesis.com/xmlns/odb/changelog" database="pgsql" schema-name="package" version="1">
+  <changeset version="32">
+    <alter-table name="tenant">
+      <add-column name="build_toolchain_name" type="TEXT" null="true"/>
+      <add-column name="build_toolchain_version_epoch" type="INTEGER" null="true"/>
+      <add-column name="build_toolchain_version_canonical_upstream" type="TEXT" null="true"/>
+      <add-column name="build_toolchain_version_canonical_release" type="TEXT" null="true"/>
+      <add-column name="build_toolchain_version_revision" type="INTEGER" null="true"/>
+      <add-column name="build_toolchain_version_upstream" type="TEXT" null="true"/>
+      <add-column name="build_toolchain_version_release" type="TEXT" null="true"/>
+    </alter-table>
+  </changeset>
+
   <changeset version="31">
     <add-table name="package_build_auxiliaries" kind="container">
       <column name="tenant" type="TEXT" null="false"/>

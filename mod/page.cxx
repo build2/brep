@@ -137,9 +137,17 @@ namespace brep
   void DIV_COUNTER::
   operator() (serializer& s) const
   {
-    s << DIV(ID="count")
-      <<   count_ << " "
-      <<   (count_ % 10 == 1 && count_ % 100 != 11 ? singular_ : plural_)
+    s << DIV(ID="count");
+
+    if (count_)
+      s << *count_;
+    else
+      s << '?';
+
+    s <<   ' '
+      <<   (count_ && *count_ % 10 == 1 && *count_ % 100 != 11
+            ? singular_
+            : plural_)
       << ~DIV;
   }
 

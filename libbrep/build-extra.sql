@@ -44,7 +44,14 @@ CREATE FOREIGN TABLE build_tenant (
   service_id TEXT NULL,
   service_type TEXT NULL,
   service_data TEXT NULL,
-  queued_timestamp BIGINT NULL)
+  queued_timestamp BIGINT NULL,
+  toolchain_name TEXT OPTIONS (column_name 'build_toolchain_name') NULL,
+  toolchain_version_epoch INTEGER OPTIONS (column_name 'build_toolchain_version_epoch') NULL,
+  toolchain_version_canonical_upstream TEXT OPTIONS (column_name 'build_toolchain_version_canonical_upstream') NULL,
+  toolchain_version_canonical_release TEXT OPTIONS (column_name 'build_toolchain_version_canonical_release') NULL,
+  toolchain_version_revision INTEGER OPTIONS (column_name 'build_toolchain_version_revision') NULL,
+  toolchain_version_upstream TEXT OPTIONS (column_name 'build_toolchain_version_upstream') NULL,
+  toolchain_version_release TEXT OPTIONS (column_name 'build_toolchain_version_release') NULL)
 SERVER package_server OPTIONS (table_name 'tenant');
 
 -- The foreign table for build_repository object.

@@ -1,4 +1,6 @@
 <changelog xmlns="http://www.codesynthesis.com/xmlns/odb/changelog" database="pgsql" schema-name="build" version="1">
+  <changeset version="26"/>
+
   <changeset version="25">
     <add-table name="build_auxiliary_machines" kind="container">
       <column name="package_tenant" type="TEXT" null="false"/>
