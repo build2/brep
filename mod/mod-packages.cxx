@@ -156,7 +156,7 @@ handle (request& rq, response& rs)
   session sn;
   transaction t (package_db_->begin ());
 
-  auto pkg_count (
+  size_t pkg_count (
     package_db_->query_value<latest_package_count> (
       search_param<latest_package_count> (squery, tn)));
 

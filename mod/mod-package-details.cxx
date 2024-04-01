@@ -227,7 +227,7 @@ handle (request& rq, response& rs)
       << ~TABLE;
   }
 
-  auto pkg_count (
+  size_t pkg_count (
     package_db_->query_value<package_count> (
       search_params<package_count> (squery, tenant, name)));
 
