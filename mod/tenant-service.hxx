@@ -71,7 +71,8 @@ namespace brep
     // service data. It should return the new data or nullopt if no update is
     // necessary. Note: tenant_service::data passed to the callback and to the
     // returned function may not be the same. Also, the returned function may
-    // be called multiple times (on transaction retries).
+    // be called multiple times (on transaction retries). Note that the passed
+    // log_writer is valid during the calls to the returned function.
     //
     // The passed initial_state indicates the logical initial state and is
     // either absent, `building` (interrupted), or `built` (rebuild). Note
