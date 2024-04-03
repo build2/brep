@@ -333,6 +333,12 @@ namespace brep
       string                build_id; // Full build id.
       optional<string>      node_id;  // GitHub id.
       optional<build_state> state;
+
+      string
+      state_string () const
+      {
+        return state ? to_string (*state) : "null";
+      }
     };
     vector<check_run> check_runs;
 
@@ -362,6 +368,9 @@ namespace brep
     string
     json () const;
   };
+
+  ostream&
+  operator<< (ostream&, const service_data::check_run&);
 
   bool ci_github::
   handle_check_suite_request (check_suite_event cs)
@@ -930,14 +939,6 @@ namespace brep
     //
     for (const build& b: builds)
     {
-      // Include this build if this is a legitimate transition back to queued
-      // from another state or it doesn't already have a stored check run.
-      // Note: never go back on the built state.
-      //
-      string bid (check_run_name (b)); // Full Build ID.
-
-      const service_data::check_run* cr (sd.find_check_run (bid));
-
       // To keep things simple we are going to queue/create a new check run
       // only if we have no corresponding state (which means we haven't yet
       // done anything about this check run).
@@ -947,22 +948,31 @@ namespace brep
       // building, which is probably not a big deal. Also, this sidesteps
       // various "absent state" corner.
       //
-      if (cr == nullptr)
-      {
-        if (cr != nullptr)
-          crs.emplace_back (move (*cr)).state = nullopt;
-        else
-          crs.emplace_back (move (bid), nullopt, nullopt);
+      // Note: never go back on the built state.
+      //
+      string bid (check_run_name (b)); // Full Build ID.
 
+      const service_data::check_run* scr (sd.find_check_run (bid));
+
+      if (scr == nullptr)
+      {
+        crs.emplace_back (move (bid), nullopt, nullopt);
         bs.push_back (b);
       }
-      else if (!cr->state)
+      else if (!scr->state)
         ; // Ignore network issue.
       else if (istate && *istate == build_state::building)
         ; // Ignore interrupted.
       else
       {
-        // @@ TODO warn with some information
+        // Out of order queued notification or a rebuild (not allowed).
+        //
+        warn << *scr << ": "
+             << "unexpected transition from "
+             << (istate ? to_string (*istate) : "null") << " to "
+             << to_string (build_state::queued)
+             << "; previously recorded check_run state: "
+             << scr->state_string ();
       }
     }
 
@@ -992,7 +1002,6 @@ namespace brep
         new_iat = obtain_installation_access_token (sd.installation_id,
                                                     move (*jwt),
                                                     error);
-
         if (new_iat)
           iat = &*new_iat;
       }
@@ -1084,7 +1093,9 @@ namespace brep
 
     return [bs = move (bs),
             iat = move (new_iat),
-            crs = move (crs)] (const tenant_service& ts) -> optional<string>
+            crs = move (crs),
+            error = move (error),
+            warn = move (warn)] (const tenant_service& ts) -> optional<string>
     {
       // NOTE: this lambda may be called repeatedly (e.g., due to transaction
       // being aborted) and so should not move out of its captures.
@@ -1096,8 +1107,7 @@ namespace brep
       }
       catch (const invalid_argument& e)
       {
-        // @@ TODO: try to move error into this lambda?
-        // error << "failed to parse service data: " << e;
+        error << "failed to parse service data: " << e;
         return nullopt;
       }
 
@@ -1118,8 +1128,9 @@ namespace brep
         //
         if (service_data::check_run* scr = sd.find_check_run (cr.build_id))
         {
-          // @@ TODO: let's warn about this out of order case to see how
-          //          often we get it.
+          warn << cr << " state " << scr->state_string ()
+               << " was stored before notified state " << cr.state_string ()
+               << " could be stored";
         }
         else
           sd.check_runs.push_back (cr);
@@ -1327,10 +1338,23 @@ namespace brep
     p.next_expect_member_array ("check_runs");
     while (p.next_expect (event::begin_object, event::end_array))
     {
-      check_runs.emplace_back (
-          p.next_expect_member_string ("build_id"),
-          p.next_expect_member_string ("node_id"),
-          to_build_state (p.next_expect_member_string ("state")));
+      string bid (p.next_expect_member_string ("build_id"));
+
+      optional<string> nid;
+      {
+        string* v (p.next_expect_member_string_null ("node_id"));
+        if (v != nullptr)
+          nid = *v;
+      }
+
+      optional<build_state> s;
+      {
+        string* v (p.next_expect_member_string_null ("state"));
+        if (v != nullptr)
+          s = to_build_state (*v);
+      }
+
+      check_runs.emplace_back (move (bid), move (nid), s);
 
       p.next_expect (event::end_object);
     }
@@ -1377,8 +1401,19 @@ namespace brep
     {
       s.begin_object ();
       s.member ("build_id", cr.build_id);
-      s.member ("node_id", *cr.node_id);
-      s.member ("state", to_string (*cr.state));
+
+      s.member_name ("node_id");
+      if (cr.node_id)
+        s.value (*cr.node_id);
+      else
+        s.value (nullptr);
+
+      s.member_name ("state");
+      if (cr.state)
+        s.value (to_string (*cr.state));
+      else
+        s.value (nullptr);
+
       s.end_object ();
     }
     s.end_array ();
@@ -1397,6 +1432,15 @@ namespace brep
         return &cr;
     }
     return nullptr;
+  }
+
+  ostream&
+  operator<< (ostream& os, const service_data::check_run& cr)
+  {
+    os << "check_run { node_id: " << cr.node_id.value_or ("null")
+       << ", build_id: " << cr.build_id << " }";
+
+    return os;
   }
 
   // The rest is GitHub request/response type parsing and printing.
