@@ -32,14 +32,4 @@ namespace brep
     else if (r == "unbuildable") return unbuildable_reason::unbuildable;
     else throw invalid_argument ("invalid unbuildable reason '" + r + '\'');
   }
-
-  build_package_config*
-  find (const string& name, build_package_configs& cs)
-  {
-    auto i (find_if (cs.begin (), cs.end (),
-                     [&name] (const build_package_config& c)
-                     {return c.name == name;}));
-
-    return i != cs.end () ? &*i : nullptr;
-  }
 }

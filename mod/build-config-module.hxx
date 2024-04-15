@@ -36,8 +36,9 @@ namespace brep
     void
     init (const options::build&);
 
+    template <typename K>
     bool
-    exclude (const build_package_config& pc,
+    exclude (const build_package_config_template<K>& pc,
              const build_class_exprs& common_builds,
              const build_constraints& common_constraints,
              const build_target_config& tc,

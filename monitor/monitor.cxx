@@ -95,7 +95,7 @@ namespace brep
     // not.
     //
     void
-    add_delay (shared_ptr<build_delay>, bool report);
+    add_delay (shared_ptr<build_delay>, bool custom_bot, bool report);
 
     bool
     empty () const {return reported_delay_count_ == 0;}
@@ -108,19 +108,39 @@ namespace brep
     print (const char* header, bool total, bool full) const;
 
   private:
-    // Maps delays to the report flag.
+    // Maps delays to the custom bot and report flag.
     //
-    map<shared_ptr<const build_delay>, bool, compare_delay> delays_;
+    struct delay_info
+    {
+      bool custom_bot;
+      bool report;
+    };
+
+    map<shared_ptr<const build_delay>, delay_info, compare_delay> delays_;
     size_t reported_delay_count_ = 0;
+
+    // Number of reported/total delayed package configurations which need to
+    // be built with the custom build bots.
+    //
+    size_t custom_total_delay_count_ = 0;
+    size_t custom_reported_delay_count_ = 0;
   };
 
   void delay_report::
-  add_delay (shared_ptr<build_delay> delay, bool report)
+  add_delay (shared_ptr<build_delay> delay, bool custom_bot, bool report)
   {
-    delays_.emplace (move (delay), report);
+    delays_.emplace (move (delay), delay_info {custom_bot, report});
+
+    if (custom_bot)
+      ++custom_total_delay_count_;
 
     if (report)
+    {
       ++reported_delay_count_;
+
+      if (custom_bot)
+        ++custom_reported_delay_count_;
+    }
   }
 
   void delay_report::
@@ -134,6 +154,17 @@ namespace brep
     if (total)
       cerr << '/' << delays_.size ();
 
+    if (custom_reported_delay_count_ != 0 ||
+        (total && custom_total_delay_count_  != 0))
+    {
+      cerr << " including " << custom_reported_delay_count_;
+
+      if (total)
+        cerr << '/' << custom_total_delay_count_;
+
+      cerr << " custom";
+    }
+
     cerr << "):" << endl;
 
     // Group the printed delays by toolchain and target configuration.
@@ -146,10 +177,15 @@ namespace brep
     size_t config_reported_delay_count (0);
     size_t config_total_delay_count (0);
 
+    size_t config_custom_reported_delay_count (0);
+    size_t config_custom_total_delay_count (0);
+
     auto brief_config = [&target_config_name,
                          &target,
                          &config_reported_delay_count,
                          &config_total_delay_count,
+                         &config_custom_reported_delay_count,
+                         &config_custom_total_delay_count,
                          total] ()
     {
       if (target_config_name != nullptr)
@@ -166,21 +202,36 @@ namespace brep
           if (total)
             cerr << '/' << config_total_delay_count;
 
+          if (config_custom_reported_delay_count != 0 ||
+              (total && config_custom_total_delay_count  != 0))
+          {
+            cerr << " including " << config_custom_reported_delay_count;
+
+            if (total)
+              cerr << '/' << config_custom_total_delay_count;
+
+            cerr << " custom";
+          }
+
           cerr << ')' << endl;
         }
 
         config_reported_delay_count = 0;
         config_total_delay_count = 0;
+
+        config_custom_reported_delay_count = 0;
+        config_custom_total_delay_count = 0;
       }
     };
 
     for (const auto& dr: delays_)
     {
-      bool report (dr.second);
+      bool report (dr.second.report);
 
       if (full && !report)
         continue;
 
+      bool custom_bot (dr.second.custom_bot);
       const shared_ptr<const build_delay>& d (dr.first);
 
       // Print the toolchain, if changed.
@@ -239,6 +290,9 @@ namespace brep
         cerr << "      " << d->package_name << '/' << d->package_version
              << ' ' << d->package_config_name;
 
+        if (custom_bot)
+          cerr << " (custom bot)";
+
         if (!d->tenant.empty ())
           cerr << ' ' << d->tenant;
 
@@ -247,9 +301,17 @@ namespace brep
       else
       {
         if (report)
+        {
           ++config_reported_delay_count;
 
+          if (custom_bot)
+            ++config_custom_reported_delay_count;
+        }
+
         ++config_total_delay_count;
+
+        if (custom_bot)
+          ++config_custom_total_delay_count;
       }
     }
 
@@ -953,6 +1015,21 @@ namespace brep
                     soft_delayed = false;
                   }
 
+                  // If there is a delay, then deduce if this package
+                  // configuration needs to be built with a custom build bot.
+                  //
+                  // Note: only meaningful if there is a delay.
+                  //
+                  bool custom_bot (false);
+
+                  if (hard_delayed || soft_delayed)
+                  {
+                    if (!p->bot_keys_section.loaded ())
+                      db.load (*p, p->bot_keys_section);
+
+                    custom_bot = !pc.effective_bot_keys (p->bot_keys).empty ();
+                  }
+
                   // Add hard/soft delays to the respective reports and
                   // collect the delay for update, if it is reported.
                   //
@@ -983,7 +1060,7 @@ namespace brep
                       reported = true;
                     }
 
-                    hard_delays_report.add_delay (d, report);
+                    hard_delays_report.add_delay (d, custom_bot, report);
                   }
 
                   if (soft_delayed)
@@ -997,7 +1074,7 @@ namespace brep
                       reported = true;
                     }
 
-                    soft_delays_report.add_delay (d, report);
+                    soft_delays_report.add_delay (d, custom_bot, report);
                   }
 
                   // If we don't consider the report timestamps for reporting

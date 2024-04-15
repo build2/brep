@@ -132,7 +132,8 @@ init (scanner& s)
 //
 template <typename T>
 static inline query<T>
-package_query (brep::params::build_task& params,
+package_query (bool custom_bot,
+               brep::params::build_task& params,
                interactive_mode imode,
                uint64_t queued_expiration_ns)
 {
@@ -141,9 +142,39 @@ package_query (brep::params::build_task& params,
 
   query q (!query::build_tenant::archived);
 
+  if (custom_bot)
+  {
+    // Note that we could potentially only query the packages which refer to
+    // this custom bot key in one of their build configurations. For that we
+    // would need to additionally join the current query tables with the bot
+    // fingerprint-containing build_package_bot_keys and
+    // build_package_config_bot_keys tables and use the SELECT DISTINCT
+    // clause. The problem is that we also use the ORDER BY clause and in this
+    // case PostgreSQL requires all the ORDER BY clause expressions to also be
+    // present in the SELECT DISTINCT clause and fails with the 'for SELECT
+    // DISTINCT, ORDER BY expressions must appear in select list' error if
+    // that's not the case. Also note that in the ODB-generated code the
+    // 'build_package.project::TEXT' expression in the SELECT DISTINCT clause
+    // (see the CITEXT type mapping for details in libbrep/common.hxx) would
+    // not match the 'build_package.name' expression in the ORDER BY clause
+    // and so we will end up with the mentioned error. One (hackish) way to
+    // fix that would be to add a dummy member of the string type for the
+    // build_package.name column. This all sounds quite hairy at the moment
+    // and it also feels that this can potentially pessimize querying the
+    // packages built with the default bots only. Thus let's keep it simple
+    // for now and filter packages by the bot fingerprint at the program
+    // level.
+    //
+    q = q && (query::build_package::custom_bot.is_null () ||
+              query::build_package::custom_bot);
+  }
+  else
+    q = q && (query::build_package::custom_bot.is_null () ||
+              !query::build_package::custom_bot);
+
   // Filter by repositories canonical names (if requested).
   //
-  const vector<string>& rp (params.repository ());
+  const strings& rp (params.repository ());
 
   if (!rp.empty ())
     q = q &&
@@ -213,20 +244,28 @@ handle (request& rq, response& rs)
     throw invalid_request (400, e.what ());
   }
 
-  // Obtain the agent's public key fingerprint if requested. If the fingerprint
-  // is requested but is not present in the request or is unknown, then respond
-  // with 401 HTTP code (unauthorized).
+  // Obtain the agent's public key fingerprint if requested. If the
+  // fingerprint is requested but is not present in the request, then respond
+  // with 401 HTTP code (unauthorized). If a key with the specified
+  // fingerprint is not present in the build bot agent keys directory, then
+  // assume that this is a custom build bot.
+  //
+  // Note that if the agent authentication is not configured (the agent keys
+  // directory is not specified), then the bot can never be custom and its
+  // fingerprint is ignored, if present.
   //
   optional<string> agent_fp;
+  bool custom_bot (false);
 
   if (bot_agent_key_map_ != nullptr)
   {
-    if (!tqm.fingerprint ||
-        bot_agent_key_map_->find (*tqm.fingerprint) ==
-        bot_agent_key_map_->end ())
+    if (!tqm.fingerprint)
       throw invalid_request (401, "unauthorized");
 
     agent_fp = move (tqm.fingerprint);
+
+    custom_bot = (bot_agent_key_map_->find (*agent_fp) ==
+                  bot_agent_key_map_->end ());
   }
 
   // The resulting task manifest and the related build, package, and
@@ -659,7 +698,8 @@ handle (request& rq, response& rs)
     using pkg_query = query<buildable_package>;
     using prep_pkg_query = prepared_query<buildable_package>;
 
-    pkg_query pq (package_query<buildable_package> (params,
+    pkg_query pq (package_query<buildable_package> (custom_bot,
+                                                    params,
                                                     imode,
                                                     queued_expiration_ns));
 
@@ -815,7 +855,8 @@ handle (request& rq, response& rs)
     {
       using query = query<buildable_package_count>;
 
-      query q (package_query<buildable_package_count> (params,
+      query q (package_query<buildable_package_count> (custom_bot,
+                                                       params,
                                                        imode,
                                                        queued_expiration_ns));
 
@@ -1241,7 +1282,8 @@ handle (request& rq, response& rs)
         //
         small_vector<bpkg::test_dependency, 1> tests;
 
-        build_db_->load (*p, p->requirements_tests_section);
+        if (!p->requirements_tests_section.loaded ())
+          build_db_->load (*p, p->requirements_tests_section);
 
         for (const build_test_dependency& td: p->tests)
         {
@@ -1293,6 +1335,8 @@ handle (request& rq, response& rs)
                          true /* default_all_ucs */))
               continue;
 
+            build_db_->load (*tp, tp->auxiliaries_section);
+
             for (const build_auxiliary& ba:
                    tpc->effective_auxiliaries (tp->auxiliaries))
             {
@@ -1312,14 +1356,17 @@ handle (request& rq, response& rs)
         vector<auxiliary_machine> tms;
         vector<build_machine> bms;
 
-        tms.reserve (picked_machines.size ());
-        bms.reserve (picked_machines.size ());
-
-        for (pair<auxiliary_config_machine, string>& pm: picked_machines)
+        if (size_t n = picked_machines.size ())
         {
-          const machine_header_manifest& m (*pm.first.machine);
-          tms.push_back (auxiliary_machine {m.name, move (pm.second)});
-          bms.push_back (build_machine {m.name, m.summary});
+          tms.reserve (n);
+          bms.reserve (n);
+
+          for (pair<auxiliary_config_machine, string>& pm: picked_machines)
+          {
+            const machine_header_manifest& m (*pm.first.machine);
+            tms.push_back (auxiliary_machine {m.name, move (pm.second)});
+            bms.push_back (build_machine {m.name, m.summary});
+          }
         }
 
         return collect_auxiliaries_result {
@@ -1603,8 +1650,40 @@ handle (request& rq, response& rs)
           //
           bool package_built (false);
 
+          build_db_->load (*p, p->bot_keys_section);
+
           for (const build_package_config& pc: p->configs)
           {
+            // If this is a custom bot, then skip this configuration if it
+            // doesn't contain this bot's public key in its custom bot keys
+            // list. Otherwise (this is a default bot), skip this
+            // configuration if its custom bot keys list is not empty.
+            //
+            {
+              const build_package_bot_keys& bks (
+                pc.effective_bot_keys (p->bot_keys));
+
+              if (custom_bot)
+              {
+                assert (agent_fp); // Wouldn't be here otherwise.
+
+                if (find_if (
+                      bks.begin (), bks.end (),
+                      [&agent_fp] (const lazy_shared_ptr<build_public_key>& k)
+                      {
+                        return k.object_id ().fingerprint == *agent_fp;
+                      }) == bks.end ())
+                {
+                  continue;
+                }
+              }
+              else
+              {
+                if (!bks.empty ())
+                  continue;
+              }
+            }
+
             pkg_config = pc.name;
 
             // Iterate through the built configurations and erase them from the
@@ -1647,29 +1726,33 @@ handle (request& rq, response& rs)
               // the package configuration and for which all the requested
               // auxiliary machines can be provided.
               //
-              auto i (configs.begin ());
-              auto e (configs.end ());
+              const config_machine* cm (nullptr);
+              optional<collect_auxiliaries_result> aux;
 
               build_db_->load (*p, p->constraints_section);
 
-              optional<collect_auxiliaries_result> aux;
-              for (; i != e; ++i)
+              for (auto i (configs.begin ()), e (configs.end ()); i != e; ++i)
               {
-                const build_target_config& tc (*i->second.config);
+                cm = &i->second;
+                const build_target_config& tc (*cm->config);
 
-                if (!exclude (pc, p->builds, p->constraints, tc) &&
-                    (aux = collect_auxiliaries (p, pc, tc)))
-                  break;
+                if (!exclude (pc, p->builds, p->constraints, tc))
+                {
+                  if (!p->auxiliaries_section.loaded ())
+                    build_db_->load (*p, p->auxiliaries_section);
+
+                  if ((aux = collect_auxiliaries (p, pc, tc)))
+                    break;
+                }
               }
 
-              if (i != e)
+              if (aux)
               {
-                config_machine& cm (i->second);
-                machine_header_manifest& mh (*cm.machine);
+                machine_header_manifest& mh (*cm->machine);
 
                 build_id bid (move (id),
-                              cm.config->target,
-                              cm.config->name,
+                              cm->config->target,
+                              cm->config->name,
                               move (pkg_config),
                               move (toolchain_name),
                               toolchain_version);
@@ -1704,8 +1787,8 @@ handle (request& rq, response& rs)
                                           build_machine {
                                             mh.name, move (mh.summary)},
                                           move (aux->build_auxiliary_machines),
-                                          controller_checksum (*cm.config),
-                                          machine_checksum (*cm.machine));
+                                          controller_checksum (*cm->config),
+                                          machine_checksum (*cm->machine));
 
                   build_db_->persist (b);
                 }
@@ -1753,8 +1836,8 @@ handle (request& rq, response& rs)
                   b->auxiliary_machines =
                     move (aux->build_auxiliary_machines);
 
-                  string ccs (controller_checksum (*cm.config));
-                  string mcs (machine_checksum (*cm.machine));
+                  string ccs (controller_checksum (*cm->config));
+                  string mcs (machine_checksum (*cm->machine));
 
                   // Issue the hard rebuild if it is forced or the
                   // configuration or machine has changed.
@@ -1831,7 +1914,7 @@ handle (request& rq, response& rs)
                                       move (aux->tests),
                                       move (aux->task_auxiliary_machines),
                                       move (bp.interactive),
-                                      cm);
+                                      *cm);
 
                 task_build = move (b);
                 task_package = move (p);
@@ -1971,13 +2054,17 @@ handle (request& rq, response& rs)
                    (t->interactive.has_value () ==
                     (imode == interactive_mode::true_))))
               {
-                build_db_->load (*p, p->constraints_section);
-
                 const build_target_config& tc (*cm.config);
 
-                optional<collect_auxiliaries_result> aux;
-                if (!exclude (*pc, p->builds, p->constraints, tc) &&
-                    (aux = collect_auxiliaries (p, *pc, tc)))
+                build_db_->load (*p, p->constraints_section);
+
+                if (exclude (*pc, p->builds, p->constraints, tc))
+                  continue;
+
+                build_db_->load (*p, p->auxiliaries_section);
+
+                if (optional<collect_auxiliaries_result> aux =
+                    collect_auxiliaries (p, *pc, tc))
                 {
                   assert (b->status);
 

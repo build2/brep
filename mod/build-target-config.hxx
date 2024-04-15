@@ -32,13 +32,30 @@ namespace brep
   // configuration set needlessly).
   //
   bool
-  exclude (const build_package_config&,
-           const build_class_exprs& common_builds,
-           const build_constraints& common_constraints,
+  exclude (const build_class_exprs& builds,
+           const build_constraints& constraints,
            const build_target_config&,
            const std::map<string, string>& class_inheritance_map,
            string* reason = nullptr,
            bool default_all_ucs = false);
+
+  template <typename K>
+  inline bool
+  exclude (const build_package_config_template<K>& pc,
+           const build_class_exprs& common_builds,
+           const build_constraints& common_constraints,
+           const build_target_config& tc,
+           const std::map<string, string>& class_inheritance_map,
+           string* reason = nullptr,
+           bool default_all_ucs = false)
+  {
+    return exclude (pc.effective_builds (common_builds),
+                    pc.effective_constraints (common_constraints),
+                    tc,
+                    class_inheritance_map,
+                    reason,
+                    default_all_ucs);
+  }
 
   // Convert dash-separated components (target, build target configuration
   // name, machine name) or a pattern thereof into a path, replacing dashes

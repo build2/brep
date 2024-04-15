@@ -82,7 +82,8 @@ namespace brep
            build_class_exprs bs,
            build_constraints_type bc,
            build_auxiliaries_type ac,
-           build_package_configs bcs,
+           package_build_bot_keys bk,
+           package_build_configs bcs,
            optional<path> lc,
            optional<string> fr,
            optional<string> sh,
@@ -116,6 +117,7 @@ namespace brep
         builds (move (bs)),
         build_constraints (move (bc)),
         build_auxiliaries (move (ac)),
+        build_bot_keys (move (bk)),
         build_configs (move (bcs)),
         internal_repository (move (rp)),
         location (move (lc)),
@@ -134,6 +136,31 @@ namespace brep
 
     buildable = !unbuildable_reason;
 
+    // If the package is buildable deduce the custom_bot flag.
+    //
+    if (buildable)
+    {
+      for (const package_build_config& bc: build_configs)
+      {
+        bool custom (!bc.effective_bot_keys (build_bot_keys).empty ());
+
+        if (!custom_bot)
+        {
+          custom_bot = custom;
+        }
+        //
+        // If both the custom and default bots are used by the package, then
+        // reset the custom_bot flag to nullopt and bail out from the build
+        // package configurations loop.
+        //
+        else if (*custom_bot != custom)
+        {
+          custom_bot = nullopt;
+          break;
+        }
+      }
+    }
+
     assert (internal_repository->internal);
   }
 
@@ -143,7 +170,7 @@ namespace brep
            build_class_exprs bs,
            build_constraints_type bc,
            build_auxiliaries_type ac,
-           build_package_configs bcs,
+           package_build_configs bcs,
            shared_ptr<repository_type> rp)
       : id (rp->tenant, move (nm), vr),
         tenant (id.tenant),

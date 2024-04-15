@@ -480,8 +480,8 @@ namespace brep
       auto tenant_ids (pq.execute ());
       if ((ne = !tenant_ids.empty ()))
       {
-        // Cache tenant ids and erase packages, repositories, and tenants at
-        // once.
+        // Cache tenant ids and erase packages, repositories, public keys, and
+        // tenants at once.
         //
         strings tids;
         tids.reserve (tenant_ids.size ());
@@ -496,6 +496,9 @@ namespace brep
 
         db.erase_query<repository> (
           query<repository>::id.tenant.in_range (tids.begin (), tids.end ()));
+
+        db.erase_query<public_key> (
+          query<public_key>::id.tenant.in_range (tids.begin (), tids.end ()));
 
         db.erase_query<tenant> (
           query<tenant>::id.in_range (tids.begin (), tids.end ()));

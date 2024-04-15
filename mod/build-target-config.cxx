@@ -21,17 +21,13 @@ namespace brep
     {"all"}, '+', "All.");
 
   bool
-  exclude (const build_package_config& pc,
-           const build_class_exprs& cbs,
-           const build_constraints& ccs,
+  exclude (const build_class_exprs& exprs,
+           const build_constraints& constrs,
            const build_target_config& tc,
            const map<string, string>& class_inheritance_map,
            string* reason,
            bool default_all_ucs)
   {
-    const build_class_exprs& exprs (pc.effective_builds (cbs));
-    const build_constraints& constrs (pc.effective_constraints (ccs));
-
     // Save the first sentence of the reason, lower-case the first letter if
     // the beginning looks like a word (all subsequent characters until a
     // whitespace are lower-case letters).

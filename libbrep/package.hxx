@@ -20,7 +20,7 @@
 //
 #define LIBBREP_PACKAGE_SCHEMA_VERSION_BASE 27
 
-#pragma db model version(LIBBREP_PACKAGE_SCHEMA_VERSION_BASE, 32, closed)
+#pragma db model version(LIBBREP_PACKAGE_SCHEMA_VERSION_BASE, 33, closed)
 
 namespace brep
 {
@@ -248,8 +248,8 @@ namespace brep
 
     string id;
 
-    // If true, display the packages in the web interface only in the tenant
-    // view mode.
+    // If this flag is true, then display the packages in the web interface
+    // only in the tenant view mode.
     //
     bool private_;                        // Note: foreign-mapped in build.
 
@@ -456,6 +456,58 @@ namespace brep
     #pragma db member(text) column("")
   };
 
+  // Tweak public_key_id mapping to include a constraint (this only affects the
+  // database schema).
+  //
+  #pragma db member(public_key_id::tenant) points_to(tenant)
+
+  #pragma db object pointer(shared_ptr) session
+  class public_key: public string
+  {
+  public:
+    public_key (string tenant, string fingerprint, string key)
+        : string (move (key)), id (move (tenant), move (fingerprint)) {}
+
+    public_key_id id;
+
+    // Database mapping.
+    //
+    #pragma db member(id) id column("")
+
+    #pragma db member(data) virtual(string) access(this)
+
+  private:
+    friend class odb::access;
+    public_key () = default;
+  };
+
+  // package_build_config
+  //
+  using package_build_config =
+    build_package_config_template<lazy_shared_ptr<public_key>>;
+
+  using package_build_configs =
+    build_package_configs_template<lazy_shared_ptr<public_key>>;
+
+  #pragma db value(package_build_config) definition
+
+  #pragma db member(package_build_config::builds) transient
+  #pragma db member(package_build_config::constraints) transient
+  #pragma db member(package_build_config::auxiliaries) transient
+  #pragma db member(package_build_config::bot_keys) transient
+
+  // package_build_bot_keys
+  //
+  using package_build_bot_keys = vector<lazy_shared_ptr<public_key>>;
+  using package_build_bot_key_key = odb::nested_key<package_build_bot_keys>;
+
+  using package_build_bot_keys_map = std::map<package_build_bot_key_key,
+                                              lazy_shared_ptr<public_key>>;
+
+  #pragma db value(package_build_bot_key_key)
+  #pragma db member(package_build_bot_key_key::outer) column("config_index")
+  #pragma db member(package_build_bot_key_key::inner) column("index")
+
   // Tweak package_id mapping to include a constraint (this only affects the
   // database schema).
   //
@@ -507,7 +559,8 @@ namespace brep
              build_class_exprs,
              build_constraints_type,
              build_auxiliaries_type,
-             build_package_configs,
+             package_build_bot_keys,
+             package_build_configs,
              optional<path> location,
              optional<string> fragment,
              optional<string> sha256sum,
@@ -535,7 +588,7 @@ namespace brep
              build_class_exprs,
              build_constraints_type,
              build_auxiliaries_type,
-             build_package_configs,
+             package_build_configs,
              shared_ptr<repository_type>);
 
     bool
@@ -589,15 +642,25 @@ namespace brep
     requirements_type requirements;           // Note: foreign-mapped in build.
     small_vector<test_dependency, 1> tests;   // Note: foreign-mapped in build.
 
-    // Common build classes, constraints, and auxiliaries that apply to all
-    // configurations unless overridden.
+    // Common build classes, constraints, auxiliaries, and bot keys that apply
+    // to all configurations unless overridden.
     //
     build_class_exprs builds;                 // Note: foreign-mapped in build.
     build_constraints_type build_constraints; // Note: foreign-mapped in build.
     build_auxiliaries_type build_auxiliaries; // Note: foreign-mapped in build.
+    package_build_bot_keys build_bot_keys;    // Note: foreign-mapped in build.
+    package_build_configs build_configs;      // Note: foreign-mapped in build.
 
-    build_package_configs build_configs; // Note: foreign-mapped in build.
-
+    // Group the build_configs, builds, and build_constraints members of this
+    // object together with their respective nested configs entries into the
+    // separate section for an explicit load.
+    //
+    // Note that while the build auxiliaries and bot keys are persisted via
+    // the newly created package objects, they are only used via the
+    // foreign-mapped build_package objects (see build-package.hxx for
+    // details). Thus, we add them to the never-loaded unused_section (see
+    // below).
+    //
     odb::section build_section;
 
     // Note that it is foreign-mapped in build.
@@ -627,6 +690,18 @@ namespace brep
     //
     bool buildable; // Note: foreign-mapped in build.
     optional<brep::unbuildable_reason> unbuildable_reason;
+
+    // If this flag is true, then all the package configurations are buildable
+    // with the custom build bots. If false, then all configurations are
+    // buildable with the default bots. If nullopt, then some configurations
+    // are buildable with the custom and some with the default build bots.
+    //
+    // Note: meaningless if buildable is false.
+    //
+    optional<bool> custom_bot; // Note: foreign-mapped in build.
+
+  private:
+    odb::section unused_section;
 
     // Database mapping.
     //
@@ -750,13 +825,19 @@ namespace brep
     // build_auxiliaries
     //
     #pragma db member(build_auxiliaries) id_column("") value_column("") \
-      section(build_section)
+      section(unused_section)
+
+    // build_bot_keys
+    //
+    #pragma db member(build_bot_keys)                   \
+      id_column("") value_column("key_") value_not_null \
+      section(unused_section)
 
     // build_configs
     //
-    // Note that build_package_config::{builds,constraints,auxiliaries} are
-    // persisted/loaded via the separate nested containers (see commons.hxx
-    // for details).
+    // Note that package_build_config::{builds,constraints,auxiliaries,
+    // bot_keys} are persisted/loaded via the separate nested containers (see
+    // commons.hxx for details).
     //
     #pragma db member(build_configs) id_column("") value_column("config_") \
       section(build_section)
@@ -792,9 +873,22 @@ namespace brep
           odb::nested_set (as, std::move (?));                            \
           move (as).to_configs (this.build_configs))                      \
       id_column("") key_column("") value_column("")                       \
-      section(build_section)
+      section(unused_section)
 
-    #pragma db member(build_section) load(lazy) update(always)
+    #pragma db member(build_config_bot_keys)                           \
+      virtual(package_build_bot_keys_map)                              \
+      after(build_config_auxiliaries)                                  \
+      get(odb::nested_get (                                            \
+            brep::build_package_config_bot_keys (this.build_configs))) \
+      set(brep::build_package_config_bot_keys<                         \
+            lazy_shared_ptr<brep::public_key>> bks;                    \
+          odb::nested_set (bks, std::move (?));                        \
+          move (bks).to_configs (this.build_configs))                  \
+      id_column("") key_column("") value_column("key_") value_not_null \
+      section(unused_section)
+
+    #pragma db member(build_section)  load(lazy) update(always)
+    #pragma db member(unused_section) load(lazy) update(manual)
 
     // other_repositories
     //

@@ -326,6 +326,19 @@ namespace brep
         : tenant (move (t)), canonical_name (move (n)) {}
   };
 
+  // public_key_id
+  //
+  #pragma db value
+  struct public_key_id
+  {
+    string tenant;
+    string fingerprint;
+
+    public_key_id () = default;
+    public_key_id (string t, string f)
+        : tenant (move (t)), fingerprint (move (f)) {}
+  };
+
   // build_class_expr
   //
   using bpkg::build_class_expr;
@@ -370,31 +383,38 @@ namespace brep
   #pragma db value(email) definition
   #pragma db member(email::value) virtual(string) before access(this) column("")
 
-  // build_package_config
+  // build_package_config_template
   //
-  using build_package_config = bpkg::build_package_config;
-
-  #pragma db value(build_package_config) definition
+  using bpkg::build_package_config_template;
 
   // 1 for the default configuration which is always present.
   //
-  using build_package_configs = small_vector<build_package_config, 1>;
+  template <typename K>
+  using build_package_configs_template =
+    small_vector<build_package_config_template<K>, 1>;
 
   // Return the address of the configuration object with the specified name,
   // if present, and NULL otherwise.
   //
-  build_package_config*
-  find (const string& name, build_package_configs&);
+  template <typename K>
+  inline build_package_config_template<K>*
+  find (const string& name, build_package_configs_template<K>& cs)
+  {
+    auto i (find_if (cs.begin (), cs.end (),
+                     [&name] (const build_package_config_template<K>& c)
+                     {return c.name == name;}));
+
+    return i != cs.end () ? &*i : nullptr;
+  }
 
   // Note that ODB doesn't support containers of value types which contain
   // containers. Thus, we will persist/load
-  // package_build_config::{builds,constraint,auxiliaries} via the separate
-  // nested containers using the adapter classes.
+  // build_package_config_template<K>::{builds,constraint,auxiliaries,bot_keys}
+  // via the separate nested containers using the adapter classes.
   //
-  // build_package_config::builds
-  //
-  #pragma db member(build_package_config::builds) transient
 
+  // build_package_config_template<K>::builds
+  //
   using build_class_expr_key = odb::nested_key<build_class_exprs>;
   using build_class_exprs_map = std::map<build_class_expr_key, build_class_expr>;
 
@@ -402,24 +422,27 @@ namespace brep
   #pragma db member(build_class_expr_key::outer) column("config_index")
   #pragma db member(build_class_expr_key::inner) column("index")
 
-  // Adapter for build_package_config::builds.
+  // Adapter for build_package_config_template<K>::builds.
   //
-  class build_package_config_builds:
-    public small_vector<build_class_exprs, 1> // 1 as for build_package_configs.
+  // Note: 1 as for build_package_configs_template.
+  //
+  class build_package_config_builds: public small_vector<build_class_exprs, 1>
   {
   public:
     build_package_config_builds () = default;
 
+    template <typename K>
     explicit
-    build_package_config_builds (const build_package_configs& cs)
+    build_package_config_builds (const build_package_configs_template<K>& cs)
     {
       reserve (cs.size ());
-      for (const build_package_config& c: cs)
+      for (const build_package_config_template<K>& c: cs)
         push_back (c.builds);
     }
 
+    template <typename K>
     void
-    to_configs (build_package_configs& cs) &&
+    to_configs (build_package_configs_template<K>& cs) &&
     {
       // Note that the empty trailing entries will be missing (see ODB's
       // nested-container.hxx for details).
@@ -432,10 +455,8 @@ namespace brep
     }
   };
 
-  // build_package_config::constraints
+  // build_package_config_template<K>::constraints
   //
-  #pragma db member(build_package_config::constraints) transient
-
   using build_constraint_key = odb::nested_key<build_constraints>;
   using build_constraints_map = std::map<build_constraint_key, build_constraint>;
 
@@ -443,24 +464,29 @@ namespace brep
   #pragma db member(build_constraint_key::outer) column("config_index")
   #pragma db member(build_constraint_key::inner) column("index")
 
-  // Adapter for build_package_config::constraints.
+  // Adapter for build_package_config_template<K>::constraints.
+  //
+  // Note: 1 as for build_package_configs_template.
   //
   class build_package_config_constraints:
-    public small_vector<build_constraints, 1> // 1 as for build_package_configs.
+    public small_vector<build_constraints, 1>
   {
   public:
     build_package_config_constraints () = default;
 
+    template <typename K>
     explicit
-    build_package_config_constraints (const build_package_configs& cs)
+    build_package_config_constraints (
+      const build_package_configs_template<K>& cs)
     {
       reserve (cs.size ());
-      for (const build_package_config& c: cs)
+      for (const build_package_config_template<K>& c: cs)
         push_back (c.constraints);
     }
 
+    template <typename K>
     void
-    to_configs (build_package_configs& cs) &&
+    to_configs (build_package_configs_template<K>& cs) &&
     {
       // Note that the empty trailing entries will be missing (see ODB's
       // nested-container.hxx for details).
@@ -473,10 +499,8 @@ namespace brep
     }
   };
 
-  // build_package_config::auxiliaries
+  // build_package_config_template<K>::auxiliaries
   //
-  #pragma db member(build_package_config::auxiliaries) transient
-
   using build_auxiliary_key = odb::nested_key<build_auxiliaries>;
   using build_auxiliaries_map = std::map<build_auxiliary_key, build_auxiliary>;
 
@@ -484,24 +508,29 @@ namespace brep
   #pragma db member(build_auxiliary_key::outer) column("config_index")
   #pragma db member(build_auxiliary_key::inner) column("index")
 
-  // Adapter for build_package_config::auxiliaries.
+  // Adapter for build_package_config_template<K>::auxiliaries.
+  //
+  // Note: 1 as for build_package_configs_template.
   //
   class build_package_config_auxiliaries:
-    public small_vector<build_auxiliaries, 1> // 1 as for build_package_configs.
+    public small_vector<build_auxiliaries, 1>
   {
   public:
     build_package_config_auxiliaries () = default;
 
+    template <typename K>
     explicit
-    build_package_config_auxiliaries (const build_package_configs& cs)
+    build_package_config_auxiliaries (
+      const build_package_configs_template<K>& cs)
     {
       reserve (cs.size ());
-      for (const build_package_config& c: cs)
+      for (const build_package_config_template<K>& c: cs)
         push_back (c.auxiliaries);
     }
 
+    template <typename K>
     void
-    to_configs (build_package_configs& cs) &&
+    to_configs (build_package_configs_template<K>& cs) &&
     {
       // Note that the empty trailing entries will be missing (see ODB's
       // nested-container.hxx for details).
@@ -511,6 +540,40 @@ namespace brep
       auto i (cs.begin ());
       for (build_auxiliaries& bas: *this)
         i++->auxiliaries = move (bas);
+    }
+  };
+
+  // build_package_config_template<K>::bot_keys
+  //
+  // Adapter for build_package_config_template<K>::bot_keys.
+  //
+  // Note: 1 as for build_package_configs_template.
+  //
+  template <typename K>
+  class build_package_config_bot_keys: public small_vector<vector<K>, 1>
+  {
+  public:
+    build_package_config_bot_keys () = default;
+
+    explicit
+    build_package_config_bot_keys (const build_package_configs_template<K>& cs)
+    {
+      this->reserve (cs.size ());
+      for (const build_package_config_template<K>& c: cs)
+        this->push_back (c.bot_keys);
+    }
+
+    void
+    to_configs (build_package_configs_template<K>& cs) &&
+    {
+      // Note that the empty trailing entries will be missing (see ODB's
+      // nested-container.hxx for details).
+      //
+      assert (this->size () <= cs.size ());
+
+      auto i (cs.begin ());
+      for (vector<K>& bks: *this)
+        i++->bot_keys = move (bks);
     }
   };
 
@@ -611,13 +674,12 @@ namespace brep
 
   // Version comparison operators.
   //
-  // They allow comparing objects that have epoch, canonical_upstream,
-  // canonical_release, and revision data members. The idea is that this
-  // works for both query members of types version and canonical_version.
-  // Note, though, that the object revisions should be comparable (both
-  // optional, numeric, etc), so to compare version to query member or
-  // canonical_version you may need to explicitly convert the version object
-  // to canonical_version.
+  // Compare objects that have epoch, canonical_upstream, canonical_release,
+  // and revision data members. The idea is that this works for both query
+  // members of types version and canonical_version.  Note, though, that the
+  // object revisions should be comparable (both optional, numeric, etc), so
+  // to compare version to query member or canonical_version you may need to
+  // explicitly convert the version object to canonical_version.
   //
   template <typename T1, typename T2>
   inline auto
@@ -769,10 +831,9 @@ namespace brep
     return compare_version_lt (x.version, y.version, true);
   }
 
-  // They allow comparing objects that have tenant, name, and version data
-  // members. The idea is that this works for both query members of package id
-  // types (in particular in join conditions) as well as for values of
-  // package_id type.
+  // Compare objects that have tenant, name, and version data members. The
+  // idea is that this works for both query members of package id types (in
+  // particular in join conditions) as well as for values of package_id type.
   //
   template <typename T1, typename T2>
   inline auto
@@ -852,10 +913,10 @@ namespace brep
     return x.canonical_name.compare (y.canonical_name) < 0;
   }
 
-  // They allow comparing objects that have tenant and canonical_name data
-  // members. The idea is that this works for both query members of repository
-  // id types (in particular in join conditions) as well as for values of
-  // repository_id type.
+  // Compare objects that have tenant and canonical_name data members. The
+  // idea is that this works for both query members of repository id types (in
+  // particular in join conditions) as well as for values of repository_id
+  // type.
   //
   template <typename T1, typename T2>
   inline auto
@@ -871,6 +932,38 @@ namespace brep
     -> decltype (x.tenant == y.tenant && x.canonical_name == y.canonical_name)
   {
     return x.tenant != y.tenant || x.canonical_name != y.canonical_name;
+  }
+
+  // Public key id comparison operators.
+  //
+  inline bool
+  operator< (const public_key_id& x, const public_key_id& y)
+  {
+    if (int r = x.tenant.compare (y.tenant))
+      return r < 0;
+
+    return x.fingerprint.compare (y.fingerprint) < 0;
+  }
+
+  // Compare objects that have tenant and fingerprint data members. The idea
+  // is that this works for both query members of public key id types (in
+  // particular in join conditions) as well as for values of public_key_id
+  // type.
+  //
+  template <typename T1, typename T2>
+  inline auto
+  operator== (const T1& x, const T2& y)
+    -> decltype (x.tenant == y.tenant && x.fingerprint == y.fingerprint)
+  {
+    return x.tenant == y.tenant && x.fingerprint == y.fingerprint;
+  }
+
+  template <typename T1, typename T2>
+  inline auto
+  operator!= (const T1& x, const T2& y)
+    -> decltype (x.tenant == y.tenant && x.fingerprint == y.fingerprint)
+  {
+    return x.tenant != y.tenant || x.fingerprint != y.fingerprint;
   }
 }
 

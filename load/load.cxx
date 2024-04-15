@@ -20,6 +20,7 @@
 #include <libbutl/pager.hxx>
 #include <libbutl/sha256.hxx>
 #include <libbutl/process.hxx>
+#include <libbutl/openssl.hxx>
 #include <libbutl/fdstream.hxx>
 #include <libbutl/filesystem.hxx>
 #include <libbutl/tab-parser.hxx>
@@ -364,7 +365,8 @@ repository_info (const options& lo, const string& rl, const cstrings& options)
 // the repository. Should be called once per repository.
 //
 static void
-load_packages (const shared_ptr<repository>& rp,
+load_packages (const options& lo,
+               const shared_ptr<repository>& rp,
                const repository_location& cl,
                database& db,
                bool ignore_unknown,
@@ -421,10 +423,12 @@ load_packages (const shared_ptr<repository>& rp,
   using brep::dependency_alternative;
   using brep::dependency_alternatives;
 
+  const string& tenant (rp->tenant);
+
   for (package_manifest& pm: pms)
   {
     shared_ptr<package> p (
-      db.find<package> (package_id (rp->tenant, pm.name, pm.version)));
+      db.find<package> (package_id (tenant, pm.name, pm.version)));
 
     // sha256sum should always be present if the package manifest comes from
     // the packages.manifest file belonging to the pkg repository.
@@ -433,6 +437,32 @@ load_packages (const shared_ptr<repository>& rp,
 
     if (p == nullptr)
     {
+      // Convert the package manifest build configurations (contain public
+      // keys data) into the brep's build package configurations (contain
+      // public key object lazy pointers). Keep the bot key lists empty if
+      // the package is not buildable.
+      //
+      package_build_configs build_configs;
+
+      if (!pm.build_configs.empty ())
+      {
+        build_configs.reserve (pm.build_configs.size ());
+
+        for (bpkg::build_package_config& c: pm.build_configs)
+        {
+          build_configs.emplace_back (move (c.name),
+                                      move (c.arguments),
+                                      move (c.comment),
+                                      move (c.builds),
+                                      move (c.constraints),
+                                      move (c.auxiliaries),
+                                      package_build_bot_keys (),
+                                      move (c.email),
+                                      move (c.warning_email),
+                                      move (c.error_email));
+        }
+      }
+
       if (rp->internal)
       {
         if (!overrides.empty ())
@@ -594,6 +624,107 @@ load_packages (const shared_ptr<repository>& rp,
         //
         package_name project (pm.effective_project ());
 
+        // If the package is buildable, then save the package manifest's
+        // common and build configuration-specific bot keys into the database
+        // and translate the key data lists into the lists of the public key
+        // object lazy pointers.
+        //
+        package_build_bot_keys bot_keys;
+
+        if (rp->buildable)
+        {
+          // Save the specified bot keys into the database as public key
+          // objects, unless they are already persisted. Translate these keys
+          // into the public key object lazy pointers.
+          //
+          auto keys_to_objects = [&lo,
+                                  &pm,
+                                  &tenant,
+                                  &db] (strings&& keys)
+          {
+            package_build_bot_keys r;
+
+            if (keys.empty ())
+              return r;
+
+            r.reserve (keys.size ());
+
+            for (string& key: keys)
+            {
+              // Calculate the key fingerprint.
+              //
+              string fp;
+
+              try
+              {
+                openssl os (path ("-"), path ("-"), 2,
+                            lo.openssl (),
+                            "pkey",
+                            lo.openssl_option (), "-pubin", "-outform", "DER");
+
+                os.out << key;
+                os.out.close ();
+
+                fp = sha256 (os.in).string ();
+                os.in.close ();
+
+                if (!os.wait ())
+                {
+                  cerr << "process " << lo.openssl () << ' ' << *os.exit
+                       << endl;
+
+                  throw io_error ("");
+                }
+              }
+              catch (const io_error&)
+              {
+                cerr << "error: unable to convert custom build bot public key "
+                     << "for package " << pm.name << ' ' << pm.version << endl
+                     << "  info: key:" << endl
+                     << key << endl;
+
+                throw failed ();
+              }
+              catch (const process_error& e)
+              {
+                cerr << "error: unable to convert custom build bot public key "
+                     << "for package " << pm.name << ' ' << pm.version << ": "
+                     << e << endl;
+
+                throw failed ();
+              }
+
+              // Try to find the public_key object for the calculated
+              // fingerprint. If it doesn't exist, then create and persist the
+              // new object.
+              //
+              public_key_id id (tenant, move (fp));
+              shared_ptr<public_key> k (db.find<public_key> (id));
+
+              if (k == nullptr)
+              {
+                k = make_shared<public_key> (move (id.tenant),
+                                             move (id.fingerprint),
+                                             move (key));
+
+                db.persist (k);
+              }
+
+              r.push_back (move (k));
+            }
+
+            return r;
+          };
+
+          bot_keys = keys_to_objects (move (pm.build_bot_keys));
+
+          assert (build_configs.size () == pm.build_configs.size ());
+
+          for (size_t i (0); i != build_configs.size (); ++i)
+            build_configs[i].bot_keys =
+              keys_to_objects (move (pm.build_configs[i].bot_keys));
+        }
+
         p = make_shared<package> (
           move (pm.name),
           move (pm.version),
@@ -622,7 +753,8 @@ load_packages (const shared_ptr<repository>& rp,
           move (pm.builds),
           move (pm.build_constraints),
           move (pm.build_auxiliaries),
-          move (pm.build_configs),
+          move (bot_keys),
+          move (build_configs),
           move (pm.location),
           move (pm.fragment),
           move (pm.sha256sum),
@@ -636,7 +768,7 @@ load_packages (const shared_ptr<repository>& rp,
                                   move (pm.builds),
                                   move (pm.build_constraints),
                                   move (pm.build_auxiliaries),
-                                  move (pm.build_configs),
+                                  move (build_configs),
                                   rp);
 
       db.persist (p);
@@ -1018,7 +1150,8 @@ load_repositories (const options& lo,
 
     // We don't apply overrides to the external packages.
     //
-    load_packages (pr,
+    load_packages (lo,
+                   pr,
                    !pr->cache_location.empty () ? pr->cache_location : cl,
                    db,
                    ignore_unknown,
@@ -1630,6 +1763,7 @@ try
     {
       db.erase_query<package> ();
       db.erase_query<repository> ();
+      db.erase_query<public_key> ();
       db.erase_query<tenant> ();
     }
     else                             // Multi-tenant mode.
@@ -1641,6 +1775,9 @@ try
 
       db.erase_query<repository> (
         query<repository>::id.tenant.in_range (ts.begin (), ts.end ()));
+
+      db.erase_query<public_key> (
+        query<public_key>::id.tenant.in_range (ts.begin (), ts.end ()));
 
       db.erase_query<tenant> (
         query<tenant>::id.in_range (ts.begin (), ts.end ()));
@@ -1696,7 +1833,8 @@ try
                                  ir.buildable,
                                  priority++));
 
-      load_packages (r,
+      load_packages (ops,
+                     r,
                      r->cache_location,
                      db,
                      ops.ignore_unknown (),

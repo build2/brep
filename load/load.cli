@@ -167,6 +167,22 @@ class options
      this option to specify multiple package manager options."
   }
 
+  brep::path openssl = "openssl"
+  {
+    "<path>",
+    "The openssl program to be used for crypto operations. You can also
+     specify additional options that should be passed to the openssl program
+     with \cb{openssl-option}. If the openssl program is not explicitly
+     specified, then \cb{brep-load} will use \cb{openssl} by default."
+  }
+
+  brep::strings openssl-option
+  {
+    "<opt>",
+    "Additional option to be passed to the openssl program (see \cb{openssl}
+     for details). Repeat this option to specify multiple openssl options."
+  }
+
   std::string --pager // String to allow empty value.
   {
     "<path>",

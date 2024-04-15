@@ -6,6 +6,8 @@
 -- package-extra.sql file for details.
 --
 
+DROP FOREIGN TABLE IF EXISTS build_package_config_bot_keys;
+
 DROP FOREIGN TABLE IF EXISTS build_package_config_auxiliaries;
 
 DROP FOREIGN TABLE IF EXISTS build_package_config_constraints;
@@ -13,6 +15,8 @@ DROP FOREIGN TABLE IF EXISTS build_package_config_constraints;
 DROP FOREIGN TABLE IF EXISTS build_package_config_builds;
 
 DROP FOREIGN TABLE IF EXISTS build_package_configs;
+
+DROP FOREIGN TABLE IF EXISTS build_package_bot_keys;
 
 DROP FOREIGN TABLE IF EXISTS build_package_auxiliaries;
 
@@ -29,6 +33,8 @@ DROP FOREIGN TABLE IF EXISTS build_package_requirement_alternatives;
 DROP FOREIGN TABLE IF EXISTS build_package_requirements;
 
 DROP FOREIGN TABLE IF EXISTS build_package;
+
+DROP FOREIGN TABLE IF EXISTS build_public_key;
 
 DROP FOREIGN TABLE IF EXISTS build_repository;
 
@@ -64,6 +70,14 @@ CREATE FOREIGN TABLE build_repository (
   certificate_fingerprint TEXT NULL)
 SERVER package_server OPTIONS (table_name 'repository');
 
+-- The foreign table for build_public_key object.
+--
+CREATE FOREIGN TABLE build_public_key (
+  tenant TEXT NOT NULL,
+  fingerprint TEXT NOT NULL,
+  "data" TEXT NOT NULL)
+SERVER package_server OPTIONS (table_name 'public_key');
+
 -- The foreign table for build_package object.
 --
 CREATE FOREIGN TABLE build_package (
@@ -84,7 +98,8 @@ CREATE FOREIGN TABLE build_package (
   build_error_email_comment TEXT NULL,
   internal_repository_tenant TEXT NULL,
   internal_repository_canonical_name TEXT NULL,
-  buildable BOOLEAN NOT NULL)
+  buildable BOOLEAN NOT NULL,
+  custom_bot BOOLEAN NULL)
 SERVER package_server OPTIONS (table_name 'package');
 
 -- The foreign tables for the build_package object requirements member (that
@@ -214,6 +229,21 @@ CREATE FOREIGN TABLE build_package_auxiliaries (
   comment TEXT NOT NULL)
 SERVER package_server OPTIONS (table_name 'package_build_auxiliaries');
 
+-- The foreign table for the build_package object bot_keys member (that is
+-- of a container type).
+--
+CREATE FOREIGN TABLE build_package_bot_keys (
+  tenant TEXT NOT NULL,
+  name CITEXT NOT NULL,
+  version_epoch INTEGER NOT NULL,
+  version_canonical_upstream TEXT NOT NULL,
+  version_canonical_release TEXT NOT NULL COLLATE "C",
+  version_revision INTEGER NOT NULL,
+  index BIGINT NOT NULL,
+  key_tenant TEXT NOT NULL,
+  key_fingerprint TEXT NOT NULL)
+SERVER package_server OPTIONS (table_name 'package_build_bot_keys');
+
 -- The foreign tables for the build_package object configs member (that is a
 -- container of values containing containers.
 --
@@ -277,3 +307,16 @@ CREATE FOREIGN TABLE build_package_config_auxiliaries (
   config TEXT NOT NULL,
   comment TEXT NOT NULL)
 SERVER package_server OPTIONS (table_name 'package_build_config_auxiliaries');
+
+CREATE FOREIGN TABLE build_package_config_bot_keys (
+  tenant TEXT NOT NULL,
+  name CITEXT NOT NULL,
+  version_epoch INTEGER NOT NULL,
+  version_canonical_upstream TEXT NOT NULL,
+  version_canonical_release TEXT NOT NULL COLLATE "C",
+  version_revision INTEGER NOT NULL,
+  config_index BIGINT NOT NULL,
+  index BIGINT NOT NULL,
+  key_tenant TEXT NOT NULL,
+  key_fingerprint TEXT NOT NULL)
+SERVER package_server OPTIONS (table_name 'package_build_config_bot_keys');

@@ -3,10 +3,15 @@
 
 #include <mod/build-result-module.hxx>
 
+#include <odb/database.hxx>
+
 #include <libbutl/openssl.hxx>
 #include <libbutl/fdstream.hxx>
 #include <libbutl/process-io.hxx>
 #include <libbutl/semantic-version.hxx>
+
+#include <libbrep/build-package.hxx>
+#include <libbrep/build-package-odb.hxx>
 
 namespace brep
 {
@@ -230,54 +235,112 @@ namespace brep
     else
     {
       assert (b.agent_fingerprint && challenge);
-      auto i (bot_agent_key_map_->find (*b.agent_fingerprint));
 
-      // The agent's key is recently replaced.
-      //
-      if (i == bot_agent_key_map_->end ())
+      auto auth = [&challenge,
+                   &b,
+                   &o,
+                   &fail, &trace,
+                   &warn_auth,
+                   this] (const path& key)
       {
-        warn_auth ("agent's public key not found");
-      }
-      else
-      try
-      {
-        openssl os ([&trace, this] (const char* args[], size_t n)
-                    {
-                      l2 ([&]{trace << process_args {args, n};});
-                    },
-                    path ("-"), fdstream_mode::text, 2,
-                    process_env (o.openssl (), o.openssl_envvar ()),
-                    use_openssl_pkeyutl_ ? "pkeyutl" : "rsautl",
-                    o.openssl_option (),
-                    use_openssl_pkeyutl_ ? "-verifyrecover" : "-verify",
-                    "-pubin",
-                    "-inkey",
-                    i->second);
+        bool r (false);
 
-        for (const auto& c: *challenge)
-          os.out.put (c); // Sets badbit on failure.
-
-        os.out.close ();
-
-        string s;
-        getline (os.in, s);
-
-        bool v (os.in.eof ());
-        os.in.close ();
-
-        if (os.wait () && v)
+        try
         {
-          r = (s == *b.agent_challenge);
+          openssl os ([&trace, this] (const char* args[], size_t n)
+                      {
+                        l2 ([&]{trace << process_args {args, n};});
+                      },
+                      path ("-"), fdstream_mode::text, 2,
+                      process_env (o.openssl (), o.openssl_envvar ()),
+                      use_openssl_pkeyutl_ ? "pkeyutl" : "rsautl",
+                      o.openssl_option (),
+                      use_openssl_pkeyutl_ ? "-verifyrecover" : "-verify",
+                      "-pubin",
+                      "-inkey", key);
 
-          if (!r)
-            warn_auth ("challenge mismatched");
+          for (const auto& c: *challenge)
+            os.out.put (c); // Sets badbit on failure.
+
+          os.out.close ();
+
+          string s;
+          getline (os.in, s);
+
+          bool v (os.in.eof ());
+          os.in.close ();
+
+          if (os.wait () && v)
+          {
+            r = (s == *b.agent_challenge);
+
+            if (!r)
+              warn_auth ("challenge mismatched");
+          }
+          else // The signature is presumably meaningless.
+            warn_auth ("unable to verify challenge");
         }
-        else // The signature is presumably meaningless.
-          warn_auth ("unable to verify challenge");
-      }
-      catch (const system_error& e)
+        catch (const system_error& e)
+        {
+          fail << "unable to verify challenge: " << e;
+        }
+
+        return r;
+      };
+
+      const string& fp (*b.agent_fingerprint);
+      auto i (bot_agent_key_map_->find (fp));
+
+      // Note that it is possible that the default vs custom bot
+      // classification has changed since the task request time. It feels that
+      // there is nothing wrong with that and we will handle that
+      // automatically.
+      //
+      if (i != bot_agent_key_map_->end ()) // Default bot?
       {
-        fail << "unable to verify challenge: " << e;
+        r = auth (i->second);
+      }
+      else                                 // Custom bot.
+      {
+        shared_ptr<build_public_key> k (
+          build_db_->find<build_public_key> (public_key_id (b.tenant, fp)));
+
+        if (k != nullptr)
+        {
+          // Temporarily save the key data to disk (note that it's the
+          // challenge which is passed via stdin to openssl). Hopefully /tmp
+          // is using tmpfs.
+          //
+          auto_rmfile arm;
+
+          try
+          {
+            arm = auto_rmfile (path::temp_path ("brep-custom-bot-key"));
+          }
+          catch (const system_error& e)
+          {
+            fail << "unable to obtain temporary file: " << e;
+          }
+
+          try
+          {
+            ofdstream os (arm.path);
+            os << *k;
+            os.close ();
+          }
+          catch (const io_error& e)
+          {
+            fail << "unable to write to '" << arm.path << "': " << e;
+          }
+
+          r = auth (arm.path);
+        }
+        else
+        {
+          // The agent's key is recently replaced.
+          //
+          warn_auth ("agent's public key not found");
+        }
       }
     }
 

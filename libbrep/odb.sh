@@ -53,7 +53,7 @@ $odb "${inc[@]}" -d pgsql --std c++14 --generate-query       \
     --hxx-prologue '#include <libbrep/common-traits.hxx>'    \
     -DLIBODB_BUILD2 -DLIBODB_PGSQL_BUILD2                    \
     --include-with-brackets --include-prefix libbrep         \
-    --guard-prefix LIBBREP \
+    --guard-prefix LIBBREP                                   \
     common.hxx
 
 $odb "${inc[@]}" -d pgsql --std c++14 --generate-query --generate-schema \
@@ -74,7 +74,7 @@ $odb "${inc[@]}" -d pgsql --std c++14 --generate-query --generate-schema \
     --odb-epilogue '#include <libbrep/wrapper-traits.hxx>'               \
     --generate-prepared -DLIBODB_BUILD2 -DLIBODB_PGSQL_BUILD2            \
     --include-with-brackets --include-prefix libbrep                     \
-    --guard-prefix LIBBREP \
+    --guard-prefix LIBBREP                                               \
     build.hxx
 
 $odb "${inc[@]}" -d pgsql --std c++14 --generate-query        \

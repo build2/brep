@@ -23,8 +23,10 @@ namespace brep
   //
   // The mapping is established in build-extra.sql. We also explicitly mark
   // non-primary key foreign-mapped members in the source object.
-  //
+
   // Foreign object that is mapped to a subset of the tenant object.
+  //
+  // Note: table created manually thus assign table name explicitly.
   //
   #pragma db object table("build_tenant") pointer(shared_ptr)
   class build_tenant
@@ -50,6 +52,8 @@ namespace brep
 
   // Foreign object that is mapped to a subset of the repository object.
   //
+  // Note: table created manually thus assign table name explicitly.
+  //
   #pragma db object table("build_repository") pointer(shared_ptr) readonly
   class build_repository
   {
@@ -74,6 +78,54 @@ namespace brep
     friend class odb::access;
     build_repository (): canonical_name (id.canonical_name) {}
   };
+
+  // Foreign object that is mapped to a subset of the public key object.
+  //
+  // Note: table created manually thus assign table name explicitly.
+  //
+  #pragma db object table("build_public_key") pointer(shared_ptr) readonly
+  class build_public_key: public string
+  {
+  public:
+    public_key_id id;
+
+    // Database mapping.
+    //
+    #pragma db member(id) id column("")
+
+    #pragma db member(data) virtual(string) access(this)
+
+  private:
+    friend class odb::access;
+    build_public_key () = default;
+  };
+
+  // build_package_config
+  //
+  using build_package_config =
+    build_package_config_template<lazy_shared_ptr<build_public_key>>;
+
+  using build_package_configs =
+    build_package_configs_template<lazy_shared_ptr<build_public_key>>;
+
+  #pragma db value(build_package_config) definition
+
+  #pragma db member(build_package_config::builds) transient
+  #pragma db member(build_package_config::constraints) transient
+  #pragma db member(build_package_config::auxiliaries) transient
+  #pragma db member(build_package_config::bot_keys) transient
+
+  // build_package_bot_keys
+  //
+  using build_package_bot_keys = vector<lazy_shared_ptr<build_public_key>>;
+  using build_package_bot_key_key = odb::nested_key<build_package_bot_keys>;
+
+  using build_package_bot_keys_map =
+    std::map<build_package_bot_key_key, lazy_shared_ptr<build_public_key>>;
+
+  #pragma db value(build_package_bot_key_key)
+  #pragma db member(build_package_bot_key_key::outer) column("config_index")
+  #pragma db member(build_package_bot_key_key::inner) column("index")
 
   // Forward declarations.
   //
@@ -107,6 +159,8 @@ namespace brep
 
   // Foreign object that is mapped to a subset of the package object.
   //
+  // Note: table created manually thus assign table name explicitly.
+  //
   #pragma db object table("build_package") pointer(shared_ptr) readonly session
   class build_package
   {
@@ -132,21 +186,26 @@ namespace brep
 
     lazy_shared_ptr<build_repository> internal_repository;
     bool buildable;
+    optional<bool> custom_bot;
 
     // Mapped to the package object builds, build_constraints,
-    // build_auxiliaries, and build_configs members using the PostgreSQL
-    // foreign table mechanism.
+    // build_auxiliaries, bot_keys, and build_configs members using the
+    // PostgreSQL foreign table mechanism.
     //
-    build_class_exprs     builds;
-    build_constraints     constraints;
-    build_auxiliaries     auxiliaries;
-    build_package_configs configs;
+    build_class_exprs      builds;
+    build_constraints      constraints;
+    build_auxiliaries      auxiliaries;
+    build_package_bot_keys bot_keys;
+    build_package_configs  configs;
 
-    // Group the builds and constraints members of this object as well as of
-    // the nested configs entries for an explicit load. Note that the configs
-    // top-level members are loaded implicitly.
+    // Group the builds/constraints, auxiliaries, and bot_keys members of this
+    // object together with their respective nested configs entries into the
+    // separate sections for an explicit load. Note that the configs top-level
+    // members are loaded implicitly.
     //
     odb::section constraints_section;
+    odb::section auxiliaries_section;
+    odb::section bot_keys_section;
 
     bool
     internal () const noexcept {return internal_repository != nullptr;}
@@ -194,7 +253,7 @@ namespace brep
 
     #pragma db member(requirements_tests_section) load(lazy) update(always)
 
-    // builds, constraints, and auxiliaries
+    // builds, constraints, auxiliaries, and bot_keys
     //
     #pragma db member(builds) id_column("") value_column("") \
       section(constraints_section)
@@ -203,13 +262,16 @@ namespace brep
       section(constraints_section)
 
     #pragma db member(auxiliaries) id_column("") value_column("") \
-      section(constraints_section)
+      section(auxiliaries_section)
+
+    #pragma db member(bot_keys) id_column("") value_column("key_") \
+      section(bot_keys_section)
 
     // configs
     //
-    // Note that build_package_config::{builds,constraints,auxiliaries} are
-    // persisted/loaded via the separate nested containers (see commons.hxx
-    // for details).
+    // Note that build_package_config::{builds,constraints,auxiliaries,bot_keys}
+    // are persisted/loaded via the separate nested containers (see
+    // commons.hxx for details).
     //
     #pragma db member(configs) id_column("") value_column("config_")
 
@@ -244,9 +306,23 @@ namespace brep
           odb::nested_set (as, std::move (?));                      \
           move (as).to_configs (this.configs))                      \
       id_column("") key_column("") value_column("")                 \
-      section(constraints_section)
+      section(auxiliaries_section)
+
+    #pragma db member(config_bot_keys)                           \
+      virtual(build_package_bot_keys_map)                        \
+      after(config_auxiliaries)                                  \
+      get(odb::nested_get (                                      \
+            brep::build_package_config_bot_keys (this.configs))) \
+      set(brep::build_package_config_bot_keys<                   \
+            lazy_shared_ptr<brep::build_public_key>> bks;        \
+          odb::nested_set (bks, std::move (?));                  \
+          move (bks).to_configs (this.configs))                  \
+      id_column("") key_column("") value_column("key_")          \
+      section(bot_keys_section)
 
     #pragma db member(constraints_section) load(lazy) update(always)
+    #pragma db member(auxiliaries_section) load(lazy) update(always)
+    #pragma db member(bot_keys_section)    load(lazy) update(always)
 
   private:
     friend class odb::access;

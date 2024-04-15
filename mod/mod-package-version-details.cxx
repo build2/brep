@@ -541,7 +541,7 @@ handle (request& rq, response& rs)
     //
     builds = false;
 
-    for (const build_package_config& pc: pkg->build_configs)
+    for (const package_build_config& pc: pkg->build_configs)
     {
       const build_class_exprs& exprs (pc.effective_builds (pkg->builds));
 
@@ -726,7 +726,7 @@ handle (request& rq, response& rs)
     s << H3 << "Builds" << ~H3
       << DIV(ID="builds");
 
-    auto exclude = [&pkg, this] (const build_package_config& pc,
+    auto exclude = [&pkg, this] (const package_build_config& pc,
                                  const build_target_config& tc,
                                  string* rs = nullptr)
     {
@@ -767,7 +767,7 @@ handle (request& rq, response& rs)
     query sq (false);
     set<config_toolchain> unbuilt_configs;
 
-    for (const build_package_config& pc: pkg->build_configs)
+    for (const package_build_config& pc: pkg->build_configs)
     {
       for (const auto& bc: *target_conf_map_)
       {
@@ -886,7 +886,7 @@ handle (request& rq, response& rs)
     //
     if (!tn->interactive)
     {
-      for (const build_package_config& pc: pkg->build_configs)
+      for (const package_build_config& pc: pkg->build_configs)
       {
         for (const auto& tc: *target_conf_)
         {
