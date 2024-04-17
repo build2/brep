@@ -1508,14 +1508,301 @@ namespace brep
                   const diag_epilogue& log_writer) const noexcept
   {
     // Note that we may receive this notification before the corresponding
-    // check run object has been persistent in the service data (see the
-    // returned by build_queued() lambda for details). So we may try to create
-    // a new check run but find out that it's actually already exist on the
-    // GitHub side. In this case we will somehow need to get the node_id for
-    // the existing check run and re-try but this time updating instead of
-    // creating.
+    // check run object has been persisted in the service data (see the
+    // returned by build_queued() lambda for details). Thus we wouldn't know
+    // whether the check run has been created on GitHub yet or not. And given
+    // that, on GitHub, creating a check run with an existent name does not
+    // fail but instead replaces the existing check run (same name, different
+    // node ID), we have to check whether a check run already exists on GitHub
+    // before creating it.
+    //
+    // @@ TMP Will have to do this in build_queued() as well.
+    //
+    NOTIFICATION_DIAG (log_writer);
 
-    return nullptr;
+    service_data sd;
+    try
+    {
+      sd = service_data (*ts.data);
+    }
+    catch (const invalid_argument& e)
+    {
+      error << "failed to parse service data: " << e;
+      return nullptr;
+    }
+
+    service_data::check_run cr; // Updated check run.
+
+    // Create a new check run on GitHub.
+    //
+    auto create = [&cr, &b, &hs, &sd, &error] (const string& iat)
+    {
+      string rq (graphql_request (create_check_runs (sd.repository_id,
+                                                     sd.head_sha,
+                                                     {b},
+                                                     build_state::building,
+                                                     &hs)));
+
+      return mutate_check_run (cr,
+                               {b},
+                               iat,
+                               move (rq),
+                               build_state::building,
+                               error);
+    };
+
+    // Update a check run that already exists on GitHub.
+    //
+    auto update =
+        [&cr, &b, &sd, &error] (const string& iat,
+                                const string& nid,
+                                build_state st = build_state::building)
+    {
+      string rq (graphql_request (
+          update_check_run (sd.repository_id, nid, build_state::building)));
+
+      return mutate_check_run (cr, {b}, iat, move (rq), st, error);
+    };
+
+    // Get a new installation access token if the current one has expired.
+    //
+    const installation_access_token* iat (nullptr);
+    optional<installation_access_token> new_iat;
+
+    if (system_clock::now () > sd.installation_access.expires_at)
+    {
+      if (optional<string> jwt = generate_jwt (trace, error))
+      {
+        new_iat = obtain_installation_access_token (sd.installation_id,
+                                                    move (*jwt),
+                                                    error);
+        if (new_iat)
+          iat = &*new_iat;
+      }
+    }
+    else
+      iat = &sd.installation_access;
+
+    if (iat != nullptr)
+    {
+      string bid (check_run_name (b)); // Full Build ID.
+
+      // Stored check run.
+      //
+      const service_data::check_run* scr (sd.find_check_run (bid));
+
+      if (scr != nullptr && scr->node_id)
+      {
+        // The check run exists on GitHub and in the persisted service data.
+        //
+        if (!scr->state || *scr->state == build_state::queued)
+        {
+          // If the stored state is queued (most likely), at least
+          // build_queued() and its lambda has run. If this is all then GitHub
+          // has the queued status. But it's also possible that build_built()
+          // has also run and updated GitHub to built but its lambda has not
+          // yet run.
+          //
+          // On the other hand, if there is no stored state, both of the other
+          // notifications must have run: the first created the check run on
+          // GitHub and stored the node ID; the second failed to update GitHub
+          // and stored the nullopt state. Either way around, build_built()
+          // has run so built is the correct state.
+          //
+          //   @@ TMP Maybe we should always store the state and add a flag
+          //          like "gh_updated", then we would know for sure whether
+          //          we need to update to built or building.
+          //
+          // So GitHub currently either has queued or built but we can't be
+          // sure which.
+          //
+          // If it has queued, updating to building is correct.
+          //
+          // If it has built then it would be a logical mistake to update to
+          // building. However, GitHub ignores updates from built to any other
+          // state (the REST API responds with HTTP 200 and the full check run
+          // JSON body but with the "completed" status; presumably the GraphQL
+          // API has the same semantics) so we can just try to update to
+          // building and see what the actual status it returns is.
+          //
+          // If scr->state is nullopt then GitHub has either queued or built
+          // but we know build_built() has run so we need to update to built
+          // instead of building.
+          //
+          cr = move (*scr);
+          cr.state = nullopt;
+
+          build_state st (scr->state ? build_state::building
+                                     : build_state::built);
+
+          if (update (iat->token, *cr.node_id, st))
+          {
+            // @@ TODO If !scr->state and GH had built then we probably don't
+            //         want to run the lambda either but currently it will run
+            //         and this update message is not accurate. Is stored
+            //         failed state the only way?
+            //
+            if (cr.state == st)
+              l3 ([&]{trace << "updated check_run { " << cr << " }";});
+            else
+            {
+              // Do not persist anything if state was already built on
+              // GitHub.
+              //
+              assert (cr.state == build_state::built);
+
+              return nullptr;
+            }
+          }
+        }
+        else if (*scr->state == build_state::built)
+        {
+          // Ignore out of order built notification.
+          //
+          assert (*scr->state == build_state::built);
+
+          warn << *scr << ": "
+               << "out of order transition from "
+               << to_string (build_state::queued) << " to "
+               << to_string (build_state::building) <<
+            " (stored state is " << to_string (build_state::built) << ")";
+
+          return nullptr;
+        }
+      }
+      else // (src == nullptr || !scr->node_id)
+      {
+        // No state has been persisted, or one or both of the other
+        // notifications were unable to create the check run on GitHub.
+        //
+        // It's also possible that another notification has since created the
+        // check run on GitHub but its lambda just hasn't run yet.
+        //
+        // Thus the check run may or may not exist on GitHub.
+        //
+        // Because creation destroys check runs with the same name (see
+        // comments at top of function) we have to check whether the check run
+        // exists on GitHub before we can do anything.
+        //
+        // Destructive creation would be catastrophic if, for example, our
+        // "new" building check run replaced the existing built one because it
+        // would look exactly like a transition from built back to building in
+        // the GitHub UI. And then the built lambda could run after our
+        // building lambda, creating an opportunity for the real node ID to be
+        // overwritten with the old one.
+        //
+        cr.build_id = move (bid);
+
+        // Fetch the check run by name from GitHub.
+        //
+        pair<optional<check_run>, bool> pr (
+            fetch_check_run (iat->token,
+                             ts.id,
+                             check_run_name (b, &hs),
+                             error));
+
+        if (pr.second) // No errors.
+        {
+          if (!pr.first) // Check run does not exist on GitHub.
+          {
+            // Assume the most probable cases: build_queued() failed to create
+            // the check run or build_building() is running before
+            // build_queued(), so creating with building state is
+            // correct. (The least likely being that build_built() ran before
+            // this, in which case we should create with the built state.)
+            //
+            // @@ TODO Create with whatever the failed state was if we decide
+            //         to store it.
+            //
+            if (create (iat->token))
+              l3 ([&]{trace << "created check_run { " << cr << " }";});
+          }
+          else // Check run exists on GitHub.
+          {
+            if (pr.first->status == to_string_gh (build_state::queued))
+            {
+              if (scr != nullptr)
+              {
+                cr = move (*scr);
+                cr.state = nullopt;
+              }
+
+              if (update (iat->token, pr.first->node_id))
+                l3 ([&]{trace << "updated check_run { " << cr << " }";});
+            }
+            else
+            {
+              // Do nothing because the GitHub state is already built so the
+              // lambda returned by build_built() will update the database to
+              // built.
+              //
+              return nullptr;
+            }
+          }
+        }
+        else // Error communicating with GitHub.
+        {
+          // Can't tell whether the check run exists GitHub. Make the final
+          // decision on whether or not to store nullopt in node_id and state
+          // based on what's in the database when the lambda runs
+          // (build_built() and its lambda could run in the meantime).
+          //
+          // @@ TODO Store build_state::building if we start storing failed
+          //         state.
+        }
+      }
+    }
+
+    return [iat = move (new_iat),
+            cr = move (cr),
+            error = move (error),
+            warn = move (warn)] (const tenant_service& ts) -> optional<string>
+    {
+      // NOTE: this lambda may be called repeatedly (e.g., due to transaction
+      // being aborted) and so should not move out of its captures.
+
+      service_data sd;
+      try
+      {
+        sd = service_data (*ts.data);
+      }
+      catch (const invalid_argument& e)
+      {
+        error << "failed to parse service data: " << e;
+        return nullopt;
+      }
+
+      if (iat)
+        sd.installation_access = *iat;
+
+      if (service_data::check_run* scr = sd.find_check_run (cr.build_id))
+      {
+        // Update existing check run.
+        //
+        // @@ TODO What if the failed GH update was for built? May end up with
+        //         permanently building check run.
+        //
+        if (!scr->state || scr->state == build_state::queued)
+        {
+          scr->state = cr.state;
+          if (!scr->node_id)
+            scr->node_id = move (cr.node_id);
+        }
+      }
+      else
+      {
+        // Store new check run.
+        //
+        sd.check_runs.push_back (cr);
+
+        warn << "check run { " << cr << " }: "
+             << to_string (build_state::building)
+             << " state being persisted before "
+             << to_string (build_state::queued);
+      }
+
+      return sd.json ();
+    };
   }
 
   function<optional<string> (const tenant_service&)> ci_github::
