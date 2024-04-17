@@ -655,6 +655,37 @@ namespace brep
     return os.str ();
   }
 
+  // Serialize an `updateCheckRun` mutation for one build to GraphQL.
+  //
+  // @@ TODO Support conclusion, output, etc.
+  //
+  static string
+  update_check_run (const string& ri, // Repository ID
+                    const string& ci, // Check run node_id
+                    build_state st)
+  {
+    ostringstream os;
+
+    os << "mutation {"                                            << '\n'
+       << "cr0:updateCheckRun(input: {"                           << '\n'
+       << "  checkRunId: "   << gq_str (ci) << ','                << '\n'
+       << "  repositoryId: " << gq_str (ri) << ','                << '\n'
+       << "  status: "       << gq_enum (to_string_gh (st))       << '\n'
+       << "})"                                                    << '\n'
+      // Specify the selection set (fields to be returned).
+      //
+       << "{"                                                     << '\n'
+       << "  checkRun {"                                          << '\n'
+       << "    id,"                                               << '\n'
+       << "    name,"                                             << '\n'
+       << "    status"                                            << '\n'
+       << "  }"                                                   << '\n'
+       << "}"                                                     << '\n'
+       << "}"                                                     << '\n';
+
+    return os.str ();
+  }
+
   // Serialize a GraphQL operation (query/mutation) into a GraphQL request.
   //
   // This is essentially a JSON object with a "query" string member containing
