@@ -1,4 +1,4 @@
-// file      : mod/mod-ci-github-serice-data.hxx -*- C++ -*-
+// file      : mod/mod-ci-github-service-data.hxx -*- C++ -*-
 // license   : MIT; see accompanying LICENSE file
 
 #ifndef MOD_MOD_CI_GITHUB_SERVICE_DATA_HXX
@@ -26,16 +26,27 @@ namespace brep
   {
     string                build_id; // Full build id.
     optional<string>      node_id;  // GitHub id.
-    build_state           state;
-    bool                  state_synced;
+
+    // @@ TODO
+    //
+    // build_state           state;
+    // bool                  state_synced;
+
+    // string
+    // state_string () const
+    // {
+    //   string r (to_string (*state));
+    //   if (!state_synced)
+    //     r += "(unsynchronized)";
+    //   return r;
+    // }
+
+    optional<build_state> state;
 
     string
     state_string () const
     {
-      string r (to_string (*state));
-      if (!state_synced)
-        r += "(unsynchronized)";
-      return r;
+      return state ? to_string (*state) : "null";
     }
   };
 
@@ -47,7 +58,7 @@ namespace brep
 
     // Check suite-global data.
     //
-    installation_access_token installation_access;
+    gh_installation_access_token installation_access;
 
     uint64_t installation_id;
     // @@ TODO Rename to repository_node_id.
@@ -86,7 +97,7 @@ namespace brep
   };
 
   ostream&
-  operator<< (ostream&, const service_data::check_run&);
+  operator<< (ostream&, const check_run&);
 }
 
 #endif // MOD_MOD_CI_GITHUB_SERVICE_DATA_HXX

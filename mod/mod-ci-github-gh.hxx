@@ -7,6 +7,10 @@
 #include <libbrep/types.hxx>
 #include <libbrep/utility.hxx>
 
+#include <libbrep/build.hxx>
+
+#include <mod/tenant-service.hxx> // build_hints
+
 namespace butl
 {
   namespace json
@@ -45,85 +49,42 @@ namespace brep
     string after;
 
     explicit
-    check_suite (json::parser&);
+    gh_check_suite (json::parser&);
 
-    check_suite () = default;
+    gh_check_suite () = default;
   };
 
-  struct check_run
+  struct gh_check_run
   {
     string node_id;
     string name;
     string status;
 
     explicit
-    check_run (json::parser&);
+    gh_check_run (json::parser&);
 
-    check_run () = default;
+    gh_check_run () = default;
   };
 
   // Return the GitHub check run status corresponding to a build_state.
   //
   string
-  gh_to_status (build_state st)
-  {
-    // @@ Just return by value (small string optimization).
-    //
-    static const string sts[] {"QUEUED", "IN_PROGRESS", "COMPLETED"};
-
-    return sts[static_cast<size_t> (st)];
-  }
+  gh_to_status (build_state st);
 
   // Return the build_state corresponding to a GitHub check run status
   // string. Throw invalid_argument if the passed status was invalid.
   //
   build_state
-  gh_from_status (const string& s)
-  {
-    if      (s == "QUEUED")      return build_state::queued;
-    else if (s == "IN_PROGRESS") return build_state::building;
-    else if (s == "COMPLETED")   return build_state::built;
-    else
-      throw invalid_argument ("invalid GitHub check run status: '" + s +
-                              '\'');
-  }
+  gh_from_status (const string&);
 
   // Create a check_run name from a build. If the second argument is not
   // NULL, return an abbreviated id if possible.
   //
   string
-  gh_check_run_name (const build& b,
-                     const tenant_service_base::build_hints* bh = nullptr)
-  {
-    string r;
+  gh_check_run_name (const build&,
+                     const tenant_service_base::build_hints* = nullptr);
 
-    if (bh == nullptr || !bh->single_package_version)
-    {
-      r += b.package_name.string ();
-      r += '/';
-      r += b.package_version.string ();
-      r += '/';
-    }
-
-    r += b.target_config_name;
-    r += '/';
-    r += b.target.string ();
-    r += '/';
-
-    if (bh == nullptr || !bh->single_package_config)
-    {
-      r += b.package_config_name;
-      r += '/';
-    }
-
-    r += b.toolchain_name;
-    r += '-';
-    r += b.toolchain_version.string ();
-
-    return r;
-  }
-
-  struct repository
+  struct gh_repository
   {
     string node_id;
     string name;
@@ -132,66 +93,72 @@ namespace brep
     string clone_url;
 
     explicit
-    repository (json::parser&);
+    gh_repository (json::parser&);
 
-    repository () = default;
+    gh_repository () = default;
   };
 
-  struct installation
+  struct gh_installation
   {
     uint64_t id; // Note: used for installation access token (REST API).
 
     explicit
-    installation (json::parser&);
+    gh_installation (json::parser&);
 
-    installation () = default;
+    gh_installation () = default;
   };
 
   // The check_suite webhook event request.
   //
-  struct check_suite_event
+  struct gh_check_suite_event
   {
     string action;
-    gh::check_suite check_suite;
-    gh::repository repository;
-    gh::installation installation;
+    gh_check_suite check_suite;
+    gh_repository repository;
+    gh_installation installation;
 
     explicit
-    check_suite_event (json::parser&);
+    gh_check_suite_event (json::parser&);
 
-    check_suite_event () = default;
+    gh_check_suite_event () = default;
   };
 
-  struct installation_access_token
+  struct gh_installation_access_token
   {
     string token;
     timestamp expires_at;
 
     explicit
-    installation_access_token (json::parser&);
+    gh_installation_access_token (json::parser&);
 
-    installation_access_token (string token, timestamp expires_at);
+    gh_installation_access_token (string token, timestamp expires_at);
 
-    installation_access_token () = default;
+    gh_installation_access_token () = default;
   };
 
   ostream&
-  operator<< (ostream&, const check_suite&);
+  operator<< (ostream&, const gh_check_suite&);
 
   ostream&
-  operator<< (ostream&, const check_run&);
+  operator<< (ostream&, const gh_check_run&);
 
   ostream&
-  operator<< (ostream&, const repository&);
+  operator<< (ostream&, const gh_repository&);
 
   ostream&
-  operator<< (ostream&, const installation&);
+  operator<< (ostream&, const gh_installation&);
 
   ostream&
-  operator<< (ostream&, const check_suite_event&);
+  operator<< (ostream&, const gh_check_suite_event&);
 
   ostream&
-  operator<< (ostream&, const installation_access_token&);
+  operator<< (ostream&, const gh_installation_access_token&);
+
+  string
+  to_iso8601 (timestamp);
+
+  timestamp
+  from_iso8601 (const string&);
 }
 
 #endif // MOD_MOD_CI_GITHUB_GH_HXX
