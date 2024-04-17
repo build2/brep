@@ -585,6 +585,30 @@ namespace brep
     return r;
   }
 
+  // Return the GitHub check run status corresponding to a build_state.
+  //
+  static const string&
+  to_string_gh (build_state st)
+  {
+    static const string sts[] {"QUEUED", "IN_PROGRESS", "COMPLETED"};
+
+    return sts[static_cast<size_t> (st)];
+  }
+
+  // Return the build_state corresponding to a GitHub check run status
+  // string. Throw invalid_argument if the passed status was invalid.
+  //
+  static build_state
+  from_string_gh (const string& s)
+  {
+    if      (s == "QUEUED")      return build_state::queued;
+    else if (s == "IN_PROGRESS") return build_state::building;
+    else if (s == "COMPLETED")   return build_state::built;
+    else
+      throw invalid_argument ("invalid GitHub check run status: '" + s +
+                              '\'');
+  }
+
   // Serialize `createCheckRun` mutations for one or more builds to GraphQL.
   //
   static string
