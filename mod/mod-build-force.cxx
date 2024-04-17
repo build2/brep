@@ -188,7 +188,7 @@ handle (request& rq, response& rs)
   //
   const tenant_service_build_queued* tsq (nullptr);
   optional<pair<tenant_service, shared_ptr<build>>> tss;
-  tenant_service_build_queued::build_queued_hints qhs;
+  tenant_service_base::build_hints bhs;
 
   // Acquire the database connection for the subsequent transactions.
   //
@@ -269,8 +269,9 @@ handle (request& rq, response& rs)
               shared_ptr<build_package> p (
                 build_db_->load<build_package> (b->id.package));
 
-              qhs = tenant_service_build_queued::build_queued_hints {
-                tpc == 1, p->configs.size () == 1};
+              bhs =
+                  tenant_service_base::build_hints {tpc == 1,
+                                                    p->configs.size () == 1};
 
               // Set the package tenant's queued timestamp.
               //
@@ -311,7 +312,7 @@ handle (request& rq, response& rs)
     if (auto f = tsq->build_queued (ss,
                                     qbs,
                                     build_state::building,
-                                    qhs,
+                                    bhs,
                                     log_writer_))
     {
       conn = build_db_->connection ();

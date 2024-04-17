@@ -426,7 +426,7 @@ function<optional<string> (const brep::tenant_service&)> brep::ci::
 build_queued (const tenant_service&,
               const vector<build>& bs,
               optional<build_state> initial_state,
-              const build_queued_hints& hints,
+              const build_hints& hints,
               const diag_epilogue& log_writer) const noexcept
 {
   NOTIFICATION_DIAG (log_writer);
@@ -470,6 +470,7 @@ build_queued (const tenant_service&,
 function<optional<string> (const brep::tenant_service&)> brep::ci::
 build_building (const tenant_service&,
                 const build& b,
+                const build_hints&,
                 const diag_epilogue&) const noexcept
 {
   return [&b] (const tenant_service& ts)
@@ -490,6 +491,7 @@ build_building (const tenant_service&,
 function<optional<string> (const brep::tenant_service&)> brep::ci::
 build_built (const tenant_service&,
              const build& b,
+             const build_hints&,
              const diag_epilogue&) const noexcept
 {
   return [&b] (const tenant_service& ts)
