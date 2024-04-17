@@ -706,12 +706,19 @@ namespace brep
     return b;
   }
 
-  // Parse a response to a check_run GraphQL mutation such as `createCheckRun`
-  // or `updateCheckRun`.
+  [[noreturn]] void
+  throw_json (json::parser& p, const string& m)
+  {
+    throw json::invalid_json_input (
+      p.input_name,
+      p.line (), p.column (), p.position (),
+      m);
+  }
+
+  // Parse a JSON-serialized GraphQL response.
   //
-  // Return the received check run objects or throw runtime_error if the
-  // response indicated errors and invalid_json_input if the GitHub response
-  // contained invalid JSON.
+  // Throw runtime_error if the response indicated errors and
+  // invalid_json_input if the GitHub response contained invalid JSON.
   //
   // The response format is defined in the GraphQL spec:
   // https://spec.graphql.org/October2021/#sec-Response.
@@ -719,40 +726,20 @@ namespace brep
   // Example response:
   //
   // {
-  //   "data": {
-  //     "cr0": {
-  //       "checkRun": {
-  //         "id": "CR_kwDOLc8CoM8AAAAFQ5GqPg",
-  //         "name": "libb2/0.98.1+2/x86_64-linux-gnu/linux_debian_12-gcc_13.1-O3/default/dev/0.17.0-a.1",
-  //         "status": "QUEUED"
-  //       }
-  //     },
-  //     "cr1": {
-  //       "checkRun": {
-  //         "id": "CR_kwDOLc8CoM8AAAAFQ5GqhQ",
-  //         "name": "libb2/0.98.1+2/x86_64-linux-gnu/linux_debian_12-gcc_13.1/default/dev/0.17.0-a.1",
-  //         "status": "QUEUED"
-  //       }
-  //     }
-  //   }
+  //   "data": {...},
+  //   "errors": {...}
   // }
   //
-  // @@ TODO Handle response errors properly.
+  // The contents of `data`, including its opening and closing braces, are
+  // parsed by the `parse_data` function.
   //
-  static vector<check_run>
-  parse_check_runs_response (json::parser& p)
+  // @@ TODO errors comes before data in GitHub's responses.
+  //
+  static void
+  parse_graphql_response (json::parser& p,
+                          function<void (json::parser&)> parse_data)
   {
     using event = json::event;
-
-    auto throw_json = [&p] [[noreturn]] (const string& m)
-    {
-      throw json::invalid_json_input (
-        p.input_name,
-        p.line (), p.column (), p.position (),
-        m);
-    };
-
-    vector<check_run> r;
 
     // True if the data/errors fields are present.
     //
@@ -777,26 +764,7 @@ namespace brep
         if (err)
           break;
 
-        p.next_expect (event::begin_object);
-
-        // Parse the "cr0".."crN" members (field aliases).
-        //
-        while (p.next_expect (event::name, event::end_object))
-        {
-          // Parse `"crN": { "checkRun":`.
-          //
-          if (p.name () != "cr" + to_string (r.size ()))
-            throw_json ("unexpected field alias: '" + p.name () + '\'');
-          p.next_expect (event::begin_object);
-          p.next_expect_name ("checkRun");
-
-          r.emplace_back (p); // Parse the check_run object.
-
-          p.next_expect (event::end_object); // Parse end of crN object.
-        }
-
-        if (r.empty ())
-          throw_json ("data object is empty");
+        parse_data (p);
       }
       else if (p.name () == "errors")
       {
@@ -812,8 +780,9 @@ namespace brep
         //
         if (p.name () != "extensions")
         {
-          throw_json ("unexpected top-level GraphQL response field: '" +
-                      p.name () + '\'');
+          throw_json (p,
+                      "unexpected top-level GraphQL response field: '" +
+                          p.name () + '\'');
         }
 
         p.next_expect_value_skip ();
@@ -843,6 +812,67 @@ namespace brep
       else
         throw runtime_error ("request error(s) received from GraphQL endpoint");
     }
+  }
+
+  // Parse a response to a check_run GraphQL mutation such as `createCheckRun`
+  // or `updateCheckRun`.
+  //
+  // Example response (only the part we need to parse here):
+  //
+  //  {
+  //    "cr0": {
+  //      "checkRun": {
+  //        "id": "CR_kwDOLc8CoM8AAAAFQ5GqPg",
+  //        "name": "libb2/0.98.1+2/x86_64-linux-gnu/linux_debian_12-gcc_13.1-O3/default/dev/0.17.0-a.1",
+  //        "status": "QUEUED"
+  //      }
+  //    },
+  //    "cr1": {
+  //      "checkRun": {
+  //        "id": "CR_kwDOLc8CoM8AAAAFQ5GqhQ",
+  //        "name": "libb2/0.98.1+2/x86_64-linux-gnu/linux_debian_12-gcc_13.1/default/dev/0.17.0-a.1",
+  //        "status": "QUEUED"
+  //      }
+  //    }
+  //  }
+  //
+  // @@ TODO Handle response errors properly.
+  //
+  static vector<check_run>
+  parse_check_runs_response (json::parser& p)
+  {
+    using event = json::event;
+
+    vector<check_run> r;
+
+    parse_graphql_response (
+      p,
+      [&r] (json::parser& p)
+      {
+        p.next_expect (event::begin_object);
+
+        // Parse the "cr0".."crN" members (field aliases).
+        //
+        while (p.next_expect (event::name, event::end_object))
+        {
+          // Parse `"crN": { "checkRun":`.
+          //
+          if (p.name () != "cr" + to_string (r.size ()))
+            throw_json (p, "unexpected field alias: '" + p.name () + '\'');
+          p.next_expect (event::begin_object);
+          p.next_expect_name ("checkRun");
+
+          r.emplace_back (p); // Parse the check_run object.
+
+          p.next_expect (event::end_object); // Parse end of crN object.
+        }
+      });
+
+    // Our requests always operate on at least one check run so if there were
+    // none in the data field something went wrong.
+    //
+    if (r.empty ())
+      throw_json (p, "data object is empty");
 
     return r;
   }
