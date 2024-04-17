@@ -612,10 +612,11 @@ namespace brep
   // Serialize `createCheckRun` mutations for one or more builds to GraphQL.
   //
   static string
-  queue_check_runs (const string& ri, // Repository ID
-                    const string& hs, // Head SHA
-                    const vector<reference_wrapper<const build>>& bs,
-                    const build_queued_hints* bqh)
+  create_check_runs (const string& ri, // Repository ID
+                     const string& hs, // Head SHA
+                     const vector<reference_wrapper<const build>>& bs,
+                     build_state st,
+                     const tenant_service_base::build_hints* bh = nullptr)
   {
     ostringstream os;
 
@@ -631,13 +632,13 @@ namespace brep
 
       // Check run name.
       //
-      string nm (check_run_name (b, bqh));
+      string nm (check_run_name (b, bh));
 
       os << gq_name (al) << ":createCheckRun(input: {"              << '\n'
          << "  name: "         << gq_str (nm) << ','                << '\n'
          << "  repositoryId: " << gq_str (ri) << ','                << '\n'
          << "  headSha: "      << gq_str (hs) << ','                << '\n'
-         << "  status: "       << gq_enum ("QUEUED")                << '\n'
+         << "  status: "       << gq_enum (to_string_gh (st))       << '\n'
          << "})"                                                    << '\n'
         // Specify the selection set (fields to be returned).
         //
