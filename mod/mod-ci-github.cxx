@@ -522,17 +522,16 @@ namespace brep
     return gq_name (v);
   }
 
-  using build_queued_hints = tenant_service_build_queued::build_queued_hints;
-
   // Create a check_run name from a build. If the second argument is not
   // NULL, return an abbreviated id if possible.
   //
   static string
-  check_run_name (const build& b, const build_queued_hints* bqh = nullptr)
+  check_run_name (const build& b,
+                  const tenant_service_base::build_hints* bh = nullptr)
   {
     string r;
 
-    if (bqh == nullptr || !bqh->single_package_version)
+    if (bh == nullptr || !bh->single_package_version)
     {
       r += b.package_name.string ();
       r += '/';
@@ -545,7 +544,7 @@ namespace brep
     r += b.target.string ();
     r += '/';
 
-    if (bqh == nullptr || !bqh->single_package_config)
+    if (bh == nullptr || !bh->single_package_config)
     {
       r += b.package_config_name;
       r += '/';
@@ -913,7 +912,7 @@ namespace brep
   build_queued (const tenant_service& ts,
                 const vector<build>& builds,
                 optional<build_state> istate,
-                const build_queued_hints& hs,
+                const build_hints& hs,
                 const diag_epilogue& log_writer) const noexcept
   {
     NOTIFICATION_DIAG (log_writer);
@@ -1141,8 +1140,9 @@ namespace brep
   }
 
   function<optional<string> (const tenant_service&)> ci_github::
-  build_building (const tenant_service&, const build&,
-                  const diag_epilogue& /* log_writer */) const noexcept
+  build_building (const tenant_service& ts, const build& b,
+                  const build_hints& hs,
+                  const diag_epilogue& log_writer) const noexcept
   {
     // Note that we may receive this notification before the corresponding
     // check run object has been persistent in the service data (see the
@@ -1157,6 +1157,7 @@ namespace brep
 
   function<optional<string> (const tenant_service&)> ci_github::
   build_built (const tenant_service&, const build&,
+               const build_hints&,
                const diag_epilogue& /* log_writer */) const noexcept
   {
     return nullptr;
