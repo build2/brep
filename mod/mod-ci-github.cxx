@@ -3,13 +3,15 @@
 
 #include <mod/mod-ci-github.hxx>
 
-#include <libbutl/curl.hxx>
 #include <libbutl/json/parser.hxx>
-#include <libbutl/json/serializer.hxx>
 
 #include <mod/jwt.hxx>
 #include <mod/hmac.hxx>
 #include <mod/module-options.hxx>
+
+#include <mod/mod-ci-github-gq.hxx>
+#include <mod/mod-ci-github-post.hxx>
+#include <mod/mod-ci-github-service-data.hxx>
 
 #include <stdexcept>
 
@@ -71,8 +73,6 @@ using namespace brep::cli;
 
 namespace brep
 {
-  using namespace gh;
-
   ci_github::
   ci_github (tenant_service_map& tsm)
       : tenant_service_map_ (tsm)
@@ -263,12 +263,12 @@ namespace brep
     //
     if (event == "check_suite")
     {
-      check_suite_event cs;
+      gh_check_suite_event cs;
       try
       {
         json::parser p (body.data (), body.size (), "check_suite event");
 
-        cs = check_suite_event (p);
+        cs = gh_check_suite_event (p);
       }
       catch (const json::invalid_json_input& e)
       {
@@ -330,7 +330,7 @@ namespace brep
   }
 
   bool ci_github::
-  handle_check_suite_request (check_suite_event cs)
+  handle_check_suite_request (gh_check_suite_event cs)
   {
     HANDLER_DIAG;
 
@@ -340,7 +340,7 @@ namespace brep
     if (!jwt)
       throw server_error ();
 
-    optional<installation_access_token> iat (
+    optional<gh_installation_access_token> iat (
         obtain_installation_access_token (cs.installation.id,
                                           move (*jwt),
                                           error));
@@ -406,7 +406,7 @@ namespace brep
     // thus would cause a spurious backwards state transition.
     //
     vector<reference_wrapper<const build>> bs;
-    vector<service_data::check_run> crs; // Parallel to bs.
+    vector<check_run> crs; // Parallel to bs.
 
     // Exclude builds for which this is an out of order notification.
     //
@@ -423,9 +423,9 @@ namespace brep
       //
       // Note: never go back on the built state.
       //
-      string bid (check_run_name (b)); // Full Build ID.
+      string bid (gh_check_run_name (b)); // Full Build ID.
 
-      const service_data::check_run* scr (sd.find_check_run (bid));
+      const check_run* scr (sd.find_check_run (bid));
 
       if (scr == nullptr)
       {
@@ -459,8 +459,8 @@ namespace brep
 
     // Get a new installation access token if the current one has expired.
     //
-    const installation_access_token* iat (nullptr);
-    optional<installation_access_token> new_iat;
+    const gh_installation_access_token* iat (nullptr);
+    optional<gh_installation_access_token> new_iat;
 
     if (system_clock::now () > sd.installation_access.expires_at)
     {
@@ -483,20 +483,15 @@ namespace brep
       //
       // Queue a check_run for each build.
       //
-      string rq (graphql_request (create_check_runs (sd.repository_id,
-                                                     sd.head_sha,
-                                                     bs,
-                                                     build_state::queued,
-                                                     &hs)));
-
-      if (mutate_check_runs (crs,
-                             bs,
-                             iat->token,
-                             move (rq),
-                             build_state::queued,
-                             error))
+      if (gq_create_check_runs (crs,
+                                iat->token,
+                                sd.repository_id, sd.head_sha,
+                                bs,
+                                build_state::queued,
+                                hs,
+                                error))
       {
-        for (service_data::check_run& cr: crs)
+        for (check_run& cr: crs)
           l3 ([&] { trace << "created check_run { " << cr << " }"; });
       }
     }
@@ -529,14 +524,14 @@ namespace brep
       //
       for (size_t i (0); i != bs.size (); ++i)
       {
-        const service_data::check_run& cr (crs[i]);
+        const check_run& cr (crs[i]);
 
         // Note that this service data may not be the same as what we observed
         // in the build_queued() function above. For example, some check runs
         // that we have queued may have already transitioned to building. So
         // we skip any check runs that are already present.
         //
-        if (service_data::check_run* scr = sd.find_check_run (cr.build_id))
+        if (check_run* scr = sd.find_check_run (cr.build_id))
         {
           warn << cr << " state " << scr->state_string ()
                << " was stored before notified state " << cr.state_string ()
@@ -579,43 +574,12 @@ namespace brep
       return nullptr;
     }
 
-    service_data::check_run cr; // Updated check run.
-
-    // Create a new check run on GitHub.
-    //
-    auto create = [&cr, &b, &hs, &sd, &error] (const string& iat)
-    {
-      string rq (graphql_request (create_check_runs (sd.repository_id,
-                                                     sd.head_sha,
-                                                     {b},
-                                                     build_state::building,
-                                                     &hs)));
-
-      return mutate_check_run (cr,
-                               {b},
-                               iat,
-                               move (rq),
-                               build_state::building,
-                               error);
-    };
-
-    // Update a check run that already exists on GitHub.
-    //
-    auto update =
-        [&cr, &b, &sd, &error] (const string& iat,
-                                const string& nid,
-                                build_state st = build_state::building)
-    {
-      string rq (graphql_request (
-          update_check_run (sd.repository_id, nid, build_state::building)));
-
-      return mutate_check_run (cr, {b}, iat, move (rq), st, error);
-    };
+    check_run cr; // Updated check run.
 
     // Get a new installation access token if the current one has expired.
     //
-    const installation_access_token* iat (nullptr);
-    optional<installation_access_token> new_iat;
+    const gh_installation_access_token* iat (nullptr);
+    optional<gh_installation_access_token> new_iat;
 
     if (system_clock::now () > sd.installation_access.expires_at)
     {
@@ -633,11 +597,11 @@ namespace brep
 
     if (iat != nullptr)
     {
-      string bid (check_run_name (b)); // Full Build ID.
+      string bid (gh_check_run_name (b)); // Full Build ID.
 
       // Stored check run.
       //
-      const service_data::check_run* scr (sd.find_check_run (bid));
+      const check_run* scr (sd.find_check_run (bid));
 
       if (scr != nullptr && scr->node_id)
       {
@@ -683,7 +647,13 @@ namespace brep
           build_state st (scr->state ? build_state::building
                                      : build_state::built);
 
-          if (update (iat->token, *cr.node_id, st))
+          if (gq_update_check_run (cr,
+                                   iat->token,
+                                   sd.repository_id,
+                                   *cr.node_id,
+                                   b,
+                                   st,
+                                   error))
           {
             // @@ TODO If !scr->state and GH had built then we probably don't
             //         want to run the lambda either but currently it will run
@@ -743,11 +713,11 @@ namespace brep
 
         // Fetch the check run by name from GitHub.
         //
-        pair<optional<check_run>, bool> pr (
-            fetch_check_run (iat->token,
-                             ts.id,
-                             check_run_name (b, &hs),
-                             error));
+        pair<optional<gh_check_run>, bool> pr (
+            gq_fetch_check_run (iat->token,
+                                ts.id,
+                                gh_check_run_name (b, &hs),
+                                error));
 
         if (pr.second) // No errors.
         {
@@ -762,12 +732,20 @@ namespace brep
             // @@ TODO Create with whatever the failed state was if we decide
             //         to store it.
             //
-            if (create (iat->token))
+            if (gq_create_check_run (cr,
+                                     iat->token,
+                                     sd.repository_id, sd.head_sha,
+                                     b,
+                                     build_state::queued,
+                                     hs,
+                                     error))
+            {
               l3 ([&]{trace << "created check_run { " << cr << " }";});
+            }
           }
           else // Check run exists on GitHub.
           {
-            if (pr.first->status == to_string_gh (build_state::queued))
+            if (pr.first->status == gh_to_status (build_state::queued))
             {
               if (scr != nullptr)
               {
@@ -775,8 +753,16 @@ namespace brep
                 cr.state = nullopt;
               }
 
-              if (update (iat->token, pr.first->node_id))
+              if (gq_update_check_run (cr,
+                                       iat->token,
+                                       sd.repository_id,
+                                       pr.first->node_id,
+                                       b,
+                                       build_state::building,
+                                       error))
+              {
                 l3 ([&]{trace << "updated check_run { " << cr << " }";});
+              }
             }
             else
             {
@@ -823,7 +809,7 @@ namespace brep
       if (iat)
         sd.installation_access = *iat;
 
-      if (service_data::check_run* scr = sd.find_check_run (cr.build_id))
+      if (check_run* scr = sd.find_check_run (cr.build_id))
       {
         // Update existing check run.
         //
@@ -929,12 +915,12 @@ namespace brep
   //   repos covered by the installation if installed on an organisation for
   //   example.
   //
-  optional<installation_access_token> ci_github::
+  optional<gh_installation_access_token> ci_github::
   obtain_installation_access_token (uint64_t iid,
                                     string jwt,
                                     const basic_mark& error) const
   {
-    installation_access_token iat;
+    gh_installation_access_token iat;
     try
     {
       // API endpoint.
@@ -987,426 +973,5 @@ namespace brep
     }
 
     return iat;
-  }
-
-  static string
-  to_iso8601 (timestamp t)
-  {
-    return butl::to_string (t,
-                            "%Y-%m-%dT%TZ",
-                            false /* special */,
-                            false /* local */);
-  }
-
-  static timestamp
-  from_iso8601 (const string& s)
-  {
-    return butl::from_string (s.c_str (), "%Y-%m-%dT%TZ", false /* local */);
-  }
-
-  using event = json::event;
-
-  service_data::
-  service_data (const string& json)
-  {
-    json::parser p (json.data (), json.size (), "service_data");
-
-    p.next_expect (event::begin_object);
-
-    // Throw if the schema version is not supported.
-    //
-    version = p.next_expect_member_number<uint64_t> ("version");
-    if (version != 1)
-    {
-      throw invalid_argument ("unsupported service_data schema version: " +
-                              to_string (version));
-    }
-
-    // Installation access token.
-    //
-    p.next_expect_member_object ("installation_access");
-    installation_access.token = p.next_expect_member_string ("token");
-    installation_access.expires_at =
-        from_iso8601 (p.next_expect_member_string ("expires_at"));
-    p.next_expect (event::end_object);
-
-    installation_id =
-        p.next_expect_member_number<uint64_t> ("installation_id");
-    repository_id = p.next_expect_member_string ("repository_id");
-    head_sha = p.next_expect_member_string ("head_sha");
-
-    p.next_expect_member_array ("check_runs");
-    while (p.next_expect (event::begin_object, event::end_array))
-    {
-      string bid (p.next_expect_member_string ("build_id"));
-
-      optional<string> nid;
-      {
-        string* v (p.next_expect_member_string_null ("node_id"));
-        if (v != nullptr)
-          nid = *v;
-      }
-
-      optional<build_state> s;
-      {
-        string* v (p.next_expect_member_string_null ("state"));
-        if (v != nullptr)
-          s = to_build_state (*v);
-      }
-
-      check_runs.emplace_back (move (bid), move (nid), s);
-
-      p.next_expect (event::end_object);
-    }
-
-    p.next_expect (event::end_object);
-  }
-
-  service_data::
-  service_data (string iat_tok,
-                timestamp iat_ea,
-                uint64_t iid,
-                string rid,
-                string hs)
-      : installation_access (move (iat_tok), iat_ea),
-        installation_id (iid),
-        repository_id (move (rid)),
-        head_sha (move (hs))
-  {
-  }
-
-  string service_data::
-  json () const
-  {
-    string b;
-    json::buffer_serializer s (b);
-
-    s.begin_object ();
-
-    s.member ("version", 1);
-
-    // Installation access token.
-    //
-    s.member_begin_object ("installation_access");
-    s.member ("token", installation_access.token);
-    s.member ("expires_at", to_iso8601 (installation_access.expires_at));
-    s.end_object ();
-
-    s.member ("installation_id", installation_id);
-    s.member ("repository_id", repository_id);
-    s.member ("head_sha", head_sha);
-
-    s.member_begin_array ("check_runs");
-    for (const check_run& cr: check_runs)
-    {
-      s.begin_object ();
-      s.member ("build_id", cr.build_id);
-
-      s.member_name ("node_id");
-      if (cr.node_id)
-        s.value (*cr.node_id);
-      else
-        s.value (nullptr);
-
-      s.member_name ("state");
-      if (cr.state)
-        s.value (to_string (*cr.state));
-      else
-        s.value (nullptr);
-
-      s.end_object ();
-    }
-    s.end_array ();
-
-    s.end_object ();
-
-    return b;
-  }
-
-  service_data::check_run* service_data::
-  find_check_run (const string& bid)
-  {
-    for (check_run& cr: check_runs)
-    {
-      if (cr.build_id == bid)
-        return &cr;
-    }
-    return nullptr;
-  }
-
-  ostream&
-  operator<< (ostream& os, const service_data::check_run& cr)
-  {
-    os << "node_id: " << cr.node_id.value_or ("null")
-       << ", build_id: " << cr.build_id
-       << ", state: " << (cr.state ? to_string (*cr.state) : "null");
-
-    return os;
-  }
-
-  // The rest is GitHub request/response type parsing and printing.
-  //
-
-  // Throw invalid_json_input when a required member `m` is missing from a
-  // JSON object `o`.
-  //
-  [[noreturn]] static void
-  missing_member (const json::parser& p, const char* o, const char* m)
-  {
-    throw json::invalid_json_input (
-      p.input_name,
-      p.line (), p.column (), p.position (),
-      o + string (" object is missing member '") + m + '\'');
-  }
-
-  // check_suite
-  //
-  gh::check_suite::
-  check_suite (json::parser& p)
-  {
-    p.next_expect (event::begin_object);
-
-    bool ni (false), hb (false), hs (false), bf (false), at (false);
-
-    // Skip unknown/uninteresting members.
-    //
-    while (p.next_expect (event::name, event::end_object))
-    {
-      auto c = [&p] (bool& v, const char* s)
-      {
-        return p.name () == s ? (v = true) : false;
-      };
-
-      if      (c (ni, "node_id"))     node_id = p.next_expect_string ();
-      else if (c (hb, "head_branch")) head_branch = p.next_expect_string ();
-      else if (c (hs, "head_sha"))    head_sha = p.next_expect_string ();
-      else if (c (bf, "before"))      before = p.next_expect_string ();
-      else if (c (at, "after"))       after = p.next_expect_string ();
-      else p.next_expect_value_skip ();
-    }
-
-    if (!ni) missing_member (p, "check_suite", "node_id");
-    if (!hb) missing_member (p, "check_suite", "head_branch");
-    if (!hs) missing_member (p, "check_suite", "head_sha");
-    if (!bf) missing_member (p, "check_suite", "before");
-    if (!at) missing_member (p, "check_suite", "after");
-  }
-
-  ostream& gh::
-  operator<< (ostream& os, const check_suite& cs)
-  {
-    os << "node_id: " << cs.node_id
-       << ", head_branch: " << cs.head_branch
-       << ", head_sha: " << cs.head_sha
-       << ", before: " << cs.before
-       << ", after: " << cs.after;
-
-    return os;
-  }
-
-  // check_run
-  //
-  gh::check_run::
-  check_run (json::parser& p)
-  {
-    p.next_expect (event::begin_object);
-
-    bool ni (false), nm (false), st (false);
-
-    while (p.next_expect (event::name, event::end_object))
-    {
-      auto c = [&p] (bool& v, const char* s)
-      {
-        return p.name () == s ? (v = true) : false;
-      };
-
-      if      (c (ni, "id"))     node_id = p.next_expect_string ();
-      else if (c (nm, "name"))   name = p.next_expect_string ();
-      else if (c (st, "status")) status = p.next_expect_string ();
-    }
-
-    if (!ni) missing_member (p, "check_run", "id");
-    if (!nm) missing_member (p, "check_run", "name");
-    if (!st) missing_member (p, "check_run", "status");
-  }
-
-  ostream& gh::
-  operator<< (ostream& os, const check_run& cr)
-  {
-    os << "node_id: " << cr.node_id
-       << ", name: " << cr.name
-       << ", status: " << cr.status;
-
-    return os;
-  }
-
-  // repository
-  //
-  gh::repository::
-  repository (json::parser& p)
-  {
-    p.next_expect (event::begin_object);
-
-    bool ni (false), nm (false), fn (false), db (false), cu (false);
-
-    // Skip unknown/uninteresting members.
-    //
-    while (p.next_expect (event::name, event::end_object))
-    {
-      auto c = [&p] (bool& v, const char* s)
-      {
-        return p.name () == s ? (v = true) : false;
-      };
-
-      if      (c (ni, "node_id"))        node_id = p.next_expect_string ();
-      else if (c (nm, "name"))           name = p.next_expect_string ();
-      else if (c (fn, "full_name"))      full_name = p.next_expect_string ();
-      else if (c (db, "default_branch")) default_branch = p.next_expect_string ();
-      else if (c (cu, "clone_url"))      clone_url = p.next_expect_string ();
-      else p.next_expect_value_skip ();
-    }
-
-    if (!ni) missing_member (p, "repository", "node_id");
-    if (!nm) missing_member (p, "repository", "name");
-    if (!fn) missing_member (p, "repository", "full_name");
-    if (!db) missing_member (p, "repository", "default_branch");
-    if (!cu) missing_member (p, "repository", "clone_url");
-  }
-
-  ostream& gh::
-  operator<< (ostream& os, const repository& rep)
-  {
-    os << "node_id: " << rep.node_id
-       << ", name: " << rep.name
-       << ", full_name: " << rep.full_name
-       << ", default_branch: " << rep.default_branch
-       << ", clone_url: " << rep.clone_url;
-
-    return os;
-  }
-
-  // installation
-  //
-  gh::installation::
-  installation (json::parser& p)
-  {
-    p.next_expect (event::begin_object);
-
-    bool i (false);
-
-    // Skip unknown/uninteresting members.
-    //
-    while (p.next_expect (event::name, event::end_object))
-    {
-      auto c = [&p] (bool& v, const char* s)
-      {
-        return p.name () == s ? (v = true) : false;
-      };
-
-      if (c (i, "id")) id = p.next_expect_number<uint64_t> ();
-      else p.next_expect_value_skip ();
-    }
-
-    if (!i) missing_member (p, "installation", "id");
-  }
-
-  ostream& gh::
-  operator<< (ostream& os, const installation& i)
-  {
-    os << "id: " << i.id;
-
-    return os;
-  }
-
-  // check_suite_event
-  //
-  gh::check_suite_event::
-  check_suite_event (json::parser& p)
-  {
-    p.next_expect (event::begin_object);
-
-    bool ac (false), cs (false), rp (false), in (false);
-
-    // Skip unknown/uninteresting members.
-    //
-    while (p.next_expect (event::name, event::end_object))
-    {
-      auto c = [&p] (bool& v, const char* s)
-      {
-        return p.name () == s ? (v = true) : false;
-      };
-
-      if      (c (ac, "action"))       action = p.next_expect_string ();
-      else if (c (cs, "check_suite"))  check_suite = gh::check_suite (p);
-      else if (c (rp, "repository"))   repository = gh::repository (p);
-      else if (c (in, "installation")) installation = gh::installation (p);
-      else p.next_expect_value_skip ();
-    }
-
-    if (!ac) missing_member (p, "check_suite_event", "action");
-    if (!cs) missing_member (p, "check_suite_event", "check_suite");
-    if (!rp) missing_member (p, "check_suite_event", "repository");
-    if (!in) missing_member (p, "check_suite_event", "installation");
-  }
-
-  ostream& gh::
-  operator<< (ostream& os, const check_suite_event& cs)
-  {
-    os << "action: " << cs.action;
-    os << ", check_suite { " << cs.check_suite << " }";
-    os << ", repository { "  << cs.repository << " }";
-    os << ", installation { " << cs.installation << " }";
-
-    return os;
-  }
-
-  // installation_access_token
-  //
-  // Example JSON:
-  //
-  // {
-  //   "token": "ghs_Py7TPcsmsITeVCAWeVtD8RQs8eSos71O5Nzp",
-  //   "expires_at": "2024-02-15T16:16:38Z",
-  //   ...
-  // }
-  //
-  gh::installation_access_token::
-  installation_access_token (json::parser& p)
-  {
-    p.next_expect (event::begin_object);
-
-    bool tk (false), ea (false);
-
-    // Skip unknown/uninteresting members.
-    //
-    while (p.next_expect (event::name, event::end_object))
-    {
-      auto c = [&p] (bool& v, const char* s)
-      {
-        return p.name () == s ? (v = true) : false;
-      };
-
-      if      (c (tk, "token"))      token = p.next_expect_string ();
-      else if (c (ea, "expires_at")) expires_at = from_iso8601 (p.next_expect_string ());
-      else p.next_expect_value_skip ();
-    }
-
-    if (!tk) missing_member (p, "installation_access_token", "token");
-    if (!ea) missing_member (p, "installation_access_token", "expires_at");
-  }
-
-  gh::installation_access_token::
-  installation_access_token (string tk, timestamp ea)
-      : token (move (tk)), expires_at (ea)
-  {
-  }
-
-  ostream& gh::
-  operator<< (ostream& os, const installation_access_token& t)
-  {
-    os << "token: " << t.token << ", expires_at: ";
-    butl::operator<< (os, t.expires_at);
-
-    return os;
   }
 }

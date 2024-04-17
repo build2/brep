@@ -7,6 +7,8 @@
 #include <libbrep/types.hxx>
 #include <libbrep/utility.hxx>
 
+#include <libbutl/curl.hxx>
+
 namespace brep
 {
   // Send a POST request to the GitHub API endpoint `ep`, parse GitHub's JSON
@@ -29,6 +31,8 @@ namespace brep
                const strings& hdrs,
                const string& body = "")
   {
+    using namespace butl;
+
     // Convert the header values to curl header option/value pairs.
     //
     strings hdr_opts;

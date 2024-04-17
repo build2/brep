@@ -13,6 +13,8 @@
 #include <mod/ci-common.hxx>
 #include <mod/tenant-service.hxx>
 
+#include <mod/mod-ci-github-gh.hxx>
+
 namespace brep
 {
   class ci_github: public handler,
@@ -61,14 +63,14 @@ namespace brep
     // Handle the check_suite event `requested` and `rerequested` actions.
     //
     bool
-    handle_check_suite_request (gh::check_suite_event);
+    handle_check_suite_request (gh_check_suite_event);
 
     optional<string>
     generate_jwt (const basic_mark& trace, const basic_mark& error) const;
 
     // Authenticate to GitHub as an app installation.
     //
-    optional<gh::installation_access_token>
+    optional<gh_installation_access_token>
     obtain_installation_access_token (uint64_t install_id,
                                       string jwt,
                                       const basic_mark& error) const;
