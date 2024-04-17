@@ -35,6 +35,35 @@
 //    https://en.wikipedia.org/wiki/HMAC#Definition. A suitable implementation
 //    is provided by OpenSSL.
 
+// @@ TODO LATEST PROBLEMS
+//
+//    1) GH allows following transitions:
+//
+//    queued   <--> building
+//    queued    --> built
+//    building  --> built
+//
+//    I.e., GH does not allow transitions away from built. So this simplifies
+//    things for us.
+//
+//    2) Create check run does not fail if an CR with the same name already
+//       exists: instead it destroys the existing check run before creating
+//       the new check run (with a new node ID). And to a GH user this appears
+//       exactly like a transition from built to building/queued.
+//
+//    So if the first notification's data has not yet been stored, before
+//    creating the CR we first need to check whether it already exists on GH
+//    and then create or update as appropriate.
+//
+//    For build_queued() we can get the list of check runs in a check suite,
+//    100 max at a time (pagination), so it can be done in N/100
+//    exchanges. And using GraphQL the response would be much smaller (return
+//    only the CR name).
+//
+// @@ TODO Centralize exception/error handling around calls to
+//         github_post(). Currently it's mostly duplicated and there is quite
+//         a lot of it.
+//
 using namespace std;
 using namespace butl;
 using namespace web;
@@ -260,10 +289,6 @@ namespace brep
         // Someone manually requested to re-run the check runs in this check
         // suite. Treat as a new request.
         //
-        // @@ TMP Creating check_runs with same names as before will update
-        //        the existing check_runs on GitHub (as opposed to creating
-        //        new check_runs with the same names).
-        //
         return handle_check_suite_request (move (cs));
       }
       else if (cs.action == "completed")
@@ -320,7 +345,10 @@ namespace brep
     installation_access_token installation_access;
 
     uint64_t installation_id;
+    // @@ TODO Rename to repository_node_id.
+    //
     string repository_id; // GitHub-internal opaque repository id.
+
     string head_sha;
 
     // Absent state means we were unable to (conclusively) notify GitHub about
