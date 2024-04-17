@@ -1404,12 +1404,6 @@ namespace brep
     if (bs.empty ()) // Notification is out of order for all builds.
       return nullptr;
 
-    // Queue a check_run for each build.
-    //
-    string rq (
-      graphql_request (
-        queue_check_runs (sd.repository_id, sd.head_sha, bs, &hs)));
-
     // What if we could not notify GitHub about some check runs due to, say, a
     // transient network? In this case we save them with the absent state
     // hoping for things to improve when we try to issue building or built
@@ -1435,85 +1429,28 @@ namespace brep
       iat = &sd.installation_access;
 
     if (iat != nullptr)
-    try
     {
-      // Response type which parses a GraphQL response containing multiple
-      // check_run objects.
+      // @@ TODO Check whether any of these check runs exist on GH before
+      //         creating them.
       //
-      struct resp
+      // Queue a check_run for each build.
+      //
+      string rq (graphql_request (create_check_runs (sd.repository_id,
+                                                     sd.head_sha,
+                                                     bs,
+                                                     build_state::queued,
+                                                     &hs)));
+
+      if (mutate_check_runs (crs,
+                             bs,
+                             iat->token,
+                             move (rq),
+                             build_state::queued,
+                             error))
       {
-        vector<check_run> check_runs; // Received check runs.
-
-        resp (json::parser& p) : check_runs (parse_check_runs_response (p)) {}
-
-        resp () = default;
-      } rs;
-
-      uint16_t sc (
-        github_post (
-          rs,
-          "graphql", // API Endpoint.
-          strings {"Authorization: Bearer " + iat->token},
-          move (rq)));
-
-      if (sc == 200)
-      {
-        if (rs.check_runs.size () == bs.size ())
-        {
-          // Validate the check runs in the response against the builds.
-          //
-          for (size_t i (0); i != rs.check_runs.size (); ++i)
-          {
-            const build& b (bs[i]);
-            const check_run& rcr (rs.check_runs[i]); // Received check run.
-
-            if (rcr.name != check_run_name (b, &hs))
-              error << "unexpected check_run name: '" + rcr.name + '\'';
-            else if (rcr.status != "QUEUED")
-              error << "unexpected check_run status: '" + rcr.status + '\'';
-            else
-            {
-              l3 ([&]{trace << "check_run { " << rcr << " }";});
-
-              service_data::check_run& cr (crs[i]);
-
-              if (!cr.node_id)
-                cr.node_id = move (rcr.node_id);
-
-              cr.state = build_state::queued;
-            }
-          }
-        }
-        else
-          error << "unexpected number of check_run objects in response";
+        for (service_data::check_run& cr: crs)
+          l3 ([&] { trace << "created check_run { " << cr << " }"; });
       }
-      else
-        error << "failed to queue check runs: error HTTP response status "
-              << sc;
-    }
-    catch (const json::invalid_json_input& e)
-    {
-      // Note: e.name is the GitHub API endpoint.
-      //
-      error << "malformed JSON in response from " << e.name << ", line: "
-            << e.line << ", column: " << e.column << ", byte offset: "
-            << e.position << ", error: " << e;
-    }
-    catch (const invalid_argument& e)
-    {
-      error << "malformed header(s) in response: " << e;
-    }
-    catch (const system_error& e)
-    {
-      error << "unable to queue check runs (errno=" << e.code () << "): "
-            << e.what ();
-    }
-    catch (const runtime_error& e) // From parse_check_runs_response().
-    {
-      // GitHub response contained error(s) (could be ours or theirs at this
-      // point).
-      //
-      error << "unable to queue check runs: " << e;
     }
 
     return [bs = move (bs),
