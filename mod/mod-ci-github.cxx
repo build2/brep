@@ -944,7 +944,7 @@ namespace brep
 
       // Parse the HTTP response.
       //
-      int sc; // Status code.
+      uint16_t sc; // Status code.
       try
       {
         // Note: re-open in/out so that they get automatically closed on
@@ -1357,7 +1357,8 @@ namespace brep
       //
       string ep ("app/installations/" + to_string (iid) + "/access_tokens");
 
-      int sc (github_post (iat, ep, strings {"Authorization: Bearer " + jwt}));
+      uint16_t sc (
+          github_post (iat, ep, strings {"Authorization: Bearer " + jwt}));
 
       // Possible response status codes from the access_tokens endpoint:
       //
@@ -1552,8 +1553,9 @@ namespace brep
   ostream&
   operator<< (ostream& os, const service_data::check_run& cr)
   {
-    os << "check_run { node_id: " << cr.node_id.value_or ("null")
-       << ", build_id: " << cr.build_id << " }";
+    os << "node_id: " << cr.node_id.value_or ("null")
+       << ", build_id: " << cr.build_id
+       << ", state: " << (cr.state ? to_string (*cr.state) : "null");
 
     return os;
   }
