@@ -53,6 +53,8 @@ namespace brep
   // with the new state. Return false and issue diagnostics if the request
   // failed.
   //
+  // @@ TODO Support conclusion, output, etc.
+  //
   bool
   gq_update_check_run (check_run& cr,
                        const string& installation_access_token,
