@@ -14,11 +14,13 @@ namespace brep
   string
   gh_to_status (build_state st)
   {
-    // @@ Just return by value (small string optimization).
+    // Just return by value (small string optimization).
     //
-    //   @@ TMP Keep this comment, right?
-    //
-    return gh_status[static_cast<size_t> (st)];
+    switch (st)
+    {
+    case build_state::queued: return "QUEUED";
+      // @@ TODO: complete.
+    }
   }
 
   // Return the build_state corresponding to a GitHub check run status

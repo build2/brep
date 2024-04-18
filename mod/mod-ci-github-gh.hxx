@@ -138,6 +138,12 @@ namespace brep
     gh_installation_access_token () = default;
   };
 
+  string
+  gh_to_iso8601 (timestamp);
+
+  timestamp
+  gh_from_iso8601 (const string&);
+
   ostream&
   operator<< (ostream&, const gh_check_suite&);
 
@@ -155,12 +161,6 @@ namespace brep
 
   ostream&
   operator<< (ostream&, const gh_installation_access_token&);
-
-  string
-  to_iso8601 (timestamp);
-
-  timestamp
-  from_iso8601 (const string&);
 }
 
 #endif // MOD_MOD_CI_GITHUB_GH_HXX
