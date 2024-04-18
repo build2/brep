@@ -400,7 +400,7 @@ namespace brep
   //    showing the list of check runs, if the user is already on the previous
   //    check run's URL, nothing will automatically cause them to be
   //    redirected to the new URL. And so the user may sit on the abandoned
-  //    check run waiting forever for it to completed.)
+  //    check run waiting forever for it to be completed.)
   //
   //    As a result, we will deal with the out of order problem differently
   //    depending on the notification:
@@ -423,7 +423,7 @@ namespace brep
   //    time as queued/building is quite low (unlike queued and building).
   //
   //    Note also that with this semantics it's unlikely but possible that we
-  //    attempt to updat the service data in the wrong order. Specifically, it
+  //    attempt to update the service data in the wrong order. Specifically, it
   //    feels like this should not be possible in the ->building transition
   //    since we skip the building notification unless the check run in the
   //    service data is already in the queued state. But it is theoretically
@@ -439,7 +439,7 @@ namespace brep
   //    receive the reply).
   //
   //    In such cases, we record in the service data that the notification was
-  //    no synchronized and in subsequent notifications we do the best we can:
+  //    not synchronized and in subsequent notifications we do the best we can:
   //    if we have node_id, then we update, otherwise, we create (potentially
   //    overriding the check run created previously).
   //

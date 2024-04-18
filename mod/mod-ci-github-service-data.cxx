@@ -31,7 +31,7 @@ namespace brep
     p.next_expect_member_object ("installation_access");
     installation_access.token = p.next_expect_member_string ("token");
     installation_access.expires_at =
-        from_iso8601 (p.next_expect_member_string ("expires_at"));
+        gh_from_iso8601 (p.next_expect_member_string ("expires_at"));
     p.next_expect (event::end_object);
 
     installation_id =
@@ -93,7 +93,7 @@ namespace brep
     //
     s.member_begin_object ("installation_access");
     s.member ("token", installation_access.token);
-    s.member ("expires_at", to_iso8601 (installation_access.expires_at));
+    s.member ("expires_at", gh_to_iso8601 (installation_access.expires_at));
     s.end_object ();
 
     s.member ("installation_id", installation_id);

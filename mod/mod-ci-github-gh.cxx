@@ -7,9 +7,8 @@
 
 namespace brep
 {
-  static const string gh_status[] {"QUEUED", "IN_PROGRESS", "COMPLETED"};
-
-  // Return the GitHub check run status corresponding to a build_state.
+  // Return the GitHub check run status corresponding to a build_state. Throw
+  // invalid_argument if the build_state value was invalid.
   //
   string
   gh_to_status (build_state st)
@@ -18,8 +17,11 @@ namespace brep
     //
     switch (st)
     {
-    case build_state::queued: return "QUEUED";
-      // @@ TODO: complete.
+    case build_state::queued:   return "QUEUED";
+    case build_state::building: return "IN_PROGRESS";
+    case build_state::built:    return "COMPLETED";
+    default:
+      throw invalid_argument ("invalid build_state value: " + to_string (st));
     }
   }
 
@@ -302,7 +304,7 @@ namespace brep
       };
 
       if      (c (tk, "token"))      token = p.next_expect_string ();
-      else if (c (ea, "expires_at")) expires_at = from_iso8601 (p.next_expect_string ());
+      else if (c (ea, "expires_at")) expires_at = gh_from_iso8601 (p.next_expect_string ());
       else p.next_expect_value_skip ();
     }
 
@@ -326,7 +328,7 @@ namespace brep
   }
 
   string
-  to_iso8601 (timestamp t)
+  gh_to_iso8601 (timestamp t)
   {
     return butl::to_string (t,
                             "%Y-%m-%dT%TZ",
@@ -335,7 +337,7 @@ namespace brep
   }
 
   timestamp
-  from_iso8601 (const string& s)
+  gh_from_iso8601 (const string& s)
   {
     return butl::from_string (s.c_str (), "%Y-%m-%dT%TZ", false /* local */);
   }

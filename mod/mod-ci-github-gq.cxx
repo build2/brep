@@ -364,8 +364,6 @@ namespace brep
 
   // Serialize an `updateCheckRun` mutation for one build to GraphQL.
   //
-  // @@ TODO Support conclusion, output, etc.
-  //
   static string
   gq_mutation_update_check_run (const string& ri, // Repository ID.
                                 const string& ni, // Node ID.
