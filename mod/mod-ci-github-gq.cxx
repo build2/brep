@@ -51,7 +51,7 @@ namespace brep
   // @@ TODO: specify what parse_data may throw (probably only
   // invalid_json_input).
   //
-  // @@ TODO errors comes before data in GitHub's responses.
+  // @@ TODO data comes before errors in GitHub's responses.
   //
   static void
   gq_parse_response (json::parser& p,
@@ -200,7 +200,6 @@ namespace brep
   static bool
   gq_mutate_check_runs (vector<check_run>& crs,
                         const string& iat,
-                        const vector<reference_wrapper<const build>>& bs,
                         string rq,
                         build_state st,
                         const basic_mark& error) noexcept
@@ -230,14 +229,13 @@ namespace brep
       {
         rcrs = move (rs.check_runs);
 
-        if (rcrs.size () == bs.size ())
+        if (rcrs.size () == crs.size ())
         {
           for (size_t i (0); i != rcrs.size (); ++i)
           {
             // Validate the check run in the response against the build.
             //
             const gh_check_run& rcr (rcrs[i]); // Received check run.
-            const build& b (bs[i]);
 
             build_state rst (gh_from_status (rcr.status)); // Received state.
 
@@ -408,7 +406,7 @@ namespace brep
     string rq (gq_serialize_request (
         gq_mutation_create_check_runs (rid, hs, bs, st, &bh)));
 
-    return gq_mutate_check_runs (crs, iat, bs, move (rq), st, error);
+    return gq_mutate_check_runs (crs, iat, move (rq), st, error);
   }
 
   bool
@@ -435,7 +433,6 @@ namespace brep
                        const string& iat,
                        const string& rid,
                        const string& nid,
-                       const build& b,
                        build_state st,
                        const basic_mark& error)
   {
@@ -444,7 +441,7 @@ namespace brep
 
     vector<check_run> crs {move (cr)};
 
-    bool r (gq_mutate_check_runs (crs, iat, {b}, move (rq), st, error));
+    bool r (gq_mutate_check_runs (crs, iat, move (rq), st, error));
 
     cr = move (crs[0]);
 

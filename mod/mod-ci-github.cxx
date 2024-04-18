@@ -651,7 +651,6 @@ namespace brep
                                    iat->token,
                                    sd.repository_id,
                                    *cr.node_id,
-                                   b,
                                    st,
                                    error))
           {
@@ -757,7 +756,6 @@ namespace brep
                                        iat->token,
                                        sd.repository_id,
                                        pr.first->node_id,
-                                       b,
                                        build_state::building,
                                        error))
               {

@@ -133,23 +133,14 @@ namespace brep
   {
     p.next_expect (event::begin_object);
 
-    bool ni (false), nm (false), st (false);
+    // We always ask for this exact set of fields to be returned in GraphQL
+    // requests.
+    //
+    node_id = p.next_expect_member_string ("id");
+    name = p.next_expect_member_string ("name");
+    status = p.next_expect_member_string ("status");
 
-    while (p.next_expect (event::name, event::end_object))
-    {
-      auto c = [&p] (bool& v, const char* s)
-      {
-        return p.name () == s ? (v = true) : false;
-      };
-
-      if      (c (ni, "id"))     node_id = p.next_expect_string ();
-      else if (c (nm, "name"))   name = p.next_expect_string ();
-      else if (c (st, "status")) status = p.next_expect_string ();
-    }
-
-    if (!ni) missing_member (p, "gh_check_run", "id");
-    if (!nm) missing_member (p, "gh_check_run", "name");
-    if (!st) missing_member (p, "gh_check_run", "status");
+    p.next_expect (event::end_object);
   }
 
   ostream&

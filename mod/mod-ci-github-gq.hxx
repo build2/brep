@@ -58,7 +58,6 @@ namespace brep
                        const string& installation_access_token,
                        const string& repository_id,
                        const string& node_id,
-                       const build&,
                        build_state,
                        const basic_mark& error);
 
