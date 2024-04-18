@@ -40,6 +40,8 @@ namespace brep
 
   // The "check_suite" object within a check_suite webhook event request.
   //
+  // @@ TODO Remove unused fields.
+  //
   struct gh_check_suite
   {
     string node_id;
