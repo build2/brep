@@ -51,14 +51,10 @@ namespace brep
           nid = *v;
       }
 
-      optional<build_state> s;
-      {
-        string* v (p.next_expect_member_string_null ("state"));
-        if (v != nullptr)
-          s = to_build_state (*v);
-      }
+      build_state s (to_build_state (p.next_expect_member_string ("state")));
+      bool ss (p.next_expect_member_boolean<bool> ("state_synced"));
 
-      check_runs.emplace_back (move (bid), move (nid), s);
+      check_runs.emplace_back (move (bid), move (nid), s, ss);
 
       p.next_expect (event::end_object);
     }
@@ -112,11 +108,8 @@ namespace brep
       else
         s.value (nullptr);
 
-      s.member_name ("state");
-      if (cr.state)
-        s.value (to_string (*cr.state));
-      else
-        s.value (nullptr);
+      s.member ("state", to_string (cr.state));
+      s.member ("state_synced", cr.state_synced);
 
       s.end_object ();
     }
@@ -143,7 +136,7 @@ namespace brep
   {
     os << "node_id: " << cr.node_id.value_or ("null")
        << ", build_id: " << cr.build_id
-       << ", state: " << (cr.state ? to_string (*cr.state) : "null");
+       << ", state: " << cr.state_string ();
 
     return os;
   }

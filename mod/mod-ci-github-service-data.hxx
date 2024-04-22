@@ -27,26 +27,16 @@ namespace brep
     string                build_id; // Full build id.
     optional<string>      node_id;  // GitHub id.
 
-    // @@ TODO
-    //
-    // build_state           state;
-    // bool                  state_synced;
-
-    // string
-    // state_string () const
-    // {
-    //   string r (to_string (*state));
-    //   if (!state_synced)
-    //     r += "(unsynchronized)";
-    //   return r;
-    // }
-
-    optional<build_state> state;
+    build_state           state;
+    bool                  state_synced;
 
     string
     state_string () const
     {
-      return state ? to_string (*state) : "null";
+      string r (to_string (state));
+      if (!state_synced)
+        r += "(unsynchronized)";
+      return r;
     }
   };
 

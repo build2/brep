@@ -254,6 +254,7 @@ namespace brep
                 cr.node_id = move (rcr.node_id);
 
               cr.state = gh_from_status (rcr.status);
+              cr.state_synced = true;
             }
           }
 
