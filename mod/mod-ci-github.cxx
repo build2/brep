@@ -491,10 +491,13 @@ namespace brep
 
       if (scr == nullptr)
       {
-        crs.emplace_back (move (bid), nullopt, nullopt);
+        crs.emplace_back (move (bid),
+                          nullopt,
+                          build_state::queued,
+                          false /* state_synced */);
         bs.push_back (b);
       }
-      else if (!scr->state)
+      else if (!scr->state_synced)
         ; // Ignore network issue.
       else if (istate && *istate == build_state::building)
         ; // Ignore interrupted.
@@ -540,9 +543,6 @@ namespace brep
 
     if (iat != nullptr)
     {
-      // @@ TODO Check whether any of these check runs exist on GH before
-      //         creating them.
-      //
       // Queue a check_run for each build.
       //
       if (gq_create_check_runs (crs,
@@ -669,7 +669,7 @@ namespace brep
       {
         // The check run exists on GitHub and in the persisted service data.
         //
-        if (!scr->state || *scr->state == build_state::queued)
+        if (!scr->state_synced || scr->state == build_state::queued)
         {
           // If the stored state is queued (most likely), at least
           // build_queued() and its lambda has run. If this is all then GitHub
@@ -699,15 +699,15 @@ namespace brep
           // API has the same semantics) so we can just try to update to
           // building and see what the actual status it returns is.
           //
-          // If scr->state is nullopt then GitHub has either queued or built
-          // but we know build_built() has run so we need to update to built
-          // instead of building.
+          // If scr->state_synced is false then GitHub has either queued or
+          // built but we know build_built() has run so we need to update to
+          // built instead of building.
           //
           cr = move (*scr);
-          cr.state = nullopt;
+          cr.state_synced = false;
 
-          build_state st (scr->state ? build_state::building
-                                     : build_state::built);
+          build_state st (scr->state_synced ? build_state::building
+                                            : build_state::built);
 
           if (gq_update_check_run (cr,
                                    iat->token,
@@ -716,10 +716,10 @@ namespace brep
                                    st,
                                    error))
           {
-            // @@ TODO If !scr->state and GH had built then we probably don't
-            //         want to run the lambda either but currently it will run
-            //         and this update message is not accurate. Is stored
-            //         failed state the only way?
+            // @@ TODO If !scr->state_synced and GH had built then we probably
+            //         don't want to run the lambda either but currently it
+            //         will run and this update message is not accurate. Is
+            //         stored failed state the only way?
             //
             if (cr.state == st)
               l3 ([&]{trace << "updated check_run { " << cr << " }";});
@@ -734,11 +734,11 @@ namespace brep
             }
           }
         }
-        else if (*scr->state == build_state::built)
+        else if (scr->state == build_state::built)
         {
           // Ignore out of order built notification.
           //
-          assert (*scr->state == build_state::built);
+          assert (scr->state == build_state::built);
 
           warn << *scr << ": "
                << "out of order transition from "
@@ -794,7 +794,7 @@ namespace brep
         // @@ TODO What if the failed GH update was for built? May end up with
         //         permanently building check run.
         //
-        if (!scr->state || scr->state == build_state::queued)
+        if (!scr->state_synced || scr->state == build_state::queued)
         {
           scr->state = cr.state;
           if (!scr->node_id)
