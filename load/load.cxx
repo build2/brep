@@ -437,6 +437,21 @@ load_packages (const options& lo,
 
     if (p == nullptr)
     {
+      // Apply the package manifest overrides.
+      //
+      if (!overrides.empty ())
+      try
+      {
+        pm.override (overrides, overrides_name);
+      }
+      catch (const manifest_parsing& e)
+      {
+        cerr << "error: unable to override " << pm.name << ' ' << pm.version
+             << " manifest: " << e << endl;
+
+        throw failed ();
+      }
+
       // Convert the package manifest build configurations (contain public
       // keys data) into the brep's build package configurations (contain
       // public key object lazy pointers). Keep the bot key lists empty if
@@ -465,19 +480,6 @@ load_packages (const options& lo,
 
       if (rp->internal)
       {
-        if (!overrides.empty ())
-        try
-        {
-          pm.override (overrides, overrides_name);
-        }
-        catch (const manifest_parsing& e)
-        {
-          cerr << "error: unable to override " << p << " manifest: " << e
-               << endl;
-
-          throw failed ();
-        }
-
         // Create internal package object.
         //
         // Return nullopt if the text is in a file (can happen if the
