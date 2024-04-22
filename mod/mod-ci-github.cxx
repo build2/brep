@@ -754,96 +754,14 @@ namespace brep
         // No state has been persisted, or one or both of the other
         // notifications were unable to create the check run on GitHub.
         //
-        // It's also possible that another notification has since created the
-        // check run on GitHub but its lambda just hasn't run yet.
-        //
         // Thus the check run may or may not exist on GitHub.
         //
-        // Because creation destroys check runs with the same name (see
-        // comments at top of function) we have to check whether the check run
-        // exists on GitHub before we can do anything.
+        // Do nothing because build_queued() may currently be creating the
+        // check run in which case doing so here would result in a duplicate
+        // check run. The queued->building transition will be lost but that's
+        // acceptable as long as the check run ends up in the built state.
         //
-        // Destructive creation would be catastrophic if, for example, our
-        // "new" building check run replaced the existing built one because it
-        // would look exactly like a transition from built back to building in
-        // the GitHub UI. And then the built lambda could run after our
-        // building lambda, creating an opportunity for the real node ID to be
-        // overwritten with the old one.
-        //
-        cr.build_id = move (bid);
-
-        // Fetch the check run by name from GitHub.
-        //
-        pair<optional<gh_check_run>, bool> pr (
-            gq_fetch_check_run (iat->token,
-                                ts.id,
-                                gh_check_run_name (b, &hs),
-                                error));
-
-        if (pr.second) // No errors.
-        {
-          if (!pr.first) // Check run does not exist on GitHub.
-          {
-            // Assume the most probable cases: build_queued() failed to create
-            // the check run or build_building() is running before
-            // build_queued(), so creating with building state is
-            // correct. (The least likely being that build_built() ran before
-            // this, in which case we should create with the built state.)
-            //
-            // @@ TODO Create with whatever the failed state was if we decide
-            //         to store it.
-            //
-            if (gq_create_check_run (cr,
-                                     iat->token,
-                                     sd.repository_id, sd.head_sha,
-                                     b,
-                                     build_state::queued,
-                                     hs,
-                                     error))
-            {
-              l3 ([&]{trace << "created check_run { " << cr << " }";});
-            }
-          }
-          else // Check run exists on GitHub.
-          {
-            if (pr.first->status == gh_to_status (build_state::queued))
-            {
-              if (scr != nullptr)
-              {
-                cr = move (*scr);
-                cr.state = nullopt;
-              }
-
-              if (gq_update_check_run (cr,
-                                       iat->token,
-                                       sd.repository_id,
-                                       pr.first->node_id,
-                                       build_state::building,
-                                       error))
-              {
-                l3 ([&]{trace << "updated check_run { " << cr << " }";});
-              }
-            }
-            else
-            {
-              // Do nothing because the GitHub state is already built so the
-              // lambda returned by build_built() will update the database to
-              // built.
-              //
-              return nullptr;
-            }
-          }
-        }
-        else // Error communicating with GitHub.
-        {
-          // Can't tell whether the check run exists GitHub. Make the final
-          // decision on whether or not to store nullopt in node_id and state
-          // based on what's in the database when the lambda runs
-          // (build_built() and its lambda could run in the meantime).
-          //
-          // @@ TODO Store build_state::building if we start storing failed
-          //         state.
-        }
+        return nullptr;
       }
     }
 

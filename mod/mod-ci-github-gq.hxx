@@ -62,25 +62,6 @@ namespace brep
                        const string& node_id,
                        build_state,
                        const basic_mark& error);
-
-  // Fetch from GitHub the check run with the specified name (hints-shortened
-  // build ID).
-  //
-  // Return the check run or nullopt if no such check run exists.
-  //
-  // In case of error diagnostics will be issued and false returned in second.
-  //
-  // Note that the existence of more than one check run with the same name is
-  // considered an error and reported as such. The API docs imply that there
-  // can be more than one check run with the same name in a check suite, but
-  // the observed behavior is that creating a check run destroys the existent
-  // one, leaving only the new one with a different node ID.
-  //
-  pair<optional<gh_check_run>, bool>
-  gq_fetch_check_run (const string& installation_access_token,
-                      const string& check_suite_id,
-                      const string& cr_name,
-                      const basic_mark& error) noexcept;
 }
 
 #endif // MOD_MOD_CI_GITHUB_GQ_HXX
