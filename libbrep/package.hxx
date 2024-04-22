@@ -875,16 +875,17 @@ namespace brep
       id_column("") key_column("") value_column("")                       \
       section(unused_section)
 
-    #pragma db member(build_config_bot_keys)                           \
-      virtual(package_build_bot_keys_map)                              \
-      after(build_config_auxiliaries)                                  \
-      get(odb::nested_get (                                            \
-            brep::build_package_config_bot_keys (this.build_configs))) \
-      set(brep::build_package_config_bot_keys<                         \
-            lazy_shared_ptr<brep::public_key>> bks;                    \
-          odb::nested_set (bks, std::move (?));                        \
-          move (bks).to_configs (this.build_configs))                  \
-      id_column("") key_column("") value_column("key_") value_not_null \
+    #pragma db member(build_config_bot_keys)                            \
+      virtual(package_build_bot_keys_map)                               \
+      after(build_config_auxiliaries)                                   \
+      get(odb::nested_get (                                             \
+            brep::build_package_config_bot_keys<                        \
+              lazy_shared_ptr<brep::public_key>> (this.build_configs))) \
+      set(brep::build_package_config_bot_keys<                          \
+            lazy_shared_ptr<brep::public_key>> bks;                     \
+          odb::nested_set (bks, std::move (?));                         \
+          move (bks).to_configs (this.build_configs))                   \
+      id_column("") key_column("") value_column("key_") value_not_null  \
       section(unused_section)
 
     #pragma db member(build_section)  load(lazy) update(always)

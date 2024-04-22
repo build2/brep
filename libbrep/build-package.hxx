@@ -308,16 +308,17 @@ namespace brep
       id_column("") key_column("") value_column("")                 \
       section(auxiliaries_section)
 
-    #pragma db member(config_bot_keys)                           \
-      virtual(build_package_bot_keys_map)                        \
-      after(config_auxiliaries)                                  \
-      get(odb::nested_get (                                      \
-            brep::build_package_config_bot_keys (this.configs))) \
-      set(brep::build_package_config_bot_keys<                   \
-            lazy_shared_ptr<brep::build_public_key>> bks;        \
-          odb::nested_set (bks, std::move (?));                  \
-          move (bks).to_configs (this.configs))                  \
-      id_column("") key_column("") value_column("key_")          \
+    #pragma db member(config_bot_keys)                                  \
+      virtual(build_package_bot_keys_map)                               \
+      after(config_auxiliaries)                                         \
+      get(odb::nested_get (                                             \
+            brep::build_package_config_bot_keys<                        \
+              lazy_shared_ptr<brep::build_public_key>> (this.configs))) \
+      set(brep::build_package_config_bot_keys<                          \
+            lazy_shared_ptr<brep::build_public_key>> bks;               \
+          odb::nested_set (bks, std::move (?));                         \
+          move (bks).to_configs (this.configs))                         \
+      id_column("") key_column("") value_column("key_")                 \
       section(bot_keys_section)
 
     #pragma db member(constraints_section) load(lazy) update(always)
