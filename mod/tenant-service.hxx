@@ -53,16 +53,18 @@ namespace brep
   // While the implementation tries to make sure the notifications arrive in
   // the correct order, this is currently done by imposing delays (some
   // natural, such as building->built, and some artificial, such as
-  // queued->building). As result, it is unlikely but possible to be notified
-  // about the state transitions in the wrong order, especially if processing
-  // notifications can take a long time. To minimize the chance of this
-  // happening, the service implementation should strive to batch the queued
-  // state notifications (of which there could be hundreds) in a single
-  // request if at all possible. Also, if supported by the third-party API, it
-  // makes sense for the implementation to protect against overwriting later
-  // states with earlier. For example, if it's possible to place a condition
-  // on a notification, it makes sense to only set the state to queued if none
-  // of the later states (e.g., building) are already in effect.
+  // queued->building). As result, it is unlikely but possible to observe the
+  // state transition notifications in the wrong order, especially if
+  // processing notifications can take a long time. For example, while
+  // processing the queued notification, the building notification may arrive
+  // in a different thread. To minimize the chance of this happening, the
+  // service implementation should strive to batch the queued state
+  // notifications (of which there could be hundreds) in a single request if
+  // at all possible. Also, if supported by the third-party API, it makes
+  // sense for the implementation to protect against overwriting later states
+  // with earlier. For example, if it's possible to place a condition on a
+  // notification, it makes sense to only set the state to queued if none of
+  // the later states (e.g., building) are already in effect.
   //
   // Note also that it's possible for the build to get deleted at any stage
   // without any further notifications. This can happen, for example, due to

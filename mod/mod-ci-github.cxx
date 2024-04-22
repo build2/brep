@@ -37,31 +37,6 @@
 //    https://en.wikipedia.org/wiki/HMAC#Definition. A suitable implementation
 //    is provided by OpenSSL.
 
-// @@ TODO LATEST PROBLEMS
-//
-//    1) GH allows following transitions:
-//
-//    queued   <--> building
-//    queued    --> built
-//    building  --> built
-//
-//    I.e., GH does not allow transitions away from built. So this simplifies
-//    things for us.
-//
-//    2) Create check run does not fail if an CR with the same name already
-//       exists: instead it destroys the existing check run before creating
-//       the new check run (with a new node ID). And to a GH user this appears
-//       exactly like a transition from built to building/queued.
-//
-//    So if the first notification's data has not yet been stored, before
-//    creating the CR we first need to check whether it already exists on GH
-//    and then create or update as appropriate.
-//
-//    For build_queued() we can get the list of check runs in a check suite,
-//    100 max at a time (pagination), so it can be done in N/100
-//    exchanges. And using GraphQL the response would be much smaller (return
-//    only the CR name).
-//
 // @@ TODO Centralize exception/error handling around calls to
 //         github_post(). Currently it's mostly duplicated and there is quite
 //         a lot of it.
@@ -381,6 +356,93 @@ namespace brep
 
     return true;
   }
+
+  // Build state change notifications (see tenant-services.hxx for
+  // background). Mapping our state transitions to GitHub pose multiple
+  // problems:
+  //
+  // 1. In our model we have the building->queued (interrupted) and
+  //    built->queued (rebuild) transitions. We are going to ignore both of
+  //    them when notifying GitHub. The first is not important (we expect the
+  //    state to go back to building shortly). The second should normally not
+  //    happen and would mean that a completed check suite may go back on its
+  //    conclusion (which would be pretty confusing for the user).
+  //
+  //    So, for GitHub notifications, we only have the following linear
+  //    transition sequence:
+  //
+  //    -> queued -> building -> built
+  //
+  //    Note, however, that because we ignore certain transitions, we can now
+  //    observe "degenerate" state changes that we need to ignore:
+  //
+  //    building -> [queued] -> building
+  //    built -> [queued] -> ...
+  //
+  // 2. As mentioned in tenant-services.hxx, we may observe the notifications
+  //    as arriving in the wrong order. Unfortunately, GitHub provides no
+  //    mechanisms to help with that. In fact, GitHub does not even prevent
+  //    the creation of multiple check runs with the same name (it will always
+  //    use the last created instance, regardless of the status, timestamps,
+  //    etc). As a result, we cannot, for example, rely on the failure to
+  //    create a new check run in response to the queued notification as an
+  //    indication of a subsequent notification (e.g., building) having
+  //    already occurred.
+  //
+  //    The only aid in this area that GitHub provides is that it prevents
+  //    updating a check run in the built state to a former state (queued or
+  //    building). But one can still create a new check run with the same name
+  //    and a former state.
+  //
+  //    (Note that we should also be careful if trying to take advantage of
+  //    this "check run override" semantics: each created check run gets a new
+  //    URL and while the GitHub UI will always point to the last created when
+  //    showing the list of check runs, if the user is already on the previous
+  //    check run's URL, nothing will automatically cause them to be
+  //    redirected to the new URL. And so the user may sit on the abandoned
+  //    check run waiting forever for it to completed.)
+  //
+  //    As a result, we will deal with the out of order problem differently
+  //    depending on the notification:
+  //
+  //    queued    Skip if there is already a check run in service data,
+  //              otherwise create new.
+  //
+  //    building  Skip if there is no check run in service data or it's
+  //              not in the queued state, otherwise update.
+  //
+  //    built     Update if there is check run in service data and its
+  //              state is not built, otherwise create new.
+  //
+  //    The rationale for this semantics is as follows: the building
+  //    notification is a "nice to have" and can be skipped if things are not
+  //    going normally. In contrast, the built notification cannot be skipped
+  //    and we must either update the existing check run or create a new one
+  //    (hopefully overriding the one created previously, if any). Note that
+  //    the likelihood of the built notification being performed at the same
+  //    time as queued/building is quite low (unlike queued and building).
+  //
+  //    Note also that with this semantics it's unlikely but possible that we
+  //    attempt to updat the service data in the wrong order. Specifically, it
+  //    feels like this should not be possible in the ->building transition
+  //    since we skip the building notification unless the check run in the
+  //    service data is already in the queued state. But it is theoretically
+  //    possible in the ->built transition. For example, we may be updating
+  //    the service data for the queued notification after it has already been
+  //    updated by the built notification. In such cases we should not be
+  //    overriding the latter state (built) with the former (queued).
+  //
+  // 3. We may not be able to "conclusively" notify GitHub, for example, due
+  //    to a transient network error. The "conclusively" part means that the
+  //    notification may or may not have gone through (though it feels the
+  //    common case will be the inability to send the request rather than
+  //    receive the reply).
+  //
+  //    In such cases, we record in the service data that the notification was
+  //    no synchronized and in subsequent notifications we do the best we can:
+  //    if we have node_id, then we update, otherwise, we create (potentially
+  //    overriding the check run created previously).
+  //
 
   function<optional<string> (const tenant_service&)> ci_github::
   build_queued (const tenant_service& ts,
