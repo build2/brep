@@ -215,7 +215,7 @@ namespace brep
       {
         vector<gh_check_run> check_runs; // Received check runs.
 
-        resp (json::parser& p) : check_runs (gq_parse_response_check_runs (p)) {}
+        resp (json::parser& p): check_runs (gq_parse_response_check_runs (p)) {}
 
         resp () = default;
       } rs;
