@@ -443,7 +443,6 @@ namespace brep
   //    if we have node_id, then we update, otherwise, we create (potentially
   //    overriding the check run created previously).
   //
-
   function<optional<string> (const tenant_service&)> ci_github::
   build_queued (const tenant_service& ts,
                 const vector<build>& builds,
@@ -464,63 +463,15 @@ namespace brep
       return nullptr;
     }
 
-    // All builds except those for which this notification is out of order and
-    // thus would cause a spurious backwards state transition.
-    //
     vector<reference_wrapper<const build>> bs;
     vector<check_run> crs; // Parallel to bs.
 
-    // Exclude builds for which this is an out of order notification.
-    //
     for (const build& b: builds)
     {
-      // To keep things simple we are going to queue/create a new check run
-      // only if we have no corresponding state (which means we haven't yet
-      // done anything about this check run).
-      //
-      // In particular, this will ignore the building->queued (interrupted)
-      // transition so on GitHub the check run will continue showing as
-      // building, which is probably not a big deal. Also, this sidesteps
-      // various "absent state" corner.
-      //
-      // Note: never go back on the built state.
-      //
       string bid (gh_check_run_name (b)); // Full Build ID.
 
       const check_run* scr (sd.find_check_run (bid));
-
-      if (scr == nullptr)
-      {
-        crs.emplace_back (move (bid),
-                          nullopt,
-                          build_state::queued,
-                          false /* state_synced */);
-        bs.push_back (b);
-      }
-      else if (!scr->state_synced)
-        ; // Ignore network issue.
-      else if (istate && *istate == build_state::building)
-        ; // Ignore interrupted.
-      else
-      {
-        // Out of order queued notification or a rebuild (not allowed).
-        //
-        warn << *scr << ": "
-             << "unexpected transition from "
-             << (istate ? to_string (*istate) : "null") << " to "
-             << to_string (build_state::queued)
-             << "; previously recorded check_run state: "
-             << scr->state_string ();
-      }
     }
-
-    if (bs.empty ()) // Notification is out of order for all builds.
-      return nullptr;
-
-    // What if we could not notify GitHub about some check runs due to, say, a
-    // transient network? In this case we save them with the absent state
-    // hoping for things to improve when we try to issue building or built
-    // notifications.
 
     // Get a new installation access token if the current one has expired.
     //
@@ -587,29 +538,17 @@ namespace brep
       for (size_t i (0); i != bs.size (); ++i)
       {
         const check_run& cr (crs[i]);
-
-        // Note that this service data may not be the same as what we observed
-        // in the build_queued() function above. For example, some check runs
-        // that we have queued may have already transitioned to building. So
-        // we skip any check runs that are already present.
-        //
-        if (check_run* scr = sd.find_check_run (cr.build_id))
-        {
-          warn << cr << " state " << scr->state_string ()
-               << " was stored before notified state " << cr.state_string ()
-               << " could be stored";
-        }
-        else
-          sd.check_runs.push_back (cr);
       }
 
       return sd.json ();
     };
   }
 
+  // @@ TODO Are hints still required? And for built?
+  //
   function<optional<string> (const tenant_service&)> ci_github::
   build_building (const tenant_service& ts, const build& b,
-                  const build_hints& hs,
+                  const build_hints&,
                   const diag_epilogue& log_writer) const noexcept
   {
     // Note that we may receive this notification before the corresponding
