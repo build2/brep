@@ -443,11 +443,6 @@ namespace brep
   //    if we have node_id, then we update, otherwise, we create (potentially
   //    overriding the check run created previously).
   //
-  //      @@ TMP If we can't update to built in queued due to missing result,
-  //             then we can't do it in building either, right? And in built
-  //             we're updating to built regardless of whether previous
-  //             updates failed? So what is the state_synced used for then?
-  //
   function<optional<string> (const tenant_service&)> ci_github::
   build_queued (const tenant_service& ts,
                 const vector<build>& builds,
@@ -477,7 +472,7 @@ namespace brep
     //
     for (const build& b: builds)
     {
-      string bid (gh_check_run_name (b)); // Full Build ID.
+      string bid (gh_check_run_name (b)); // Full build ID.
 
       if (const check_run* scr = sd.find_check_run (bid))
       {
@@ -487,26 +482,21 @@ namespace brep
         {
           // Out of order queued notification.
           //
-          warn << "check run " << scr->build_id << ": out of order "
-               << to_string (build_state::queued)
-               << " notification; previously saved state: "
-               << scr->state_string ();
+          warn << "check run " << bid << ": out of order queued "
+               << "notification; existing state: " << scr->state_string ();
         }
         else if (*istate == build_state::built)
         {
-          // Invalid built->queued transition.
+          // Unexpectd built->queued transition (rebuild).
           //
-          warn << "check run " << scr->build_id
-               << ": invalid transition from "
-               << to_string (build_state::built) << " to "
-               << to_string (build_state::queued);
+          warn << "check run " << bid << ": unexpected rebuild";
         }
         else
           ; // Ignore interrupted.
       }
       else
       {
-        // No stored check run for this build so prepare to create one for it.
+        // No stored check run for this build so prepare to create one.
         //
         bs.push_back (b);
 
@@ -541,7 +531,7 @@ namespace brep
 
     if (iat != nullptr)
     {
-      // Queue a check_run for each build.
+      // Create a check_run for each build.
       //
       if (gq_create_check_runs (crs,
                                 iat->token,
@@ -551,7 +541,7 @@ namespace brep
                                 hs,
                                 error))
       {
-        for (check_run& cr: crs)
+        for (const check_run& cr: crs)
           l3 ([&]{trace << "created check_run { " << cr << " }";});
       }
     }
@@ -585,14 +575,17 @@ namespace brep
 
         // Note that this service data may not be the same as what we observed
         // in the build_queued() function above. For example, some check runs
-        // that we have queued may have already transitioned to building. So
-        // we skip any check runs that are already present.
+        // that we have queued may have already transitioned to built. So we
+        // skip any check runs that are already present.
         //
         if (const check_run* scr = sd.find_check_run (cr.build_id))
         {
-          warn << cr << " state " << scr->state_string ()
-               << " was stored before notified state " << cr.state_string ()
-               << " could be stored";
+          // Doesn't looks like printing new/existing check run node_id will
+          // be of any help.
+          //
+          warn << "check run " << cr.build_id << ": out of order queued "
+               << "notification service data update; existing state: "
+               << scr->state_string ();
         }
         else
           sd.check_runs.push_back (cr);
