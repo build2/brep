@@ -1109,7 +1109,7 @@ handle (request& rq, response& rs)
       const tenant_service_build_queued* tsq (nullptr);
       optional<pair<tenant_service, shared_ptr<build>>> tss;
       vector<build> qbs;
-      tenant_service_base::build_hints bhs;
+      tenant_service_build_queued::build_queued_hints qhs;
       optional<build_state> initial_state;
       bool rebuild_forced_build (false);
       bool rebuild_interrupted_rebuild (false);
@@ -1181,14 +1181,14 @@ handle (request& rq, response& rs)
         return r;
       };
 
-      auto build_hints = [this] (const build_package& p)
+      auto queue_hints = [this] (const build_package& p)
       {
         buildable_package_count tpc (
           build_db_->query_value<buildable_package_count> (
             query<buildable_package_count>::build_tenant::id == p.id.tenant));
 
-        return tenant_service_base::build_hints {tpc == 1,
-                                                 p.configs.size () == 1};
+        return tenant_service_build_queued::build_queued_hints {
+          tpc == 1, p.configs.size () == 1};
       };
 
       // Collect the auxiliary machines required for testing of the specified
@@ -1976,7 +1976,7 @@ handle (request& rq, response& rs)
                           (*initial_state != build_state::queued &&
                            !rebuild_forced_build))
                       {
-                        bhs = build_hints (*p);
+                        qhs = queue_hints (*p);
 
                         t->queued_timestamp = system_clock::now ();
                         build_db_->update (t);
@@ -2216,8 +2216,6 @@ handle (request& rq, response& rs)
                       tsb = dynamic_cast<const tenant_service_build_building*> (s);
                       tsq = dynamic_cast<const tenant_service_build_queued*> (s);
 
-                      bhs = build_hints (*p);
-
                       if (tsq != nullptr)
                       {
                         qbs = queue_builds (*p, *b);
@@ -2231,6 +2229,8 @@ handle (request& rq, response& rs)
                         //
                         if (!qbs.empty () || !rebuild_interrupted_rebuild)
                         {
+                          qhs = queue_hints (*p);
+
                           t->queued_timestamp = system_clock::now ();
                           build_db_->update (t);
                         }
@@ -2318,7 +2318,7 @@ handle (request& rq, response& rs)
           if (auto f = tsq->build_queued (ss,
                                           qbs,
                                           nullopt /* initial_state */,
-                                          bhs,
+                                          qhs,
                                           log_writer_))
           {
             conn = build_db_->connection ();
@@ -2350,7 +2350,7 @@ handle (request& rq, response& rs)
           if (auto f = tsq->build_queued (ss,
                                           qbs,
                                           initial_state,
-                                          bhs,
+                                          qhs,
                                           log_writer_))
           {
             conn = build_db_->connection ();
