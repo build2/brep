@@ -21,6 +21,8 @@ namespace butl
 
 namespace brep
 {
+  using build_queued_hints = tenant_service_build_queued::build_queued_hints;
+
   // GitHub request/response types (all start with gh_).
   //
   // Note that the GitHub REST and GraphQL APIs use different ID types and
@@ -83,8 +85,7 @@ namespace brep
   // NULL, return an abbreviated id if possible.
   //
   string
-  gh_check_run_name (const build&,
-                     const tenant_service_base::build_hints* = nullptr);
+  gh_check_run_name (const build&, const build_queued_hints* = nullptr);
 
   struct gh_repository
   {

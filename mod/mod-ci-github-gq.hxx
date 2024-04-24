@@ -30,7 +30,7 @@ namespace brep
                         const string& head_sha,
                         const vector<reference_wrapper<const build>>&,
                         build_state,
-                        const tenant_service_base::build_hints&,
+                        const build_queued_hints&,
                         const basic_mark& error);
 
   // Create a new check run on GitHub for a build. Update `cr` with the new
@@ -44,7 +44,7 @@ namespace brep
                        const string& head_sha,
                        const build&,
                        build_state,
-                       const tenant_service_base::build_hints&,
+                       const build_queued_hints&,
                        const basic_mark& error);
 
   // Update a check run on GitHub.

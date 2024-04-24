@@ -40,8 +40,7 @@ namespace brep
   }
 
   string
-  gh_check_run_name (const build& b,
-                     const tenant_service_base::build_hints* bh)
+  gh_check_run_name (const build& b, const build_queued_hints* bh)
   {
     string r;
 

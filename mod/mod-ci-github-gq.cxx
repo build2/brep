@@ -323,7 +323,7 @@ namespace brep
     const string& hs, // Head SHA
     const vector<reference_wrapper<const build>>& bs,
     build_state st,
-    const tenant_service_base::build_hints* bh)
+    const build_queued_hints* bh)
   {
     ostringstream os;
 
@@ -399,7 +399,7 @@ namespace brep
                         const string& hs,
                         const vector<reference_wrapper<const build>>& bs,
                         build_state st,
-                        const tenant_service_base::build_hints& bh,
+                        const build_queued_hints& bh,
                         const basic_mark& error)
   {
     string rq (gq_serialize_request (
@@ -415,7 +415,7 @@ namespace brep
                        const string& hs,
                        const build& b,
                        build_state st,
-                       const tenant_service_base::build_hints& bh,
+                       const build_queued_hints& bh,
                        const basic_mark& error)
   {
     vector<check_run> crs {move (cr)};
