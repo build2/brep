@@ -76,7 +76,7 @@ namespace brep
     throw;
   }
 
-  void database_module::
+  optional<string> database_module::
   update_tenant_service_state (
     const connection_ptr& conn,
     const string& tid,
@@ -87,6 +87,8 @@ namespace brep
     // Must be initialized via the init(options::build_db) function call.
     //
     assert (build_db_ != nullptr);
+
+    optional<string> r;
 
     for (size_t retry (retry_);; )
     {
@@ -104,6 +106,8 @@ namespace brep
           {
             s.data = move (*data);
             build_db_->update (t);
+
+            r = move (s.data);
           }
         }
 
@@ -121,7 +125,11 @@ namespace brep
         HANDLER_DIAG;
         l1 ([&]{trace << e << "; " << retry + 1 << " tenant service "
                       << "state update retries left";});
+
+        r = nullopt; // Prepare for the next iteration.
       }
     }
+
+    return r;
   }
 }

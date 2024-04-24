@@ -57,7 +57,8 @@ namespace brep
 
     // Update the tenant-associated service state if the specified
     // notification callback-returned function (expected to be not NULL)
-    // returns the new state data.
+    // returns the new state data. Return the service state data, if updated,
+    // and nullopt otherwise.
     //
     // Specifically, start the database transaction, query the service state,
     // and call the callback-returned function on this state. If this call
@@ -65,7 +66,7 @@ namespace brep
     // state with this data and persist the change. Repeat all the above steps
     // on the recoverable database failures (deadlocks, etc).
     //
-    void
+    optional<string>
     update_tenant_service_state (
       const odb::core::connection_ptr&,
       const string& tid,

@@ -2205,7 +2205,7 @@ handle (request& rq, response& rs)
       {
         assert (tss); // Wouldn't be here otherwise.
 
-        const tenant_service& ss (tss->first);
+        tenant_service& ss (tss->first);
 
         // If the task build has no initial state (is just created), then
         // temporarily move it into the list of the queued builds until the
@@ -2228,7 +2228,11 @@ handle (request& rq, response& rs)
                                           nullopt /* initial_state */,
                                           qhs,
                                           log_writer_))
-            update_tenant_service_state (conn, qbs.back ().tenant, f);
+          {
+            if (optional<string> data =
+                update_tenant_service_state (conn, qbs.back ().tenant, f))
+              ss.data = move (data);
+          }
         }
 
         // Send the `queued` notification for the task build, unless it is
@@ -2248,7 +2252,11 @@ handle (request& rq, response& rs)
                                           initial_state,
                                           qhs,
                                           log_writer_))
-            update_tenant_service_state (conn, qbs.back ().tenant, f);
+          {
+            if (optional<string> data =
+                update_tenant_service_state (conn, qbs.back ().tenant, f))
+              ss.data = move (data);
+          }
         }
 
         if (restore_build)
@@ -2264,11 +2272,15 @@ handle (request& rq, response& rs)
       {
         assert (tss); // Wouldn't be here otherwise.
 
-        const tenant_service& ss (tss->first);
+        tenant_service& ss (tss->first);
         const build& b (*tss->second);
 
         if (auto f = tsb->build_building (ss, b, log_writer_))
-          update_tenant_service_state (conn, b.tenant, f);
+        {
+          if (optional<string> data =
+              update_tenant_service_state (conn, b.tenant, f))
+            ss.data = move (data);
+        }
       }
 
       // If the task manifest is prepared, then check that the number of the
@@ -2377,11 +2389,15 @@ handle (request& rq, response& rs)
         {
           assert (tss); // Wouldn't be here otherwise.
 
-          const tenant_service& ss (tss->first);
+          tenant_service& ss (tss->first);
           const build& b (*tss->second);
 
           if (auto f = tsb->build_built (ss, b, log_writer_))
-            update_tenant_service_state (conn, b.tenant, f);
+          {
+            if (optional<string> data =
+                update_tenant_service_state (conn, b.tenant, f))
+              ss.data = move (data);
+          }
         }
       }
 
