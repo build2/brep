@@ -612,8 +612,6 @@ namespace brep
       return nullptr;
     }
 
-    check_run cr; // Updated check run.
-
     // Get a new installation access token if the current one has expired.
     //
     const gh_installation_access_token* iat (nullptr);
@@ -633,24 +631,58 @@ namespace brep
     else
       iat = &sd.installation_access;
 
+    check_run cr; // Updated check run.
+
     if (iat != nullptr)
     {
       string bid (gh_check_run_name (b)); // Full Build ID.
 
-      // Stored check run.
-      //
-      const check_run* scr (sd.find_check_run (bid));
+      check_run* scr (sd.find_check_run (bid)); // Stored check run.
 
-      if (scr != nullptr && scr->node_id)
+      // Update the check run if it exists on GitHub and the queued
+      // notification has run and updated the service data, otherwise do
+      // nothing.
+      //
+      if (scr != nullptr && scr->node_id && scr->state == build_state::queued)
       {
-        // The check run exists on GitHub and in the persisted service data.
-        //
+        cr = move (*scr);
+        cr.state_synced = false;
+
+        if (gq_update_check_run (cr,
+                                 iat->token,
+                                 sd.repository_id,
+                                 *cr.node_id,
+                                 build_state::building,
+                                 error))
+        {
+          // Do nothing further if the state was already built on GitHub.
+          //
+          if (cr.state == build_state::built)
+          {
+            warn << "check run " << bid << ": already in built state on GitHub";
+
+            return nullptr;
+          }
+
+          assert (cr.state == build_state::building);
+
+          l3 ([&]{trace << "updated check_run { " << cr << " }";});
+        }
       }
-      else // (src == nullptr || !scr->node_id)
+      else
       {
-        // No state has been persisted, or one or both of the other
-        // notifications were unable to create the check run on GitHub.
-        //
+        if (scr == nullptr)
+        {
+          warn << "check run " << bid << ": out of order building "
+               << "notification (no service data)";
+        }
+        else if (scr->state != build_state::queued)
+        {
+          warn << "check run " << bid << ": out of order building "
+               << "notification; existing state: " << scr->state_string ();
+        }
+
+        return nullptr;
       }
     }
 
@@ -676,12 +708,24 @@ namespace brep
       if (iat)
         sd.installation_access = *iat;
 
+      // Update the check run if it is in the queued state.
+      //
       if (check_run* scr = sd.find_check_run (cr.build_id))
       {
+        if (scr->state == build_state::queued)
+          *scr = cr;
+        else
+        {
+          assert (scr->state == build_state::built);
+
+          warn << "check run " << cr.build_id << ": out of order building "
+               << "notification service data update; existing state: "
+               << scr->state_string ();
+        }
       }
       else
-      {
-      }
+        error << "check run " << cr.build_id
+              << " has disappeared since build_building() ran";
 
       return sd.json ();
     };
