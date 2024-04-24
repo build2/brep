@@ -18,20 +18,6 @@ namespace brep
   class tenant_service_base
   {
   public:
-
-    // The build_hints can be used to omit certain components from the build
-    // id. If single_package_version is true, then this tenant contains a
-    // single (non-test) package version and this package name and package
-    // version can be omitted. If single_package_config is true, then the
-    // package version being built only has the default package configuration
-    // and thus it can be omitted.
-    //
-    struct build_hints
-    {
-      bool single_package_version;
-      bool single_package_config;
-    };
-
     virtual ~tenant_service_base () = default;
   };
 
@@ -100,11 +86,24 @@ namespace brep
     // the function name suffix (_queued, _building, _built) signify the
     // logical end state.
     //
+    // The build_queued_hints can be used to omit certain components from the
+    // build id. If single_package_version is true, then this tenant contains
+    // a single (non-test) package version and this package name and package
+    // version can be omitted. If single_package_config is true, then the
+    // package version being built only has the default package configuration
+    // and thus it can be omitted.
+    //
+    struct build_queued_hints
+    {
+      bool single_package_version;
+      bool single_package_config;
+    };
+
     virtual function<optional<string> (const tenant_service&)>
     build_queued (const tenant_service&,
                   const vector<build>&,
                   optional<build_state> initial_state,
-                  const build_hints&,
+                  const build_queued_hints&,
                   const diag_epilogue& log_writer) const noexcept = 0;
   };
 
@@ -114,7 +113,6 @@ namespace brep
     virtual function<optional<string> (const tenant_service&)>
     build_building (const tenant_service&,
                     const build&,
-                    const build_hints&,
                     const diag_epilogue& log_writer) const noexcept = 0;
   };
 
@@ -124,7 +122,6 @@ namespace brep
     virtual function<optional<string> (const tenant_service&)>
     build_built (const tenant_service&,
                  const build&,
-                 const build_hints&,
                  const diag_epilogue& log_writer) const noexcept = 0;
   };
 
