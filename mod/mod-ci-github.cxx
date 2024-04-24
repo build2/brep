@@ -447,7 +447,7 @@ namespace brep
   build_queued (const tenant_service& ts,
                 const vector<build>& builds,
                 optional<build_state> istate,
-                const build_hints& hs,
+                const build_queued_hints& hs,
                 const diag_epilogue& log_writer) const noexcept
   {
     NOTIFICATION_DIAG (log_writer);
@@ -595,11 +595,8 @@ namespace brep
     };
   }
 
-  // @@ TODO Are hints still required? And for built?
-  //
   function<optional<string> (const tenant_service&)> ci_github::
   build_building (const tenant_service& ts, const build& b,
-                  const build_hints&,
                   const diag_epilogue& log_writer) const noexcept
   {
     // Note that we may receive this notification before the corresponding
@@ -809,7 +806,6 @@ namespace brep
 
   function<optional<string> (const tenant_service&)> ci_github::
   build_built (const tenant_service&, const build&,
-               const build_hints&,
                const diag_epilogue& /* log_writer */) const noexcept
   {
     return nullptr;
