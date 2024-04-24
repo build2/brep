@@ -599,17 +599,6 @@ namespace brep
   build_building (const tenant_service& ts, const build& b,
                   const diag_epilogue& log_writer) const noexcept
   {
-    // Note that we may receive this notification before the corresponding
-    // check run object has been persisted in the service data (see the
-    // returned by build_queued() lambda for details). Thus we wouldn't know
-    // whether the check run has been created on GitHub yet or not. And given
-    // that, on GitHub, creating a check run with an existent name does not
-    // fail but instead replaces the existing check run (same name, different
-    // node ID), we have to check whether a check run already exists on GitHub
-    // before creating it.
-    //
-    // @@ TMP Will have to do this in build_queued() as well.
-    //
     NOTIFICATION_DIAG (log_writer);
 
     service_data sd;
@@ -656,99 +645,12 @@ namespace brep
       {
         // The check run exists on GitHub and in the persisted service data.
         //
-        if (!scr->state_synced || scr->state == build_state::queued)
-        {
-          // If the stored state is queued (most likely), at least
-          // build_queued() and its lambda has run. If this is all then GitHub
-          // has the queued status. But it's also possible that build_built()
-          // has also run and updated GitHub to built but its lambda has not
-          // yet run.
-          //
-          // On the other hand, if there is no stored state, both of the other
-          // notifications must have run: the first created the check run on
-          // GitHub and stored the node ID; the second failed to update GitHub
-          // and stored the nullopt state. Either way around, build_built()
-          // has run so built is the correct state.
-          //
-          //   @@ TMP Maybe we should always store the state and add a flag
-          //          like "gh_updated", then we would know for sure whether
-          //          we need to update to built or building.
-          //
-          // So GitHub currently either has queued or built but we can't be
-          // sure which.
-          //
-          // If it has queued, updating to building is correct.
-          //
-          // If it has built then it would be a logical mistake to update to
-          // building. However, GitHub ignores updates from built to any other
-          // state (the REST API responds with HTTP 200 and the full check run
-          // JSON body but with the "completed" status; presumably the GraphQL
-          // API has the same semantics) so we can just try to update to
-          // building and see what the actual status it returns is.
-          //
-          // If scr->state_synced is false then GitHub has either queued or
-          // built but we know build_built() has run so we need to update to
-          // built instead of building.
-          //
-          cr = move (*scr);
-          cr.state_synced = false;
-
-          build_state st (scr->state_synced ? build_state::building
-                                            : build_state::built);
-
-          if (gq_update_check_run (cr,
-                                   iat->token,
-                                   sd.repository_id,
-                                   *cr.node_id,
-                                   st,
-                                   error))
-          {
-            // @@ TODO If !scr->state_synced and GH had built then we probably
-            //         don't want to run the lambda either but currently it
-            //         will run and this update message is not accurate. Is
-            //         stored failed state the only way?
-            //
-            if (cr.state == st)
-              l3 ([&]{trace << "updated check_run { " << cr << " }";});
-            else
-            {
-              // Do not persist anything if state was already built on
-              // GitHub.
-              //
-              assert (cr.state == build_state::built);
-
-              return nullptr;
-            }
-          }
-        }
-        else if (scr->state == build_state::built)
-        {
-          // Ignore out of order built notification.
-          //
-          assert (scr->state == build_state::built);
-
-          warn << *scr << ": "
-               << "out of order transition from "
-               << to_string (build_state::queued) << " to "
-               << to_string (build_state::building) <<
-            " (stored state is " << to_string (build_state::built) << ")";
-
-          return nullptr;
-        }
       }
       else // (src == nullptr || !scr->node_id)
       {
         // No state has been persisted, or one or both of the other
         // notifications were unable to create the check run on GitHub.
         //
-        // Thus the check run may or may not exist on GitHub.
-        //
-        // Do nothing because build_queued() may currently be creating the
-        // check run in which case doing so here would result in a duplicate
-        // check run. The queued->building transition will be lost but that's
-        // acceptable as long as the check run ends up in the built state.
-        //
-        return nullptr;
       }
     }
 
@@ -776,28 +678,9 @@ namespace brep
 
       if (check_run* scr = sd.find_check_run (cr.build_id))
       {
-        // Update existing check run.
-        //
-        // @@ TODO What if the failed GH update was for built? May end up with
-        //         permanently building check run.
-        //
-        if (!scr->state_synced || scr->state == build_state::queued)
-        {
-          scr->state = cr.state;
-          if (!scr->node_id)
-            scr->node_id = move (cr.node_id);
-        }
       }
       else
       {
-        // Store new check run.
-        //
-        sd.check_runs.push_back (cr);
-
-        warn << "check run { " << cr << " }: "
-             << to_string (build_state::building)
-             << " state being persisted before "
-             << to_string (build_state::queued);
       }
 
       return sd.json ();
