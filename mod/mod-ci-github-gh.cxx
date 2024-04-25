@@ -21,7 +21,8 @@ namespace brep
     case build_state::building: return "IN_PROGRESS";
     case build_state::built:    return "COMPLETED";
     default:
-      throw invalid_argument ("invalid build_state value: " + to_string (st));
+      throw invalid_argument ("invalid build_state value: " +
+                              to_string (static_cast<int> (st)));
     }
   }
 
