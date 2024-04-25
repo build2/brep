@@ -679,6 +679,7 @@ namespace brep
                                sd.repository_id,
                                *cr->node_id,
                                build_state::building,
+                               nullopt, /* result_status */
                                error))
       {
         // Do nothing further if the state was already built on GitHub (note
@@ -742,10 +743,158 @@ namespace brep
   }
 
   function<optional<string> (const tenant_service&)> ci_github::
-  build_built (const tenant_service&, const build&,
-               const diag_epilogue& /* log_writer */) const noexcept
+  build_built (const tenant_service& ts, const build& b,
+               const diag_epilogue& log_writer) const noexcept
   {
-    return nullptr;
+    NOTIFICATION_DIAG (log_writer);
+
+    service_data sd;
+    try
+    {
+      sd = service_data (*ts.data);
+    }
+    catch (const invalid_argument& e)
+    {
+      error << "failed to parse service data: " << e;
+      return nullptr;
+    }
+
+    check_run cr; // Updated check run.
+    string bid (gh_check_run_name (b)); // Full Build ID.
+
+    if (check_run* scr = sd.find_check_run (bid))
+    {
+      if (scr->state != build_state::building)
+      {
+        warn << "check run " << bid << ": out of order built "
+             << "notification; existing state: " << scr->state_string ();
+      }
+
+      // Do nothing if already built.
+      //
+      if (scr->state == build_state::built)
+        return nullptr;
+
+      cr = move (*scr);
+    }
+    else
+    {
+      warn << "check run " << bid << ": out of order built "
+           << "notification; no check run state in service data";
+
+      cr.build_id = move (bid);
+    }
+
+    cr.state_synced = false;
+
+    // Get a new installation access token if the current one has expired.
+    //
+    const gh_installation_access_token* iat (nullptr);
+    optional<gh_installation_access_token> new_iat;
+
+    if (system_clock::now () > sd.installation_access.expires_at)
+    {
+      if (optional<string> jwt = generate_jwt (trace, error))
+      {
+        new_iat = obtain_installation_access_token (sd.installation_id,
+                                                    move (*jwt),
+                                                    error);
+        if (new_iat)
+          iat = &*new_iat;
+      }
+    }
+    else
+      iat = &sd.installation_access;
+
+    // Note: we treat the failure to obtain the installation access token the
+    // same as the failure to notify GitHub (state is updated but not marked
+    // synced).
+    //
+    if (iat != nullptr)
+    {
+      if (cr.node_id)
+      {
+        // Update existing check run to built.
+        //
+        if (gq_update_check_run (cr,
+                                 iat->token,
+                                 sd.repository_id,
+                                 *cr.node_id,
+                                 build_state::built, b.status,
+                                 error))
+        {
+          assert (cr.state == build_state::built);
+
+          l3 ([&]{trace << "updated check_run { " << cr << " }";});
+        }
+      }
+      else
+      {
+        // Create new check run.
+        //
+        // Note that we don't have build hints so will be creating this check
+        // run with the full build ID as name. In the unlikely event that an
+        // out of order build_queued() were to run before we've saved this
+        // check run to the service data it will create another check run with
+        // the shortened name which will never get to the built state.
+        //
+        //   @@ TMP If build_queued() runs but fails to create we could store
+        //          the build hints and use them now.
+        //
+        if (gq_create_check_run (cr,
+                                 iat->token,
+                                 sd.repository_id,
+                                 sd.head_sha,
+                                 b,
+                                 build_state::built, b.status,
+                                 build_queued_hints (false, false),
+                                 error))
+        {
+          assert (cr.state == build_state::built);
+
+          l3 ([&]{trace << "created check_run { " << cr << " }";});
+        }
+      }
+    }
+
+    return [iat = move (new_iat),
+            cr = move (cr),
+            error = move (error),
+            warn = move (warn)] (const tenant_service& ts) -> optional<string>
+      {
+        // NOTE: this lambda may be called repeatedly (e.g., due to transaction
+        // being aborted) and so should not move out of its captures.
+
+        service_data sd;
+        try
+        {
+          sd = service_data (*ts.data);
+        }
+        catch (const invalid_argument& e)
+        {
+          error << "failed to parse service data: " << e;
+          return nullopt;
+        }
+
+        if (iat)
+          sd.installation_access = *iat;
+
+        if (check_run* scr = sd.find_check_run (cr.build_id))
+        {
+          if (scr->state != build_state::building)
+          {
+            warn << "check run " << cr.build_id << ": out of order built "
+                 << "notification service data update; existing state: "
+                 << scr->state_string ();
+          }
+
+          *scr = cr;
+        }
+        else
+          sd.check_runs.push_back (cr);
+
+        return sd.json ();
+      };
   }
 
   optional<string> ci_github::
