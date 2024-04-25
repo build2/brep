@@ -633,7 +633,7 @@ namespace brep
         if (scr->node_id)
         {
           cr = move (*scr);
-          cr.state_synced = false;
+          cr->state_synced = false;
         }
         else
           ; // Network error during queued notification, ignore.
@@ -669,7 +669,7 @@ namespace brep
       iat = &sd.installation_access;
 
     // Note: we treat the failure to obtain the installation access token the
-    // same as the failure to notify GitHub (state is updated by not marked
+    // same as the failure to notify GitHub (state is updated but not marked
     // synced).
     //
     if (iat != nullptr)
@@ -677,15 +677,13 @@ namespace brep
       if (gq_update_check_run (*cr,
                                iat->token,
                                sd.repository_id,
-                               *cr.node_id,
+                               *cr->node_id,
                                build_state::building,
                                error))
       {
         // Do nothing further if the state was already built on GitHub (note
-        // that this is based on the above-mentioned special GitHub semanitcs
+        // that this is based on the above-mentioned special GitHub semantics
         // of preventing changes to the built status).
-        //
-        // @@ Can we confirm this?
         //
         if (cr->state == build_state::built)
         {
@@ -694,14 +692,14 @@ namespace brep
           return nullptr;
         }
 
-        assert (cr.state == build_state::building);
+        assert (cr->state == build_state::building);
 
-        l3 ([&]{trace << "updated check_run { " << cr << " }";});
+        l3 ([&]{trace << "updated check_run { " << *cr << " }";});
       }
     }
 
     return [iat = move (new_iat),
-            cr = move (cr),
+            cr = move (*cr),
             error = move (error),
             warn = move (warn)] (const tenant_service& ts) -> optional<string>
     {
