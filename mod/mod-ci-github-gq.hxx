@@ -37,6 +37,11 @@ namespace brep
   // state and the node ID. Return false and issue diagnostics if the request
   // failed.
   //
+  // The result_status is required if the build_state is built because GitHub
+  // does not allow a check run status of `completed` without a conclusion.
+  //
+  // @@ TODO Support output (title, summary, text).
+  //
   bool
   gq_create_check_run (check_run& cr,
                        const string& installation_access_token,
@@ -44,6 +49,7 @@ namespace brep
                        const string& head_sha,
                        const build&,
                        build_state,
+                       optional<result_status>,
                        const build_queued_hints&,
                        const basic_mark& error);
 
@@ -53,7 +59,10 @@ namespace brep
   // with the new state. Return false and issue diagnostics if the request
   // failed.
   //
-  // @@ TODO Support conclusion, output, etc.
+  // The result_status is required if the build_state is built because GitHub
+  // does not allow updating a check run to `completed` without a conclusion.
+  //
+  // @@ TODO Support output (title, summary, text).
   //
   bool
   gq_update_check_run (check_run& cr,
@@ -61,6 +70,7 @@ namespace brep
                        const string& repository_id,
                        const string& node_id,
                        build_state,
+                       optional<result_status>,
                        const basic_mark& error);
 }
 

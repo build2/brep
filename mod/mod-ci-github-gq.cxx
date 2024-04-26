@@ -317,12 +317,15 @@ namespace brep
 
   // Serialize `createCheckRun` mutations for one or more builds to GraphQL.
   //
+  // The result_status is required if the build_state is built because GitHub
+  // does not allow a check run status of completed without a conclusion.
+  //
   static string
   gq_mutation_create_check_runs (
     const string& ri, // Repository ID
     const string& hs, // Head SHA
     const vector<reference_wrapper<const build>>& bs,
-    build_state st,
+    build_state st, optional<result_status> rs,
     const build_queued_hints* bh)
   {
     ostringstream os;
@@ -345,8 +348,13 @@ namespace brep
          << "  name: "         << gq_str (nm) << ','                << '\n'
          << "  repositoryId: " << gq_str (ri) << ','                << '\n'
          << "  headSha: "      << gq_str (hs) << ','                << '\n'
-         << "  status: "       << gq_enum (gh_to_status (st))       << '\n'
-         << "})"                                                    << '\n'
+         << "  status: "       << gq_enum (gh_to_status (st));
+      if (rs)
+      {
+        os << ','                                                   << '\n'
+           << "  conclusion: " << gq_enum (gh_to_conclusion (*rs));
+      }
+      os << "})"                                                    << '\n'
         // Specify the selection set (fields to be returned).
         //
          << "{"                                                     << '\n'
@@ -365,10 +373,14 @@ namespace brep
 
   // Serialize an `updateCheckRun` mutation for one build to GraphQL.
   //
+  // The result_status is required if the build_state is built because GitHub
+  // does not allow updating a check run to completed without a conclusion.
+  //
   static string
   gq_mutation_update_check_run (const string& ri, // Repository ID.
                                 const string& ni, // Node ID.
-                                build_state st)
+                                build_state st,
+                                optional<result_status> rs)
   {
     ostringstream os;
 
@@ -376,8 +388,13 @@ namespace brep
        << "cr0:updateCheckRun(input: {"                           << '\n'
        << "  checkRunId: "   << gq_str (ni) << ','                << '\n'
        << "  repositoryId: " << gq_str (ri) << ','                << '\n'
-       << "  status: "       << gq_enum (gh_to_status (st))       << '\n'
-       << "})"                                                    << '\n'
+       << "  status: "       << gq_enum (gh_to_status (st));
+    if (rs)
+    {
+      os << ','                                                   << '\n'
+         << "  conclusion: " << gq_enum (gh_to_conclusion (*rs));
+    }
+    os << "})"                                                    << '\n'
       // Specify the selection set (fields to be returned).
       //
        << "{"                                                     << '\n'
@@ -402,8 +419,17 @@ namespace brep
                         const build_queued_hints& bh,
                         const basic_mark& error)
   {
+    // No support for result_status so state cannot be built.
+    //
+    assert (st != build_state::built);
+
     string rq (gq_serialize_request (
-        gq_mutation_create_check_runs (rid, hs, bs, st, &bh)));
+        gq_mutation_create_check_runs (rid,
+                                       hs,
+                                       bs,
+                                       st,
+                                       nullopt /* result_status */,
+                                       &bh)));
 
     return gq_mutate_check_runs (crs, iat, move (rq), st, error);
   }
@@ -415,12 +441,20 @@ namespace brep
                        const string& hs,
                        const build& b,
                        build_state st,
+                       optional<result_status> rs,
                        const build_queued_hints& bh,
                        const basic_mark& error)
   {
+    // Must have a result if state is built.
+    //
+    assert (st != build_state::built || rs);
+
+    string rq (gq_serialize_request (
+        gq_mutation_create_check_runs (rid, hs, {b}, st, rs, &bh)));
+
     vector<check_run> crs {move (cr)};
 
-    bool r (gq_create_check_runs (crs, iat, rid, hs, {b}, st, bh, error));
+    bool r (gq_mutate_check_runs (crs, iat, move (rq), st, error));
 
     cr = move (crs[0]);
 
@@ -433,10 +467,15 @@ namespace brep
                        const string& rid,
                        const string& nid,
                        build_state st,
+                       optional<result_status> rs,
                        const basic_mark& error)
   {
-    string rq (
-        gq_serialize_request (gq_mutation_update_check_run (rid, nid, st)));
+    // Must have a result if state is built.
+    //
+    assert (st != build_state::built || rs);
+
+    string rq (gq_serialize_request (
+        gq_mutation_update_check_run (rid, nid, st, rs)));
 
     vector<check_run> crs {move (cr)};
 
