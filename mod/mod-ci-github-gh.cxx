@@ -41,6 +41,35 @@ namespace brep
   }
 
   string
+  gh_to_conclusion (result_status rs)
+  {
+    switch (rs)
+    {
+    case result_status::success:
+    case result_status::warning:
+      return "SUCCESS";
+
+    case result_status::error:
+    case result_status::abort:
+    case result_status::abnormal:
+      return "FAILURE";
+
+      // Valid values we should never encounter.
+      //
+    case result_status::skip:
+    case result_status::interrupt:
+      throw invalid_argument ("unexpected result_status value: " +
+                              to_string (rs));
+
+      // Invalid value.
+      //
+    default:
+      throw invalid_argument ("invalid result_status value: " +
+                              to_string (static_cast<int> (rs)));
+    }
+  }
+
+  string
   gh_check_run_name (const build& b, const build_queued_hints* bh)
   {
     string r;

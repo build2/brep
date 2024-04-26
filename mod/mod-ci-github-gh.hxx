@@ -81,6 +81,9 @@ namespace brep
   build_state
   gh_from_status (const string&);
 
+  string
+  gh_to_conclusion (result_status);
+
   // Create a check_run name from a build. If the second argument is not
   // NULL, return an abbreviated id if possible.
   //
