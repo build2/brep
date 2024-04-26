@@ -29,9 +29,7 @@ namespace brep
                         const string& installation_access_token,
                         const string& repository_id,
                         const string& head_sha,
-                        const vector<reference_wrapper<const build>>&,
-                        build_state,
-                        const build_queued_hints&);
+                        build_state);
 
   // Create a new check run on GitHub for a build. Update `cr` with the new
   // state and the node ID. Return false and issue diagnostics if the request
@@ -48,10 +46,8 @@ namespace brep
                        const string& installation_access_token,
                        const string& repository_id,
                        const string& head_sha,
-                       const build&,
                        build_state,
-                       optional<result_status> = nullopt,
-                       const build_queued_hints&);
+                       optional<result_status> = nullopt);
 
   // Update a check run on GitHub.
   //

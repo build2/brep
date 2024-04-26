@@ -43,6 +43,7 @@ namespace brep
     while (p.next_expect (event::begin_object, event::end_array))
     {
       string bid (p.next_expect_member_string ("build_id"));
+      string nm (p.next_expect_member_string ("name"));
 
       optional<string> nid;
       {
@@ -54,7 +55,7 @@ namespace brep
       build_state s (to_build_state (p.next_expect_member_string ("state")));
       bool ss (p.next_expect_member_boolean<bool> ("state_synced"));
 
-      check_runs.emplace_back (move (bid), move (nid), s, ss);
+      check_runs.emplace_back (move (bid), move (nm), move (nid), s, ss);
 
       p.next_expect (event::end_object);
     }
@@ -101,6 +102,7 @@ namespace brep
     {
       s.begin_object ();
       s.member ("build_id", cr.build_id);
+      s.member ("name", cr.name);
 
       s.member_name ("node_id");
       if (cr.node_id)
@@ -136,6 +138,7 @@ namespace brep
   {
     os << "node_id: " << cr.node_id.value_or ("null")
        << ", build_id: " << cr.build_id
+       << ", name: " << cr.name
        << ", state: " << cr.state_string ();
 
     return os;

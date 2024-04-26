@@ -501,6 +501,7 @@ namespace brep
         bs.push_back (b);
 
         crs.emplace_back (move (bid),
+                          gh_check_run_name (b, &hs),
                           nullopt, /* node_id */
                           build_state::queued,
                           false /* state_synced */);
@@ -537,13 +538,11 @@ namespace brep
     {
       // Create a check_run for each build.
       //
-      if (gq_create_check_runs (crs,
+      if (gq_create_check_runs (error,
+                                crs,
                                 iat->token,
                                 sd.repository_id, sd.head_sha,
-                                bs,
-                                build_state::queued,
-                                hs,
-                                error))
+                                build_state::queued))
       {
         for (const check_run& cr: crs)
         {
@@ -675,13 +674,12 @@ namespace brep
     //
     if (iat != nullptr)
     {
-      if (gq_update_check_run (*cr,
+      if (gq_update_check_run (error,
+                               *cr,
                                iat->token,
                                sd.repository_id,
                                *cr->node_id,
-                               build_state::building,
-                               nullopt, /* result_status */
-                               error))
+                               build_state::building))
       {
         // Do nothing further if the state was already built on GitHub (note
         // that this is based on the above-mentioned special GitHub semantics
@@ -821,12 +819,13 @@ namespace brep
       {
         // Update existing check run to built.
         //
-        if (gq_update_check_run (cr,
+        if (gq_update_check_run (error,
+                                 cr,
                                  iat->token,
                                  sd.repository_id,
                                  *cr.node_id,
-                                 build_state::built, b.status,
-                                 error))
+                                 build_state::built,
+                                 b.status))
         {
           assert (cr.state == build_state::built);
 
@@ -843,14 +842,13 @@ namespace brep
         // check run to the service data it will create another check run with
         // the shortened name which will never get to the built state.
         //
-        if (gq_create_check_run (cr,
+        if (gq_create_check_run (error,
+                                 cr,
                                  iat->token,
                                  sd.repository_id,
                                  sd.head_sha,
-                                 b,
-                                 build_state::built, b.status,
-                                 build_queued_hints (false, false),
-                                 error))
+                                 build_state::built,
+                                 b.status))
         {
           assert (cr.state == build_state::built);
 
