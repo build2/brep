@@ -198,11 +198,11 @@ namespace brep
   // if unset. Return false and issue diagnostics if the request failed.
   //
   static bool
-  gq_mutate_check_runs (vector<check_run>& crs,
+  gq_mutate_check_runs (const basic_mark& error,
+                        vector<check_run>& crs,
                         const string& iat,
                         string rq,
-                        build_state st,
-                        const basic_mark& error) noexcept
+                        build_state st) noexcept
   {
     vector<gh_check_run> rcrs;
 
@@ -321,12 +321,11 @@ namespace brep
   // does not allow a check run status of completed without a conclusion.
   //
   static string
-  gq_mutation_create_check_runs (
-    const string& ri, // Repository ID
-    const string& hs, // Head SHA
-    const vector<reference_wrapper<const build>>& bs, // Pass build ids.
-    build_state st, optional<result_status> rs,
-    const build_queued_hints* bh)
+  gq_mutation_create_check_runs (const string& ri, // Repository ID
+                                 const string& hs, // Head SHA
+                                 const vector<check_run>& crs,
+                                 build_state st,
+                                 optional<result_status> rs = nullopt)
   {
     ostringstream os;
 
@@ -334,25 +333,20 @@ namespace brep
 
     // Serialize a `createCheckRun` for each build.
     //
-    for (size_t i (0); i != bs.size (); ++i)
+    for (size_t i (0); i != crs.size (); ++i)
     {
-      const build& b (bs[i]);
-
       string al ("cr" + to_string (i)); // Field alias.
 
-      // Check run name.
-      //
-      string nm (gh_check_run_name (b, bh));
-
       os << gq_name (al) << ":createCheckRun(input: {"              << '\n'
-         << "  name: "         << gq_str (nm) << ','                << '\n'
+         << "  name: "         << gq_str (crs[i].name) << ','       << '\n'
          << "  repositoryId: " << gq_str (ri) << ','                << '\n'
          << "  headSha: "      << gq_str (hs) << ','                << '\n'
          << "  status: "       << gq_enum (gh_to_status (st));
       if (rs)
       {
+        // @@ TODO Pass valid boolean
         os << ','                                                   << '\n'
-           << "  conclusion: " << gq_enum (gh_to_conclusion (*rs));
+           << "  conclusion: " << gq_enum (gh_to_conclusion (*rs, false));
       }
       os << "})"                                                    << '\n'
         // Specify the selection set (fields to be returned).
@@ -391,8 +385,9 @@ namespace brep
        << "  status: "       << gq_enum (gh_to_status (st));
     if (rs)
     {
+      // @@ TODO Pass valid boolean
       os << ','                                                   << '\n'
-         << "  conclusion: " << gq_enum (gh_to_conclusion (*rs));
+         << "  conclusion: " << gq_enum (gh_to_conclusion (*rs, false));
     }
     os << "})"                                                    << '\n'
       // Specify the selection set (fields to be returned).
@@ -410,51 +405,42 @@ namespace brep
   }
 
   bool
-  gq_create_check_runs (vector<check_run>& crs,
+  gq_create_check_runs (const basic_mark& error,
+                        vector<check_run>& crs,
                         const string& iat,
                         const string& rid,
                         const string& hs,
-                        const vector<reference_wrapper<const build>>& bs,
-                        build_state st,
-                        const build_queued_hints& bh,
-                        const basic_mark& error)
+                        build_state st)
   {
     // No support for result_status so state cannot be built.
     //
     assert (st != build_state::built);
 
     string rq (gq_serialize_request (
-        gq_mutation_create_check_runs (rid,
-                                       hs,
-                                       bs,
-                                       st,
-                                       nullopt /* result_status */,
-                                       &bh)));
+        gq_mutation_create_check_runs (rid, hs, crs, st)));
 
-    return gq_mutate_check_runs (crs, iat, move (rq), st, error);
+    return gq_mutate_check_runs (error, crs, iat, move (rq), st);
   }
 
   bool
-  gq_create_check_run (check_run& cr,
+  gq_create_check_run (const basic_mark& error,
+                       check_run& cr,
                        const string& iat,
                        const string& rid,
                        const string& hs,
-                       const build& b,
                        build_state st,
-                       optional<result_status> rs,
-                       const build_queued_hints& bh,
-                       const basic_mark& error)
+                       optional<result_status> rs)
   {
     // Must have a result if state is built.
     //
     assert (st != build_state::built || rs);
 
-    string rq (gq_serialize_request (
-        gq_mutation_create_check_runs (rid, hs, {b}, st, rs, &bh)));
-
     vector<check_run> crs {move (cr)};
 
-    bool r (gq_mutate_check_runs (crs, iat, move (rq), st, error));
+    string rq (gq_serialize_request (
+        gq_mutation_create_check_runs (rid, hs, crs, st, rs)));
+
+    bool r (gq_mutate_check_runs (error, crs, iat, move (rq), st));
 
     cr = move (crs[0]);
 
@@ -462,13 +448,13 @@ namespace brep
   }
 
   bool
-  gq_update_check_run (check_run& cr,
+  gq_update_check_run (const basic_mark& error,
+                       check_run& cr,
                        const string& iat,
                        const string& rid,
                        const string& nid,
                        build_state st,
-                       optional<result_status> rs,
-                       const basic_mark& error)
+                       optional<result_status> rs)
   {
     // Must have a result if state is built.
     //
@@ -479,7 +465,7 @@ namespace brep
 
     vector<check_run> crs {move (cr)};
 
-    bool r (gq_mutate_check_runs (crs, iat, move (rq), st, error));
+    bool r (gq_mutate_check_runs (error, crs, iat, move (rq), st));
 
     cr = move (crs[0]);
 
