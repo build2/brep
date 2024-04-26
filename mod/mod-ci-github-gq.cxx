@@ -324,7 +324,7 @@ namespace brep
   gq_mutation_create_check_runs (
     const string& ri, // Repository ID
     const string& hs, // Head SHA
-    const vector<reference_wrapper<const build>>& bs,
+    const vector<reference_wrapper<const build>>& bs, // Pass build ids.
     build_state st, optional<result_status> rs,
     const build_queued_hints* bh)
   {

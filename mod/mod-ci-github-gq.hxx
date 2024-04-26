@@ -24,14 +24,14 @@ namespace brep
   // request failed.
   //
   bool
-  gq_create_check_runs (vector<check_run>& check_runs,
+  gq_create_check_runs (const basic_mark& error,
+                        vector<check_run>& check_runs,
                         const string& installation_access_token,
                         const string& repository_id,
                         const string& head_sha,
                         const vector<reference_wrapper<const build>>&,
                         build_state,
-                        const build_queued_hints&,
-                        const basic_mark& error);
+                        const build_queued_hints&);
 
   // Create a new check run on GitHub for a build. Update `cr` with the new
   // state and the node ID. Return false and issue diagnostics if the request
@@ -43,15 +43,15 @@ namespace brep
   // @@ TODO Support output (title, summary, text).
   //
   bool
-  gq_create_check_run (check_run& cr,
+  gq_create_check_run (const basic_mark& error,
+                       check_run& cr,
                        const string& installation_access_token,
                        const string& repository_id,
                        const string& head_sha,
                        const build&,
                        build_state,
-                       optional<result_status>,
-                       const build_queued_hints&,
-                       const basic_mark& error);
+                       optional<result_status> = nullopt,
+                       const build_queued_hints&);
 
   // Update a check run on GitHub.
   //
@@ -65,13 +65,13 @@ namespace brep
   // @@ TODO Support output (title, summary, text).
   //
   bool
-  gq_update_check_run (check_run& cr,
+  gq_update_check_run (const basic_mark& error,
+                       check_run& cr,
                        const string& installation_access_token,
                        const string& repository_id,
                        const string& node_id,
                        build_state,
-                       optional<result_status>,
-                       const basic_mark& error);
+                       optional<result_status> = nullopt);
 }
 
 #endif // MOD_MOD_CI_GITHUB_GQ_HXX
