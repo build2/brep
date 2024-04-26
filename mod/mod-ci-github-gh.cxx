@@ -20,9 +20,6 @@ namespace brep
     case build_state::queued:   return "QUEUED";
     case build_state::building: return "IN_PROGRESS";
     case build_state::built:    return "COMPLETED";
-    default:
-      throw invalid_argument ("invalid build_state value: " +
-                              to_string (static_cast<int> (st)));
     }
   }
 
@@ -36,18 +33,20 @@ namespace brep
     else if (s == "IN_PROGRESS") return build_state::building;
     else if (s == "COMPLETED")   return build_state::built;
     else
-      throw invalid_argument ("invalid GitHub check run status: '" + s +
+      throw invalid_argument ("unexpected GitHub check run status: '" + s +
                               '\'');
   }
 
   string
-  gh_to_conclusion (result_status rs)
+  gh_to_conclusion (result_status rs, bool warning_success)
   {
     switch (rs)
     {
     case result_status::success:
-    case result_status::warning:
       return "SUCCESS";
+
+    case result_status::warning:
+      return warning_success ? "SUCCESS" : "FAILURE";
 
     case result_status::error:
     case result_status::abort:
@@ -60,12 +59,6 @@ namespace brep
     case result_status::interrupt:
       throw invalid_argument ("unexpected result_status value: " +
                               to_string (rs));
-
-      // Invalid value.
-      //
-    default:
-      throw invalid_argument ("invalid result_status value: " +
-                              to_string (static_cast<int> (rs)));
     }
   }
 

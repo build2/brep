@@ -411,8 +411,8 @@ namespace brep
   //    building  Skip if there is no check run in service data or it's
   //              not in the queued state, otherwise update.
   //
-  //    built     Update if there is check run in service data and its
-  //              state is not built, otherwise create new.
+  //    built     Update if there is check run in service data unless its
+  //              state is built, otherwise create new.
   //
   //    The rationale for this semantics is as follows: the building
   //    notification is a "nice to have" and can be skipped if things are not
@@ -603,7 +603,8 @@ namespace brep
   }
 
   function<optional<string> (const tenant_service&)> ci_github::
-  build_building (const tenant_service& ts, const build& b,
+  build_building (const tenant_service& ts,
+                  const build& b,
                   const diag_epilogue& log_writer) const noexcept
   {
     NOTIFICATION_DIAG (log_writer);
@@ -743,7 +744,8 @@ namespace brep
   }
 
   function<optional<string> (const tenant_service&)> ci_github::
-  build_built (const tenant_service& ts, const build& b,
+  build_built (const tenant_service& ts,
+               const build& b,
                const diag_epilogue& log_writer) const noexcept
   {
     NOTIFICATION_DIAG (log_writer);
@@ -760,32 +762,35 @@ namespace brep
     }
 
     check_run cr; // Updated check run.
-    string bid (gh_check_run_name (b)); // Full Build ID.
-
-    if (check_run* scr = sd.find_check_run (bid))
     {
-      if (scr->state != build_state::building)
+      string bid (gh_check_run_name (b)); // Full Build ID.
+
+      if (check_run* scr = sd.find_check_run (bid))
       {
-        warn << "check run " << bid << ": out of order built "
-             << "notification; existing state: " << scr->state_string ();
+        if (scr->state != build_state::building)
+        {
+          warn << "check run " << bid << ": out of order built notification; "
+               << "existing state: " << scr->state_string ();
+        }
+
+        // Do nothing if already built (e.g., rebuild).
+        //
+        if (scr->state == build_state::built)
+          return nullptr;
+
+        cr = move (*scr);
+      }
+      else
+      {
+        warn << "check run " << bid << ": out of order built notification; "
+             << "no check run state in service data";
+
+        cr.build_id = move (bid);
+        cr.name = cr.build_id;
       }
 
-      // Do nothing if already built.
-      //
-      if (scr->state == build_state::built)
-        return nullptr;
-
-      cr = move (*scr);
+      cr.state_synced = false;
     }
-    else
-    {
-      warn << "check run " << bid << ": out of order built "
-           << "notification; no check run state in service data";
-
-      cr.build_id = move (bid);
-    }
-
-    cr.state_synced = false;
 
     // Get a new installation access token if the current one has expired.
     //
@@ -838,9 +843,6 @@ namespace brep
         // check run to the service data it will create another check run with
         // the shortened name which will never get to the built state.
         //
-        //   @@ TMP If build_queued() runs but fails to create we could store
-        //          the build hints and use them now.
-        //
         if (gq_create_check_run (cr,
                                  iat->token,
                                  sd.repository_id,
@@ -861,40 +863,45 @@ namespace brep
             cr = move (cr),
             error = move (error),
             warn = move (warn)] (const tenant_service& ts) -> optional<string>
+    {
+      // NOTE: this lambda may be called repeatedly (e.g., due to transaction
+      // being aborted) and so should not move out of its captures.
+
+      service_data sd;
+      try
       {
-        // NOTE: this lambda may be called repeatedly (e.g., due to transaction
-        // being aborted) and so should not move out of its captures.
+        sd = service_data (*ts.data);
+      }
+      catch (const invalid_argument& e)
+      {
+        error << "failed to parse service data: " << e;
+        return nullopt;
+      }
 
-        service_data sd;
-        try
+      if (iat)
+        sd.installation_access = *iat;
+
+      if (check_run* scr = sd.find_check_run (cr.build_id))
+      {
+        // This will most commonly generate a duplicate warning (see above).
+        // We could save the old state and only warn if it differs but let's
+        // not complicate things for now.
+        //
+#if 0
+        if (scr->state != build_state::building)
         {
-          sd = service_data (*ts.data);
+          warn << "check run " << cr.build_id << ": out of order built "
+               << "notification service data update; existing state: "
+               << scr->state_string ();
         }
-        catch (const invalid_argument& e)
-        {
-          error << "failed to parse service data: " << e;
-          return nullopt;
-        }
+#endif
+        *scr = cr;
+      }
+      else
+        sd.check_runs.push_back (cr);
 
-        if (iat)
-          sd.installation_access = *iat;
-
-        if (check_run* scr = sd.find_check_run (cr.build_id))
-        {
-          if (scr->state != build_state::building)
-          {
-            warn << "check run " << cr.build_id << ": out of order built "
-                 << "notification service data update; existing state: "
-                 << scr->state_string ();
-          }
-
-          *scr = cr;
-        }
-        else
-          sd.check_runs.push_back (cr);
-
-        return sd.json ();
-      };
+      return sd.json ();
+    };
   }
 
   optional<string> ci_github::

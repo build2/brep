@@ -81,8 +81,11 @@ namespace brep
   build_state
   gh_from_status (const string&);
 
+  // If warning_success is true, then map result_status::warning to SUCCESS
+  // and to FAILURE otherwise.
+  //
   string
-  gh_to_conclusion (result_status);
+  gh_to_conclusion (result_status, bool warning_success);
 
   // Create a check_run name from a build. If the second argument is not
   // NULL, return an abbreviated id if possible.
