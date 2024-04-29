@@ -26,6 +26,8 @@ namespace brep
                               to_string (version));
     }
 
+    warning_success = p.next_expect_member_boolean<bool> ("warning_success");
+
     // Installation access token.
     //
     p.next_expect_member_object ("installation_access");
@@ -64,12 +66,14 @@ namespace brep
   }
 
   service_data::
-  service_data (string iat_tok,
+  service_data (bool ws,
+                string iat_tok,
                 timestamp iat_ea,
                 uint64_t iid,
                 string rid,
                 string hs)
-      : installation_access (move (iat_tok), iat_ea),
+      : warning_success (ws),
+        installation_access (move (iat_tok), iat_ea),
         installation_id (iid),
         repository_id (move (rid)),
         head_sha (move (hs))
@@ -85,6 +89,8 @@ namespace brep
     s.begin_object ();
 
     s.member ("version", 1);
+
+    s.member ("warning_success", warning_success);
 
     // Installation access token.
     //
