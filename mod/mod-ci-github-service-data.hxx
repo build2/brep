@@ -77,7 +77,8 @@ namespace brep
     explicit
     service_data (const string& json);
 
-    service_data (string iat_token,
+    service_data (bool warning_success,
+                  string iat_token,
                   timestamp iat_expires_at,
                   uint64_t installation_id,
                   string repository_id,

@@ -226,6 +226,35 @@ namespace brep
       fail << "unable to compute request HMAC: " << e;
     }
 
+    // Process the `warning` webhook request query parameter.
+    //
+    bool warning_success;
+    {
+      const name_values& rps (rq.parameters (1024, true /* url_only */));
+
+      auto i (find_if (rps.begin (), rps.end (),
+                       [] (auto&& rp) {return rp.name == "warning";}));
+
+      if (i == rps.end ())
+        throw invalid_request (400,
+                               "missing 'warning' webhook query parameter");
+
+      if (!i->value)
+        throw invalid_request (
+          400, "missing 'warning' webhook query parameter value");
+
+      const string& v (*i->value);
+
+      if      (v == "success") warning_success = true;
+      else if (v == "failure") warning_success = false;
+      else
+      {
+        throw invalid_request (
+            400,
+            "invalid 'warning' webhook query parameter value: '" + v + '\'');
+      }
+    }
+
     // There is a webhook event (specified in the x-github-event header) and
     // each event contains a bunch of actions (specified in the JSON request
     // body).
@@ -257,14 +286,14 @@ namespace brep
 
       if (cs.action == "requested")
       {
-        return handle_check_suite_request (move (cs));
+        return handle_check_suite_request (move (cs), warning_success);
       }
       else if (cs.action == "rerequested")
       {
         // Someone manually requested to re-run the check runs in this check
         // suite. Treat as a new request.
         //
-        return handle_check_suite_request (move (cs));
+        return handle_check_suite_request (move (cs), warning_success);
       }
       else if (cs.action == "completed")
       {
@@ -305,7 +334,7 @@ namespace brep
   }
 
   bool ci_github::
-  handle_check_suite_request (gh_check_suite_event cs)
+  handle_check_suite_request (gh_check_suite_event cs, bool warning_success)
   {
     HANDLER_DIAG;
 
@@ -331,7 +360,8 @@ namespace brep
                                 cs.check_suite.head_branch,
                             repository_type::git);
 
-    string sd (service_data (move (iat->token),
+    string sd (service_data (warning_success,
+                             move (iat->token),
                              iat->expires_at,
                              cs.installation.id,
                              move (cs.repository.node_id),
@@ -825,7 +855,7 @@ namespace brep
                                  sd.repository_id,
                                  *cr.node_id,
                                  build_state::built,
-                                 b.status))
+                                 *b.status, sd.warning_success))
         {
           assert (cr.state == build_state::built);
 
@@ -848,7 +878,7 @@ namespace brep
                                  sd.repository_id,
                                  sd.head_sha,
                                  build_state::built,
-                                 b.status))
+                                 *b.status, sd.warning_success))
         {
           assert (cr.state == build_state::built);
 

@@ -60,8 +60,11 @@ namespace brep
 
     // Handle the check_suite event `requested` and `rerequested` actions.
     //
+    // If warning_success is true, then map result_status::warning to SUCCESS
+    // and to FAILURE otherwise.
+    //
     bool
-    handle_check_suite_request (gh_check_suite_event);
+    handle_check_suite_request (gh_check_suite_event, bool warning_success);
 
     optional<string>
     generate_jwt (const basic_mark& trace, const basic_mark& error) const;

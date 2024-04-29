@@ -38,6 +38,9 @@ namespace brep
   // The result_status is required if the build_state is built because GitHub
   // does not allow a check run status of `completed` without a conclusion.
   //
+  // If warning_success is true, then map result_status::warning to SUCCESS
+  // and to FAILURE otherwise.
+  //
   // @@ TODO Support output (title, summary, text).
   //
   bool
@@ -47,7 +50,8 @@ namespace brep
                        const string& repository_id,
                        const string& head_sha,
                        build_state,
-                       optional<result_status> = nullopt);
+                       optional<result_status> = nullopt,
+                       bool warning_success = true);
 
   // Update a check run on GitHub.
   //
@@ -56,7 +60,10 @@ namespace brep
   // failed.
   //
   // The result_status is required if the build_state is built because GitHub
-  // does not allow updating a check run to `completed` without a conclusion.
+  // does not allow a check run status of `completed` without a conclusion.
+  //
+  // If warning_success is true, then map result_status::warning to SUCCESS
+  // and to FAILURE otherwise.
   //
   // @@ TODO Support output (title, summary, text).
   //
@@ -67,7 +74,8 @@ namespace brep
                        const string& repository_id,
                        const string& node_id,
                        build_state,
-                       optional<result_status> = nullopt);
+                       optional<result_status> = nullopt,
+                       bool warning_success = true);
 }
 
 #endif // MOD_MOD_CI_GITHUB_GQ_HXX
