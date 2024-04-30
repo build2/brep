@@ -321,12 +321,15 @@ namespace brep
   // because GitHub does not allow a check run status of completed without a
   // conclusion.
   //
+  // `du` can be empty for queued but not for the other states.
+  //
   static string
   gq_mutation_create_check_runs (const string& ri, // Repository ID
                                  const string& hs, // Head SHA
+                                 const string& du, // Details URL.
                                  const vector<check_run>& crs,
                                  const string& st, // Check run status.
-                                 const optional<string>& co = nullopt)
+                                 optional<gq_built_result> br = nullopt)
   {
     ostringstream os;
 
@@ -339,22 +342,31 @@ namespace brep
       string al ("cr" + to_string (i)); // Field alias.
 
       os << gq_name (al) << ":createCheckRun(input: {"              << '\n'
-         << "  name: "         << gq_str (crs[i].name) << ','       << '\n'
-         << "  repositoryId: " << gq_str (ri) << ','                << '\n'
-         << "  headSha: "      << gq_str (hs) << ','                << '\n'
+         << "  name: "         << gq_str (crs[i].name)              << '\n'
+         << "  repositoryId: " << gq_str (ri)                       << '\n'
+         << "  headSha: "      << gq_str (hs)                       << '\n'
          << "  status: "       << gq_enum (st);
-      if (co)
+      if (!du.empty ())
       {
-        os << ','                                                   << '\n'
-           << "  conclusion: " << gq_enum (*co);
+        os                                                          << '\n';
+        os << "  detailsUrl: " << gq_str (du);
+      }
+      if (br)
+      {
+        os                                                          << '\n';
+        os << "  conclusion: " << gq_enum (br->conclusion)          << '\n'
+           << "  output: {"                                         << '\n'
+           << "    title: "    << gq_str (br->title)                << '\n'
+           << "    summary: "  << gq_str (br->summary)              << '\n'
+           << "  }";
       }
       os << "})"                                                    << '\n'
         // Specify the selection set (fields to be returned).
         //
          << "{"                                                     << '\n'
          << "  checkRun {"                                          << '\n'
-         << "    id,"                                               << '\n'
-         << "    name,"                                             << '\n'
+         << "    id"                                                << '\n'
+         << "    name"                                              << '\n'
          << "    status"                                            << '\n'
          << "  }"                                                   << '\n'
          << "}"                                                     << '\n';
@@ -374,28 +386,38 @@ namespace brep
   static string
   gq_mutation_update_check_run (const string& ri, // Repository ID.
                                 const string& ni, // Node ID.
+                                const string& du, // Details URL.
                                 const string& st, // Check run status.
-                                const optional<string>& co)
+                                optional<gq_built_result> br)
   {
     ostringstream os;
 
     os << "mutation {"                                            << '\n'
        << "cr0:updateCheckRun(input: {"                           << '\n'
-       << "  checkRunId: "   << gq_str (ni) << ','                << '\n'
-       << "  repositoryId: " << gq_str (ri) << ','                << '\n'
+       << "  checkRunId: "   << gq_str (ni)                       << '\n'
+       << "  repositoryId: " << gq_str (ri)                       << '\n'
        << "  status: "       << gq_enum (st);
-    if (co)
+    if (!du.empty ())
     {
-      os << ','                                                   << '\n'
-         << "  conclusion: " << gq_enum (*co);
+      os                                                          << '\n';
+      os << "  detailsUrl: " << gq_str (du);
+    }
+    if (br)
+    {
+      os                                                          << '\n';
+      os << "  conclusion: " << gq_enum (br->conclusion)          << '\n'
+         << "  output: {"                                         << '\n'
+         << "    title: "    << gq_str (br->title)                << '\n'
+         << "    summary: "  << gq_str (br->summary)              << '\n'
+         << "  }";
     }
     os << "})"                                                    << '\n'
       // Specify the selection set (fields to be returned).
       //
        << "{"                                                     << '\n'
        << "  checkRun {"                                          << '\n'
-       << "    id,"                                               << '\n'
-       << "    name,"                                             << '\n'
+       << "    id"                                                << '\n'
+       << "    name"                                              << '\n'
        << "    status"                                            << '\n'
        << "  }"                                                   << '\n'
        << "}"                                                     << '\n'
@@ -416,8 +438,10 @@ namespace brep
     //
     assert (st != build_state::built);
 
+    // Empty details URL because it's not available until building.
+    //
     string rq (gq_serialize_request (
-        gq_mutation_create_check_runs (rid, hs, crs, gh_to_status (st))));
+        gq_mutation_create_check_runs (rid, hs, "", crs, gh_to_status (st))));
 
     return gq_mutate_check_runs (error, crs, iat, move (rq), st);
   }
@@ -428,22 +452,27 @@ namespace brep
                        const string& iat,
                        const string& rid,
                        const string& hs,
+                       const string& du,
                        build_state st,
-                       optional<result_status> rs,
-                       bool ws)
+                       optional<gq_built_result> br)
   {
     // Must have a result if state is built.
     //
-    assert (st != build_state::built || rs);
+    assert (st != build_state::built || br);
+
+    // Must have a details URL because `st` should never be queued.
+    //
+    assert (!du.empty ());
 
     vector<check_run> crs {move (cr)};
 
-    optional<string> co; // Conclusion.
-    if (rs)
-      co = gh_to_conclusion (*rs, ws);
-
     string rq (gq_serialize_request (
-        gq_mutation_create_check_runs (rid, hs, crs, gh_to_status (st), co)));
+        gq_mutation_create_check_runs (rid,
+                                       hs,
+                                       du,
+                                       crs,
+                                       gh_to_status (st),
+                                       move (br))));
 
     bool r (gq_mutate_check_runs (error, crs, iat, move (rq), st));
 
@@ -458,20 +487,20 @@ namespace brep
                        const string& iat,
                        const string& rid,
                        const string& nid,
+                       const string& du,
                        build_state st,
-                       optional<result_status> rs,
-                       bool ws)
+                       optional<gq_built_result> br)
   {
     // Must have a result if state is built.
     //
-    assert (st != build_state::built || rs);
+    assert (st != build_state::built || br);
 
-    optional<string> co; // Conclusion.
-    if (rs)
-      co = gh_to_conclusion (*rs, ws);
-
-    string rq (gq_serialize_request (
-        gq_mutation_update_check_run (rid, nid, gh_to_status (st), co)));
+    string rq (
+        gq_serialize_request (gq_mutation_update_check_run (rid,
+                                                            nid,
+                                                            du,
+                                                            gh_to_status (st),
+                                                            move (br))));
 
     vector<check_run> crs {move (cr)};
 

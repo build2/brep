@@ -66,6 +66,11 @@ namespace brep
     bool
     handle_check_suite_request (gh_check_suite_event, bool warning_success);
 
+    // Build a check run details_url for a build.
+    //
+    string
+    details_url (const build&) const;
+
     optional<string>
     generate_jwt (const basic_mark& trace, const basic_mark& error) const;
 

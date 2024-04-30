@@ -5,6 +5,8 @@
 
 #include <libbutl/json/parser.hxx>
 
+#include <web/server/mime-url-encoding.hxx> // mime_url_encode()
+
 #include <mod/jwt.hxx>
 #include <mod/hmac.hxx>
 #include <mod/module-options.hxx>
@@ -711,6 +713,7 @@ namespace brep
                                iat->token,
                                sd.repository_id,
                                *cr->node_id,
+                               details_url (b),
                                build_state::building))
       {
         // Do nothing further if the state was already built on GitHub (note
@@ -851,6 +854,12 @@ namespace brep
       //    instead of passing it to gq_*() functions? Let's see how we handle
       //    the report.
 
+      // @@ TODO Summary
+      //
+      gq_built_result br (gh_to_conclusion (*b.status, sd.warning_success),
+                          ucase (to_string (*b.status)),
+                          "SUMMARY");
+
       if (cr.node_id)
       {
         // Update existing check run to built.
@@ -860,8 +869,9 @@ namespace brep
                                  iat->token,
                                  sd.repository_id,
                                  *cr.node_id,
+                                 "", // Don't update details_url again.
                                  build_state::built,
-                                 *b.status, sd.warning_success))
+                                 move (br)))
         {
           assert (cr.state == build_state::built);
 
@@ -883,8 +893,9 @@ namespace brep
                                  iat->token,
                                  sd.repository_id,
                                  sd.head_sha,
+                                 details_url (b),
                                  build_state::built,
-                                 *b.status, sd.warning_success))
+                                 move (br)))
         {
           assert (cr.state == build_state::built);
 
@@ -936,6 +947,20 @@ namespace brep
 
       return sd.json ();
     };
+  }
+
+  string ci_github::
+  details_url (const build& b) const
+  {
+    return options_->host ()                                          +
+      "/@" + b.tenant                                                 +
+      "?builds=" + mime_url_encode (b.package_name.string ())         +
+      "&pv=" + b.package_version.string ()                            +
+      "&tg=" + mime_url_encode (b.target.string ())                   +
+      "&tc=" + mime_url_encode (b.target_config_name)                 +
+      "&pc=" + mime_url_encode (b.package_config_name)                +
+      "&th=" + mime_url_encode (b.toolchain_version.string ())        +
+      "&rs=*";
   }
 
   optional<string> ci_github::
