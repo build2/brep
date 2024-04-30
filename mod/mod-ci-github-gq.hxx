@@ -23,6 +23,9 @@ namespace brep
   // the new states and node IDs. Return false and issue diagnostics if the
   // request failed.
   //
+  // Note: no details_url yet since there will be no entry in the build result
+  // search page until the task starts building.
+  //
   bool
   gq_create_check_runs (const basic_mark& error,
                         vector<check_run>& check_runs,
@@ -36,22 +39,24 @@ namespace brep
   // failed.
   //
   // The result_status is required if the build_state is built because GitHub
-  // does not allow a check run status of `completed` without a conclusion.
+  // does not allow a check run status of `completed` without a conclusion. @@
   //
-  // If warning_success is true, then map result_status::warning to SUCCESS
-  // and to FAILURE otherwise.
-  //
-  // @@ TODO Support output (title, summary, text).
-  //
+  struct gq_built_result
+  {
+    string conclusion;
+    string title;
+    string summmary;
+  };
+
   bool
   gq_create_check_run (const basic_mark& error,
                        check_run& cr,
                        const string& installation_access_token,
                        const string& repository_id,
                        const string& head_sha,
+                       const string& details_url,
                        build_state,
-                       optional<result_status> = nullopt,
-                       bool warning_success = true);
+                       optional<gq_built_result> = nullopt);
 
   // Update a check run on GitHub.
   //
@@ -60,12 +65,7 @@ namespace brep
   // failed.
   //
   // The result_status is required if the build_state is built because GitHub
-  // does not allow a check run status of `completed` without a conclusion.
-  //
-  // If warning_success is true, then map result_status::warning to SUCCESS
-  // and to FAILURE otherwise.
-  //
-  // @@ TODO Support output (title, summary, text).
+  // does not allow a check run status of `completed` without a conclusion. @@
   //
   bool
   gq_update_check_run (const basic_mark& error,
@@ -73,9 +73,9 @@ namespace brep
                        const string& installation_access_token,
                        const string& repository_id,
                        const string& node_id,
+                       const string& details_url,
                        build_state,
-                       optional<result_status> = nullopt,
-                       bool warning_success = true);
+                       optional<gq_built_result> = nullopt);
 }
 
 #endif // MOD_MOD_CI_GITHUB_GQ_HXX

@@ -704,6 +704,8 @@ namespace brep
     //
     if (iat != nullptr)
     {
+      // @@ TODO: send timestamp so that build duration is accurate?
+
       if (gq_update_check_run (error,
                                *cr,
                                iat->token,
@@ -845,6 +847,10 @@ namespace brep
     //
     if (iat != nullptr)
     {
+      // @@ Maybe we should map status here according to warning_success
+      //    instead of passing it to gq_*() functions? Let's see how we handle
+      //    the report.
+
       if (cr.node_id)
       {
         // Update existing check run to built.
