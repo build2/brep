@@ -848,7 +848,8 @@ namespace brep
     // @@ TODO Is etc/brep-module.conf updated manually? Yes, will need to
     //    replicate there eventually.
     //
-    class ci_github: ci_start, ci_cancel,
+    class ci_github: repository_url,
+                     ci_start, ci_cancel,
                      build, build_db,
                      handler,
                      openssl_options

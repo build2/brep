@@ -26,6 +26,10 @@ namespace brep
   // Note: no details_url yet since there will be no entry in the build result
   // search page until the task starts building.
   //
+  // @@ TMP We only create multiple check runs in build_queued() so
+  //        build_state is redundant. Maybe we should rename this
+  //        gq_queue_check_runs()?
+  //
   bool
   gq_create_check_runs (const basic_mark& error,
                         vector<check_run>& check_runs,
@@ -38,14 +42,15 @@ namespace brep
   // state and the node ID. Return false and issue diagnostics if the request
   // failed.
   //
-  // The result_status is required if the build_state is built because GitHub
-  // does not allow a check run status of `completed` without a conclusion. @@
+  // The gq_built_result is required if the build_state is built because
+  // GitHub does not allow a check run status of `completed` without at least
+  // a conclusion.
   //
   struct gq_built_result
   {
     string conclusion;
     string title;
-    string summmary;
+    string summary;
   };
 
   bool
@@ -64,8 +69,9 @@ namespace brep
   // with the new state. Return false and issue diagnostics if the request
   // failed.
   //
-  // The result_status is required if the build_state is built because GitHub
-  // does not allow a check run status of `completed` without a conclusion. @@
+  // The gq_built_result is required if the build_state is built because
+  // GitHub does not allow a check run status of `completed` without at least
+  // a conclusion.
   //
   bool
   gq_update_check_run (const basic_mark& error,
