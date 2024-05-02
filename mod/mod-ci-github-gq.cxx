@@ -317,11 +317,12 @@ namespace brep
 
   // Serialize `createCheckRun` mutations for one or more builds to GraphQL.
   //
-  // The `co` (conclusion) argument is required if the build_state is built
+  // The conclusion argument (`co`) is required if the build_state is built
   // because GitHub does not allow a check run status of completed without a
   // conclusion.
   //
-  // `du` can be empty for queued but not for the other states.
+  // The details URL argument (`du`) can be empty for queued but not for the
+  // other states.
   //
   static string
   gq_mutation_create_check_runs (const string& ri, // Repository ID
@@ -440,7 +441,8 @@ namespace brep
 
     // Empty details URL because it's not available until building.
     //
-    string rq (gq_serialize_request (
+    string rq (
+      gq_serialize_request (
         gq_mutation_create_check_runs (rid, hs, "", crs, gh_to_status (st))));
 
     return gq_mutate_check_runs (error, crs, iat, move (rq), st);
@@ -466,7 +468,8 @@ namespace brep
 
     vector<check_run> crs {move (cr)};
 
-    string rq (gq_serialize_request (
+    string rq (
+      gq_serialize_request (
         gq_mutation_create_check_runs (rid,
                                        hs,
                                        du,
@@ -491,16 +494,17 @@ namespace brep
                        build_state st,
                        optional<gq_built_result> br)
   {
-    // Must have a result if state is built.
+    // Must have a result if state is built. @@ du?
     //
     assert (st != build_state::built || br);
 
     string rq (
-        gq_serialize_request (gq_mutation_update_check_run (rid,
-                                                            nid,
-                                                            du,
-                                                            gh_to_status (st),
-                                                            move (br))));
+      gq_serialize_request (
+        gq_mutation_update_check_run (rid,
+                                      nid,
+                                      du,
+                                      gh_to_status (st),
+                                      move (br))));
 
     vector<check_run> crs {move (cr)};
 
