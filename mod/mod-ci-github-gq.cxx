@@ -494,9 +494,13 @@ namespace brep
                        build_state st,
                        optional<gq_built_result> br)
   {
-    // Must have a result if state is built. @@ du?
+    // Must have a result if state is built.
     //
     assert (st != build_state::built || br);
+
+    // Must have a details URL for building and built.
+    //
+    assert (!du.empty ());
 
     string rq (
       gq_serialize_request (
