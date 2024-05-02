@@ -869,7 +869,7 @@ namespace brep
                                  iat->token,
                                  sd.repository_id,
                                  *cr.node_id,
-                                 "", // Don't update details_url again.
+                                 "", // Don't update details_url again. @@
                                  build_state::built,
                                  move (br)))
         {
@@ -959,8 +959,7 @@ namespace brep
       "&tg=" + mime_url_encode (b.target.string ())                   +
       "&tc=" + mime_url_encode (b.target_config_name)                 +
       "&pc=" + mime_url_encode (b.package_config_name)                +
-      "&th=" + mime_url_encode (b.toolchain_version.string ())        +
-      "&rs=*";
+      "&th=" + mime_url_encode (b.toolchain_version.string ());
   }
 
   optional<string> ci_github::
