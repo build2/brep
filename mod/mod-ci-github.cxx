@@ -869,7 +869,7 @@ namespace brep
                                  iat->token,
                                  sd.repository_id,
                                  *cr.node_id,
-                                 "", // Don't update details_url again. @@
+                                 details_url (b),
                                  build_state::built,
                                  move (br)))
         {
