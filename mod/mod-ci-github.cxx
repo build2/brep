@@ -5,10 +5,12 @@
 
 #include <libbutl/json/parser.hxx>
 
+#include <web/xhtml/serialization.hxx>
 #include <web/server/mime-url-encoding.hxx> // mime_url_encode()
 
 #include <mod/jwt.hxx>
 #include <mod/hmac.hxx>
+#include <mod/build.hxx> // build_log_url()
 #include <mod/module-options.hxx>
 
 #include <mod/mod-ci-github-gq.hxx>
@@ -850,15 +852,133 @@ namespace brep
     //
     if (iat != nullptr)
     {
+      // Return the colored circle corresponding to a result_status.
+      //
+      auto circle = [] (result_status rs) -> string
+      {
+        switch (rs)
+        {
+        case result_status::success:  return "\U0001F7E2"; // Green circle.
+        case result_status::warning:  return "\U0001F7E0"; // Orange circle.
+        case result_status::error:
+        case result_status::abort:
+        case result_status::abnormal: return "\U0001F534"; // Red circle.
+
+          // Valid values we should never encounter.
+          //
+        case result_status::skip:
+        case result_status::interrupt:
+          throw invalid_argument ("unexpected result_status value: " +
+                                  to_string (rs));
+        }
+
+        assert (false);
+      };
+
+      // Prepare the check run's summary field (the build information in an
+      // XHTML table).
+      //
+      string sm; // Summary.
+      {
+        using namespace web::xhtml;
+
+        ostringstream os;
+        xml::serializer s (os, "check_run_summary");
+
+        // @@ TMP Hack required to disable XML element name prefixes (which
+        //        GitHub does not like). The XHTML elsewhere in brep always
+        //        starts with an <html> element which sets up the
+        //        namespace/prefix just like this.
+        //
+        struct table: element
+        {
+          table (): element ("table") {}
+
+          void
+          start (xml::serializer& s) const override
+          {
+            s.start_element (xmlns, name);
+            s.namespace_decl (xmlns, "");
+          }
+        } TABLE;
+
+        // Serialize a result row (colored circle, result text, log URL) for
+        // an operation and result_status.
+        //
+        auto tr_result = [this, circle, &b] (xml::serializer& s,
+                                             const string& op,
+                                             result_status rs)
+        {
+          // The log URL.
+          //
+          string lu (build_log_url (options_->host (),
+                                    options_->root (),
+                                    b,
+                                    op != "result" ? &op : nullptr));
+
+          s << TR
+            <<   TD << EM << op << ~EM << ~TD
+            <<   TD
+            <<     circle (rs) << ' '
+            <<     CODE << to_string (rs) << ~CODE
+            <<     " (" << A << HREF << lu << ~HREF << "log" << ~A << ')'
+            <<   ~TD
+            << ~TR;
+        };
+
+        // Serialize the summary to an XHTML table.
+        //
+        s << TABLE
+          <<   TBODY;
+
+        tr_result (s, "result", *b.status);
+
+        s <<     TR
+          <<       TD << EM   << "package"      << ~EM   << ~TD
+          <<       TD << CODE << b.package_name << ~CODE << ~TD
+          <<     ~TR
+          <<     TR
+          <<       TD << EM   << "version"         << ~EM   << ~TD
+          <<       TD << CODE << b.package_version << ~CODE << ~TD
+          <<     ~TR
+          <<     TR
+          <<       TD << EM << "toolchain" << ~EM << ~TD
+          <<       TD
+          <<         CODE
+          <<           b.toolchain_name << '-' << b.toolchain_version.string ()
+          <<         ~CODE
+          <<       ~TD
+          <<     ~TR
+          <<     TR
+          <<       TD << EM   << "target"           << ~EM   << ~TD
+          <<       TD << CODE << b.target.string () << ~CODE << ~TD
+          <<     ~TR
+          <<     TR
+          <<       TD << EM   << "target config"      << ~EM   << ~TD
+          <<       TD << CODE << b.target_config_name << ~CODE << ~TD
+          <<     ~TR
+          <<     TR
+          <<       TD << EM   << "package config"      << ~EM   << ~TD
+          <<       TD << CODE << b.package_config_name << ~CODE << ~TD
+          <<     ~TR;
+
+        for (const operation_result& r: b.results)
+          tr_result (s, r.operation, r.status);
+
+        s <<   ~TBODY
+          << ~TABLE;
+
+        sm = os.str ();
+      }
+
       // @@ Maybe we should map status here according to warning_success
       //    instead of passing it to gq_*() functions? Let's see how we handle
       //    the report.
-
-      // @@ TODO Summary
       //
       gq_built_result br (gh_to_conclusion (*b.status, sd.warning_success),
-                          ucase (to_string (*b.status)),
-                          "SUMMARY");
+                          circle (*b.status) + ' ' +
+                              ucase (to_string (*b.status)),
+                          move (sm));
 
       if (cr.node_id)
       {
