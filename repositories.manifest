@@ -35,11 +35,7 @@ location: https://git.build2.org/packaging/cmark-gfm/cmark-gfm.git##HEAD
 
 :
 role: prerequisite
-location: https://git.codesynthesis.com/odb/libodb.git##HEAD
-
-:
-role: prerequisite
-location: https://git.codesynthesis.com/odb/libodb-pgsql.git##HEAD
+location: https://git.codesynthesis.com/odb/odb.git##HEAD
 
 :
 role: prerequisite
