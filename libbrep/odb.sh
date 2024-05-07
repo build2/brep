@@ -16,6 +16,8 @@ if test -d ../.bdep; then
 sed -r -ne 's#^(@[^ ]+ )?([^ ]+)/ .*default.*$#\2#p')"
   fi
 
+  # Note: here we use libodb*, not libbutl-odb.
+  #
   inc+=("-I$(echo "$cfg"/libodb-[1-9]*/)")
   inc+=("-I$(echo "$cfg"/libodb-pgsql-[1-9]*/)")
 
@@ -32,6 +34,11 @@ sed -r -ne 's#^(@[^ ]+ )?([^ ]+)/ .*default.*$#\2#p')"
   inc+=("-I..")
 
 else
+
+  # Feels like this case should not be necessary (unlike in bpkg/bdep).
+  #
+  echo "not bdep-initialized" 1>&2
+  exit 1
 
   inc+=("-I$HOME/work/odb/builds/default/libodb-pgsql-default")
   inc+=("-I$HOME/work/odb/libodb-pgsql")
