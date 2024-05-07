@@ -21,6 +21,8 @@ namespace brep
     case build_state::building: return "IN_PROGRESS";
     case build_state::built:    return "COMPLETED";
     }
+
+    assert (false);
   }
 
   // Return the build_state corresponding to a GitHub check run status
@@ -60,6 +62,8 @@ namespace brep
       throw invalid_argument ("unexpected result_status value: " +
                               to_string (rs));
     }
+
+    assert (false);
   }
 
   string
