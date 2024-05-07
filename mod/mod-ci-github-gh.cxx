@@ -118,7 +118,7 @@ namespace brep
   {
     p.next_expect (event::begin_object);
 
-    bool ni (false), hb (false), hs (false), bf (false), at (false);
+    bool ni (false), hb (false), hs (false);
 
     // Skip unknown/uninteresting members.
     //
@@ -132,16 +132,12 @@ namespace brep
       if      (c (ni, "node_id"))     node_id = p.next_expect_string ();
       else if (c (hb, "head_branch")) head_branch = p.next_expect_string ();
       else if (c (hs, "head_sha"))    head_sha = p.next_expect_string ();
-      else if (c (bf, "before"))      before = p.next_expect_string ();
-      else if (c (at, "after"))       after = p.next_expect_string ();
       else p.next_expect_value_skip ();
     }
 
     if (!ni) missing_member (p, "gh_check_suite", "node_id");
     if (!hb) missing_member (p, "gh_check_suite", "head_branch");
     if (!hs) missing_member (p, "gh_check_suite", "head_sha");
-    if (!bf) missing_member (p, "gh_check_suite", "before");
-    if (!at) missing_member (p, "gh_check_suite", "after");
   }
 
   ostream&
@@ -149,9 +145,7 @@ namespace brep
   {
     os << "node_id: " << cs.node_id
        << ", head_branch: " << cs.head_branch
-       << ", head_sha: " << cs.head_sha
-       << ", before: " << cs.before
-       << ", after: " << cs.after;
+       << ", head_sha: " << cs.head_sha;
 
     return os;
   }
