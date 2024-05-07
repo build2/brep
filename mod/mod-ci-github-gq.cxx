@@ -66,6 +66,8 @@ namespace brep
   // we need to check that the errors field is not present before parsing the
   // data field as it might contain nulls if errors is present.
   //
+  // @@ TODO: This function is only called in one place.
+  //
   static void
   gq_parse_response (json::parser& p,
                      function<void (json::parser&)> parse_data)
