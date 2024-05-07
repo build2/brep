@@ -19,6 +19,26 @@
 
 #include <stdexcept>
 
+// @@ Remaining TODOs
+//
+//    - Rerequested checks
+//
+//      - check_suite (action: rerequested): received when user re-runs all
+//        checks.
+//
+//      - check_run (action: rerequested): received when user re-runs a
+//        specific check or all failed checks.
+//
+//      Will need to extract a few more fields from check_runs, but the layout
+//      is very similar to that of check_suite.
+//
+//    - Pull requests. Handle
+//
+//    - Choose strong webhook secret
+//
+//    - Check that delivery UUID has not been received before (replay attack).
+//
+
 // @@ TODO
 //
 //    Building CI checks with a GitHub App
@@ -41,10 +61,6 @@
 //    https://en.wikipedia.org/wiki/HMAC#Definition. A suitable implementation
 //    is provided by OpenSSL.
 
-// @@ TODO Centralize exception/error handling around calls to
-//         github_post(). Currently it's mostly duplicated and there is quite
-//         a lot of it.
-//
 using namespace std;
 using namespace butl;
 using namespace web;
@@ -103,13 +119,6 @@ namespace brep
     // Process headers.
     //
     // @@ TMP Shouldn't we also error<< in some of these header problem cases?
-    //
-    // @@ TMP From GitHub docs: "You can create webhooks that subscribe to the
-    //        events listed on this page."
-    //
-    //        So it seems appropriate to generally use the term "event" (which
-    //        we already do for the most part), and "webhook event" only when
-    //        more context would be useful?
     //
     string event; // Webhook event.
     string hmac;  // Received HMAC.
@@ -892,7 +901,7 @@ namespace brep
         xml::serializer s (os, "check_run_summary");
 
         // This hack is required to disable XML element name prefixes (which
-        // GitHub does not like). Note that this adsd an xmlns declaration for
+        // GitHub does not like). Note that this adds an xmlns declaration for
         // the XHTML namespace which for now GitHub appears to ignore. If that
         // ever becomes a problem, then we should redo this with raw XML
         // serializer calls.
