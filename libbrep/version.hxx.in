@@ -49,11 +49,11 @@ $libbbot.check(LIBBBOT_VERSION, LIBBBOT_SNAPSHOT)$
 
 #include <odb/version.hxx>
 
-$libodb.check(LIBODB_VERSION, LIBODB_SNAPSHOT)$
+$libodb.check(LIBODB_VERSION_FULL, LIBODB_SNAPSHOT)$
 
 #include <odb/pgsql/version.hxx>
 
-$libodb_pgsql.check(LIBODB_PGSQL_VERSION, LIBODB_PGSQL_SNAPSHOT)$
+$libodb_pgsql.check(LIBODB_PGSQL_VERSION_FULL, LIBODB_PGSQL_SNAPSHOT)$
 
 // For now these are the same.
 //
