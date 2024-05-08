@@ -716,8 +716,6 @@ namespace brep
     //
     if (iat != nullptr)
     {
-      // @@ TODO: send timestamp so that build duration is accurate?
-
       if (gq_update_check_run (error,
                                *cr,
                                iat->token,
