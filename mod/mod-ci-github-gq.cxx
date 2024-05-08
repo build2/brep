@@ -385,10 +385,11 @@ namespace brep
   // conclusion.
   //
   static string
-  gq_mutation_update_check_run (const string& ri, // Repository ID.
-                                const string& ni, // Node ID.
-                                const string& du, // Details URL.
-                                const string& st, // Check run status.
+  gq_mutation_update_check_run (const string& ri,       // Repository ID.
+                                const string& ni,       // Node ID.
+                                const string& du,       // Details URL.
+                                const string& st,       // Check run status.
+                                optional<timestamp> sa, // Started at.
                                 optional<gq_built_result> br)
   {
     ostringstream os;
@@ -398,6 +399,11 @@ namespace brep
        << "  checkRunId: "   << gq_str (ni)                       << '\n'
        << "  repositoryId: " << gq_str (ri)                       << '\n'
        << "  status: "       << gq_enum (st);
+    if (sa)
+    {
+      os                                                          << '\n';
+      os << "  startedAt: " << gq_str (gh_to_iso8601 (*sa));
+    }
     if (!du.empty ())
     {
       os                                                          << '\n';
@@ -502,12 +508,20 @@ namespace brep
     //
     assert (!du.empty ());
 
+    // Set `started at` to current time if updating to building.
+    //
+    optional<timestamp> sa;
+
+    if (st == build_state::building)
+      sa = system_clock::now ();
+
     string rq (
       gq_serialize_request (
         gq_mutation_update_check_run (rid,
                                       nid,
                                       du,
                                       gh_to_status (st),
+                                      sa,
                                       move (br))));
 
     vector<check_run> crs {move (cr)};
