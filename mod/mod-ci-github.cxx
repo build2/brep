@@ -872,7 +872,7 @@ namespace brep
                                   to_string (rs));
         }
 
-        assert (false);
+        return ""; // Should never reach.
       };
 
       // Prepare the check run's summary field (the build information in an
@@ -885,10 +885,11 @@ namespace brep
         ostringstream os;
         xml::serializer s (os, "check_run_summary");
 
-        // @@ TMP Hack required to disable XML element name prefixes (which
-        //        GitHub does not like). The XHTML elsewhere in brep always
-        //        starts with an <html> element which sets up the
-        //        namespace/prefix just like this.
+        // This hack is required to disable XML element name prefixes (which
+        // GitHub does not like). Note that this adsd an xmlns declaration for
+        // the XHTML namespace which for now GitHub appears to ignore. If that
+        // ever becomes a problem, then we should redo this with raw XML
+        // serializer calls.
         //
         struct table: element
         {
@@ -977,7 +978,7 @@ namespace brep
       //
       gq_built_result br (gh_to_conclusion (*b.status, sd.warning_success),
                           circle (*b.status) + ' ' +
-                              ucase (to_string (*b.status)),
+                            ucase (to_string (*b.status)),
                           move (sm));
 
       if (cr.node_id)

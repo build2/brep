@@ -22,7 +22,7 @@ namespace brep
     case build_state::built:    return "COMPLETED";
     }
 
-    assert (false);
+    return ""; // Should never reach.
   }
 
   // Return the build_state corresponding to a GitHub check run status
@@ -63,7 +63,7 @@ namespace brep
                               to_string (rs));
     }
 
-    assert (false);
+    return ""; // Should never reach.
   }
 
   string
