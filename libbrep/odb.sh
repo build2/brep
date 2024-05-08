@@ -35,16 +35,8 @@ sed -r -ne 's#^(@[^ ]+ )?([^ ]+)/ .*default.*$#\2#p')"
 
 else
 
-  # Feels like this case should not be necessary (unlike in bpkg/bdep).
-  #
-  echo "not bdep-initialized" 1>&2
-  exit 1
-
-  inc+=("-I$HOME/work/odb/builds/default/libodb-pgsql-default")
-  inc+=("-I$HOME/work/odb/libodb-pgsql")
-
-  inc+=("-I$HOME/work/odb/builds/default/libodb-default")
-  inc+=("-I$HOME/work/odb/libodb")
+  inc+=("-I$HOME/work/odb/odb/libodb-pgsql")
+  inc+=("-I$HOME/work/odb/odb/libodb")
 
   inc+=(-I.. -I../../libbbot -I../../libbpkg -I../../libbutl)
 
