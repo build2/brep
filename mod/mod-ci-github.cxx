@@ -269,6 +269,11 @@ namespace brep
     // is that we want be "notified" of new actions at which point we can decide
     // whether to ignore them or to handle.
     //
+    // @@ There is also check_run even (re-requested by user, either
+    //    individual check run or all the failed check runs).
+    //
+    // @@ There is also the pull_request event. Probably need to handle.
+    //
     if (event == "check_suite")
     {
       gh_check_suite_event cs;
@@ -297,6 +302,8 @@ namespace brep
         // Someone manually requested to re-run the check runs in this check
         // suite. Treat as a new request.
         //
+        // @@ This is probably broken.
+        //
         return handle_check_suite_request (move (cs), warning_success);
       }
       else if (cs.action == "completed")
@@ -305,9 +312,8 @@ namespace brep
         // completed and a conclusion is available". Looks like this one we
         // ignore?
         //
-        // @@ TODO What if our bookkeeping says otherwise? See conclusion
-        //    field which includes timedout. Need to come back to this once
-        //    have the "happy path" implemented.
+        // What if our bookkeeping says otherwise? But then we can't even
+        // access the service data easily here. @@ TODO: maybe/later.
         //
         return true;
       }
@@ -372,18 +378,20 @@ namespace brep
                              move (cs.check_suite.head_sha))
                    .json ());
 
+    // @@ What happens if we call this functions with an already existing
+    //    node_id (e.g., replay attack).
+    //
     optional<start_result> r (
-        start (error,
-               warn,
-               verb_ ? &trace : nullptr,
-               tenant_service (move (cs.check_suite.node_id),
-                               "ci-github",
-                               move (sd)),
-               move (rl),
-               vector<package> {},
-               nullopt, // client_ip
-               nullopt  // user_agent
-               ));
+      start (error,
+             warn,
+             verb_ ? &trace : nullptr,
+             tenant_service (move (cs.check_suite.node_id),
+                             "ci-github",
+                             move (sd)),
+             move (rl),
+             vector<package> {},
+             nullopt, /* client_ip */
+             nullopt  /* user_agent */));
 
     if (!r)
       fail << "unable to submit CI request";
