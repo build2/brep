@@ -35,6 +35,8 @@ namespace brep
   // Throw runtime_error if the response indicated errors and
   // invalid_json_input if the GitHub response contained invalid JSON.
   //
+  // The parse_data function should not throw anything but invalid_json_input.
+  //
   // The response format is defined in the GraphQL spec:
   // https://spec.graphql.org/October2021/#sec-Response.
   //
@@ -48,10 +50,21 @@ namespace brep
   // The contents of `data`, including its opening and closing braces, are
   // parsed by the `parse_data` function.
   //
-  // @@ TODO: specify what parse_data may throw (probably only
-  // invalid_json_input).
+  // If the `errors` field is present in the response, error(s) occurred
+  // before or during execution of the operation.
   //
-  // @@ TODO data comes before errors in GitHub's responses.
+  // If the `data` field is not present the errors are request errors which
+  // occur before execution and are typically the client's fault.
+  //
+  // If the `data` field is also present in the response the errors are field
+  // errors which occur during execution and are typically the GraphQL
+  // endpoint's fault, and some fields in `data` that should not be are likely
+  // to be null.
+  //
+  // Although the spec recommends that the errors field (if present) should
+  // come before the data field, GitHub places data before errors. Therefore
+  // we need to check that the errors field is not present before parsing the
+  // data field as it might contain nulls if errors is present.
   //
   static void
   gq_parse_response (json::parser& p,
@@ -61,12 +74,13 @@ namespace brep
 
     // True if the data/errors fields are present.
     //
-    // Although the spec merely recommends that the `errors` field, if
-    // present, comes before the `data` field, assume it always does because
-    // letting the client parse data in the presence of field errors
-    // (unexpected nulls) would not make sense.
-    //
     bool dat (false), err (false);
+
+    // Because the errors field is likely to come before the data field,
+    // serialize data to a stringstream and only parse it later once we're
+    // sure there are no errors.
+    //
+    ostringstream data; // The value of the data field.
 
     p.next_expect (event::begin_object);
 
@@ -76,13 +90,24 @@ namespace brep
       {
         dat = true;
 
-        // Currently we're not handling fields that are null due to field
-        // errors (see below for details) so don't parse any further.
+        // Serialize the data field to a string.
         //
-        if (err)
-          break;
+        json::stream_serializer s (data, 0 /* indentation */);
 
-        parse_data (p);
+        try
+        {
+          for (event e: p)
+          {
+            if (!s.next (e, p.data (), false /* check */))
+              break; // Stop if data object is complete.
+          }
+        }
+        catch (const json::invalid_json_output& e)
+        {
+          throw_json (p,
+                      string ("serializer rejected response 'data' field: ") +
+                        e.what ());
+        }
       }
       else if (p.name () == "errors")
       {
@@ -107,23 +132,19 @@ namespace brep
       }
     }
 
-    // If the `errors` field was present in the response, error(s) occurred
-    // before or during execution of the operation.
-    //
-    // If the `data` field was not present the errors are request errors which
-    // occur before execution and are typically the client's fault.
-    //
-    // If the `data` field was also present in the response the errors are
-    // field errors which occur during execution and are typically the GraphQL
-    // endpoint's fault, and some fields in `data` that should not be are
-    // likely to be null.
-    //
-    if (err)
+    if (!err)
+    {
+      // Parse the data field now that we know there are no errors.
+      //
+      string d (data.str ());
+      json::parser dp (d, p.input_name);
+
+      parse_data (dp);
+    }
+    else
     {
       if (dat)
       {
-        // @@ TODO: Consider parsing partial data?
-        //
         throw runtime_error ("field error(s) received from GraphQL endpoint; "
                              "incomplete data received");
       }
