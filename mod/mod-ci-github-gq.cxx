@@ -66,8 +66,6 @@ namespace brep
   // we need to check that the errors field is not present before parsing the
   // data field as it might contain nulls if errors is present.
   //
-  // @@ TODO: This function is only called in one place.
-  //
   static void
   gq_parse_response (json::parser& p,
                      function<void (json::parser&)> parse_data)
@@ -84,6 +82,8 @@ namespace brep
     //
     ostringstream data; // The value of the data field.
 
+    // @@@ Use iostringstream for both output and input.
+
     p.next_expect (event::begin_object);
 
     while (p.next_expect (event::name, event::end_object))
@@ -94,13 +94,16 @@ namespace brep
 
         // Serialize the data field to a string.
         //
+        // Note that the JSON payload sent by GitHub is not pretty-printed so
+        // there is no need to worry about that.
+        //
         json::stream_serializer s (data, 0 /* indentation */);
 
         try
         {
           for (event e: p)
           {
-            if (!s.next (e, p.data (), false /* check */))
+            if (!s.next (e, p.data ()))
               break; // Stop if data object is complete.
           }
         }
@@ -136,6 +139,9 @@ namespace brep
 
     if (!err)
     {
+      if (!dat)
+        throw runtime_error ("no data received from GraphQL endpoint");
+
       // Parse the data field now that we know there are no errors.
       //
       string d (data.str ());
@@ -177,7 +183,7 @@ namespace brep
   //    }
   //  }
   //
-  // @@ TODO Handle response errors properly.
+  // @@@ TODO Handle response errors properly.
   //
   static vector<gh_check_run>
   gq_parse_response_check_runs (json::parser& p)
@@ -531,7 +537,7 @@ namespace brep
     //
     assert (!du.empty ());
 
-    // Set `started at` to current time if updating to building.
+    // Set `startedAt` to current time if updating to building.
     //
     optional<timestamp> sa;
 

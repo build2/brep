@@ -39,13 +39,7 @@
 //    - Check that delivery UUID has not been received before (replay attack).
 //
 
-// @@ TODO
-//
-//    Building CI checks with a GitHub App
-//    https://docs.github.com/en/apps/creating-github-apps/writing-code-for-a-github-app/building-ci-checks-with-a-github-app
-//
-
-// @@ TODO Best practices
+// Resources:
 //
 //    Webhooks:
 //    https://docs.github.com/en/webhooks/using-webhooks/best-practices-for-using-webhooks
@@ -53,13 +47,10 @@
 //
 //    REST API:
 //    https://docs.github.com/en/rest/using-the-rest-api/best-practices-for-using-the-rest-api?apiVersion=2022-11-28
+//    @@@ Add link to GraphQL?
 //
 //    Creating an App:
 //    https://docs.github.com/en/apps/creating-github-apps/about-creating-github-apps/best-practices-for-creating-a-github-app
-//
-//    Use a webhook secret to ensure request is coming from Github. HMAC:
-//    https://en.wikipedia.org/wiki/HMAC#Definition. A suitable implementation
-//    is provided by OpenSSL.
 
 using namespace std;
 using namespace butl;
@@ -118,7 +109,7 @@ namespace brep
 
     // Process headers.
     //
-    // @@ TMP Shouldn't we also error<< in some of these header problem cases?
+    // @@@ TMP Shouldn't we also error<< in some of these header problem cases?
     //
     string event; // Webhook event.
     string hmac;  // Received HMAC.
@@ -191,8 +182,8 @@ namespace brep
 
     // Read the entire request body into a buffer because we need to compute
     // an HMAC over it and then parse it as JSON. The alternative of reading
-    // from the stream twice works out to be more complicated (see also @@
-    // TODO item in web/server/module.hxx).
+    // from the stream twice works out to be more complicated (see also a TODO
+    // item in web/server/module.hxx).
     //
     string body;
     {
@@ -388,7 +379,7 @@ namespace brep
                    .json ());
 
     // @@ What happens if we call this functions with an already existing
-    //    node_id (e.g., replay attack).
+    //    node_id (e.g., replay attack). See the UUID header above.
     //
     optional<start_result> r (
       start (error,
@@ -987,10 +978,6 @@ namespace brep
         sm = os.str ();
       }
 
-      // @@ Maybe we should map status here according to warning_success
-      //    instead of passing it to gq_*() functions? Let's see how we handle
-      //    the report.
-      //
       gq_built_result br (gh_to_conclusion (*b.status, sd.warning_success),
                           circle (*b.status) + ' ' +
                             ucase (to_string (*b.status)),
