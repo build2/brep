@@ -56,7 +56,7 @@ namespace brep
     gh_installation_access_token installation_access;
 
     uint64_t installation_id;
-    // @@ TODO Rename to repository_node_id.
+    // @@@ TODO Rename to repository_node_id.
     //
     string repository_id; // GitHub-internal opaque repository id.
 

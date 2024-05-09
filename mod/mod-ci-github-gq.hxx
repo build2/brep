@@ -26,10 +26,6 @@ namespace brep
   // Note: no details_url yet since there will be no entry in the build result
   // search page until the task starts building.
   //
-  // @@ TMP We only create multiple check runs in build_queued() so
-  //        build_state is redundant. Maybe we should rename this
-  //        gq_queue_check_runs()?
-  //
   bool
   gq_create_check_runs (const basic_mark& error,
                         vector<check_run>& check_runs,

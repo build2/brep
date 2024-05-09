@@ -845,7 +845,7 @@ namespace brep
     {
     };
 
-    // @@ TODO Is etc/brep-module.conf updated manually? Yes, will need to
+    // @@@ TODO Is etc/brep-module.conf updated manually? Yes, will need to
     //    replicate there eventually.
     //
     class ci_github: repository_url,
