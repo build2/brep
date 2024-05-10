@@ -80,9 +80,7 @@ namespace brep
     // serialize data to a stringstream and only parse it later once we're
     // sure there are no errors.
     //
-    ostringstream data; // The value of the data field.
-
-    // @@@ Use iostringstream for both output and input.
+    stringstream data; // The value of the data field.
 
     p.next_expect (event::begin_object);
 
@@ -144,8 +142,7 @@ namespace brep
 
       // Parse the data field now that we know there are no errors.
       //
-      string d (data.str ());
-      json::parser dp (d, p.input_name);
+      json::parser dp (data, p.input_name);
 
       parse_data (dp);
     }
@@ -182,8 +179,6 @@ namespace brep
   //      }
   //    }
   //  }
-  //
-  // @@@ TODO Handle response errors properly.
   //
   static vector<gh_check_run>
   gq_parse_response_check_runs (json::parser& p)

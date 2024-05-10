@@ -41,16 +41,20 @@
 
 // Resources:
 //
+//    Creating an App:
+//    https://docs.github.com/en/apps/creating-github-apps/about-creating-github-apps/best-practices-for-creating-a-github-app
+//
 //    Webhooks:
 //    https://docs.github.com/en/webhooks/using-webhooks/best-practices-for-using-webhooks
 //    https://docs.github.com/en/webhooks/using-webhooks/validating-webhook-deliveries
 //
 //    REST API:
-//    https://docs.github.com/en/rest/using-the-rest-api/best-practices-for-using-the-rest-api?apiVersion=2022-11-28
-//    @@@ Add link to GraphQL?
+//    All docs:       https://docs.github.com/en/rest#all-docs
+//    Best practices: https://docs.github.com/en/rest/using-the-rest-api/best-practices-for-using-the-rest-api
 //
-//    Creating an App:
-//    https://docs.github.com/en/apps/creating-github-apps/about-creating-github-apps/best-practices-for-creating-a-github-app
+//    GraphQL API:
+//    Reference: https://docs.github.com/en/graphql/reference
+//
 
 using namespace std;
 using namespace butl;
@@ -108,8 +112,6 @@ namespace brep
       throw invalid_request (404, "GitHub CI request submission disabled");
 
     // Process headers.
-    //
-    // @@@ TMP Shouldn't we also error<< in some of these header problem cases?
     //
     string event; // Webhook event.
     string hmac;  // Received HMAC.
@@ -529,12 +531,11 @@ namespace brep
         }
         else if (*istate == build_state::built)
         {
-          // Unexpectd built->queued transition (rebuild).
+          // Unexpected built->queued transition (rebuild).
           //
           warn << "check run " << bid << ": unexpected rebuild";
         }
-        else
-          ; // Ignore interrupted.
+        else {} // Ignore interrupted.
       }
       else
       {
@@ -583,7 +584,7 @@ namespace brep
       if (gq_create_check_runs (error,
                                 crs,
                                 iat->token,
-                                sd.repository_id, sd.head_sha,
+                                sd.repository_node_id, sd.head_sha,
                                 build_state::queued))
       {
         for (const check_run& cr: crs)
@@ -677,8 +678,7 @@ namespace brep
           cr = move (*scr);
           cr->state_synced = false;
         }
-        else
-          ; // Network error during queued notification, ignore.
+        else {} // Network error during queued notification, ignore.
       }
       else
         warn << "check run " << bid << ": out of order building "
@@ -719,7 +719,7 @@ namespace brep
       if (gq_update_check_run (error,
                                *cr,
                                iat->token,
-                               sd.repository_id,
+                               sd.repository_node_id,
                                *cr->node_id,
                                details_url (b),
                                build_state::building))
@@ -990,7 +990,7 @@ namespace brep
         if (gq_update_check_run (error,
                                  cr,
                                  iat->token,
-                                 sd.repository_id,
+                                 sd.repository_node_id,
                                  *cr.node_id,
                                  details_url (b),
                                  build_state::built,
@@ -1014,7 +1014,7 @@ namespace brep
         if (gq_create_check_run (error,
                                  cr,
                                  iat->token,
-                                 sd.repository_id,
+                                 sd.repository_node_id,
                                  sd.head_sha,
                                  details_url (b),
                                  build_state::built,

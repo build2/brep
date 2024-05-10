@@ -56,9 +56,8 @@ namespace brep
     gh_installation_access_token installation_access;
 
     uint64_t installation_id;
-    // @@@ TODO Rename to repository_node_id.
-    //
-    string repository_id; // GitHub-internal opaque repository id.
+
+    string repository_node_id; // GitHub-internal opaque repository id.
 
     string head_sha;
 
@@ -81,7 +80,7 @@ namespace brep
                   string iat_token,
                   timestamp iat_expires_at,
                   uint64_t installation_id,
-                  string repository_id,
+                  string repository_node_id,
                   string head_sha);
 
     service_data () = default;
