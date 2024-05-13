@@ -38,7 +38,7 @@ namespace brep
 
     installation_id =
         p.next_expect_member_number<uint64_t> ("installation_id");
-    repository_node_id = p.next_expect_member_string ("repository_id");
+    repository_node_id = p.next_expect_member_string ("repository_node_id");
     head_sha = p.next_expect_member_string ("head_sha");
 
     p.next_expect_member_array ("check_runs");
@@ -100,7 +100,7 @@ namespace brep
     s.end_object ();
 
     s.member ("installation_id", installation_id);
-    s.member ("repository_id", repository_node_id);
+    s.member ("repository_node_id", repository_node_id);
     s.member ("head_sha", head_sha);
 
     s.member_begin_array ("check_runs");
