@@ -34,7 +34,7 @@
 //
 //    - Pull requests. Handle
 //
-//    - Choose strong webhook secret
+//    - Choose strong webhook secret (when deploying).
 //
 //    - Check that delivery UUID has not been received before (replay attack).
 //
@@ -115,6 +115,7 @@ namespace brep
     //
     string event; // Webhook event.
     string hmac;  // Received HMAC.
+    try
     {
       bool content_type (false);
 
@@ -180,6 +181,11 @@ namespace brep
 
       if (hmac.empty ())
         throw invalid_request (400, "missing x-hub-signature-256 header");
+    }
+    catch (const invalid_request& e)
+    {
+      error << "request header error: " << e.content;
+      throw;
     }
 
     // Read the entire request body into a buffer because we need to compute
@@ -535,7 +541,10 @@ namespace brep
           //
           warn << "check run " << bid << ": unexpected rebuild";
         }
-        else {} // Ignore interrupted.
+        else
+        {
+          // Ignore interrupted.
+        }
       }
       else
       {
@@ -678,7 +687,10 @@ namespace brep
           cr = move (*scr);
           cr->state_synced = false;
         }
-        else {} // Network error during queued notification, ignore.
+        else
+        {
+          // Network error during queued notification, ignore.
+        }
       }
       else
         warn << "check run " << bid << ": out of order building "
