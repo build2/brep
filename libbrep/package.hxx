@@ -265,6 +265,12 @@ namespace brep
 
     optional<tenant_service> service;     // Note: foreign-mapped in build.
 
+    // If the tenant is loaded, this value is absent. Otherwise it is the time
+    // of the last attempt to load the tenant (see the build_unloaded() tenant
+    // services notification for details).
+    //
+    optional<timestamp> loaded_timestamp;
+
     // Note that due to the implementation complexity and performance
     // considerations, the service notifications are not synchronized. This
     // leads to a potential race, so that before we have sent the `queued`

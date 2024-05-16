@@ -36,6 +36,7 @@ namespace brep
       package_name name;
       optional<brep::version> version;
     };
+
     // Note that the inability to generate the reference is an internal
     // error. Thus, it is not optional.
     //
@@ -63,6 +64,39 @@ namespace brep
            const optional<string>& simulate = nullopt,
            const vector<pair<string, string>>& custom_request = {},
            const vector<pair<string, string>>& overrides = {});
+
+    // Create an unloaded CI request returning start_result::reference. Such a
+    // request is not started until loaded with the load() function below. See
+    // also the build_unloaded() tenant services notification.
+    //
+    string
+    create (const basic_mark& error,
+            const basic_mark& warn,
+            const basic_mark* trace,
+            tenant_service&&,
+            const optional<string>& client_ip,
+            const optional<string>& user_agent);
+
+    // Load (and start) previously created (as unloaded) CI request.
+    //
+    // Note that tenant_service::id is used to identify the CI request tenant.
+    //
+    // @@ What if already loaded/abandoned? Can we indicate this in status?
+    //
+    optional<start_result>
+    load (const basic_mark& error,
+          const basic_mark& warn,
+          const basic_mark* trace,
+          tenant_service&&,
+          const repository_location& repository);
+
+    // Abandon previously created (as unloaded) CI request.
+    //
+    void
+    abandon (const basic_mark& error,
+             const basic_mark& warn,
+             const basic_mark* trace,
+             tenant_service&&);
 
     // Helpers.
     //
