@@ -340,9 +340,46 @@ namespace brep
     }
     else if (event == "pull_request")
     {
-      // @@ TODO
+      gh_pull_request_event pr;
+      try
+      {
+        json::parser p (body.data (), body.size (), "pull_request event");
 
-      throw invalid_request (501, "pull request events not implemented yet");
+        pr = gh_pull_request_event (p);
+      }
+      catch (const json::invalid_json_input& e)
+      {
+        string m ("malformed JSON in " + e.name + " request body");
+
+        error << m << ", line: " << e.line << ", column: " << e.column
+              << ", byte offset: " << e.position << ", error: " << e;
+
+        throw invalid_request (400, move (m));
+      }
+
+      if (pr.action == "opened" || pr.action == "synchronize")
+      {
+        // opened
+        //   A pull request was opened.
+        //
+        // synchronize
+        //   A pull request's head branch was updated from the base branch or
+        //   new commits were pushed to the head branch. (Note that there is
+        //   no equivalent event for the base branch. That case gets handled
+        //   in handle_check_suite_request() instead.)
+        //
+        // Note that both cases are handled the same: we start a new CI
+        // request which will be reported on the new commit id.
+        //
+        return handle_pull_request (move (pr), warning_success);
+      }
+      else
+      {
+        // Ignore the remaining actions by sending a 200 response with empty
+        // body.
+        //
+        return true;
+      }
     }
     else
     {
@@ -408,6 +445,567 @@ namespace brep
       fail << "unable to submit CI request";
 
     return true;
+  }
+
+  // High-level description of pull request (PR) handling
+  //
+  // - Some GitHub pull request terminology:
+  //
+  //   - Fork and pull model: Pull requests are created in a forked
+  //     repository. Thus the head and base repositories are different.
+  //
+  //   - Shared repository model: The pull request head and base branches are
+  //     in the same repository. For example, from a feature branch onto
+  //     master.
+  //
+  // - CI the merge commit but add check runs to the pull request head commit
+  //
+  //   Most of the major CI integrations build the merge commit instead of the
+  //   PR head commit.
+  //
+  //   Adding the check runs to the PR head commit is recommended by the
+  //   following blog posts by a GitHub employee who is one of the best
+  //   sources on these topics:
+  //   https://www.kenmuse.com/blog/shared-commits-and-github-checks/ and
+  //   https://www.kenmuse.com/blog/creating-github-checks/.
+  //
+  //   Do not add any check runs to the merge commit because:
+  //
+  //   - The PR head commit is the only commit that can be relied upon to
+  //     exist throughout the PR's lifetime. The merge commit, on the other
+  //     hand, can change during the PR process. When that happens the PR will
+  //     look for check runs on the new merge commit, effectively discarding
+  //     the ones we had before.
+  //
+  //   - Although some of the GitHub documentation makes it sound like they
+  //     expect check runs to be added to both the PR head commit and the
+  //     merge commit, the PR UI does not react to the merge commit's check
+  //     runs consistently. It actually seems to be quite broken.
+  //
+  //     The only thing it seems to do reliably is blocking the PR merge if
+  //     the merge commit's check runs are not successful (i.e, overriding the
+  //     PR head commit's check runs). But the UI looks quite messed up
+  //     generally in this state.
+  //
+  //   Note that, in the case of a PR from a forked repository (the so-called
+  //   "fork and pull" model), GitHub will copy the PR head commit from the
+  //   head repository (the forked one) into the base repository. So the check
+  //   runs must always be added to the base repository, whether the PR is
+  //   from within the same repository or from a forked repository. The merge
+  //   and head commits will be at refs/pull/<PR-number>/{merge,head}.
+  //
+  // - New commits are added to PR head branch
+  //
+  //   @@ TODO In this case we will end up creating two sets of check runs on
+  //      the same commit (pull_request.head.sha and
+  //      check_suite.head_sha). It's not obvious which to prefer but I'm
+  //      thinking the pull request is more important because in most
+  //      development models it represents something that is more likely to
+  //      end up in an important branch (as opposed to the head of a feature
+  //      branch).
+  //
+  //   Possible solution: ignore all check_suites with non-empty
+  //   pull_requests[].
+  //
+  //   => check_suite(requested, PR_head) [only in shared repo model]
+  //
+  //      Note: check_suite.pull_requests[] will contain all PRs with this
+  //      branch as head.
+  //
+  //      Note: check_suite.pull_requests[i].head.sha will be the new, updated
+  //      PR head sha.
+  //
+  //   => pull_request(synchronize)
+  //
+  //   Note: The check_suite and pull_request can arrive in any order.
+  //
+  // - New commits are added to PR base branch
+  //
+  //   Note: In this case pull_request.base.sha does not change, but the merge
+  //   commit will be updated to include the new commits to the base branch.
+  //
+  // - @@ TODO? PR base branch changed (to a different branch)
+  //
+  //   => pull_request(edited)
+  //
+  // - PR closed @@ TODO
+  //
+  //   => pull_request(closed)
+  //
+  //   Cancel CI?
+  //
+  // - PR merged @@ TODO
+  //
+  //   => pull_request(merged)
+  //
+  //   => check_suite(PR_base)
+  //
+  //   Probably wouldn't want to CI the base again because the PR CI would've
+  //   done the equivalent already.
+  //
+  bool ci_github::
+  handle_pull_request (gh_pull_request_event pr, bool warning_success)
+  {
+    HANDLER_DIAG;
+
+    l3 ([&]{trace << "pull_request event { " << pr << " }";});
+
+    // While we don't need the installation access token in this request,
+    // let's obtain it to flush out any permission issues early. Also, it is
+    // valid for an hour so we will most likely make use of it.
+    //
+    optional<string> jwt (generate_jwt (trace, error));
+    if (!jwt)
+      throw server_error ();
+
+    optional<gh_installation_access_token> iat (
+      obtain_installation_access_token (pr.installation.id,
+                                        move (*jwt),
+                                        error));
+    if (!iat)
+      throw server_error ();
+
+    l3 ([&]{trace << "installation_access_token { " << *iat << " }";});
+
+    string sd (service_data (warning_success,
+                             move (iat->token),
+                             iat->expires_at,
+                             pr.installation.id,
+                             move (pr.repository.node_id),
+                             pr.pull_request.head_sha,
+                             pr.repository.clone_url,
+                             pr.pull_request.number)
+                 .json ());
+
+    // Create unloaded CI request. After this call we will start getting the
+    // build_unloaded() notifications until (1) we load the request, (2) we
+    // cancel it, or (3) it gets archived after some timeout.
+    //
+    // Note: use no delay since we need to (re)create the synthetic merge
+    // check run as soon as possible.
+    //
+    optional<string> tid (
+      create (error, warn, &trace,
+              *build_db_,
+              tenant_service (move (pr.pull_request.node_id),
+                              "ci-github",
+                              move (sd)),
+              chrono::seconds (30) /* interval */,
+              chrono::seconds (0)  /* delay */));
+
+    if (!tid)
+      fail << "unable to create unloaded CI request";
+
+    return true;
+  }
+
+  // Return the colored circle corresponding to a result_status.
+  //
+  static string
+  circle (result_status rs)
+  {
+    switch (rs)
+    {
+    case result_status::success:  return "\U0001F7E2"; // Green circle.
+    case result_status::warning:  return "\U0001F7E0"; // Orange circle.
+    case result_status::error:
+    case result_status::abort:
+    case result_status::abnormal: return "\U0001F534"; // Red circle.
+
+      // Valid values we should never encounter.
+      //
+    case result_status::skip:
+    case result_status::interrupt:
+      throw invalid_argument ("unexpected result_status value: " +
+                              to_string (rs));
+    }
+
+    return ""; // Should never reach.
+  }
+
+  // Let's capitalize the synthetic check run names to make them easier to
+  // distinguish from the regular ones.
+  //
+  static string merge_check_run_name ("MERGE-COMMIT");
+  static string conclusion_check_run_name ("CONCLUSION");
+
+  function<optional<string> (const tenant_service&)> ci_github::
+  build_unloaded (tenant_service&& ts,
+                  const diag_epilogue& log_writer) const noexcept
+  {
+    NOTIFICATION_DIAG (log_writer);
+
+    service_data sd;
+    try
+    {
+      sd = service_data (*ts.data);
+    }
+    catch (const invalid_argument& e)
+    {
+      error << "failed to parse service data: " << e;
+      return nullptr;
+    }
+
+    // Get a new installation access token if the current one has expired.
+    //
+    const gh_installation_access_token* iat (nullptr);
+    optional<gh_installation_access_token> new_iat;
+
+    if (system_clock::now () > sd.installation_access.expires_at)
+    {
+      if (optional<string> jwt = generate_jwt (trace, error))
+      {
+        new_iat = obtain_installation_access_token (sd.installation_id,
+                                                    move (*jwt),
+                                                    error);
+        if (new_iat)
+          iat = &*new_iat;
+      }
+    }
+    else
+      iat = &sd.installation_access;
+
+    if (iat == nullptr)
+      return nullptr; // Try again on the next call.
+
+    auto make_iat_updater = [&new_iat, &error] ()
+    {
+      function<optional<string> (const tenant_service&)> r;
+
+      if (new_iat)
+      {
+        r = [&error,
+             iat = move (new_iat)] (const tenant_service& ts)
+          -> optional<string>
+        {
+          // NOTE: this lambda may be called repeatedly (e.g., due to
+          // transaction being aborted) and so should not move out of its
+          // captures.
+
+          service_data sd;
+          try
+          {
+            sd = service_data (*ts.data);
+          }
+          catch (const invalid_argument& e)
+          {
+            error << "failed to parse service data: " << e;
+            return nullopt;
+          }
+
+          sd.installation_access = *iat;
+
+          return sd.json ();
+        };
+      }
+
+      return r;
+    };
+
+    // Create a synthetic check run with an in-progress state. Return the
+    // check run on success or nullopt on failure.
+    //
+    auto create_synthetic_cr = [iat,
+                                &sd,
+                                &error] (string name) -> optional<check_run>
+    {
+      check_run cr;
+      cr.name = move (name);
+
+      if (gq_create_check_run (error,
+                               cr,
+                               iat->token,
+                               sd.repository_node_id,
+                               sd.report_sha,
+                               nullopt /* details_url */,
+                               build_state::building))
+      {
+        return cr;
+      }
+      else
+        return nullopt;
+    };
+
+    // Update a synthetic check run with success or failure. Return the check
+    // run on success or nullopt on failure.
+    //
+    auto update_synthetic_cr = [iat,
+                                &sd,
+                                &error] (const string& node_id,
+                                         const string& name,
+                                         result_status rs,
+                                         string summary) -> optional<check_run>
+    {
+      assert (!node_id.empty ());
+
+      optional<gq_built_result> br (
+        gq_built_result (gh_to_conclusion (rs, sd.warning_success),
+                         circle (rs) + ' ' + ucase (to_string (rs)),
+                         move (summary)));
+
+      check_run cr;
+      cr.name = name; // For display purposes only.
+
+      if (gq_update_check_run (error,
+                               cr,
+                               iat->token,
+                               sd.repository_node_id,
+                               node_id,
+                               nullopt /* details_url */,
+                               build_state::built,
+                               move (br)))
+      {
+        return cr;
+      }
+      else
+        return nullopt;
+    };
+
+    // Synthetic merge check run node ID. Empty until created on the first
+    // call or retrieved from service data on subsequent calls.
+    //
+    string merge_node_id;
+
+    // True if this is the first call (or the merge commit couldn't be created
+    // on the first call, in which case we just re-try by treating it as a
+    // first call).
+    //
+    bool first (!sd.merge_node_id);
+
+    // If this is the first call, (re)create the synthetic merge check run as
+    // soon as possible to make sure the previous check suite, if any, is no
+    // longer completed.
+    //
+    // Note that there is still a window between receipt of the pull_request
+    // event and the first bot/worker asking for a task, which could be
+    // substantial. We could probably (also) try to (re)create the merge
+    // checkrun in the webhook. @@ Maybe/later.
+    //
+    if (first)
+    {
+      if (auto cr = create_synthetic_cr (merge_check_run_name))
+      {
+        l3 ([&]{trace << "created check_run { " << *cr << " }";});
+
+        merge_node_id = move (*cr->node_id);
+      }
+      else
+        return make_iat_updater (); // Try again on the next call.
+    }
+    else
+      merge_node_id = *sd.merge_node_id;
+
+    // Start/check PR mergeability.
+    //
+    optional<string> mc (
+      gq_pull_request_mergeable (error, iat->token, ts.id)); // Merge commit.
+
+    if (!mc || mc->empty ())
+    {
+      if (!mc) // No merge commit yet.
+      {
+        // If this is a subsequent notification and there is no merge commit,
+        // then there is nothing to do.
+        //
+        if (!first)
+          return make_iat_updater ();
+
+        // Fall through to update service data.
+      }
+      else // Not mergeable.
+      {
+        // If the commit is not mergeable, cancel the CI request and fail the
+        // merge check run.
+        //
+        // Note that it feels like in this case we don't really need to create a
+        // failed synthetic conclusion check run since the PR cannot be merged
+        // anyway.
+
+        if (auto cr = update_synthetic_cr (
+              merge_node_id,
+              merge_check_run_name,
+              result_status::error,
+              "GitHub is unable to create test merge commit"))
+        {
+          l3 ([&]{trace << "updated check_run { " << *cr << " }";});
+
+          // Cancel the CI request.
+          //
+          if (!cancel (error, warn, &trace, *build_db_, ts.type, ts.id))
+          {
+            // Nothing we can do but also highly unlikely.
+            //
+            error << "unable to cancel CI request: "
+                  << "no tenant for service type/ID "
+                  << ts.type << '/' << ts.id;
+          }
+
+          return nullptr; // No need to update service data in this case.
+        }
+        else
+        {
+          // Don't cancel the CI request if the merge check run update failed
+          // so that we can try again on the next call.
+
+          if (!first)
+            return make_iat_updater ();
+
+          // Fall through to update service data.
+        }
+      }
+
+      // This is a first notification, so record the merge check run in the
+      // service data.
+      //
+      return [&error,
+              iat = move (new_iat),
+              mni = move (merge_node_id)] (const tenant_service& ts)
+        -> optional<string>
+      {
+        // NOTE: this lambda may be called repeatedly (e.g., due to
+        // transaction being aborted) and so should not move out of its
+        // captures.
+
+        service_data sd;
+        try
+        {
+          sd = service_data (*ts.data);
+        }
+        catch (const invalid_argument& e)
+        {
+          error << "failed to parse service data: " << e;
+          return nullopt;
+        }
+
+        if (iat)
+          sd.installation_access = *iat;
+
+        sd.merge_node_id = mni;
+
+        return sd.json ();
+      };
+    }
+
+    // If we are here, then it means we have a merge commit that we can load.
+    //
+    // Note that this can still be the first call (first=true).
+    //
+
+    // As a first step, (re)create the synthetic conclusion check run and then
+    // change the merge check run state to success. Do it in this order so
+    // that the check suite does not become completed.
+
+    // Synthetic conclusion check run node ID. Empty until created on the
+    // "second" call or retrieved from service data on subsequent calls.
+    //
+    string conclusion_node_id;
+
+    // True if this is the first call after the merge commit became available,
+    // which we will call the "second" call (or we couldn't create the
+    // conclusion check run on the first such call, in which case we just
+    // re-try by treating it as a "second" call).
+    //
+    bool second (!sd.conclusion_node_id);
+
+    if (second)
+    {
+      if (auto cr = create_synthetic_cr (conclusion_check_run_name))
+      {
+        l3 ([&]{trace << "created check_run { " << *cr << " }";});
+
+        conclusion_node_id = move (*cr->node_id);
+      }
+    }
+    else
+      conclusion_node_id = *sd.conclusion_node_id;
+
+    if (!conclusion_node_id.empty ()) // Conclusion check run was created.
+    {
+      // Update merge check run to successful.
+      //
+      if (auto cr = update_synthetic_cr (merge_node_id,
+                                         merge_check_run_name,
+                                         result_status::success,
+                                         "GitHub created test merge commit"))
+      {
+        l3 ([&]{trace << "updated check_run { " << *cr << " }";});
+
+        // Load the CI request.
+        //
+        // Example repository URL fragment:
+        //
+        //   #pull/28/merge@1b6c9a361086ed93e6f1e67189e82d52de91c49b
+        //
+        repository_location rl (*sd.repository_clone_url + "#pull/" +
+                                to_string (*sd.pr_number) + "/merge@" + *mc,
+                                repository_type::git);
+
+        optional<start_result> r (
+          load (error, warn, &trace, *build_db_, move (ts), rl));
+
+        if (!r || r->status != 200)
+        {
+          string msg;
+          msg = "```\n";
+          if (r) msg += r->message;
+          else msg += "Internal service error";
+          msg += "\n```";
+
+          if (auto cr = update_synthetic_cr (conclusion_node_id,
+                                             conclusion_check_run_name,
+                                             result_status::error,
+                                             move (msg)))
+          {
+            l3 ([&]{trace << "updated check_run { " << *cr << " }";});
+          }
+          else
+          {
+            // Nothing really we can do in this case since we will not receive
+            // any further notifications.
+          }
+
+          return nullptr; // No need to update service data in this case.
+        }
+      }
+      else
+      {
+        // Don't load the CI request if the merge check run update failed so
+        // that we can try again on the next call.
+      }
+    }
+
+    return [&error,
+            iat = move (new_iat),
+            mni = (first ? move (merge_node_id) : string ()),
+            cni = (second ? move (conclusion_node_id) : string ())]
+      (const tenant_service& ts) -> optional<string>
+    {
+      // NOTE: this lambda may be called repeatedly (e.g., due to
+      // transaction being aborted) and so should not move out of its
+      // captures.
+
+      service_data sd;
+      try
+      {
+        sd = service_data (*ts.data);
+      }
+      catch (const invalid_argument& e)
+      {
+        error << "failed to parse service data: " << e;
+        return nullopt;
+      }
+
+      if (iat)
+        sd.installation_access = *iat;
+
+      if (!mni.empty ())
+        sd.merge_node_id = mni;
+
+      if (!cni.empty ())
+        sd.conclusion_node_id = cni;
+
+      return sd.json ();
+    };
   }
 
   // Build state change notifications (see tenant-services.hxx for
@@ -596,7 +1194,7 @@ namespace brep
       if (gq_create_check_runs (error,
                                 crs,
                                 iat->token,
-                                sd.repository_node_id, sd.head_sha,
+                                sd.repository_node_id, sd.report_sha,
                                 build_state::queued))
       {
         for (const check_run& cr: crs)
@@ -873,29 +1471,6 @@ namespace brep
     //
     if (iat != nullptr)
     {
-      // Return the colored circle corresponding to a result_status.
-      //
-      auto circle = [] (result_status rs) -> string
-      {
-        switch (rs)
-        {
-        case result_status::success:  return "\U0001F7E2"; // Green circle.
-        case result_status::warning:  return "\U0001F7E0"; // Orange circle.
-        case result_status::error:
-        case result_status::abort:
-        case result_status::abnormal: return "\U0001F534"; // Red circle.
-
-          // Valid values we should never encounter.
-          //
-        case result_status::skip:
-        case result_status::interrupt:
-          throw invalid_argument ("unexpected result_status value: " +
-                                  to_string (rs));
-        }
-
-        return ""; // Should never reach.
-      };
-
       // Prepare the check run's summary field (the build information in an
       // XHTML table).
       //
@@ -927,9 +1502,9 @@ namespace brep
         // Serialize a result row (colored circle, result text, log URL) for
         // an operation and result_status.
         //
-        auto tr_result = [this, circle, &b] (xml::serializer& s,
-                                             const string& op,
-                                             result_status rs)
+        auto tr_result = [this, &b] (xml::serializer& s,
+                                     const string& op,
+                                     result_status rs)
         {
           // The log URL.
           //
@@ -1030,7 +1605,7 @@ namespace brep
                                  cr,
                                  iat->token,
                                  sd.repository_node_id,
-                                 sd.head_sha,
+                                 sd.report_sha,
                                  details_url (b),
                                  build_state::built,
                                  move (br)))

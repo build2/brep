@@ -66,6 +66,37 @@ namespace brep
     gh_check_run () = default;
   };
 
+  struct gh_pull_request
+  {
+    string node_id;
+    unsigned int number;
+
+    string state; // "open" or "closed".
+
+    // If absent then the result of the test merge commit is not yet
+    // available. If true then `merge_commit_sha` contains the commit ID of
+    // the merge commit. If false then `merge_commit_sha` is either empty or
+    // no longer valid.
+    //
+    optional<bool> mergeable;
+    string merge_commit_sha;
+
+    // @@ TODO Remove label if unused.
+    string base_label; // Name distinguishing the base from the head.
+    string base_ref;
+    string base_sha;
+
+    // @@ TODO Remove label if unused.
+    string head_label; // Name distinguishing the head from the base.
+    string head_ref;
+    string head_sha;
+
+    explicit
+    gh_pull_request (json::parser&);
+
+    gh_pull_request () = default;
+  };
+
   // Return the GitHub check run status corresponding to a build_state.
   //
   string
@@ -128,6 +159,20 @@ namespace brep
     gh_check_suite_event () = default;
   };
 
+  struct gh_pull_request_event
+  {
+    string action;
+
+    gh_pull_request pull_request;
+    gh_repository repository;
+    gh_installation installation;
+
+    explicit
+    gh_pull_request_event (json::parser&);
+
+    gh_pull_request_event () = default;
+  };
+
   struct gh_installation_access_token
   {
     string token;
@@ -154,6 +199,9 @@ namespace brep
   operator<< (ostream&, const gh_check_run&);
 
   ostream&
+  operator<< (ostream&, const gh_pull_request&);
+
+  ostream&
   operator<< (ostream&, const gh_repository&);
 
   ostream&
@@ -161,6 +209,9 @@ namespace brep
 
   ostream&
   operator<< (ostream&, const gh_check_suite_event&);
+
+  ostream&
+  operator<< (ostream&, const gh_pull_request_event&);
 
   ostream&
   operator<< (ostream&, const gh_installation_access_token&);

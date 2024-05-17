@@ -349,13 +349,17 @@ namespace brep
   // other states.
   //
   static string
-  gq_mutation_create_check_runs (const string& ri, // Repository ID
-                                 const string& hs, // Head SHA
-                                 const string& du, // Details URL.
+  gq_mutation_create_check_runs (const string& ri,           // Repository ID
+                                 const string& hs,           // Head SHA
+                                 const optional<string>& du, // Details URL.
                                  const vector<check_run>& crs,
-                                 const string& st, // Check run status.
+                                 const string& st,           // Check run status.
                                  optional<gq_built_result> br = nullopt)
   {
+    // Ensure details URL is non-empty if present.
+    //
+    assert (!du || !du->empty ());
+
     ostringstream os;
 
     os << "mutation {"                                              << '\n';
@@ -371,10 +375,10 @@ namespace brep
          << "  repositoryId: " << gq_str (ri)                       << '\n'
          << "  headSha: "      << gq_str (hs)                       << '\n'
          << "  status: "       << gq_enum (st);
-      if (!du.empty ())
+      if (du)
       {
         os                                                          << '\n';
-        os << "  detailsUrl: " << gq_str (du);
+        os << "  detailsUrl: " << gq_str (*du);
       }
       if (br)
       {
@@ -409,13 +413,17 @@ namespace brep
   // conclusion.
   //
   static string
-  gq_mutation_update_check_run (const string& ri,       // Repository ID.
-                                const string& ni,       // Node ID.
-                                const string& du,       // Details URL.
-                                const string& st,       // Check run status.
-                                optional<timestamp> sa, // Started at.
+  gq_mutation_update_check_run (const string& ri,           // Repository ID.
+                                const string& ni,           // Node ID.
+                                const optional<string>& du, // Details URL.
+                                const string& st,           // Check run status.
+                                optional<timestamp> sa,     // Started at.
                                 optional<gq_built_result> br)
   {
+    // Ensure details URL is non-empty if present.
+    //
+    assert (!du || !du->empty ());
+
     ostringstream os;
 
     os << "mutation {"                                            << '\n'
@@ -428,10 +436,10 @@ namespace brep
       os                                                          << '\n';
       os << "  startedAt: " << gq_str (gh_to_iso8601 (*sa));
     }
-    if (!du.empty ())
+    if (du)
     {
       os                                                          << '\n';
-      os << "  detailsUrl: " << gq_str (du);
+      os << "  detailsUrl: " << gq_str (*du);
     }
     if (br)
     {
@@ -472,8 +480,11 @@ namespace brep
     // Empty details URL because it's not available until building.
     //
     string rq (
-      gq_serialize_request (
-        gq_mutation_create_check_runs (rid, hs, "", crs, gh_to_status (st))));
+      gq_serialize_request (gq_mutation_create_check_runs (rid,
+                                                           hs,
+                                                           nullopt,
+                                                           crs,
+                                                           gh_to_status (st))));
 
     return gq_mutate_check_runs (error, crs, iat, move (rq), st);
   }
@@ -484,17 +495,13 @@ namespace brep
                        const string& iat,
                        const string& rid,
                        const string& hs,
-                       const string& du,
+                       const optional<string>& du,
                        build_state st,
                        optional<gq_built_result> br)
   {
     // Must have a result if state is built.
     //
     assert (st != build_state::built || br);
-
-    // Must have a details URL because `st` should never be queued.
-    //
-    assert (!du.empty ());
 
     vector<check_run> crs {move (cr)};
 
@@ -520,17 +527,13 @@ namespace brep
                        const string& iat,
                        const string& rid,
                        const string& nid,
-                       const string& du,
+                       const optional<string>& du,
                        build_state st,
                        optional<gq_built_result> br)
   {
     // Must have a result if state is built.
     //
     assert (st != build_state::built || br);
-
-    // Must have a details URL for building and built.
-    //
-    assert (!du.empty ());
 
     // Set `startedAt` to current time if updating to building.
     //
@@ -556,6 +559,148 @@ namespace brep
 
     return r;
   }
+
+  // Serialize a GraphQL query that fetches a pull request from GitHub.
+  //
+  static string
+  gq_query_pr_mergeability (const string& nid)
+  {
+    ostringstream os;
+
+    os << "query {"                                              << '\n'
+       << "  node(id:" << gq_str (nid) << ") {"                  << '\n'
+       << "    ... on PullRequest {"                             << '\n'
+       << "      mergeable potentialMergeCommit { oid }"         << '\n'
+       << "    }"                                                << '\n'
+       << "  }"                                                  << '\n'
+       << "}"                                                    << '\n';
+
+    return os.str ();
+  }
+
+  optional<string>
+  gq_pull_request_mergeable (const basic_mark& error,
+                             const string& iat,
+                             const string& nid)
+  {
+    string rq (gq_serialize_request (gq_query_pr_mergeability (nid)));
+
+    try
+    {
+      // Response parser.
+      //
+      struct resp
+      {
+        // True if the pull request was found (i.e., the node ID was valid).
+        //
+        bool found = false;
+
+        // The response value. Absent if the merge commit is still being
+        // generated.
+        //
+        optional<string> value;
+
+        resp (json::parser& p)
+        {
+          using event = json::event;
+
+          gq_parse_response (p, [this] (json::parser& p)
+          {
+            p.next_expect (event::begin_object);
+
+            if (p.next_expect_member_object_null ("node"))
+            {
+              found = true;
+
+              string ma (p.next_expect_member_string ("mergeable"));
+
+              if (ma == "MERGEABLE")
+              {
+                p.next_expect_member_object ("potentialMergeCommit");
+                string oid (p.next_expect_member_string ("oid"));
+                p.next_expect (event::end_object);
+
+                value = move (oid);
+              }
+              else if (ma == "CONFLICTING")
+              {
+                value = "";
+              }
+              else if (ma == "UNKNOWN")
+              {
+                // Still being generated; leave value absent.
+              }
+
+              p.next_expect (event::end_object);   // node
+            }
+
+            p.next_expect (event::end_object);
+          });
+        }
+
+        resp () = default;
+      } rs;
+
+      uint16_t sc (github_post (rs,
+                                "graphql", // API Endpoint.
+                                strings {"Authorization: Bearer " + iat},
+                                move (rq)));
+
+      if (sc == 200)
+      {
+        if (!rs.found)
+          error << "pull request '" << nid << "' not found";
+
+        return rs.value;
+      }
+      else
+        error << "failed to fetch pull request: error HTTP response status "
+              << sc;
+    }
+    catch (const json::invalid_json_input& e)
+    {
+      // Note: e.name is the GitHub API endpoint.
+      //
+      error << "malformed JSON in response from " << e.name << ", line: "
+            << e.line << ", column: " << e.column << ", byte offset: "
+            << e.position << ", error: " << e;
+    }
+    catch (const invalid_argument& e)
+    {
+      error << "malformed header(s) in response: " << e;
+    }
+    catch (const system_error& e)
+    {
+      error << "unable to fetch pull request (errno=" << e.code () << "): "
+            << e.what ();
+    }
+    catch (const runtime_error& e) // From response type's parsing constructor.
+    {
+      // GitHub response contained error(s) (could be ours or theirs at this
+      // point).
+      //
+      error << "unable to fetch pull request: " << e;
+    }
+
+    return nullopt;
+  }
+
+  // bool
+  // gq_fetch_branch_open_pull_requests ()
+  // {
+  //   // query {
+  //   //   repository(owner:"francoisk" name:"libb2")
+  //   //   {
+  //   //     pullRequests (last:100 states:OPEN baseRefName:"master") {
+  //   //       edges {
+  //   //         node {
+  //   //           id
+  //   //         }
+  //   //       }
+  //   //     }
+  //   //   }
+  //   // }
+  // }
 
   // GraphQL serialization functions.
   //

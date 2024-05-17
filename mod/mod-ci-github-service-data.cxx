@@ -35,8 +35,24 @@ namespace brep
 
     installation_id =
         p.next_expect_member_number<uint64_t> ("installation_id");
+
     repository_node_id = p.next_expect_member_string ("repository_node_id");
-    head_sha = p.next_expect_member_string ("head_sha");
+
+    {
+      string* s (p.next_expect_member_string_null ("repository_clone_url"));
+      if (s != nullptr)
+        repository_clone_url = *s;
+    }
+
+    pr_number = p.next_expect_member_number_null<uint32_t> ("pr_number");
+
+    {
+      string* s (p.next_expect_member_string_null ("merge_node_id"));
+      if (s != nullptr)
+        merge_node_id = *s;
+    }
+
+    report_sha = p.next_expect_member_string ("report_sha");
 
     p.next_expect_member_array ("check_runs");
     while (p.next_expect (event::begin_object, event::end_array))
@@ -59,6 +75,12 @@ namespace brep
       p.next_expect (event::end_object);
     }
 
+    {
+      string* s (p.next_expect_member_string_null ("conclusion_node_id"));
+      if (s != nullptr)
+        conclusion_node_id = *s;
+    }
+
     p.next_expect (event::end_object);
   }
 
@@ -68,12 +90,31 @@ namespace brep
                 timestamp iat_ea,
                 uint64_t iid,
                 string rid,
-                string hs)
+                string rs)
       : warning_success (ws),
         installation_access (move (iat_tok), iat_ea),
         installation_id (iid),
         repository_node_id (move (rid)),
-        head_sha (move (hs))
+        report_sha (move (rs))
+  {
+  }
+
+  service_data::
+  service_data (bool ws,
+                string iat_tok,
+                timestamp iat_ea,
+                uint64_t iid,
+                string rid,
+                string rs,
+                string rcu,
+                uint32_t prn)
+      : warning_success (ws),
+        installation_access (move (iat_tok), iat_ea),
+        installation_id (iid),
+        repository_node_id (move (rid)),
+        repository_clone_url (move (rcu)),
+        pr_number (prn),
+        report_sha (move (rs))
   {
   }
 
@@ -98,7 +139,26 @@ namespace brep
 
     s.member ("installation_id", installation_id);
     s.member ("repository_node_id", repository_node_id);
-    s.member ("head_sha", head_sha);
+
+    s.member_name ("repository_clone_url");
+    if (repository_clone_url)
+      s.value (*repository_clone_url);
+    else
+      s.value (nullptr);
+
+    s.member_name ("pr_number");
+    if (pr_number)
+      s.value (*pr_number);
+    else
+      s.value (nullptr);
+
+    s.member_name ("merge_node_id");
+    if (merge_node_id)
+      s.value (*merge_node_id);
+    else
+      s.value (nullptr);
+
+    s.member ("report_sha", report_sha);
 
     s.member_begin_array ("check_runs");
     for (const check_run& cr: check_runs)
@@ -119,6 +179,12 @@ namespace brep
       s.end_object ();
     }
     s.end_array ();
+
+    s.member_name ("conclusion_node_id");
+    if (conclusion_node_id)
+      s.value (*conclusion_node_id);
+    else
+      s.value (nullptr);
 
     s.end_object ();
 

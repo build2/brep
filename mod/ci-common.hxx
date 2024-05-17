@@ -24,7 +24,7 @@ namespace brep
 
     // If the request handling has been performed normally, then return the
     // information that corresponds to the CI result manifest (see CI Result
-    // Manifest in the manual). Otherwise (some internal has error occured),
+    // Manifest in the manual). Otherwise (some internal error has occured),
     // log the error and return nullopt.
     //
     // The arguments correspond to the CI request and overrides manifest

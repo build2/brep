@@ -19,6 +19,7 @@ namespace brep
 {
   class ci_github: public database_module,
                    private ci_start,
+                   public tenant_service_build_unloaded,
                    public tenant_service_build_queued,
                    public tenant_service_build_building,
                    public tenant_service_build_built
@@ -38,6 +39,10 @@ namespace brep
 
     virtual const cli::options&
     cli_options () const {return options::ci_github::description ();}
+
+    virtual function<optional<string> (const tenant_service&)>
+    build_unloaded (tenant_service&&,
+                    const diag_epilogue& log_writer) const noexcept override;
 
     virtual function<optional<string> (const tenant_service&)>
     build_queued (const tenant_service&,
@@ -65,6 +70,14 @@ namespace brep
     //
     bool
     handle_check_suite_request (gh_check_suite_event, bool warning_success);
+
+    // Handle the pull_request event `opened` and `synchronize` actions.
+    //
+    // If warning_success is true, then map result_status::warning to SUCCESS
+    // and to FAILURE otherwise.
+    //
+    bool
+    handle_pull_request (gh_pull_request_event, bool warning_success);
 
     // Build a check run details_url for a build.
     //

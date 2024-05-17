@@ -845,10 +845,7 @@ namespace brep
     {
     };
 
-    class ci_github: ci_start, ci_cancel,
-                     build, build_db,
-                     repository_url,
-                     handler
+    class ci_github: ci_start, ci_cancel, repository_url
     {
       // GitHub CI-specific options.
       //
