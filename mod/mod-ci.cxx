@@ -36,7 +36,12 @@ ci (const ci& r, tenant_service_map& tsm)
 #else
 ci (const ci& r)
 #endif
-    : handler (r),
+    :
+#ifndef BREP_CI_TENANT_SERVICE_UNLOADED
+      handler (r),
+  #else
+      database_module (r),
+#endif
       ci_start (r),
       options_ (r.initialized_ ? r.options_ : nullptr),
       form_ (r.initialized_ || r.form_ == nullptr
@@ -99,6 +104,13 @@ init (scanner& s)
       }
     }
   }
+
+#ifdef BREP_CI_TENANT_SERVICE_UNLOADED
+  if (!options_->build_config_specified ())
+    fail << "package building functionality must be enabled";
+
+  database_module::init (*options_, options_->build_db_retry ());
+#endif
 
   if (options_->root ().empty ())
     options_->root (dir_path ("/"));
@@ -347,6 +359,7 @@ handle (request& rq, response& rs)
       user_agent = h.value;
   }
 
+#ifndef BREP_CI_TENANT_SERVICE_UNLOADED
   optional<start_result> r (start (error,
                                    warn,
                                    verb_ ? &trace : nullptr,
@@ -367,6 +380,23 @@ handle (request& rq, response& rs)
                                     : optional<string> ()),
                                    custom_request,
                                    overrides));
+#else
+  assert (build_db_ != nullptr); // Wouldn't be here otherwise.
+
+  optional<start_result> r;
+
+  if (optional<string> ref = create (error,
+                                     warn,
+                                     verb_ ? &trace : nullptr,
+                                     *build_db_,
+                                     tenant_service ("", "ci", rl.string ())))
+  {
+    string msg ("unloaded CI request is created: " +
+                options_->host () + tenant_dir (root, *ref).string ());
+
+    r = start_result {200, move (msg), move (*ref), {}};
+  }
+#endif
 
   if (!r)
     return respond_error (); // The diagnostics is already issued.
@@ -472,4 +502,35 @@ build_built (const tenant_service&,
            return ts.data ? *ts.data + ", " + s : s;
          };
 }
+
+#ifdef BREP_CI_TENANT_SERVICE_UNLOADED
+function<optional<string> (const brep::tenant_service&)> brep::ci::
+build_unloaded (tenant_service&& ts,
+                const diag_epilogue& log_writer) const noexcept
+{
+  NOTIFICATION_DIAG (log_writer);
+
+  assert (ts.data); // Repository location.
+
+  try
+  {
+    repository_location rl (*ts.data);
+
+    if (!load (error, warn, verb_ ? &trace : nullptr,
+               *build_db_,
+               move (ts),
+               rl))
+      return nullptr; // The diagnostics is already issued.
+  }
+  catch (const invalid_argument& e)
+  {
+    error << "invalid repository location '" << *ts.data << "' stored for "
+          << "tenant service " << ts.id << ' ' << ts.type;
+
+    return nullptr;
+  }
+
+  return [] (const tenant_service& ts) {return "loaded " + *ts.data;};
+}
+#endif
 #endif

@@ -63,40 +63,47 @@ namespace brep
            const optional<string>& interactive = nullopt,
            const optional<string>& simulate = nullopt,
            const vector<pair<string, string>>& custom_request = {},
-           const vector<pair<string, string>>& overrides = {});
+           const vector<pair<string, string>>& overrides = {}) const;
 
-    // Create an unloaded CI request returning start_result::reference. Such a
-    // request is not started until loaded with the load() function below. See
-    // also the build_unloaded() tenant services notification.
+    // Create an unloaded CI request returning start_result::reference on
+    // success and nullopt on an internal error. Such a request is not started
+    // until loaded with the load() function below. See also the
+    // build_unloaded() tenant services notification.
     //
-    string
+    // Note: should be called out of the database transaction.
+    //
+    optional<string>
     create (const basic_mark& error,
             const basic_mark& warn,
             const basic_mark* trace,
-            tenant_service&&,
-            const optional<string>& client_ip,
-            const optional<string>& user_agent);
+            odb::core::database&,
+            tenant_service&&) const;
 
-    // Load (and start) previously created (as unloaded) CI request.
+    // Load (and start) previously created (as unloaded) CI request. Similarly
+    // to the start() function, return nullopt on an internal error.
     //
     // Note that tenant_service::id is used to identify the CI request tenant.
     //
-    // @@ What if already loaded/abandoned? Can we indicate this in status?
+    // Note: should be called out of the database transaction.
     //
     optional<start_result>
     load (const basic_mark& error,
           const basic_mark& warn,
           const basic_mark* trace,
+          odb::core::database&,
           tenant_service&&,
-          const repository_location& repository);
+          const repository_location& repository) const;
 
     // Abandon previously created (as unloaded) CI request.
+    //
+    // Note: should be called out of the database transaction.
     //
     void
     abandon (const basic_mark& error,
              const basic_mark& warn,
              const basic_mark* trace,
-             tenant_service&&);
+             odb::core::database&,
+             tenant_service&&) const;
 
     // Helpers.
     //

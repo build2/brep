@@ -124,13 +124,13 @@ namespace brep
 
   // This notification is only made on unloaded CI requests created with the
   // ci_start::create() call and until they are loaded with ci_start::load()
-  // or, alternatively, ci_start::abandon().
+  // or, alternatively, abandoned with ci_start::abandon().
   //
   class tenant_service_build_unloaded: public virtual tenant_service_base
   {
   public:
     virtual function<optional<string> (const tenant_service&)>
-    build_unloaded (const tenant_service&,
+    build_unloaded (tenant_service&&,
                     const diag_epilogue& log_writer) const noexcept = 0;
   };
 
