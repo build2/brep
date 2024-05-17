@@ -338,12 +338,10 @@ namespace brep
         return true;
       }
     }
-    else if (event == "pull_request")
-    {
-      // @@ TODO
-
-      throw invalid_request (501, "pull request events not implemented yet");
-    }
+    // else if (event == "pull_request")
+    // {
+    //   return handle_pull_request ();
+    // }
     else
     {
       // Log to investigate.
@@ -409,6 +407,119 @@ namespace brep
 
     return true;
   }
+
+  // High-level description of PR handling:
+  //
+  // - CI the merge commit but add checks to PR head ref
+  //
+  //   Recommended by the following blog posts by a GitHub employee who is one
+  //   of the best sources on these topics:
+  //   https://www.kenmuse.com/blog/shared-commits-and-github-checks/ and
+  //   https://www.kenmuse.com/blog/creating-github-checks/.
+  //
+  //   DO NOT ADD CHECKS TO THE MERGE COMMIT because:
+  //
+  //   - The PR head ref is the only commit that can be relied upon to exist
+  //     throughout the PR's lifetime. The merge commit, on the other hand,
+  //     can get replaced during the PR process. When that happens the PR will
+  //     look for checks on the new merge commit, effectively discarding the
+  //     ones we had before.
+  //
+  //   - Although some of the GitHub documentation makes it sound like they
+  //     expect checks to be added to both the PR head and the merge commit,
+  //     the PR UI does not react to the merge commit's checks
+  //     consistently. It actually seems to be quite broken.
+  //
+  //     The only thing it seems to do reliably is blocking the PR merge if
+  //     the merge commit is not successful (overriding the PR head ref's
+  //     checks). But the UI looks quite messed up generally in this state.
+  //
+  // - PR Creation
+  //
+  //   False green window problem
+  //   - User creates new commit on feature branch
+  //   - We receive check_suite; check runs start, run, succeed
+  //   - User creates PR from feature branch to master
+  //   - Because feature branch head has successful CRs, PR is green to merge
+  //   - But merge commit has not been CI'd yet
+  //   - False green until first merge commit CR is queued
+  //
+  //   check_suite(requested, PR_head): [shared repo model]
+  //
+  //   - Starts CI with check runs on what will become the PR head ref
+  //
+  //   pull_request(opened)
+  //
+  //   - Fetch pull request to trigger start of merge commit job; ignore
+  //     response
+  //
+  //   - To close false green window
+  //     - if pull_request.head.repo.node_id == pull_request.base.repo.node_id
+  //       - Replace all (or just one?) of the CRs on the PR head ref with new,
+  //         queued ones
+  //         - Fetch all check runs on PR head SHA
+  //         - Find CRs with this PR in pull_requests[]
+  //         - Create new CRs with same names as existing, thus effectively
+  //           destroying the old ones
+  //
+  //   - Create unloaded tenant
+  //
+  //   - On callback
+  //     Fetch pull request; if mergeable, start CI proper
+  //
+  // - New commits are added to PR head branch
+  //
+  //   False green window
+  //
+  //     PR already exists so merge will be red initially after CS is
+  //     received, but those CRs could theoretically all succeed before our CI
+  //     of the merge commit starts. Either way the CS CRs are an inaccurate
+  //     representation of what's being CI'd so need to be avoided if
+  //     possible.
+  //
+  //   check_suite(requested, PR_head) [shared repo model]
+  //
+  //     Ignore if pull_requests[] is non-empty (which should be the case if
+  //     the head branch is in the same repository).
+  //
+  //   pull_request(synchronize)
+  //
+  //   - Fetch pull request to trigger start of merge commit job; ignore
+  //     response
+  //
+  //   - Create unloaded tenant
+  //
+  //   - On callback
+  //     Fetch pull request; if mergeable, start CI proper
+  //
+  // - New commits are added to PR base branch
+  //
+  //   check_suite(requested, PR_base)
+  //
+  //   Fetch all open PRs for base branch (triggering the merge commit jobs)
+  //
+  //   Replace CRs on PR head refs to close false green window.
+  //
+  //   Submit new unloaded tenants for all of the PRs.
+  //
+  //   NOTE: pull_request.base.sha does not change. But merge commit (once
+  //         updated) does try to merge PR head to new tip of PR base.
+  //
+  // - PR closed/merged/etc. @@ TODO
+  //
+  //   pull_request(closed/merged/...)
+  //
+  //   Note: when a PR is merged we will get a pull_request(closed) and then a
+  //   check_suite for the base branch.
+  //
+  // bool ci_github::
+  // handle_pull_request (gh_pull_request_event pr)
+  // {
+  //   // Fetch pull request in order to start job creating test merge
+  //   // commit. Discard result.
+  //   //
+  //   // Start unloaded CI job.
+  // }
 
   // Build state change notifications (see tenant-services.hxx for
   // background). Mapping our state transitions to GitHub pose multiple
