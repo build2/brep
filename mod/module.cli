@@ -845,11 +845,10 @@ namespace brep
     {
     };
 
-    class ci_github: repository_url,
-                     ci_start, ci_cancel,
+    class ci_github: ci_start, ci_cancel,
                      build, build_db,
-                     handler,
-                     openssl_options
+                     repository_url,
+                     handler
     {
       // GitHub CI-specific options.
       //

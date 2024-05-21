@@ -71,7 +71,7 @@ namespace brep
 
   ci_github::
   ci_github (const ci_github& r, tenant_service_map& tsm)
-      : handler (r),
+      : database_module (r),
         ci_start (r),
         options_ (r.initialized_ ? r.options_ : nullptr),
         tenant_service_map_ (tsm)
@@ -95,9 +95,12 @@ namespace brep
 
     // Prepare for the CI requests handling, if configured.
     //
-    if (options_->ci_github_app_webhook_secret_specified ())
+    if (options_->build_config_specified () &&
+        options_->ci_github_app_webhook_secret_specified ())
     {
       ci_start::init (make_shared<options::ci_start> (*options_));
+
+      database_module::init (*options_, options_->build_db_retry ());
     }
   }
 
@@ -108,8 +111,8 @@ namespace brep
 
     HANDLER_DIAG;
 
-    if (!options_->ci_github_app_webhook_secret_specified ())
-      throw invalid_request (404, "GitHub CI request submission disabled");
+    if (build_db_ == nullptr)
+      throw invalid_request (501, "GitHub CI submission not implemented");
 
     // Process headers.
     //

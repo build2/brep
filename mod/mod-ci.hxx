@@ -40,7 +40,7 @@ namespace brep
             public tenant_service_build_building,
             public tenant_service_build_built
 #ifdef BREP_CI_TENANT_SERVICE_UNLOADED
-          , tenant_service_build_unloaded
+          , public tenant_service_build_unloaded
 #endif
 #endif
   {
