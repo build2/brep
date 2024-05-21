@@ -114,6 +114,7 @@ spec=
 service_id=
 service_type=
 service_data=
+service_load=
 
 while IFS=: read -ru "$manifest_parser_ofd" -d '' n v; do
   case "$n" in
@@ -133,6 +134,14 @@ while IFS=: read -ru "$manifest_parser_ofd" -d '' n v; do
     service-id)   service_id="$v"   ;;
     service-type) service_type="$v" ;;
     service-data) service_data="$v" ;;
+
+    service-action)
+      if [[ "$v" == "load" ]]; then
+        service_load=true
+      elif [[ "$v" != "start" ]]; then
+        error "unrecognized service action '$v'"
+      fi
+      ;;
   esac
 done
 
@@ -330,6 +339,12 @@ if [[ -n "$service_id" ]]; then
 
   if [[ -n "$service_data" ]]; then
     loader_options+=(--service-data "$service_data")
+  fi
+
+  # Load the pre-created tenant rather than create a new one.
+  #
+  if [[ "$service_load" ]]; then
+    loader_options+=(--existing-tenant)
   fi
 fi
 

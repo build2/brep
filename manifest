@@ -37,7 +37,7 @@ depends: bpkg-util [0.17.0-a.0.1 0.17.0-a.1)
 # are (currently) not packaged and need to come from the system package
 # manager. It also requires rsync for tests.
 #
-builds: none
+builds: none ; Requires unpackaged software.
 
 debian-builds: sys
 debian-build-exclude: linux_debian_12-** ; libapreq2 not available

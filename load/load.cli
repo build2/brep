@@ -72,6 +72,13 @@ class options
      specified, then the single-tenant mode is assumed."
   };
 
+  bool --existing-tenant
+  {
+    "Load the repository and package information into the already created empty
+     tenant rather than into the newly created one. Requires the \cb{--tenant}
+     option to be specified."
+  };
+
   bool --private
   {
     "Display the tenant packages in the web interface only in the tenant view

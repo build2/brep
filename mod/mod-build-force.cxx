@@ -192,7 +192,14 @@ handle (request& rq, response& rs)
   optional<pair<tenant_service, shared_ptr<build>>> tss;
   tenant_service_build_queued::build_queued_hints qhs;
 
+  // Acquire the database connection for the subsequent transactions.
+  //
+  // Note that we will release it prior to any potentially time-consuming
+  // operations (such as HTTP requests) and re-acquire it again afterwards,
+  // if required.
+  //
   connection_ptr conn (build_db_->connection ());
+
   {
     transaction t (conn->begin ());
 
@@ -297,13 +304,27 @@ handle (request& rq, response& rs)
     vector<build> qbs;
     qbs.push_back (move (b));
 
+    // Release the database connection since the build_queued() notification
+    // can potentially be time-consuming (e.g., it may perform an HTTP
+    // request).
+    //
+    conn.reset ();
+
     if (auto f = tsq->build_queued (ss,
                                     qbs,
                                     build_state::building,
                                     qhs,
                                     log_writer_))
+    {
+      conn = build_db_->connection ();
       update_tenant_service_state (conn, qbs.back ().tenant, f);
+    }
   }
+
+  // Release the database connection prior to writing into the unbuffered
+  // response stream.
+  //
+  conn.reset ();
 
   // We have all the data, so don't buffer the response content.
   //

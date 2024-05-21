@@ -344,6 +344,7 @@ timestamp: <date-time>
 [service-id]: <string>
 [service-type]: <string>
 [service-data]: <string>
+[service-action]: <action>
 \
 
 The \c{package} value can be repeated multiple times. The \c{timestamp} value
@@ -356,7 +357,14 @@ required information via some custom protocol, and expect the CI service to
 notify it about the progress. In this case the third-party service type as
 well as optionally the third-party id and custom state data can be
 communicated to the underlying CI handler program via the respective
-\c{service-*} manifest values.
+\c{service-*} manifest values. Also note that normally a third-party service
+has all the required information (repository URL, etc) available at the time
+of the CI task initiation, in which case the \c{start} value is specified for
+the \c{service-action} manifest value. If that's not the case, the CI task is
+only created at the time of the initiation without calling the CI handler
+program. In this case the CI handler is called later, when all the required
+information is asynchronously gathered by the service. In this case the
+\c{load} value is specified for the \c{service-action} manifest value.
 
 
 \h#ci-overrides-manifest|CI Overrides Manifest|

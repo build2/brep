@@ -1643,11 +1643,23 @@ try
   //
   const string& tnt (ops.tenant ());
 
-  if (ops.tenant_specified () && tnt.empty ())
+  if (ops.tenant_specified ())
   {
-    cerr << "error: empty tenant" << endl
-         << help_info << endl;
-    throw failed ();
+    if (tnt.empty ())
+    {
+      cerr << "error: empty tenant" << endl
+           << help_info << endl;
+      throw failed ();
+    }
+  }
+  else
+  {
+    if (ops.existing_tenant ())
+    {
+      cerr << "error: --existing-tenant requires --tenant" << endl
+           << help_info << endl;
+      throw failed ();
+    }
   }
 
   // Verify the --service-* options.
@@ -1656,14 +1668,15 @@ try
   {
     if (!ops.tenant_specified ())
     {
-      cerr << "error: --service-id requires --tenant" << endl;
+      cerr << "error: --service-id requires --tenant" << endl
+           << help_info << endl;
       throw failed ();
     }
 
     if (ops.service_type ().empty ())
     {
-      cerr << "error: --service-id requires --service-type"
-           << endl;
+      cerr << "error: --service-id requires --service-type" << endl
+           << help_info << endl;
       throw failed ();
     }
   }
@@ -1671,15 +1684,15 @@ try
   {
     if (ops.service_type_specified ())
     {
-      cerr << "error: --service-type requires --service-id"
-           << endl;
+      cerr << "error: --service-type requires --service-id" << endl
+           << help_info << endl;
       throw failed ();
     }
 
     if (ops.service_data_specified ())
     {
-      cerr << "error: --service-data requires --service-id"
-           << endl;
+      cerr << "error: --service-data requires --service-id" << endl
+           << help_info << endl;
       throw failed ();
     }
   }
@@ -1753,13 +1766,15 @@ try
 
   if (ops.force () || changed (tnt, irs, db))
   {
+    shared_ptr<tenant> t; // Not NULL in the --existing-tenant mode.
+
     // Rebuild repositories persistent state from scratch.
     //
     // Note that in the single-tenant mode the tenant must be empty. In the
-    // multi-tenant mode all tenants must be non-empty. So in the
-    // single-tenant mode we erase all database objects (possibly from
-    // multiple tenants). Otherwise, cleanup the specified and the empty
-    // tenants only.
+    // multi-tenant mode all tenants, excluding the pre-created ones, must be
+    // non-empty. So in the single-tenant mode we erase all database objects
+    // (possibly from multiple tenants). Otherwise, cleanup the empty tenant
+    // and, unless in the --existing-tenant mode, the specified one.
     //
     if (tnt.empty ())                // Single-tenant mode.
     {
@@ -1770,7 +1785,49 @@ try
     }
     else                             // Multi-tenant mode.
     {
-      cstrings ts ({tnt.c_str (), ""});
+      // NOTE: don't forget to update ci_start::create() if changing anything
+      // here.
+      //
+      cstrings ts ({""});
+
+      // In the --existing-tenant mode make sure that the specified tenant
+      // exists, is not archived, not marked as unloaded, and is
+      // empty. Otherwise (not in the --existing-tenant mode), remove this
+      // tenant.
+      //
+      if (ops.existing_tenant ())
+      {
+        t = db.find<tenant> (tnt);
+
+        if (t == nullptr)
+        {
+          cerr << "error: unable to find tenant " << tnt << endl;
+          throw failed ();
+        }
+
+        if (t->archived)
+        {
+          cerr << "error: tenant " << tnt << " is archived" << endl;
+          throw failed ();
+        }
+
+        if (t->loaded_timestamp)
+        {
+          cerr << "error: tenant " << tnt << " is marked as unloaded" << endl;
+          throw failed ();
+        }
+
+        size_t n (db.query_value<repository_count> (
+                    query<repository_count>::id.tenant == tnt));
+
+        if (n != 0)
+        {
+          cerr << "error: tenant " << tnt << " is not empty" << endl;
+          throw failed ();
+        }
+      }
+      else
+        ts.push_back (tnt.c_str ());
 
       db.erase_query<package> (
         query<package>::id.tenant.in_range (ts.begin (), ts.end ()));
@@ -1785,6 +1842,50 @@ try
         query<tenant>::id.in_range (ts.begin (), ts.end ()));
     }
 
+    // Craft the tenant service object from the --service-* options.
+    //
+    // In the --existing-tenant mode make sure that the specified service
+    // matches the service associated with the pre-created tenant and update
+    // the service data, if specified.
+    //
+    optional<tenant_service> service;
+
+    if (ops.service_id_specified ())
+    {
+      service = tenant_service (ops.service_id (),
+                                ops.service_type (),
+                                (ops.service_data_specified ()
+                                 ? ops.service_data ()
+                                 : optional<string> ()));
+
+      if (ops.existing_tenant ())
+      {
+        assert (t != nullptr);
+
+        if (!t->service)
+        {
+          cerr << "error: no service associated with tenant " << tnt << endl;
+          throw failed ();
+        }
+
+        if (t->service->id != service->id || t->service->type != service->type)
+        {
+          cerr << "error: associated service mismatch for tenant " << tnt << endl <<
+                  "  info: specified service: " << service->id << ' '
+                                                << service->type << endl <<
+                  "  info: associated service: " << t->service->id << ' '
+                                                 << t->service->type << endl;
+          throw failed ();
+        }
+
+        if (service->data)
+        {
+          t->service->data = move (service->data);
+          db.update (t);
+        }
+      }
+    }
+
     // Persist the tenant.
     //
     // Note that if the tenant service is specified and some tenant with the
@@ -1796,21 +1897,13 @@ try
     // internal error, etc). However, let's first see if it ever becomes a
     // problem.
     //
-    optional<tenant_service> service;
-
-    if (ops.service_id_specified ())
-      service = tenant_service (ops.service_id (),
-                                ops.service_type (),
-                                (ops.service_data_specified ()
-                                 ? ops.service_data ()
-                                 : optional<string> ()));
-
-    db.persist (tenant (tnt,
-                        ops.private_ (),
-                        (ops.interactive_specified ()
-                         ? ops.interactive ()
-                         : optional<string> ()),
-                        move (service)));
+    if (!ops.existing_tenant ())
+      db.persist (tenant (tnt,
+                          ops.private_ (),
+                          (ops.interactive_specified ()
+                           ? ops.interactive ()
+                           : optional<string> ()),
+                          move (service)));
 
     // On the first pass over the internal repositories we load their
     // certificate information and packages.

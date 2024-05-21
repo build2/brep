@@ -399,6 +399,92 @@ handle (request& rq, response& rs)
     }
   }
 
+  // Acquire the database connection for the subsequent transactions.
+  //
+  // Note that we will release it prior to any potentially time-consuming
+  // operations (such as HTTP requests) and re-acquire it again afterwards,
+  // if required.
+  //
+  connection_ptr conn (build_db_->connection ());
+
+  timestamp now (system_clock::now ());
+
+  auto expiration = [&now] (size_t timeout) -> timestamp
+  {
+    return now - chrono::seconds (timeout);
+  };
+
+  auto expiration_ns = [&expiration] (size_t timeout) -> uint64_t
+  {
+    return chrono::duration_cast<chrono::nanoseconds> (
+      expiration (timeout).time_since_epoch ()).count ();
+  };
+
+  // Perform some housekeeping first.
+  //
+  // Notify a tenant-associated third-party service about the unloaded CI
+  // request, if present.
+  //
+  {
+    const tenant_service_build_unloaded* tsu (nullptr);
+
+    transaction tr (conn->begin ());
+
+    using query = query<build_tenant>;
+
+    // Pick the unloaded tenant with the earliest loaded timestamp, skipping
+    // those whose timestamp is less than 40 seconds ago.
+    //
+    // NOTE: don't forget to update ci_start::create() if changing the timeout
+    // here.
+    //
+    shared_ptr<build_tenant> t (
+      build_db_->query_one<build_tenant> (
+        (query::loaded_timestamp <= expiration_ns (40) &&
+         !query::archived)                   +
+        "ORDER BY" + query::loaded_timestamp +
+        "LIMIT 1"));
+
+    if (t != nullptr && t->service)
+    {
+      auto i (tenant_service_map_.find (t->service->type));
+
+      if (i != tenant_service_map_.end ())
+      {
+        tsu = dynamic_cast<const tenant_service_build_unloaded*> (
+          i->second.get ());
+
+        if (tsu != nullptr)
+        {
+          // If we ought to call the
+          // tenant_service_build_unloaded::build_unloaded() callback, then
+          // set the package tenant's loaded timestamp to the current time to
+          // prevent the notifications race.
+          //
+          t->loaded_timestamp = system_clock::now ();
+          build_db_->update (t);
+        }
+      }
+    }
+
+    tr.commit ();
+
+    if (tsu != nullptr)
+    {
+      // Release the database connection since the build_unloaded()
+      // notification can potentially be time-consuming (e.g., it may perform
+      // an HTTP request).
+      //
+      conn.reset ();
+
+      if (auto f = tsu->build_unloaded (move (*t->service), log_writer_))
+      {
+        conn = build_db_->connection ();
+        update_tenant_service_state (conn, t->id, f);
+      }
+    }
+  }
+
   // Go through package build configurations until we find one that has no
   // build target configuration present in the database, or is in the building
   // state but expired (collectively called unbuilt). If such a target
@@ -524,19 +610,6 @@ handle (request& rq, response& rs)
     // Calculate the build/rebuild (building/built state) and the `queued`
     // notifications expiration time for package configurations.
     //
-    timestamp now (system_clock::now ());
-
-    auto expiration = [&now] (size_t timeout) -> timestamp
-    {
-      return now - chrono::seconds (timeout);
-    };
-
-    auto expiration_ns = [&expiration] (size_t timeout) -> uint64_t
-    {
-      return chrono::duration_cast<chrono::nanoseconds> (
-        expiration (timeout).time_since_epoch ()).count ();
-    };
-
     uint64_t normal_result_expiration_ns (
       expiration_ns (options_->build_result_timeout ()));
 
@@ -825,7 +898,10 @@ handle (request& rq, response& rs)
                                                        imode,
                                                        queued_expiration_ns));
 
-      transaction t (build_db_->begin ());
+      if (conn == nullptr)
+        conn = build_db_->connection ();
+
+      transaction t (conn->begin ());
 
       // If there are any non-archived interactive build tenants, then the
       // chosen randomization approach doesn't really work since interactive
@@ -886,7 +962,8 @@ handle (request& rq, response& rs)
         "OFFSET" + pkg_query::_ref (offset)                            +
         "LIMIT" + pkg_query::_ref (limit);
 
-      connection_ptr conn (build_db_->connection ());
+      if (conn == nullptr)
+        conn = build_db_->connection ();
 
       prep_pkg_query pkg_prep_query (
         conn->prepare_query<buildable_package> (
@@ -2226,12 +2303,20 @@ handle (request& rq, response& rs)
 
         if (!qbs.empty ())
         {
+          // Release the database connection since the build_queued()
+          // notification can potentially be time-consuming (e.g., it may
+          // perform an HTTP request).
+          //
+          conn.reset ();
+
           if (auto f = tsq->build_queued (ss,
                                           qbs,
                                           nullopt /* initial_state */,
                                           qhs,
                                           log_writer_))
           {
+            conn = build_db_->connection ();
+
             if (optional<string> data =
                 update_tenant_service_state (conn, qbs.back ().tenant, f))
               ss.data = move (data);
@@ -2250,12 +2335,20 @@ handle (request& rq, response& rs)
           qbs.push_back (move (b));
           restore_build = true;
 
+          // Release the database connection since the build_queued()
+          // notification can potentially be time-consuming (e.g., it may
+          // perform an HTTP request).
+          //
+          conn.reset ();
+
           if (auto f = tsq->build_queued (ss,
                                           qbs,
                                           initial_state,
                                           qhs,
                                           log_writer_))
           {
+            conn = build_db_->connection ();
+
             if (optional<string> data =
                 update_tenant_service_state (conn, qbs.back ().tenant, f))
               ss.data = move (data);
@@ -2278,8 +2371,16 @@ handle (request& rq, response& rs)
         tenant_service& ss (tss->first);
         const build& b (*tss->second);
 
+        // Release the database connection since the build_building()
+        // notification can potentially be time-consuming (e.g., it may
+        // perform an HTTP request).
+        //
+        conn.reset ();
+
         if (auto f = tsb->build_building (ss, b, log_writer_))
         {
+          conn = build_db_->connection ();
+
           if (optional<string> data =
               update_tenant_service_state (conn, b.tenant, f))
             ss.data = move (data);
@@ -2306,6 +2407,9 @@ handle (request& rq, response& rs)
         const tenant_service_build_built* tsb (nullptr);
         optional<pair<tenant_service, shared_ptr<build>>> tss;
         {
+          if (conn == nullptr)
+            conn = build_db_->connection ();
+
           transaction t (conn->begin ());
 
           shared_ptr<build> b (build_db_->find<build> (task_build->id));
@@ -2395,8 +2499,16 @@ handle (request& rq, response& rs)
           tenant_service& ss (tss->first);
           const build& b (*tss->second);
 
+          // Release the database connection since the build_built()
+          // notification can potentially be time-consuming (e.g., it may
+          // perform an HTTP request).
+          //
+          conn.reset ();
+
           if (auto f = tsb->build_built (ss, b, log_writer_))
           {
+            conn = build_db_->connection ();
+
             if (optional<string> data =
                 update_tenant_service_state (conn, b.tenant, f))
               ss.data = move (data);
@@ -2407,6 +2519,10 @@ handle (request& rq, response& rs)
       // Send notification emails for all the aborted builds.
       //
       for (const aborted_build& ab: aborted_builds)
+      {
+        if (conn == nullptr)
+          conn = build_db_->connection ();
+
         send_notification_email (*options_,
                                  conn,
                                  *ab.b,
@@ -2415,8 +2531,13 @@ handle (request& rq, response& rs)
                                  ab.what,
                                  error,
                                  verb_ >= 2 ? &trace : nullptr);
+      }
     }
   }
+
+  // Release the database connection as soon as possible.
+  //
+  conn.reset ();
 
   serialize_task_response_manifest ();
   return true;

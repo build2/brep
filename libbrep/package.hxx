@@ -20,7 +20,7 @@
 //
 #define LIBBREP_PACKAGE_SCHEMA_VERSION_BASE 27
 
-#pragma db model version(LIBBREP_PACKAGE_SCHEMA_VERSION_BASE, 33, closed)
+#pragma db model version(LIBBREP_PACKAGE_SCHEMA_VERSION_BASE, 34, closed)
 
 namespace brep
 {
@@ -260,10 +260,16 @@ namespace brep
     //
     optional<string> interactive;         // Note: foreign-mapped in build.
 
-    timestamp creation_timestamp;
+    timestamp creation_timestamp;         // Note: foreign-mapped in build.
     bool archived = false;                // Note: foreign-mapped in build.
 
     optional<tenant_service> service;     // Note: foreign-mapped in build.
+
+    // If the tenant is loaded, this value is absent. Otherwise it is the time
+    // of the last attempt to load the tenant (see the build_unloaded() tenant
+    // services notification for details).
+    //
+    optional<timestamp> loaded_timestamp; // Note: foreign-mapped in build.
 
     // Note that due to the implementation complexity and performance
     // considerations, the service notifications are not synchronized. This
@@ -317,6 +323,10 @@ namespace brep
       members(service.id, service.type)
 
     #pragma db index member(service.id)
+
+    // Speed-up queries with ordering the result by loaded_timestamp.
+    //
+    #pragma db member(loaded_timestamp) index
 
   private:
     friend class odb::access;
@@ -425,6 +435,20 @@ namespace brep
   private:
     friend class odb::access;
     repository (): tenant (id.tenant), canonical_name (id.canonical_name) {}
+  };
+
+  // Repositories count.
+  //
+  #pragma db view object(repository)
+  struct repository_count
+  {
+    size_t result;
+
+    operator size_t () const {return result;}
+
+    // Database mapping.
+    //
+    #pragma db member(result) column("count(" + repository::id.tenant + ")")
   };
 
   // The 'to' expression calls the PostgreSQL to_tsvector(weighted_text)

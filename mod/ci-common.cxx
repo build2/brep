@@ -3,6 +3,9 @@
 
 #include <mod/ci-common.hxx>
 
+#include <odb/database.hxx>
+#include <odb/transaction.hxx>
+
 #include <libbutl/uuid.hxx>
 #include <libbutl/fdstream.hxx>
 #include <libbutl/sendmail.hxx>
@@ -10,6 +13,9 @@
 #include <libbutl/filesystem.hxx>
 #include <libbutl/process-io.hxx>          // operator<<(ostream, process_args)
 #include <libbutl/manifest-serializer.hxx>
+
+#include <libbrep/build-package.hxx>
+#include <libbrep/build-package-odb.hxx>
 
 #include <mod/external-handler.hxx>
 
@@ -38,13 +44,16 @@ namespace brep
     options_ = move (o);
   }
 
-  optional<ci_start::start_result> ci_start::
+  static optional<ci_start::start_result>
   start (const basic_mark& error,
          const basic_mark& warn,
          const basic_mark* trace,
+         const options::ci_start& ops,
+         string&& request_id,
          optional<tenant_service>&& service,
+         bool service_load,
          const repository_location& repository,
-         const vector<package>& packages,
+         const vector<ci_start::package>& packages,
          const optional<string>& client_ip,
          const optional<string>& user_agent,
          const optional<string>& interactive,
@@ -55,32 +64,15 @@ namespace brep
     using serializer    = manifest_serializer;
     using serialization = manifest_serialization;
 
-    assert (options_ != nullptr); // Shouldn't be called otherwise.
+    using result = ci_start::start_result;
 
     // If the tenant service is specified, then its type may not be empty.
     //
     assert (!service || !service->type.empty ());
 
-    // Generate the request id.
-    //
-    // Note that it will also be used as a CI result manifest reference,
-    // unless the latter is provided by the external handler.
-    //
-    string request_id;
-
-    try
-    {
-      request_id = uuid::generate ().string ();
-    }
-    catch (const system_error& e)
-    {
-      error << "unable to generate request id: " << e;
-      return nullopt;
-    }
-
     // Create the submission data directory.
     //
-    dir_path dd (options_->ci_data () / dir_path (request_id));
+    dir_path dd (ops.ci_data () / dir_path (request_id));
 
     try
     {
@@ -103,10 +95,10 @@ namespace brep
     //
     auto client_error = [&request_id] (uint16_t status, string message)
     {
-      return start_result {status,
-                           move (message),
-                           request_id,
-                           vector<pair<string, string>> ()};
+      return result {status,
+                     move (message),
+                     request_id,
+                     vector<pair<string, string>> ()};
     };
 
     // Serialize the CI request manifest to a stream. On the serialization
@@ -119,6 +111,7 @@ namespace brep
     auto rqm = [&request_id,
                 &ts,
                 &service,
+                service_load,
                 &repository,
                 &packages,
                 &client_ip,
@@ -127,7 +120,7 @@ namespace brep
                 &simulate,
                 &custom_request,
                 &client_error] (ostream& os, bool long_lines = false)
-      -> pair<bool, optional<start_result>>
+      -> pair<bool, optional<result>>
     {
       try
       {
@@ -139,7 +132,7 @@ namespace brep
         s.next ("id", request_id);
         s.next ("repository", repository.string ());
 
-        for (const package& p: packages)
+        for (const ci_start::package& p: packages)
         {
           if (!p.version)
             s.next ("package", p.name.string ());
@@ -178,6 +171,8 @@ namespace brep
 
           if (service->data)
             s.next ("service-data", *service->data);
+
+          s.next ("service-action", service_load ? "load" : "start");
         }
 
         // Serialize the request custom parameters.
@@ -190,12 +185,12 @@ namespace brep
           s.next (nv.first, nv.second);
 
         s.next ("", ""); // End of manifest.
-        return make_pair (true, optional<start_result> ());
+        return make_pair (true, optional<result> ());
       }
       catch (const serialization& e)
       {
         return make_pair (false,
-                          optional<start_result> (
+                          optional<result> (
                             client_error (400,
                                           string ("invalid parameter: ") +
                                           e.what ())));
@@ -209,7 +204,7 @@ namespace brep
     try
     {
       ofdstream os (rqf);
-      pair<bool, optional<start_result>> r (rqm (os));
+      pair<bool, optional<result>> r (rqm (os));
       os.close ();
 
       if (!r.first)
@@ -228,7 +223,7 @@ namespace brep
     //
     auto ovm = [&overrides, &client_error] (ostream& os,
                                             bool long_lines = false)
-      -> pair<bool, optional<start_result>>
+      -> pair<bool, optional<result>>
     {
       try
       {
@@ -240,12 +235,12 @@ namespace brep
           s.next (nv.first, nv.second);
 
         s.next ("", ""); // End of manifest.
-        return make_pair (true, optional<start_result> ());
+        return make_pair (true, optional<result> ());
       }
       catch (const serialization& e)
       {
         return make_pair (false,
-                          optional<start_result> (
+                          optional<result> (
                             client_error (
                               400,
                               string ("invalid manifest override: ") +
@@ -261,7 +256,7 @@ namespace brep
     try
     {
       ofdstream os (ovf);
-      pair<bool, optional<start_result>> r (ovm (os));
+      pair<bool, optional<result>> r (ovm (os));
       os.close ();
 
       if (!r.first)
@@ -305,16 +300,16 @@ namespace brep
     // manifest from its stdout and parse it into the resulting manifest
     // object. Otherwise, create implied CI result manifest.
     //
-    start_result sr;
+    result sr;
 
-    if (options_->ci_handler_specified ())
+    if (ops.ci_handler_specified ())
     {
       using namespace external_handler;
 
-      optional<result_manifest> r (run (options_->ci_handler (),
-                                        options_->ci_handler_argument (),
+      optional<result_manifest> r (run (ops.ci_handler (),
+                                        ops.ci_handler_argument (),
                                         dd,
-                                        options_->ci_handler_timeout (),
+                                        ops.ci_handler_timeout (),
                                         error,
                                         warn,
                                         trace));
@@ -358,7 +353,7 @@ namespace brep
     {
       try
       {
-        serialize_manifest (sr, os, long_lines);
+        ci_start::serialize_manifest (sr, os, long_lines);
         return true;
       }
       catch (const serialization& e)
@@ -424,7 +419,7 @@ namespace brep
     // assume that the web server error log is monitored and the email sending
     // failure will be noticed.
     //
-    if (options_->ci_email_specified () && !simulate)
+    if (ops.ci_email_specified () && !simulate)
     try
     {
       // Redirect the diagnostics to the web server error log.
@@ -435,14 +430,13 @@ namespace brep
                        *trace << process_args {args, n};
                    },
                    2 /* stderr */,
-                   options_->email (),
+                   ops.email (),
                    "CI request submission (" + sr.reference + ')',
-                   {options_->ci_email ()});
+                   {ops.ci_email ()});
 
       // Write the CI request manifest.
       //
-      pair<bool, optional<start_result>> r (
-        rqm (sm.out, true /* long_lines */));
+      pair<bool, optional<result>> r (rqm (sm.out, true /* long_lines */));
 
       assert (r.first); // The serialization succeeded once, so can't fail now.
 
@@ -473,7 +467,55 @@ namespace brep
       error << "sendmail error: " << e;
     }
 
-    return optional<start_result> (move (sr));
+    return optional<result> (move (sr));
+  }
+
+  optional<ci_start::start_result> ci_start::
+  start (const basic_mark& error,
+         const basic_mark& warn,
+         const basic_mark* trace,
+         optional<tenant_service>&& service,
+         const repository_location& repository,
+         const vector<package>& packages,
+         const optional<string>& client_ip,
+         const optional<string>& user_agent,
+         const optional<string>& interactive,
+         const optional<string>& simulate,
+         const vector<pair<string, string>>& custom_request,
+         const vector<pair<string, string>>& overrides) const
+  {
+    assert (options_ != nullptr); // Shouldn't be called otherwise.
+
+    // Generate the request id.
+    //
+    // Note that it will also be used as a CI result manifest reference,
+    // unless the latter is provided by the external handler.
+    //
+    string request_id;
+
+    try
+    {
+      request_id = uuid::generate ().string ();
+    }
+    catch (const system_error& e)
+    {
+      error << "unable to generate request id: " << e;
+      return nullopt;
+    }
+
+    return brep::start (error, warn, trace,
+                        *options_,
+                        move (request_id),
+                        move (service),
+                        false /* service_load */,
+                        repository,
+                        packages,
+                        client_ip,
+                        user_agent,
+                        interactive,
+                        simulate,
+                        custom_request,
+                        overrides);
   }
 
   void ci_start::
@@ -490,5 +532,207 @@ namespace brep
       s.next (nv.first, nv.second);
 
     s.next ("", "");                         // End of manifest.
+  }
+
+  optional<string> ci_start::
+  create (const basic_mark& error,
+          const basic_mark&,
+          const basic_mark* trace,
+          odb::core::database& db,
+          tenant_service&& service) const
+  {
+    using namespace odb::core;
+
+    // Generate the request id.
+    //
+    string request_id;
+
+    try
+    {
+      request_id = uuid::generate ().string ();
+    }
+    catch (const system_error& e)
+    {
+      error << "unable to generate request id: " << e;
+      return nullopt;
+    }
+
+    // Use the generated request id if the tenant service id is not specified.
+    //
+    if (service.id.empty ())
+      service.id = request_id;
+
+    // Delay the first load attempt for 10 seconds (see mod-build-task.cxx for
+    // details).
+    //
+    build_tenant t (move (request_id),
+                    move (service),
+                    system_clock::now () - chrono::seconds (40 - 10));
+
+    {
+      assert (!transaction::has_current ());
+
+      transaction tr (db.begin ());
+
+      // Note that in contrast to brep-load, we know that the tenant id is
+      // unique and thus we don't try to remove a tenant with such an id.
+      // There is also not much reason to assume that we may have switched
+      // from the single-tenant mode here and remove the respective tenant,
+      // unless we are in the tenant-service functionality development mode.
+      //
+#ifdef BREP_CI_TENANT_SERVICE_UNLOADED
+      cstrings ts ({""});
+
+      db.erase_query<build_package> (
+        query<build_package>::id.tenant.in_range (ts.begin (), ts.end ()));
+
+      db.erase_query<build_repository> (
+        query<build_repository>::id.tenant.in_range (ts.begin (), ts.end ()));
+
+      db.erase_query<build_public_key> (
+        query<build_public_key>::id.tenant.in_range (ts.begin (), ts.end ()));
+
+      db.erase_query<build_tenant> (
+        query<build_tenant>::id.in_range (ts.begin (), ts.end ()));
+#endif
+
+      db.persist (t);
+
+      tr.commit ();
+    }
+
+    if (trace != nullptr)
+      *trace << "unloaded CI request " << t.id << " for service "
+             << t.service->id << ' ' << t.service->type << " is created";
+
+    return move (t.id);
+  }
+
+  optional<ci_start::start_result> ci_start::
+  load (const basic_mark& error,
+        const basic_mark& warn,
+        const basic_mark* trace,
+        odb::core::database& db,
+        tenant_service&& service,
+        const repository_location& repository) const
+  {
+    using namespace odb::core;
+
+    string request_id;
+    {
+      assert (!transaction::has_current ());
+
+      transaction tr (db.begin ());
+
+      using query = query<build_tenant>;
+
+      shared_ptr<build_tenant> t (
+        db.query_one<build_tenant> (query::service.id == service.id &&
+                                    query::service.type == service.type));
+
+      if (t == nullptr)
+      {
+        error << "unable to find tenant for service " << service.id << ' '
+              << service.type;
+
+        return nullopt;
+      }
+      else if (t->archived)
+      {
+        error << "tenant " << t->id << " for service " << service.id << ' '
+              << service.type << " is already archived";
+
+        return nullopt;
+      }
+      else if (!t->loaded_timestamp)
+      {
+        error << "tenant " << t->id << " for service " << service.id << ' '
+              << service.type << " is already loaded";
+
+        return nullopt;
+      }
+
+      t->loaded_timestamp = nullopt;
+      db.update (t);
+
+      tr.commit ();
+
+      request_id = move (t->id);
+    }
+
+    assert (options_ != nullptr); // Shouldn't be called otherwise.
+
+    optional<start_result> r (brep::start (error, warn, trace,
+                                           *options_,
+                                           move (request_id),
+                                           move (service),
+                                           true /* service_load */,
+                                           repository,
+                                           {} /* packages */,
+                                           nullopt /* client_ip */,
+                                           nullopt /* user_agent */,
+                                           nullopt /* interactive */,
+                                           nullopt /* simulate */,
+                                           {} /* custom_request */,
+                                           {} /* overrides */));
+
+    // Note: on error (r == nullopt) the diagnostics is already issued.
+    //
+    if (trace != nullptr && r)
+      *trace << "CI request for '" << repository << "' is "
+             << (r->status != 200 ? "not " : "") << "loaded: "
+             << r->message << " (reference: " << r->reference << ')';
+
+    return r;
+  }
+
+  void ci_start::
+  abandon (const basic_mark& error,
+           const basic_mark&,
+           const basic_mark* trace,
+           odb::core::database& db,
+           tenant_service&& service) const
+  {
+    using namespace odb::core;
+
+    assert (!transaction::has_current ());
+
+    transaction tr (db.begin ());
+
+    using query = query<build_tenant>;
+
+    shared_ptr<build_tenant> t (
+      db.query_one<build_tenant> (query::service.id == service.id &&
+                                  query::service.type == service.type));
+
+    if (t == nullptr)
+    {
+      error << "unable to find tenant for service " << service.id << ' '
+            << service.type;
+
+      return;
+    }
+    else if (!t->loaded_timestamp)
+    {
+      error << "tenant " << t->id << " for service " << service.id << ' '
+            << service.type << " is already loaded";
+
+      return;
+    }
+
+    // We could probably remove the tenant from the database, but let's just
+    // archive it and keep for troubleshooting.
+    //
+    if (!t->archived)
+    {
+      t->archived = true;
+      db.update (t);
+    }
+
+    tr.commit ();
+
+    if (trace != nullptr)
+      *trace << "unloaded CI request " << t->id << " for service "
+             << service.id << ' ' << service.type << " is abandoned";
   }
 }

@@ -17,18 +17,34 @@
 
 #include <mod/ci-common.hxx>
 
+#if defined(BREP_CI_TENANT_SERVICE_UNLOADED) && !defined(BREP_CI_TENANT_SERVICE)
+#  error BREP_CI_TENANT_SERVICE must be defined if BREP_CI_TENANT_SERVICE_UNLOADED is defined
+#endif
+
 #ifdef BREP_CI_TENANT_SERVICE
 #  include <mod/tenant-service.hxx>
+
+#ifdef BREP_CI_TENANT_SERVICE_UNLOADED
+#  include <mod/database-module.hxx>
+#endif
 #endif
 
 namespace brep
 {
-  class ci: public handler,
+  class ci:
+#ifndef BREP_CI_TENANT_SERVICE_UNLOADED
+            public handler,
+#else
+            public database_module,
+#endif
             private ci_start
 #ifdef BREP_CI_TENANT_SERVICE
           , public tenant_service_build_queued,
             public tenant_service_build_building,
             public tenant_service_build_built
+#ifdef BREP_CI_TENANT_SERVICE_UNLOADED
+          , tenant_service_build_unloaded
+#endif
 #endif
   {
   public:
@@ -74,6 +90,12 @@ namespace brep
     build_built (const tenant_service&,
                  const build&,
                  const diag_epilogue& log_writer) const noexcept override;
+
+#ifdef BREP_CI_TENANT_SERVICE_UNLOADED
+    virtual function<optional<string> (const tenant_service&)>
+    build_unloaded (tenant_service&&,
+                    const diag_epilogue& log_writer) const noexcept override;
+#endif
 #endif
 
   private:

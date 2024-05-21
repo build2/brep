@@ -739,7 +739,7 @@ namespace brep
       << ~TR;
   }
 
-  // BUILD_RESULT
+  // TR_BUILD_RESULT
   //
   void TR_BUILD_RESULT::
   operator() (serializer& s) const

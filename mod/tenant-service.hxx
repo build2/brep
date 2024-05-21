@@ -21,7 +21,8 @@ namespace brep
     virtual ~tenant_service_base () = default;
   };
 
-  // Possible build notifications:
+  // Possible build notifications (see also the unloaded special notification
+  // below):
   //
   // queued
   // building
@@ -119,6 +120,22 @@ namespace brep
     build_built (const tenant_service&,
                  const build&,
                  const diag_epilogue& log_writer) const noexcept = 0;
+  };
+
+  // This notification is only made on unloaded CI requests created with the
+  // ci_start::create() call and until they are loaded with ci_start::load()
+  // or, alternatively, abandoned with ci_start::abandon().
+  //
+  // Note: make sure the implementation of this notification does not take
+  // too long (currently 40 seconds) to avoid nested notifications. Note
+  // also that the first notification is delayed (currently 10 seconds).
+  //
+  class tenant_service_build_unloaded: public virtual tenant_service_base
+  {
+  public:
+    virtual function<optional<string> (const tenant_service&)>
+    build_unloaded (tenant_service&&,
+                    const diag_epilogue& log_writer) const noexcept = 0;
   };
 
   // Map of service type (tenant_service::type) to service.

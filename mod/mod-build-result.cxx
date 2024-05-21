@@ -207,13 +207,20 @@ handle (request& rq, response&)
   optional<pair<tenant_service, shared_ptr<build>>> tss;
   tenant_service_build_queued::build_queued_hints qhs;
 
+  // Acquire the database connection for the subsequent transactions.
+  //
+  // Note that we will release it prior to any potentially time-consuming
+  // operations (such as HTTP requests) and re-acquire it again afterwards,
+  // if required.
+  //
+  connection_ptr conn (build_db_->connection ());
+
   // Note that if the session authentication fails (probably due to the
   // authentication settings change), then we log this case with the warning
   // severity and respond with the 200 HTTP code as if the challenge is
   // valid. The thinking is that we shouldn't alarm a law-abaiding agent and
   // shouldn't provide any information to a malicious one.
   //
-  connection_ptr conn (build_db_->connection ());
   {
     transaction t (conn->begin ());
 
@@ -518,12 +525,20 @@ handle (request& rq, response&)
     vector<build> qbs;
     qbs.push_back (move (*tss->second));
 
+    // Release the database connection since build_queued() notification can
+    // potentially be time-consuming (e.g., it may perform an HTTP request).
+    //
+    conn.reset ();
+
     if (auto f = tsq->build_queued (ss,
                                     qbs,
                                     build_state::building,
                                     qhs,
                                     log_writer_))
+    {
+      conn = build_db_->connection ();
       update_tenant_service_state (conn, qbs.back ().tenant, f);
+    }
   }
 
   // If a third-party service needs to be notified about the built package,
@@ -537,8 +552,16 @@ handle (request& rq, response&)
     const tenant_service& ss (tss->first);
     const build& b (*tss->second);
 
+    // Release the database connection since build_built() notification can
+    // potentially be time-consuming (e.g., it may perform an HTTP request).
+    //
+    conn.reset ();
+
     if (auto f = tsb->build_built (ss, b, log_writer_))
+    {
+      conn = build_db_->connection ();
       update_tenant_service_state (conn, b.tenant, f);
+    }
   }
 
   if (bld != nullptr)
@@ -548,6 +571,9 @@ handle (request& rq, response&)
     //
     if (!build_notify)
       (cfg->email ? cfg->email : pkg->build_email) = email ();
+
+    if (conn == nullptr)
+      conn = build_db_->connection ();
 
     send_notification_email (*options_,
                              conn,
