@@ -407,19 +407,6 @@ handle (request& rq, response& rs)
   //
   connection_ptr conn (build_db_->connection ());
 
-  timestamp now (system_clock::now ());
-
-  auto expiration = [&now] (size_t timeout) -> timestamp
-  {
-    return now - chrono::seconds (timeout);
-  };
-
-  auto expiration_ns = [&expiration] (size_t timeout) -> uint64_t
-  {
-    return chrono::duration_cast<chrono::nanoseconds> (
-      expiration (timeout).time_since_epoch ()).count ();
-  };
-
   // Perform some housekeeping first.
   //
   // Notify a tenant-associated third-party service about the unloaded CI
@@ -433,16 +420,16 @@ handle (request& rq, response& rs)
     using query = query<build_tenant>;
 
     // Pick the unloaded tenant with the earliest loaded timestamp, skipping
-    // those whose timestamp is less than 40 seconds ago.
-    //
-    // NOTE: don't forget to update ci_start::create() if changing the timeout
-    // here.
+    // those which were already picked recently.
     //
     shared_ptr<build_tenant> t (
       build_db_->query_one<build_tenant> (
-        (query::loaded_timestamp <= expiration_ns (40) &&
-         !query::archived)                   +
-        "ORDER BY" + query::loaded_timestamp +
+        (!query::archived                         &&
+         query::unloaded_timestamp.is_not_null () &&
+         (query::unloaded_timestamp                       +
+          "<= EXTRACT (EPOCH FROM NOW()) * 1000000000 - " +
+          query::unloaded_notify_interval))    +
+        "ORDER BY" + query::unloaded_timestamp +
         "LIMIT 1"));
 
     if (t != nullptr && t->service)
@@ -461,7 +448,7 @@ handle (request& rq, response& rs)
           // set the package tenant's loaded timestamp to the current time to
           // prevent the notifications race.
           //
-          t->loaded_timestamp = system_clock::now ();
+          t->unloaded_timestamp = system_clock::now ();
           build_db_->update (t);
         }
       }
@@ -610,6 +597,19 @@ handle (request& rq, response& rs)
     // Calculate the build/rebuild (building/built state) and the `queued`
     // notifications expiration time for package configurations.
     //
+    timestamp now (system_clock::now ());
+
+    auto expiration = [&now] (size_t timeout) -> timestamp
+    {
+      return now - chrono::seconds (timeout);
+    };
+
+    auto expiration_ns = [&expiration] (size_t timeout) -> uint64_t
+    {
+      return chrono::duration_cast<chrono::nanoseconds> (
+        expiration (timeout).time_since_epoch ()).count ();
+    };
+
     uint64_t normal_result_expiration_ns (
       expiration_ns (options_->build_result_timeout ()));
 

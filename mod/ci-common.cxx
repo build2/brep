@@ -539,7 +539,9 @@ namespace brep
           const basic_mark&,
           const basic_mark* trace,
           odb::core::database& db,
-          tenant_service&& service) const
+          tenant_service&& service,
+          duration notify_interval,
+          duration notify_delay) const
   {
     using namespace odb::core;
 
@@ -562,13 +564,10 @@ namespace brep
     if (service.id.empty ())
       service.id = request_id;
 
-    // Delay the first load attempt for 10 seconds (see mod-build-task.cxx for
-    // details).
-    //
     build_tenant t (move (request_id),
                     move (service),
-                    system_clock::now () - chrono::seconds (40 - 10));
-
+                    system_clock::now () - notify_interval + notify_delay,
+                    notify_interval);
     {
       assert (!transaction::has_current ());
 
@@ -644,7 +643,7 @@ namespace brep
 
         return nullopt;
       }
-      else if (!t->loaded_timestamp)
+      else if (!t->unloaded_timestamp)
       {
         error << "tenant " << t->id << " for service " << service.id << ' '
               << service.type << " is already loaded";
@@ -652,7 +651,7 @@ namespace brep
         return nullopt;
       }
 
-      t->loaded_timestamp = nullopt;
+      t->unloaded_timestamp = nullopt;
       db.update (t);
 
       tr.commit ();
@@ -712,7 +711,7 @@ namespace brep
 
       return;
     }
-    else if (!t->loaded_timestamp)
+    else if (!t->unloaded_timestamp)
     {
       error << "tenant " << t->id << " for service " << service.id << ' '
             << service.type << " is already loaded";

@@ -1811,7 +1811,7 @@ try
           throw failed ();
         }
 
-        if (t->loaded_timestamp)
+        if (t->unloaded_timestamp)
         {
           cerr << "error: tenant " << tnt << " is marked as unloaded" << endl;
           throw failed ();

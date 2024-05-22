@@ -141,6 +141,20 @@ namespace brep
                std::chrono::nanoseconds (*(?))))                     \
          : brep::optional_timestamp ())
 
+  #pragma db map type(duration) as(uint64_t)                              \
+    to(std::chrono::duration_cast<std::chrono::nanoseconds> (?).count ()) \
+    from(brep::duration (std::chrono::nanoseconds (?)))
+
+  using optional_duration = optional<duration>;
+
+  #pragma db map type(optional_duration) as(brep::optional_uint64)            \
+    to((?)                                                                    \
+       ? std::chrono::duration_cast<std::chrono::nanoseconds> (*(?)).count () \
+       : brep::optional_uint64 ())                                            \
+    from((?)                                                                  \
+         ? brep::duration (std::chrono::nanoseconds (*(?)))                   \
+         : brep::optional_duration ())
+
   // version
   //
   using bpkg::version;

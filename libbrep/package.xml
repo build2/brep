@@ -1,9 +1,10 @@
 <changelog xmlns="http://www.codesynthesis.com/xmlns/odb/changelog" database="pgsql" schema-name="package" version="1">
   <changeset version="34">
     <alter-table name="tenant">
-      <add-column name="loaded_timestamp" type="BIGINT" null="true"/>
-      <add-index name="tenant_loaded_timestamp_i">
-        <column name="loaded_timestamp"/>
+      <add-column name="unloaded_timestamp" type="BIGINT" null="true"/>
+      <add-column name="unloaded_notify_interval" type="BIGINT" null="true"/>
+      <add-index name="tenant_unloaded_timestamp_i">
+        <column name="unloaded_timestamp"/>
       </add-index>
     </alter-table>
   </changeset>

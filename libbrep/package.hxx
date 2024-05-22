@@ -251,25 +251,29 @@ namespace brep
     // If this flag is true, then display the packages in the web interface
     // only in the tenant view mode.
     //
-    bool private_;                        // Note: foreign-mapped in build.
+    bool private_;                               // Note: foreign-mapped in build.
 
     // Interactive package build breakpoint.
     //
     // If present, then packages from this tenant will only be built
     // interactively and only non-interactively otherwise.
     //
-    optional<string> interactive;         // Note: foreign-mapped in build.
+    optional<string> interactive;                // Note: foreign-mapped in build.
 
-    timestamp creation_timestamp;         // Note: foreign-mapped in build.
-    bool archived = false;                // Note: foreign-mapped in build.
+    timestamp creation_timestamp;                // Note: foreign-mapped in build.
+    bool archived = false;                       // Note: foreign-mapped in build.
 
-    optional<tenant_service> service;     // Note: foreign-mapped in build.
+    optional<tenant_service> service;            // Note: foreign-mapped in build.
 
     // If the tenant is loaded, this value is absent. Otherwise it is the time
     // of the last attempt to load the tenant (see the build_unloaded() tenant
     // services notification for details).
     //
-    optional<timestamp> loaded_timestamp; // Note: foreign-mapped in build.
+    optional<timestamp> unloaded_timestamp;      // Note: foreign-mapped in build.
+
+    // The time interval between attempts to load the tenant, if unloaded.
+    //
+    optional<duration> unloaded_notify_interval; // Note: foreign-mapped in build.
 
     // Note that due to the implementation complexity and performance
     // considerations, the service notifications are not synchronized. This
@@ -290,7 +294,7 @@ namespace brep
     // natural reasons (non-zero build task execution time, etc) and thus we
     // just ignore them.
     //
-    optional<timestamp> queued_timestamp; // Note: foreign-mapped in build.
+    optional<timestamp> queued_timestamp;        // Note: foreign-mapped in build.
 
     // Note that after the package tenant is created but before the first
     // build object is created, there is no easy way to produce a list of
@@ -324,9 +328,9 @@ namespace brep
 
     #pragma db index member(service.id)
 
-    // Speed-up queries with ordering the result by loaded_timestamp.
+    // Speed-up queries with ordering the result by unloaded_timestamp.
     //
-    #pragma db member(loaded_timestamp) index
+    #pragma db member(unloaded_timestamp) index
 
   private:
     friend class odb::access;

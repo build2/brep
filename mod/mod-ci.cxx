@@ -389,7 +389,9 @@ handle (request& rq, response& rs)
                                      warn,
                                      verb_ ? &trace : nullptr,
                                      *build_db_,
-                                     tenant_service ("", "ci", rl.string ())))
+                                     tenant_service ("", "ci", rl.string ()),
+                                     chrono::seconds (40),
+                                     chrono::seconds (10)))
   {
     string msg ("unloaded CI request is created: " +
                 options_->host () + tenant_dir (root, *ref).string ());

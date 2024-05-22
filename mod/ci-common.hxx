@@ -67,8 +67,10 @@ namespace brep
 
     // Create an unloaded CI request returning start_result::reference on
     // success and nullopt on an internal error. Such a request is not started
-    // until loaded with the load() function below. See also the
-    // build_unloaded() tenant services notification.
+    // until loaded with the load() function below. Configure the time
+    // interval between the build_unloaded() notifications for the being
+    // created tenant and set the initial delay for the first notification.
+    // See also the build_unloaded() tenant services notification.
     //
     // Note: should be called out of the database transaction.
     //
@@ -77,7 +79,9 @@ namespace brep
             const basic_mark& warn,
             const basic_mark* trace,
             odb::core::database&,
-            tenant_service&&) const;
+            tenant_service&&,
+            duration notify_interval,
+            duration notify_delay) const;
 
     // Load (and start) previously created (as unloaded) CI request. Similarly
     // to the start() function, return nullopt on an internal error.

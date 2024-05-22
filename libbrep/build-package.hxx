@@ -35,11 +35,12 @@ namespace brep
     // Create tenant for an unloaded CI request (see the build_unloaded()
     // tenant services notification for details).
     //
-    build_tenant (string i, tenant_service s, timestamp l)
+    build_tenant (string i, tenant_service s, timestamp t, duration n)
         : id (move (i)),
           creation_timestamp (timestamp::clock::now ()),
           service (move (s)),
-          loaded_timestamp (l) {}
+          unloaded_timestamp (t),
+          unloaded_notify_interval (n) {}
 
     string id;
 
@@ -48,7 +49,8 @@ namespace brep
     timestamp creation_timestamp;
     bool archived = false;
     optional<tenant_service> service;
-    optional<timestamp> loaded_timestamp;
+    optional<timestamp> unloaded_timestamp;
+    optional<duration> unloaded_notify_interval;
     optional<timestamp> queued_timestamp;
     optional<build_toolchain> toolchain;
 
