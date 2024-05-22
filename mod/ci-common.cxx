@@ -685,12 +685,13 @@ namespace brep
     return r;
   }
 
-  void ci_start::
-  abandon (const basic_mark& error,
-           const basic_mark&,
-           const basic_mark* trace,
-           odb::core::database& db,
-           tenant_service&& service) const
+  optional<tenant_service> ci_start::
+  cancel (const basic_mark&,
+          const basic_mark&,
+          const basic_mark* trace,
+          odb::core::database& db,
+          const string& type,
+          const string& id) const
   {
     using namespace odb::core;
 
@@ -701,37 +702,22 @@ namespace brep
     using query = query<build_tenant>;
 
     shared_ptr<build_tenant> t (
-      db.query_one<build_tenant> (query::service.id == service.id &&
-                                  query::service.type == service.type));
-
+      db.query_one<build_tenant> (query::service.id == id &&
+                                  query::service.type == type));
     if (t == nullptr)
-    {
-      error << "unable to find tenant for service " << service.id << ' '
-            << service.type;
+      return nullopt;
 
-      return;
-    }
-    else if (!t->unloaded_timestamp)
-    {
-      error << "tenant " << t->id << " for service " << service.id << ' '
-            << service.type << " is already loaded";
-
-      return;
-    }
-
-    // We could probably remove the tenant from the database, but let's just
-    // archive it and keep for troubleshooting.
-    //
-    if (!t->archived)
-    {
-      t->archived = true;
-      db.update (t);
-    }
+    optional<tenant_service> r (move (t->service));
+    t->service = nullopt;
+    t->archived = true;
+    db.update (t);
 
     tr.commit ();
 
     if (trace != nullptr)
-      *trace << "unloaded CI request " << t->id << " for service "
-             << service.id << ' ' << service.type << " is abandoned";
+      *trace << "CI request " << t->id << " for service " << id << ' ' << type
+             << " is canceled";
+
+    return r;
   }
 }

@@ -98,16 +98,18 @@ namespace brep
           tenant_service&&,
           const repository_location& repository) const;
 
-    // Abandon previously created (as unloaded) CI request.
+    // Cancel previously created or started CI request. Return the service
+    // state or nullopt if there is no tenant for such a type/id pair.
     //
     // Note: should be called out of the database transaction.
     //
-    void
-    abandon (const basic_mark& error,
-             const basic_mark& warn,
-             const basic_mark* trace,
-             odb::core::database&,
-             tenant_service&&) const;
+    optional<tenant_service>
+    cancel (const basic_mark& error,
+            const basic_mark& warn,
+            const basic_mark* trace,
+            odb::core::database&,
+            const string& type,
+            const string& id) const;
 
     // Helpers.
     //

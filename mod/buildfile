@@ -39,7 +39,7 @@ mod{brep}: {hxx ixx txx cxx}{* -module-options -{$libu_src}}               \
 # the debugging of the notifications machinery.
 #
 cxx.poptions += -DBREP_CI_TENANT_SERVICE
-cxx.poptions += -DBREP_CI_TENANT_SERVICE_UNLOADED
+#cxx.poptions += -DBREP_CI_TENANT_SERVICE_UNLOADED
 
 libus{mod}: ../web/xhtml/libus{xhtml}
 libue{mod}: ../web/xhtml/libue{xhtml}
