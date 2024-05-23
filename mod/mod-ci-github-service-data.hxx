@@ -59,6 +59,10 @@ namespace brep
 
     string repository_node_id; // GitHub-internal opaque repository id.
 
+    // The commit ID the check suite (and its check runs) are associated
+    // with. In the case of a pull request this will be
+    // `pull_request.head.sha`.
+    //
     string head_sha;
 
     vector<check_run> check_runs;

@@ -338,10 +338,27 @@ namespace brep
         return true;
       }
     }
-    // else if (event == "pull_request")
-    // {
-    //   return handle_pull_request ();
-    // }
+    else if (event == "pull_request")
+    {
+      gh_pull_request_event pr;
+      try
+      {
+        json::parser p (body.data (), body.size (), "pull_request event");
+
+        pr = gh_pull_request_event (p);
+      }
+      catch (const json::invalid_json_input& e)
+      {
+        string m ("malformed JSON in " + e.name + " request body");
+
+        error << m << ", line: " << e.line << ", column: " << e.column
+              << ", byte offset: " << e.position << ", error: " << e;
+
+        throw invalid_request (400, move (m));
+      }
+
+      return handle_pull_request (move (pr), warning_success);
+    }
     else
     {
       // Log to investigate.
@@ -512,14 +529,49 @@ namespace brep
   //   Note: when a PR is merged we will get a pull_request(closed) and then a
   //   check_suite for the base branch.
   //
-  // bool ci_github::
-  // handle_pull_request (gh_pull_request_event pr)
-  // {
-  //   // Fetch pull request in order to start job creating test merge
-  //   // commit. Discard result.
-  //   //
-  //   // Start unloaded CI job.
-  // }
+  bool ci_github::
+  handle_pull_request (gh_pull_request_event pr, bool warning_success)
+  {
+    HANDLER_DIAG;
+
+    l3 ([&]{trace << "pull_request event { " << pr << " }";});
+
+    optional<string> jwt (generate_jwt (trace, error));
+    if (!jwt)
+      throw server_error ();
+
+    optional<gh_installation_access_token> iat (
+      obtain_installation_access_token (pr.installation.id,
+                                        move (*jwt),
+                                        error));
+
+    if (!iat)
+      throw server_error ();
+
+    l3 ([&]{trace << "installation_access_token { " << *iat << " }";});
+
+    string sd (service_data (warning_success,
+                             move (iat->token),
+                             iat->expires_at,
+                             pr.installation.id,
+                             move (pr.repository.node_id),
+                             pr.pull_request.head_sha)
+                 .json ());
+
+    optional<string> tid (
+      create (error, warn, &trace,
+              *build_db_,
+              tenant_service (move (pr.pull_request.node_id),
+                              "ci-github",
+                              move (sd)),
+              chrono::seconds (30),
+              chrono::seconds (10)));
+
+    if (!tid)
+      fail << "unable to create unloaded CI request";
+
+    return true;
+  }
 
   // Build state change notifications (see tenant-services.hxx for
   // background). Mapping our state transitions to GitHub pose multiple
