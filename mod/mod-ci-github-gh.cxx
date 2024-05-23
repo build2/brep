@@ -177,6 +177,107 @@ namespace brep
     return os;
   }
 
+  gh_pull_request::
+  gh_pull_request (json::parser& p)
+  {
+    p.next_expect (event::begin_object);
+
+    bool ni (false), nu (false), st (false), ma (false), ms (false),
+      bs (false), hd (false);
+
+    // Skip unknown/uninteresting members.
+    //
+    while (p.next_expect (event::name, event::end_object))
+    {
+      auto c = [&p] (bool& v, const char* s)
+      {
+        return p.name () == s ? (v = true) : false;
+      };
+
+      if      (c (ni, "node_id"))   node_id = p.next_expect_string ();
+      else if (c (nu, "number"))    number = p.next_expect_number<unsigned int> ();
+      else if (c (st, "state"))     state = p.next_expect_string ();
+      else if (c (ma, "mergeable")) mergeable = p.next_expect_boolean_null<bool> ();
+      else if (c (ms, "merge_commit_sha"))
+      {
+        string* v (p.next_expect_string_null ());
+        if (v != nullptr)
+          merge_commit_sha = *v;
+      }
+      else if (c (bs, "base"))
+      {
+        p.next_expect (event::begin_object);
+
+        bool l (false), r (false), s (false);
+
+        while (p.next_expect (event::name, event::end_object))
+        {
+          if      (c (l, "label")) base_label = p.next_expect_string ();
+          else if (c (r, "ref"))   base_ref = p.next_expect_string ();
+          else if (c (s, "sha"))   base_sha = p.next_expect_string ();
+          else p.next_expect_value_skip ();
+        }
+
+        if (!l) missing_member (p, "gh_pull_request.base", "label");
+        if (!r) missing_member (p, "gh_pull_request.base", "ref");
+        if (!s) missing_member (p, "gh_pull_request.base", "sha");
+      }
+      else if (c (hd, "head"))
+      {
+        p.next_expect (event::begin_object);
+
+        bool l (false), r (false), s (false);
+
+        while (p.next_expect (event::name, event::end_object))
+        {
+          if      (c (l, "label")) head_label = p.next_expect_string ();
+          else if (c (r, "ref"))   head_ref = p.next_expect_string ();
+          else if (c (s, "sha"))   head_sha = p.next_expect_string ();
+          else p.next_expect_value_skip ();
+        }
+
+        if (!l) missing_member (p, "gh_pull_request.head", "label");
+        if (!r) missing_member (p, "gh_pull_request.head", "ref");
+        if (!s) missing_member (p, "gh_pull_request.head", "sha");
+      }
+      else p.next_expect_value_skip ();
+    }
+
+    if (!ni) missing_member (p, "gh_pull_request", "node_id");
+    if (!nu) missing_member (p, "gh_pull_request", "number");
+    if (!st) missing_member (p, "gh_pull_request", "state");
+    if (!ma) missing_member (p, "gh_pull_request", "mergeable");
+    if (!ms) missing_member (p, "gh_pull_request", "merge_commit_sha");
+    if (!bs) missing_member (p, "gh_pull_request", "base");
+    if (!hd) missing_member (p, "gh_pull_request", "head");
+  }
+
+  ostream&
+  operator<< (ostream& os, const gh_pull_request& pr)
+  {
+    os << "node_id: " << pr.node_id
+       << ", number: " << pr.number
+       << ", state: " << pr.state
+       << ", mergeable: " << (pr.mergeable
+                              ? *pr.mergeable
+                                ? "true"
+                                : "false"
+                              : "null")
+       << ", merge_commit_sha:" << pr.merge_commit_sha
+       << ", base: { "
+       << "label: " << pr.base_label
+       << ", ref: " << pr.base_ref
+       << ", sha: " << pr.base_sha
+       << " }"
+       << ", head: { "
+       << "label: " << pr.head_label
+       << ", ref: " << pr.head_ref
+       << ", sha: " << pr.head_sha
+       << " }";
+
+    return os;
+  }
+
   // gh_repository
   //
   gh_repository::
@@ -293,6 +394,48 @@ namespace brep
     os << ", check_suite { " << cs.check_suite << " }";
     os << ", repository { "  << cs.repository << " }";
     os << ", installation { " << cs.installation << " }";
+
+    return os;
+  }
+
+  // gh_pull_request_event
+  //
+  gh_pull_request_event::
+  gh_pull_request_event (json::parser& p)
+  {
+    p.next_expect (event::begin_object);
+
+    bool ac (false), pr (false), rp (false), in (false);
+
+    // Skip unknown/uninteresting members.
+    //
+    while (p.next_expect (event::name, event::end_object))
+    {
+      auto c = [&p] (bool& v, const char* s)
+      {
+        return p.name () == s ? (v = true) : false;
+      };
+
+      if      (c (ac, "action"))       action = p.next_expect_string ();
+      else if (c (pr, "pull_request")) pull_request = gh_pull_request (p);
+      else if (c (rp, "repository"))   repository = gh_repository (p);
+      else if (c (in, "installation")) installation = gh_installation (p);
+      else p.next_expect_value_skip ();
+    }
+
+    if (!ac) missing_member (p, "gh_pull_request_event", "action");
+    if (!pr) missing_member (p, "gh_pull_request_event", "pull_request");
+    if (!rp) missing_member (p, "gh_pull_request_event", "repository");
+    if (!in) missing_member (p, "gh_pull_request_event", "installation");
+  }
+
+  ostream&
+  operator<< (ostream& os, const gh_pull_request_event& pr)
+  {
+    os << "action: " << pr.action;
+    os << ", pull_request { " << pr.pull_request << " }";
+    os << ", repository { "  << pr.repository << " }";
+    os << ", installation { " << pr.installation << " }";
 
     return os;
   }
