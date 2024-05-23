@@ -573,6 +573,26 @@ namespace brep
     return true;
   }
 
+  function<optional<string> (const tenant_service&)> ci_github::
+  build_unloaded (tenant_service&& ts,
+                  const diag_epilogue& log_writer) const noexcept
+  {
+    NOTIFICATION_DIAG (log_writer);
+
+    service_data sd;
+    try
+    {
+      sd = service_data (*ts.data);
+    }
+    catch (const invalid_argument& e)
+    {
+      error << "failed to parse service data: " << e;
+      return nullptr;
+    }
+
+    return nullptr;
+  }
+
   // Build state change notifications (see tenant-services.hxx for
   // background). Mapping our state transitions to GitHub pose multiple
   // problems:

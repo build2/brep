@@ -19,6 +19,7 @@ namespace brep
 {
   class ci_github: public database_module,
                    private ci_start,
+                   public tenant_service_build_unloaded,
                    public tenant_service_build_queued,
                    public tenant_service_build_building,
                    public tenant_service_build_built
@@ -38,6 +39,10 @@ namespace brep
 
     virtual const cli::options&
     cli_options () const {return options::ci_github::description ();}
+
+    virtual function<optional<string> (const tenant_service&)>
+    build_unloaded (tenant_service&&,
+                    const diag_epilogue& log_writer) const noexcept override;
 
     virtual function<optional<string> (const tenant_service&)>
     build_queued (const tenant_service&,
