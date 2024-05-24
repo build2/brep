@@ -564,13 +564,36 @@ namespace brep
               tenant_service (move (pr.pull_request.node_id),
                               "ci-github",
                               move (sd)),
-              chrono::seconds (30),
+              chrono::seconds (30), // @@ TODO Proper values?
               chrono::seconds (10)));
 
     if (!tid)
       fail << "unable to create unloaded CI request";
 
     return true;
+  }
+
+  // Return the colored circle corresponding to a result_status.
+  //
+  string circle (result_status rs)
+  {
+    switch (rs)
+    {
+    case result_status::success:  return "\U0001F7E2"; // Green circle.
+    case result_status::warning:  return "\U0001F7E0"; // Orange circle.
+    case result_status::error:
+    case result_status::abort:
+    case result_status::abnormal: return "\U0001F534"; // Red circle.
+
+      // Valid values we should never encounter.
+      //
+    case result_status::skip:
+    case result_status::interrupt:
+      throw invalid_argument ("unexpected result_status value: " +
+                              to_string (rs));
+    }
+
+    return ""; // Should never reach.
   }
 
   function<optional<string> (const tenant_service&)> ci_github::
@@ -590,7 +613,230 @@ namespace brep
       return nullptr;
     }
 
-    return nullptr;
+    // Get a new installation access token if the current one has expired.
+    //
+    const gh_installation_access_token* iat (nullptr);
+    optional<gh_installation_access_token> new_iat;
+
+    if (system_clock::now () > sd.installation_access.expires_at)
+    {
+      if (optional<string> jwt = generate_jwt (trace, error))
+      {
+        new_iat = obtain_installation_access_token (sd.installation_id,
+                                                    move (*jwt),
+                                                    error);
+        if (new_iat)
+          iat = &*new_iat;
+      }
+    }
+    else
+      iat = &sd.installation_access;
+
+    if (iat == nullptr)
+      return nullptr;
+
+    // Check PR mergeability.
+    //
+    optional<gq_pr_mergeability> ma; // Mergeability.
+    {
+      pair<optional<gq_pr_mergeability>, bool> pr (
+        gq_pull_request_mergeable (error, iat->token, ts.id));
+
+      if (pr.second) // No errors.
+      {
+        if (pr.first) // Merge commit has been generated.
+          ma = move (pr.first);
+      }
+      else
+      {
+        error << "failed to get pull request " << ts.id << " mergeability";
+
+        return nullptr;
+      }
+    }
+
+    // The merge commit's build state. Note that the PR fetch above initiated
+    // its generation on GitHub.
+    //
+    build_state bs;
+
+    // The check run result to use if the merge commit has been calculated, or
+    // absent if it has not.
+    //
+    optional<gq_built_result> br;
+
+    if (ma)
+    {
+      bs = build_state::built;
+
+      result_status rs;
+      string sm; // Summary.
+
+      if (ma->mergeable)
+      {
+        rs = result_status::success;
+        sm = "merge would succeed";
+      }
+      else
+      {
+        rs = result_status::error;
+        sm = "merge would create conflicts";
+      }
+
+      br = gq_built_result (gh_to_conclusion (rs, sd.warning_success),
+                            circle (rs) + ' ' + ucase (to_string (rs)),
+                            move (sm));
+    }
+    else
+      bs = build_state::building;
+
+    // The stored merge commit check run.
+    //
+    check_run* scr (sd.find_check_run ("merge-commit"));
+
+    // The updated merge commit check run.
+    //
+    check_run cr;
+
+    if (scr == nullptr || !scr->node_id)
+    {
+      // Create the check run because the merge commit check run has not
+      // previously been stored, or we failed to create it last time we
+      // tried.
+      //
+      // @@ TMP There is still a window between receipt of the pull_request
+      //        event and the first bot/worker asking for a task. Shouldn't we
+      //        rather create the merge CR when we create the unloaded CI
+      //        build (in the pull_request handler)?
+      //
+      if (scr != nullptr)
+        cr = move (*scr);
+      else
+      {
+        cr.build_id = "merge-commit";
+        cr.name = cr.build_id;
+      }
+      cr.state_synced = false;
+
+      if (gq_create_check_run (error,
+                               cr,
+                               iat->token,
+                               sd.repository_node_id,
+                               sd.head_sha,
+                               // @@ TODO What details URL to use?
+                               "https://build2.org", // details URL.
+                               bs,
+                               move (br)))
+      {
+        l3 ([&]{trace << "created check_run { " << cr << " }";});
+      }
+    }
+    else if (ma)
+    {
+      // Update because the merge commit check run was previously stored and
+      // the merge commit result has become available.
+      //
+      cr = move (*scr);
+      cr.state_synced = false;
+
+      if (gq_update_check_run (error,
+                               cr,
+                               iat->token,
+                               sd.repository_node_id,
+                               *cr.node_id,
+                               "https://build2.org", // details URL.
+                               bs,
+                               move (br)))
+      {
+        l3 ([&]{trace << "updated check_run { " << cr << " }";});
+      }
+    }
+    else
+    {
+      // Do nothing because nothing has changed.
+      //
+      return nullptr;
+    }
+
+    // Create the conclusion check run and load the CI request.
+    //
+    optional<check_run> ccr; // Conclusion check run.
+
+    if (ma && ma->mergeable)
+    {
+      // Create the conclusion check run if the merge commit shows the PR is
+      // mergeable.
+      //
+      // @@ TMP We could do this later if we prefer: the PR will not go green
+      //    until the conclusion check run is successful.
+      //
+      ccr = check_run ();
+      ccr->build_id = "conclusion";
+      ccr->name = ccr->build_id;
+      ccr->state_synced = false;
+
+      if (gq_create_check_run (error,
+                               *ccr,
+                               iat->token,
+                               sd.repository_node_id,
+                               sd.head_sha,
+                               // @@ TODO What details URL to use?
+                               "https://build2.org", // details URL.
+                               build_state::queued))
+      {
+        l3 ([&]{trace << "created check_run { " << *ccr << " }";});
+      }
+
+      // Load the CI request.
+      //
+      // repository_location rl (pr.repository.clone_url + '#' +
+      //                         sd.head_branch,
+      //                         repository_type::git);
+
+      // optional<start_result> sr (
+      // load (error,
+      //       warn,
+      //       trace,
+      //       *build_db_,
+      //       move (ts)
+      //       const repository_location& repository));
+    }
+
+    return
+      [&error, iat = move (new_iat), cr = move (cr), ccr = move (ccr)] (
+        const tenant_service& ts) -> optional<string>
+    {
+      // NOTE: this lambda may be called repeatedly (e.g., due to
+      // transaction being aborted) and so should not move out of its
+      // captures.
+
+      service_data sd;
+      try
+      {
+        sd = service_data (*ts.data);
+      }
+      catch (const invalid_argument& e)
+      {
+        error << "failed to parse service data: " << e;
+        return nullopt;
+      }
+
+      if (iat)
+        sd.installation_access = *iat;
+
+      if (check_run* scr = sd.find_check_run (cr.build_id))
+        *scr = cr;
+      else
+        sd.check_runs.push_back (cr);
+
+      if (ccr)
+      {
+        assert (sd.find_check_run (ccr->build_id) == nullptr);
+        sd.check_runs.push_back (*ccr);
+      }
+
+      return sd.json ();
+    };
   }
 
   // Build state change notifications (see tenant-services.hxx for
@@ -1056,29 +1302,6 @@ namespace brep
     //
     if (iat != nullptr)
     {
-      // Return the colored circle corresponding to a result_status.
-      //
-      auto circle = [] (result_status rs) -> string
-      {
-        switch (rs)
-        {
-        case result_status::success:  return "\U0001F7E2"; // Green circle.
-        case result_status::warning:  return "\U0001F7E0"; // Orange circle.
-        case result_status::error:
-        case result_status::abort:
-        case result_status::abnormal: return "\U0001F534"; // Red circle.
-
-          // Valid values we should never encounter.
-          //
-        case result_status::skip:
-        case result_status::interrupt:
-          throw invalid_argument ("unexpected result_status value: " +
-                                  to_string (rs));
-        }
-
-        return ""; // Should never reach.
-      };
-
       // Prepare the check run's summary field (the build information in an
       // XHTML table).
       //
@@ -1110,9 +1333,9 @@ namespace brep
         // Serialize a result row (colored circle, result text, log URL) for
         // an operation and result_status.
         //
-        auto tr_result = [this, circle, &b] (xml::serializer& s,
-                                             const string& op,
-                                             result_status rs)
+        auto tr_result = [this, &b] (xml::serializer& s,
+                                     const string& op,
+                                     result_status rs)
         {
           // The log URL.
           //
