@@ -133,6 +133,7 @@ namespace brep
 #else
         ci_ (make_shared<ci> ()),
 #endif
+        ci_cancel_ (make_shared<ci_cancel> ()),
         upload_ (make_shared<upload> ())
   {
   }
@@ -201,6 +202,10 @@ namespace brep
 #else
           : make_shared<ci> (*r.ci_)),
 #endif
+        ci_cancel_ (
+          r.initialized_
+          ? r.ci_cancel_
+          : make_shared<ci_cancel> (*r.ci_cancel_)),
         upload_ (
           r.initialized_
           ? r.upload_
@@ -231,6 +236,7 @@ namespace brep
     append (r, build_configs_->options ());
     append (r, submit_->options ());
     append (r, ci_->options ());
+    append (r, ci_cancel_->options ());
     append (r, upload_->options ());
     return r;
   }
@@ -277,6 +283,7 @@ namespace brep
     sub_init (*build_configs_, "build_configs");
     sub_init (*submit_, "submit");
     sub_init (*ci_, "ci");
+    sub_init (*ci_cancel_, "ci-cancel");
     sub_init (*upload_, "upload");
 
     // Parse own configuration options.
@@ -472,6 +479,13 @@ namespace brep
             handler_.reset (new ci (*ci_));
 
           return handle ("ci", param);
+        }
+        else if (func == "ci-cancel")
+        {
+          if (handler_ == nullptr)
+            handler_.reset (new ci_cancel (*ci_cancel_));
+
+          return handle ("ci-cancel", param);
         }
         else if (func == "upload")
         {

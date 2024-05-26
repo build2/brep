@@ -22,6 +22,8 @@ using namespace butl;
 using namespace web;
 using namespace brep::cli;
 
+// ci
+//
 #ifdef BREP_CI_TENANT_SERVICE
 brep::ci::
 ci (tenant_service_map& tsm)
@@ -536,3 +538,65 @@ build_unloaded (tenant_service&& ts,
 }
 #endif
 #endif
+
+// ci_cancel
+//
+brep::ci_cancel::
+ci_cancel (const ci_cancel& r)
+    : database_module (r),
+      options_ (r.initialized_ ? r.options_ : nullptr)
+{
+}
+
+void brep::ci_cancel::
+init (scanner& s)
+{
+  options_ = make_shared<options::ci_cancel> (
+    s, unknown_mode::fail, unknown_mode::fail);
+
+  if (options_->build_config_specified ())
+    database_module::init (*options_, options_->build_db_retry ());
+}
+
+bool brep::ci_cancel::
+handle (request& rq, response& rs)
+{
+  HANDLER_DIAG;
+
+  if (build_db_ == nullptr)
+    throw invalid_request (501, "not implemented");
+
+  params::ci_cancel params;
+
+  try
+  {
+    name_value_scanner s (rq.parameters (1024));
+    params = params::ci_cancel (s, unknown_mode::fail, unknown_mode::fail);
+  }
+  catch (const cli::exception& e)
+  {
+    throw invalid_request (400, e.what ());
+  }
+
+  const string& reason (params.reason ());
+
+  if (reason.empty ())
+    throw invalid_request (400, "missing CI request cancellation reason");
+
+  // Verify the tenant id.
+  //
+  const string tid (params.id ());
+
+  if (tid.empty ())
+    throw invalid_request (400, "invalid CI request id");
+
+  if (!cancel (error, warn, verb_ ? &trace : nullptr, reason, *build_db_, tid))
+    throw invalid_request (400, "unknown CI request id");
+
+  // We have all the data, so don't buffer the response content.
+  //
+  ostream& os (rs.content (200, "text/plain;charset=utf-8", false));
+  os << "CI request " << tid << " has been canceled";
+
+  return true;
+}

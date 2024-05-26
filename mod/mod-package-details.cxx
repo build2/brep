@@ -37,8 +37,6 @@ package_details (const package_details& r)
 void brep::package_details::
 init (scanner& s)
 {
-  HANDLER_DIAG;
-
   options_ = make_shared<options::package_details> (
     s, unknown_mode::fail, unknown_mode::fail);
 

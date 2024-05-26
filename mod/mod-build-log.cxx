@@ -34,8 +34,6 @@ build_log (const build_log& r)
 void brep::build_log::
 init (scanner& s)
 {
-  HANDLER_DIAG;
-
   options_ = make_shared<options::build_log> (
     s, unknown_mode::fail, unknown_mode::fail);
 

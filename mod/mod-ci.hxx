@@ -16,6 +16,7 @@
 #include <mod/module-options.hxx>
 
 #include <mod/ci-common.hxx>
+#include <mod/database-module.hxx>
 
 #if defined(BREP_CI_TENANT_SERVICE_UNLOADED) && !defined(BREP_CI_TENANT_SERVICE)
 #  error BREP_CI_TENANT_SERVICE must be defined if BREP_CI_TENANT_SERVICE_UNLOADED is defined
@@ -23,10 +24,6 @@
 
 #ifdef BREP_CI_TENANT_SERVICE
 #  include <mod/tenant-service.hxx>
-
-#ifdef BREP_CI_TENANT_SERVICE_UNLOADED
-#  include <mod/database-module.hxx>
-#endif
 #endif
 
 namespace brep
@@ -109,6 +106,32 @@ namespace brep
 #ifdef BREP_CI_TENANT_SERVICE
     tenant_service_map& tenant_service_map_;
 #endif
+  };
+
+  class ci_cancel: public database_module,
+                   private ci_start
+  {
+  public:
+    ci_cancel () = default;
+
+    // Create a shallow copy (handling instance) if initialized and a deep
+    // copy (context exemplar) otherwise.
+    //
+    explicit
+    ci_cancel (const ci_cancel&);
+
+    virtual bool
+    handle (request&, response&) override;
+
+    virtual const cli::options&
+    cli_options () const override {return options::ci_cancel::description ();}
+
+  private:
+    virtual void
+    init (cli::scanner&) override;
+
+  private:
+    shared_ptr<options::ci_cancel> options_;
   };
 }
 

@@ -39,8 +39,6 @@ repository_details (const repository_details& r)
 void brep::repository_details::
 init (scanner& s)
 {
-  HANDLER_DIAG;
-
   options_ = make_shared<options::repository_details> (
     s, unknown_mode::fail, unknown_mode::fail);
 

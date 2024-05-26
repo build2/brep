@@ -10,6 +10,11 @@
 #  brep tenant id to this value and include the resulting URL in the response
 #  message.
 #
+# --cancel-url <url>
+#  CI task canceling URL base for the response. If specified, the handler will
+#  append the brep tenant id to this value and include the resulting URL in
+#  the response message.
+#
 # <loader-path>
 #  Loader program (normally brep-load(1)).
 #
@@ -36,11 +41,17 @@ shopt -s nullglob   # Expand no-match globs to nothing rather than themselves.
 # The handler's own options.
 #
 result_url=
+cancel_url=
 while [[ "$#" -gt 0 ]]; do
   case $1 in
     --result-url)
       shift
       result_url="${1%/}"
+      shift
+      ;;
+    --cancel-url)
+      shift
+      cancel_url="${1%/}"
       shift
       ;;
     *)
@@ -355,4 +366,11 @@ run "$loader" "${loader_options[@]}" "$loadtab"
 run rm -r "$data_dir"
 
 trace "CI request for '$spec' is queued$message_suffix"
-exit_with_manifest 200 "CI request is queued$message_suffix"
+
+msg="CI request is queued$message_suffix"
+
+if [[ -n "$cancel_url" ]]; then
+  msg="$msg"$'\n'"to cancel CI request: $cancel_url=$reference&reason="
+fi
+
+exit_with_manifest 200 "$msg"

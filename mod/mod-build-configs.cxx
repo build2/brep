@@ -30,8 +30,6 @@ build_configs (const build_configs& r)
 void brep::build_configs::
 init (scanner& s)
 {
-  HANDLER_DIAG;
-
   options_ = make_shared<options::build_configs> (
     s, unknown_mode::fail, unknown_mode::fail);
 

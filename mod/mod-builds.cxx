@@ -50,8 +50,6 @@ builds (const builds& r)
 void brep::builds::
 init (scanner& s)
 {
-  HANDLER_DIAG;
-
   options_ = make_shared<options::builds> (
     s, unknown_mode::fail, unknown_mode::fail);
 

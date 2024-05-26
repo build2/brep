@@ -49,8 +49,6 @@ build_result (const build_result& r, const tenant_service_map& tsm)
 void brep::build_result::
 init (scanner& s)
 {
-  HANDLER_DIAG;
-
   options_ = make_shared<options::build_result> (
     s, unknown_mode::fail, unknown_mode::fail);
 

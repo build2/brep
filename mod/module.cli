@@ -796,10 +796,6 @@ namespace brep
       }
     };
 
-    class ci_cancel
-    {
-    };
-
     class ci: ci_start, build, build_db, page, repository_url, handler
     {
       // Classic CI-specific options.
@@ -815,7 +811,11 @@ namespace brep
       }
     };
 
-    class ci_github: ci_start, ci_cancel, build, build_db, handler
+    class ci_cancel: build, build_db, handler
+    {
+    };
+
+    class ci_github: ci_start, build, build_db, handler
     {
       // GitHub CI-specific options (e.g., request timeout when invoking
       // GitHub APIs).
@@ -1097,6 +1097,22 @@ namespace brep
       // Submission simulation outcome.
       //
       string simulate;
+    };
+
+    // All parameters are non-optional.
+    //
+    class ci_cancel
+    {
+      // CI task tenant id.
+      //
+      // Note that the ci-cancel parameter is renamed to '_' by the root
+      // handler (see the request_proxy class for details).
+      //
+      string id | _;
+
+      // CI task canceling reason. Must not be empty.
+      //
+      string reason;
     };
 
     // Parameters other than challenge must be all present.

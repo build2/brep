@@ -111,6 +111,20 @@ namespace brep
             const string& type,
             const string& id) const;
 
+    // Cancel previously created or started CI request. Return false if there
+    // is no tenant for the specified tenant id. Note that the reason argument
+    // is only used for tracing.
+    //
+    // Note: should be called out of the database transaction.
+    //
+    bool
+    cancel (const basic_mark& error,
+            const basic_mark& warn,
+            const basic_mark* trace,
+            const string& reason,
+            odb::core::database&,
+            const string& tenant_id) const;
+
     // Helpers.
     //
 
@@ -121,22 +135,6 @@ namespace brep
 
   private:
     shared_ptr<options::ci_start> options_;
-  };
-
-  class ci_cancel
-  {
-  public:
-    void
-    init (shared_ptr<options::ci_cancel>, shared_ptr<odb::core::database>);
-
-    // @@ TODO Archive the tenant.
-    //
-    void
-    cancel (/*...*/);
-
-  private:
-    shared_ptr<options::ci_cancel> options_;
-    shared_ptr<odb::core::database> build_db_;
   };
 }
 

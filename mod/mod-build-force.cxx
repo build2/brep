@@ -42,8 +42,6 @@ build_force (const build_force& r, const tenant_service_map& tsm)
 void brep::build_force::
 init (scanner& s)
 {
-  HANDLER_DIAG;
-
   options_ = make_shared<options::build_force> (
     s, unknown_mode::fail, unknown_mode::fail);
 

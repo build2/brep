@@ -720,4 +720,40 @@ namespace brep
 
     return r;
   }
+
+  bool ci_start::
+  cancel (const basic_mark&,
+          const basic_mark&,
+          const basic_mark* trace,
+          const string& reason,
+          odb::core::database& db,
+          const string& tid) const
+  {
+    using namespace odb::core;
+
+    assert (!transaction::has_current ());
+
+    transaction tr (db.begin ());
+
+    shared_ptr<build_tenant> t (db.find<build_tenant> (tid));
+
+    if (t == nullptr)
+      return false;
+
+    if (!t->archived)
+    {
+      t->archived = true;
+      db.update (t);
+    }
+
+    tr.commit ();
+
+    if (trace != nullptr)
+      *trace << "CI request " << tid << " is canceled: "
+             << (reason.size () < 50
+                 ? reason
+                 : string (reason, 0, 50) + "...");
+
+    return true;
+  }
 }
