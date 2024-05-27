@@ -3,23 +3,23 @@ summary: build2 package repository web interface repository
 
 :
 role: prerequisite
-location: ../libbutl.git##HEAD
+location: ../libbutl.git#HEAD
 
 :
 role: prerequisite
-location: ../libbpkg.git##HEAD
+location: ../libbpkg.git#HEAD
 
 :
 role: prerequisite
-location: ../libbbot.git##HEAD
+location: ../libbbot.git#HEAD
 
 :
 role: prerequisite
-location: ../libbutl.bash.git##HEAD
+location: ../libbutl.bash.git#HEAD
 
 :
 role: prerequisite
-location: ../bpkg-util.git##HEAD
+location: ../bpkg-util.git#HEAD
 
 :
 role: prerequisite
