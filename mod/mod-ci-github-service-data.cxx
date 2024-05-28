@@ -38,7 +38,17 @@ namespace brep
 
     installation_id =
         p.next_expect_member_number<uint64_t> ("installation_id");
+
     repository_node_id = p.next_expect_member_string ("repository_node_id");
+
+    {
+      string* s (p.next_expect_member_string_null ("repository_clone_url"));
+      if (s)
+        repository_clone_url = *s;
+    }
+
+    pr_number = p.next_expect_member_number_null<uint32_t> ("pr_number");
+
     head_sha = p.next_expect_member_string ("head_sha");
 
     p.next_expect_member_array ("check_runs");
@@ -71,11 +81,15 @@ namespace brep
                 timestamp iat_ea,
                 uint64_t iid,
                 string rid,
-                string hs)
+                string hs,
+                optional<string> rcu,
+                optional<uint32_t> prn)
       : warning_success (ws),
         installation_access (move (iat_tok), iat_ea),
         installation_id (iid),
         repository_node_id (move (rid)),
+        repository_clone_url (move (rcu)),
+        pr_number (prn),
         head_sha (move (hs))
   {
   }
@@ -101,6 +115,19 @@ namespace brep
 
     s.member ("installation_id", installation_id);
     s.member ("repository_node_id", repository_node_id);
+
+    s.member_name ("repository_clone_url");
+    if (repository_clone_url)
+      s.value (*repository_clone_url);
+    else
+      s.value (nullptr);
+
+    s.member_name ("pr_number");
+    if (pr_number)
+      s.value (*pr_number);
+    else
+      s.value (nullptr);
+
     s.member ("head_sha", head_sha);
 
     s.member_begin_array ("check_runs");
