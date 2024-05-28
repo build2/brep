@@ -650,15 +650,89 @@ namespace brep
     if (iat == nullptr)
       return nullptr;
 
-    bool first (...); // @@ TODO
+    // Synthetic merge check run node ID. Absent if the check run was created
+    // in a previous call (and has already been stored in the service data).
+    //
+    optional<string> mni;
+
+    // Create an in-progress check run. Return the check run on success or
+    // nullopt on failure.
+    //
+    auto create_cr = [iat, &sd, &error] (string name) -> optional<check_run>
+    {
+      check_run cr;
+      cr.name = move (name);
+
+      if (gq_create_check_run (error,
+                               cr,
+                               iat->token,
+                               sd.repository_node_id,
+                               sd.head_sha,
+                               // @@ TODO What details URL to use?
+                               "https://build2.org", // details URL.
+                               build_state::building))
+      {
+        return cr;
+      }
+      else
+        return nullopt;
+    };
+
+    // Update the merge check run with success or failure. Return the check
+    // run on success or nullopt on failure.
+    //
+    auto update_merge_cr = [iat, &sd, &mni, &error] (result_status rs,
+                                                     const string& summary)
+      -> optional<check_run>
+    {
+      optional<gq_built_result> br (
+        gq_built_result (gh_to_conclusion (rs, sd.warning_success),
+                         circle (rs) + ' ' + ucase (to_string (rs)),
+                         move (summary)));
+
+      check_run cr;
+      cr.name = "merge-commit"; // For display purposes only.
+
+      const string& ni (mni ? *mni : *sd.merge_node_id); // Node ID.
+
+      if (gq_update_check_run (error,
+                               cr,
+                               iat->token,
+                               sd.repository_node_id,
+                               ni,
+                               "https://build2.org", // details URL.
+                               build_state::built,
+                               move (br)))
+      {
+        return cr;
+      }
+      else
+        return nullopt;
+    };
+
+    // True if this is the first call (or the merge commit couldn't be created
+    // on the first call).
+    //
+    bool first (!sd.merge_node_id);
 
     // If this is the first call, (re)create the synthetic merge check run as
     // soon as possible to make sure the previous check suite, if any, is no
     // longer completed.
     //
+    // @@ TMP There is still a window between receipt of the pull_request
+    //    event and the first bot/worker asking for a task. That could be
+    //    minutes, right?
+    //
     if (first)
     {
-      // TODO: in-progress
+      if (auto cr = create_cr ("merge-commit"))
+      {
+        l3 ([&]{trace << "created check_run { " << *cr << " }";});
+
+        mni = move (cr->node_id);
+      }
+      else
+        return nullptr; // Try again on the next call.
     }
 
     // Start/check PR mergeability.
@@ -668,7 +742,7 @@ namespace brep
 
     if (!mc) // No merge commit yet.
     {
-      // If this is a subseqent notification and there is no merge commit,
+      // If this is a subsequent notification and there is no merge commit,
       // then there is nothing to do.
       //
       if (!first)
@@ -679,31 +753,78 @@ namespace brep
       //
       return [&error,
               iat = move (new_iat),
-              cr = move (cr),
-              ccr = move (ccr)] (const tenant_service& ts) -> optional<string>
+              mni = move (mni)] (const tenant_service& ts) -> optional<string>
       {
-        // @@ TODO
-      }
+        // NOTE: this lambda may be called repeatedly (e.g., due to
+        // transaction being aborted) and so should not move out of its
+        // captures.
+
+        service_data sd;
+        try
+        {
+          sd = service_data (*ts.data);
+        }
+        catch (const invalid_argument& e)
+        {
+          error << "failed to parse service data: " << e;
+          return nullopt;
+        }
+
+        if (iat)
+          sd.installation_access = *iat;
+
+        if (mni)
+          sd.merge_node_id = *mni;
+
+        return sd.json ();
+      };
     }
-    else if (mc->empty ()) // Not meargable.
+    else if (mc->empty ()) // Not mergeable.
     {
-      // If the commit is not mergable, cancel the CI request and fail the
+      // If the commit is not mergeable, cancel the CI request and fail the
       // merge check run.
       //
       // Note that it feels like in this case we don't really need to create a
       // failed synthetic conclusion check run since the PR cannot be merged
       // anyway.
 
-      // @@ TODO: cancel CI request
-      // @@ TODO: fail merge check run and update in service data.
+      if (auto cr = update_merge_cr (result_status::error,
+                                     "merge would create conflicts"))
+      {
+        l3 ([&]{trace << "updated check_run { " << *cr << " }";});
+
+        // @@ TODO: cancel CI request
+      }
+      // Don't cancel the CI request if the merge check run update failed so
+      // that we can try again on the next call.
 
       return [&error,
               iat = move (new_iat),
-              cr = move (cr),
-              ccr = move (ccr)] (const tenant_service& ts) -> optional<string>
+              mni = move (mni)] (const tenant_service& ts) -> optional<string>
       {
-        // @@ TODO
-      }
+        // NOTE: this lambda may be called repeatedly (e.g., due to
+        // transaction being aborted) and so should not move out of its
+        // captures.
+
+        service_data sd;
+        try
+        {
+          sd = service_data (*ts.data);
+        }
+        catch (const invalid_argument& e)
+        {
+          error << "failed to parse service data: " << e;
+          return nullopt;
+        }
+
+        if (iat)
+          sd.installation_access = *iat;
+
+        if (mni)
+          sd.merge_node_id = mni;
+
+        return sd.json ();
+      };
     }
 
     // If we are here, then it means we have a merge commit that we can load.
@@ -713,183 +834,58 @@ namespace brep
     // change the merge check run state to success. Do it in this order so
     // that the check suite does not become completed.
 
-    // @@ TODO: create synthetic conclusion check run (in progress)
-    // @@ TODO: update synthetic merge checj run (success)
-    // @@ TODO: will need to update conclusion check run node_id in service data
+    // Conclusion check run node ID. Absent if the check run was created in a
+    // previous call (and has already been stored in the service data).
+    //
+    optional<string> cni;
 
-    // @@ TODO: load CI request.
-
+    if (!sd.conclusion_node_id)
     {
-      pair<optional<gq_pr_mergeability>, bool> pr (
-        gq_pull_request_mergeable (error, iat->token, ts.id));
-
-      if (pr.second) // No errors.
+      if (auto cr = create_cr ("conclusion"))
       {
-        if (pr.first) // Merge commit has been generated.
-          ma = move (pr.first);
-      }
-      else
-      {
-        error << "failed to get pull request " << ts.id << " mergeability";
+        l3 ([&]{trace << "created check_run { " << *cr << " }";});
 
-        return nullptr;
+        cni = move (cr->node_id);
       }
     }
 
-    // The merge commit's build state. Note that the PR fetch above initiated
-    // its generation on GitHub.
-    //
-    build_state bs;
-
-    // The check run result to use if the merge commit has been calculated, or
-    // absent if it has not.
-    //
-    optional<gq_built_result> br;
-
-    if (ma)
+    if (cni || sd.conclusion_node_id)
     {
-      bs = build_state::built;
-
-      result_status rs;
-      string sm; // Summary.
-
-      if (ma->mergeable)
+      // Update merge check run to successful.
+      //
+      // @@ TMP If the CI load below failed on the previous call we probably
+      //    don't want to update the CR again but we can't tell the difference
+      //    (no state for the merge CR). However it should be a no-op due to
+      //    the GitHub API's semantics so it's probably OK?
+      //
+      if (auto cr = update_merge_cr (result_status::success,
+                                     "merge would succeed"))
       {
-        rs = result_status::success;
-        sm = "merge would succeed";
-      }
-      else
-      {
-        rs = result_status::error;
-        sm = "merge would create conflicts";
-      }
+        l3 ([&]{trace << "updated check_run { " << *cr << " }";});
 
-      br = gq_built_result (gh_to_conclusion (rs, sd.warning_success),
-                            circle (rs) + ' ' + ucase (to_string (rs)),
-                            move (sm));
-    }
-    else
-      bs = build_state::building;
-
-    // The stored merge commit check run.
-    //
-    check_run* scr (sd.find_check_run ("merge-commit"));
-
-    // The updated merge commit check run.
-    //
-    check_run cr;
-
-    if (scr == nullptr || !scr->node_id)
-    {
-      // Create the check run because the merge commit check run has not
-      // previously been stored, or we failed to create it last time we
-      // tried.
-      //
-      // @@ TMP There is still a window between receipt of the pull_request
-      //        event and the first bot/worker asking for a task. Shouldn't we
-      //        rather create the merge CR when we create the unloaded CI
-      //        build (in the pull_request handler)?
-      //
-      if (scr != nullptr)
-        cr = move (*scr);
-      else
-      {
-        cr.build_id = "merge-commit";
-        cr.name = cr.build_id;
-      }
-      cr.state_synced = false;
-
-      if (gq_create_check_run (error,
-                               cr,
-                               iat->token,
-                               sd.repository_node_id,
-                               sd.head_sha,
-                               // @@ TODO What details URL to use?
-                               "https://build2.org", // details URL.
-                               bs,
-                               move (br)))
-      {
-        l3 ([&]{trace << "created check_run { " << cr << " }";});
-      }
-    }
-    else if (ma)
-    {
-      // Update because the merge commit check run was previously stored and
-      // the merge commit result has become available.
-      //
-      cr = move (*scr);
-      cr.state_synced = false;
-
-      if (gq_update_check_run (error,
-                               cr,
-                               iat->token,
-                               sd.repository_node_id,
-                               *cr.node_id,
-                               "https://build2.org", // details URL.
-                               bs,
-                               move (br)))
-      {
-        l3 ([&]{trace << "updated check_run { " << cr << " }";});
-      }
-    }
-    else
-    {
-      // Do nothing because nothing has changed.
-      //
-      return nullptr;
-    }
-
-    // Create the conclusion check run and load the CI request.
-    //
-    optional<check_run> ccr; // Conclusion check run.
-
-    if (ma && ma->mergeable)
-    {
-      // Create the conclusion check run if the merge commit shows the PR is
-      // mergeable.
-      //
-      // @@ TMP We could do this later if we prefer: if the branch protection
-      //    rule requires the conclusion check run then the PR will not go
-      //    green until the conclusion check run is successful.
-      //
-      ccr = check_run ();
-      ccr->build_id = "conclusion";
-      ccr->name = ccr->build_id;
-      ccr->state_synced = false;
-
-      if (gq_create_check_run (error,
-                               *ccr,
-                               iat->token,
-                               sd.repository_node_id,
-                               sd.head_sha,
-                               // @@ TODO What details URL to use?
-                               "https://build2.org", // details URL.
-                               build_state::queued))
-      {
-        l3 ([&]{trace << "created check_run { " << *ccr << " }";});
-      }
-
-      // Load the CI request.
-      //
-      repository_location rl (*sd.repository_clone_url + "#refs/pull/" +
+        // Load the CI request.
+        //
+        repository_location rl (*sd.repository_clone_url + "#refs/pull/" +
                                 to_string (*sd.pr_number) + "/merge",
-                              repository_type::git);
+                                repository_type::git);
 
-      optional<start_result> r (
-        load (error, warn, &trace, *build_db_, move (ts), rl));
+        optional<start_result> r (
+          load (error, warn, &trace, *build_db_, move (ts), rl));
 
-      if (!r)
-      {
-        error << "unable to load CI request";
+        if (!r)
+        {
+          error << "unable to load CI request ";
 
-        // @@ TODO Handle this. Will get called again and in those cases do
-        //    nothing except load the CI request.
+          // Try again next call.
+        }
       }
+      // Don't load the CI request if the merge check run update failed so
+      // that we can try again on the next call.
     }
 
-    return
-      [&error, iat = move (new_iat), cr = move (cr), ccr = move (ccr)] (
-        const tenant_service& ts) -> optional<string>
+    return [&error,
+            iat = move (new_iat),
+            cni = move (cni)] (const tenant_service& ts) -> optional<string>
     {
       // NOTE: this lambda may be called repeatedly (e.g., due to
       // transaction being aborted) and so should not move out of its
@@ -909,16 +905,8 @@ namespace brep
       if (iat)
         sd.installation_access = *iat;
 
-      if (check_run* scr = sd.find_check_run (cr.build_id))
-        *scr = cr;
-      else
-        sd.check_runs.push_back (cr);
-
-      if (ccr)
-      {
-        assert (sd.find_check_run (ccr->build_id) == nullptr);
-        sd.check_runs.push_back (*ccr);
-      }
+      if (cni)
+        sd.conclusion_node_id = cni;
 
       return sd.json ();
     };

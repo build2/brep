@@ -43,11 +43,17 @@ namespace brep
 
     {
       string* s (p.next_expect_member_string_null ("repository_clone_url"));
-      if (s)
+      if (s != nullptr)
         repository_clone_url = *s;
     }
 
     pr_number = p.next_expect_member_number_null<uint32_t> ("pr_number");
+
+    {
+      string* s (p.next_expect_member_string_null ("merge_node_id"));
+      if (s != nullptr)
+        merge_node_id = *s;
+    }
 
     head_sha = p.next_expect_member_string ("head_sha");
 
@@ -72,6 +78,12 @@ namespace brep
       p.next_expect (event::end_object);
     }
 
+    {
+      string* s (p.next_expect_member_string_null ("conclusion_node_id"));
+      if (s != nullptr)
+        conclusion_node_id = *s;
+    }
+
     p.next_expect (event::end_object);
   }
 
@@ -81,9 +93,24 @@ namespace brep
                 timestamp iat_ea,
                 uint64_t iid,
                 string rid,
+                string hs)
+      : warning_success (ws),
+        installation_access (move (iat_tok), iat_ea),
+        installation_id (iid),
+        repository_node_id (move (rid)),
+        head_sha (move (hs))
+  {
+  }
+
+  service_data::
+  service_data (bool ws,
+                string iat_tok,
+                timestamp iat_ea,
+                uint64_t iid,
+                string rid,
                 string hs,
-                optional<string> rcu,
-                optional<uint32_t> prn)
+                string rcu,
+                uint32_t prn)
       : warning_success (ws),
         installation_access (move (iat_tok), iat_ea),
         installation_id (iid),
@@ -128,6 +155,12 @@ namespace brep
     else
       s.value (nullptr);
 
+    s.member_name ("merge_node_id");
+    if (merge_node_id)
+      s.value (*merge_node_id);
+    else
+      s.value (nullptr);
+
     s.member ("head_sha", head_sha);
 
     s.member_begin_array ("check_runs");
@@ -149,6 +182,12 @@ namespace brep
       s.end_object ();
     }
     s.end_array ();
+
+    s.member_name ("conclusion_node_id");
+    if (conclusion_node_id)
+      s.value (*conclusion_node_id);
+    else
+      s.value (nullptr);
 
     s.end_object ();
 
