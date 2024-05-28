@@ -59,6 +59,11 @@ namespace brep
 
     string repository_node_id; // GitHub-internal opaque repository id.
 
+    // The following two are only used for pull requests.
+    //
+    optional<string> repository_clone_url;
+    optional<uint32_t> pr_number;
+
     // The commit ID the check suite or pull request (and its check runs) are
     // associated with. In the case of a pull request this will be
     // `pull_request.head.sha`.
@@ -85,7 +90,9 @@ namespace brep
                   timestamp iat_expires_at,
                   uint64_t installation_id,
                   string repository_node_id,
-                  string head_sha);
+                  string head_sha,
+                  optional<string> repository_clone_url = nullopt,
+                  optional<uint32_t> pr_number = nullopt);
 
     service_data () = default;
 

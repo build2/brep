@@ -555,7 +555,9 @@ namespace brep
                              iat->expires_at,
                              pr.installation.id,
                              move (pr.repository.node_id),
-                             pr.pull_request.head_sha)
+                             pr.pull_request.head_sha,
+                             pr.repository.clone_url,
+                             pr.pull_request.number)
                  .json ());
 
     optional<string> tid (
