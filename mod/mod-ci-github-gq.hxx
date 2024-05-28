@@ -96,7 +96,19 @@ namespace brep
     string merge_commit_id;
   };
 
-  pair<optional<gq_pr_mergeability>, bool>
+
+  // Fetch a pull request's mergeability from GitHub. Return absent value if
+  // the merge commit is still being generated. Return empty string if the
+  // pull request is not auto-mergeable. Otherwise return the test merge
+  // commit id.
+  //
+  // Issue diagnostics and return absent if the request failed (which means it
+  // will be treated by the caller as still being generated).
+  //
+  // Note that the first request causes GitHub to start preparing the test
+  // merge commit.
+  //
+  optional<string>
   gq_pull_request_mergeable (const basic_mark& error,
                              const string& installation_access_token,
                              const string& node_id);
