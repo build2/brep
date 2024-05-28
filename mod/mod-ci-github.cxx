@@ -769,8 +769,9 @@ namespace brep
       // Create the conclusion check run if the merge commit shows the PR is
       // mergeable.
       //
-      // @@ TMP We could do this later if we prefer: the PR will not go green
-      //    until the conclusion check run is successful.
+      // @@ TMP We could do this later if we prefer: if the branch protection
+      //    rule requires the conclusion check run then the PR will not go
+      //    green until the conclusion check run is successful.
       //
       ccr = check_run ();
       ccr->build_id = "conclusion";
@@ -791,17 +792,20 @@ namespace brep
 
       // Load the CI request.
       //
-      // repository_location rl (pr.repository.clone_url + '#' +
-      //                         sd.head_branch,
-      //                         repository_type::git);
+      repository_location rl (*sd.repository_clone_url + "#refs/pull/" +
+                                to_string (*sd.pr_number) + "/merge",
+                              repository_type::git);
 
-      // optional<start_result> sr (
-      // load (error,
-      //       warn,
-      //       trace,
-      //       *build_db_,
-      //       move (ts)
-      //       const repository_location& repository));
+      optional<start_result> r (
+        load (error, warn, &trace, *build_db_, move (ts), rl));
+
+      if (!r)
+      {
+        error << "unable to load CI request";
+
+        // @@ TODO Handle this. Will get called again and in those cases do
+        //    nothing except load the CI request.
+      }
     }
 
     return
