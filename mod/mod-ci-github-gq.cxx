@@ -575,7 +575,7 @@ namespace brep
     return os.str ();
   }
 
-  pair<optional<gq_pr_mergeability>, bool>
+  optional<string>
   gq_pull_request_mergeable (const basic_mark& error,
                              const string& iat,
                              const string& nid)
@@ -595,7 +595,7 @@ namespace brep
         // The response value. Absent if the merge commit is still being
         // generated.
         //
-        optional<gq_pr_mergeability> value;
+        optional<string> value;
 
         resp (json::parser& p)
         {
@@ -617,11 +617,11 @@ namespace brep
                 string oid (p.next_expect_member_string ("oid"));
                 p.next_expect (event::end_object);
 
-                value = {true, move (oid)};
+                value = move (oid);
               }
               else if (ma == "CONFLICTING")
               {
-                value = {false, ""};
+                value = "";
               }
               else if (ma == "UNKNOWN")
               {
@@ -648,7 +648,7 @@ namespace brep
         if (!rs.found)
           error << "pull request '" << nid << "' not found";
 
-        return {move (rs.value), rs.found};
+        return move (rs.value);
       }
       else
         error << "failed to fetch pull request: error HTTP response status "
@@ -679,7 +679,7 @@ namespace brep
       error << "unable to fetch pull request: " << e;
     }
 
-    return {nullopt, false};
+    return nullopt;
   }
 
   // bool
