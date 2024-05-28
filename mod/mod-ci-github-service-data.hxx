@@ -61,16 +61,29 @@ namespace brep
 
     // The following two are only used for pull requests.
     //
+    // @@ TODO/LATER: maybe put them in a struct?
+    //
     optional<string> repository_clone_url;
     optional<uint32_t> pr_number;
 
+    // The GitHub ID of the synthetic PR merge check run or absent if it
+    // hasn't been created yet.
+    //
+    optional<string> merge_node_id;
+
     // The commit ID the check suite or pull request (and its check runs) are
-    // associated with. In the case of a pull request this will be
-    // `pull_request.head.sha`.
+    // associated with. Note that in the case of a pull request this will be
+    // the head commit (`pull_request.head.sha`) as opposed to the merge
+    // commit.
     //
     string head_sha;
 
     vector<check_run> check_runs;
+
+    // The GitHub ID of the synthetic conclusion check run or absent if it
+    // hasn't been created yet. See also merge_node_id above.
+    //
+    optional<string> conclusion_node_id;
 
     // Return the check run with the specified build ID or nullptr if not
     // found.
@@ -85,14 +98,25 @@ namespace brep
     explicit
     service_data (const string& json);
 
+    // The check_suite constructor.
+    //
+    service_data (bool warning_success,
+                  string iat_token,
+                  timestamp iat_expires_at,
+                  uint64_t installation_id,
+                  string repository_node_id,
+                  string head_sha);
+
+    // The pull_request constructor.
+    //
     service_data (bool warning_success,
                   string iat_token,
                   timestamp iat_expires_at,
                   uint64_t installation_id,
                   string repository_node_id,
                   string head_sha,
-                  optional<string> repository_clone_url = nullopt,
-                  optional<uint32_t> pr_number = nullopt);
+                  string repository_clone_url,
+                  uint32_t pr_number);
 
     service_data () = default;
 

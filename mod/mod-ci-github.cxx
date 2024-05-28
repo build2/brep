@@ -536,6 +536,12 @@ namespace brep
 
     l3 ([&]{trace << "pull_request event { " << pr << " }";});
 
+    // @@ TODO: check action, ignore those we don't care about.
+
+    // While we don't need the installation access token in this request,
+    // let's obtain it to flush out any permission issues early. Also, it is
+    // valid for an hour so we will most likely make use of it.
+    //
     optional<string> jwt (generate_jwt (trace, error));
     if (!jwt)
       throw server_error ();
@@ -544,7 +550,6 @@ namespace brep
       obtain_installation_access_token (pr.installation.id,
                                         move (*jwt),
                                         error));
-
     if (!iat)
       throw server_error ();
 
@@ -560,14 +565,21 @@ namespace brep
                              pr.pull_request.number)
                  .json ());
 
+    // Create unloaded CI request. After this call we will start getting the
+    // build_unloaded() notifications until (1) we load the request, (2) we
+    // cancel it, or (3) it gets archived after some timeout.
+    //
+    // Note: use no delay since we need to (re)create the synthetic merge
+    // check run as soon as possible.
+    //
     optional<string> tid (
       create (error, warn, &trace,
               *build_db_,
               tenant_service (move (pr.pull_request.node_id),
                               "ci-github",
                               move (sd)),
-              chrono::seconds (30), // @@ TODO Proper values?
-              chrono::seconds (10)));
+              chrono::seconds (30) /* interval */,
+              chrono::seconds (0)  /* delay */));
 
     if (!tid)
       fail << "unable to create unloaded CI request";
@@ -577,7 +589,8 @@ namespace brep
 
   // Return the colored circle corresponding to a result_status.
   //
-  string circle (result_status rs)
+  static string
+  circle (result_status rs)
   {
     switch (rs)
     {
@@ -637,9 +650,75 @@ namespace brep
     if (iat == nullptr)
       return nullptr;
 
-    // Check PR mergeability.
+    bool first (...); // @@ TODO
+
+    // If this is the first call, (re)create the synthetic merge check run as
+    // soon as possible to make sure the previous check suite, if any, is no
+    // longer completed.
     //
-    optional<gq_pr_mergeability> ma; // Mergeability.
+    if (first)
+    {
+      // TODO: in-progress
+    }
+
+    // Start/check PR mergeability.
+    //
+    optional<string> mc (
+      gq_pull_request_mergeable (error, iat->token, ts.id)); // Merge commit.
+
+    if (!mc) // No merge commit yet.
+    {
+      // If this is a subseqent notification and there is no merge commit,
+      // then there is nothing to do.
+      //
+      if (!first)
+        return nullptr;
+
+      // If this is a first notification, record the merge check run in the
+      // service data.
+      //
+      return [&error,
+              iat = move (new_iat),
+              cr = move (cr),
+              ccr = move (ccr)] (const tenant_service& ts) -> optional<string>
+      {
+        // @@ TODO
+      }
+    }
+    else if (mc->empty ()) // Not meargable.
+    {
+      // If the commit is not mergable, cancel the CI request and fail the
+      // merge check run.
+      //
+      // Note that it feels like in this case we don't really need to create a
+      // failed synthetic conclusion check run since the PR cannot be merged
+      // anyway.
+
+      // @@ TODO: cancel CI request
+      // @@ TODO: fail merge check run and update in service data.
+
+      return [&error,
+              iat = move (new_iat),
+              cr = move (cr),
+              ccr = move (ccr)] (const tenant_service& ts) -> optional<string>
+      {
+        // @@ TODO
+      }
+    }
+
+    // If we are here, then it means we have a merge commit that we can load.
+    //
+
+    // As a first step, (re)create the synthetic conclusion check run and then
+    // change the merge check run state to success. Do it in this order so
+    // that the check suite does not become completed.
+
+    // @@ TODO: create synthetic conclusion check run (in progress)
+    // @@ TODO: update synthetic merge checj run (success)
+    // @@ TODO: will need to update conclusion check run node_id in service data
+
+    // @@ TODO: load CI request.
+
     {
       pair<optional<gq_pr_mergeability>, bool> pr (
         gq_pull_request_mergeable (error, iat->token, ts.id));
