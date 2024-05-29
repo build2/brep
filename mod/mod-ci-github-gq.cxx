@@ -648,7 +648,7 @@ namespace brep
         if (!rs.found)
           error << "pull request '" << nid << "' not found";
 
-        return move (rs.value);
+        return rs.value;
       }
       else
         error << "failed to fetch pull request: error HTTP response status "

@@ -72,11 +72,10 @@ namespace brep
     optional<string> merge_node_id;
 
     // The commit ID the check suite or pull request (and its check runs) are
-    // associated with. Note that in the case of a pull request this will be
-    // the head commit (`pull_request.head.sha`) as opposed to the merge
-    // commit.
+    // reporting to. Note that in the case of a pull request this will be the
+    // head commit (`pull_request.head.sha`) as opposed to the merge commit.
     //
-    string head_sha;
+    string report_sha;
 
     vector<check_run> check_runs;
 
