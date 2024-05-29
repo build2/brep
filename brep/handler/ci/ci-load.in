@@ -370,7 +370,7 @@ trace "CI request for '$spec' is queued$message_suffix"
 msg="CI request is queued$message_suffix"
 
 if [[ -n "$cancel_url" ]]; then
-  msg="$msg"$'\n'"to cancel CI request: $cancel_url=$reference&reason="
+  msg="$msg"$'\n'"To cancel CI request: $cancel_url=$reference&reason="
 fi
 
 exit_with_manifest 200 "$msg"
