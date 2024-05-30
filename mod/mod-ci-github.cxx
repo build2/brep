@@ -665,7 +665,7 @@ namespace brep
                                cr,
                                iat->token,
                                sd.repository_node_id,
-                               sd.head_sha,
+                               sd.report_sha,
                                // @@ TODO What details URL to use? Omit.
                                "https://build2.org", // details URL.
                                build_state::building))
@@ -1116,7 +1116,7 @@ namespace brep
       if (gq_create_check_runs (error,
                                 crs,
                                 iat->token,
-                                sd.repository_node_id, sd.head_sha,
+                                sd.repository_node_id, sd.report_sha,
                                 build_state::queued))
       {
         for (const check_run& cr: crs)
@@ -1527,7 +1527,7 @@ namespace brep
                                  cr,
                                  iat->token,
                                  sd.repository_node_id,
-                                 sd.head_sha,
+                                 sd.report_sha,
                                  details_url (b),
                                  build_state::built,
                                  move (br)))

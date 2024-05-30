@@ -55,7 +55,7 @@ namespace brep
         merge_node_id = *s;
     }
 
-    head_sha = p.next_expect_member_string ("head_sha");
+    report_sha = p.next_expect_member_string ("report_sha");
 
     p.next_expect_member_array ("check_runs");
     while (p.next_expect (event::begin_object, event::end_array))
@@ -93,12 +93,12 @@ namespace brep
                 timestamp iat_ea,
                 uint64_t iid,
                 string rid,
-                string hs)
+                string rs)
       : warning_success (ws),
         installation_access (move (iat_tok), iat_ea),
         installation_id (iid),
         repository_node_id (move (rid)),
-        head_sha (move (hs))
+        report_sha (move (rs))
   {
   }
 
@@ -117,7 +117,7 @@ namespace brep
         repository_node_id (move (rid)),
         repository_clone_url (move (rcu)),
         pr_number (prn),
-        head_sha (move (hs))
+        report_sha (move (rs))
   {
   }
 
@@ -161,7 +161,7 @@ namespace brep
     else
       s.value (nullptr);
 
-    s.member ("head_sha", head_sha);
+    s.member ("report_sha", report_sha);
 
     s.member_begin_array ("check_runs");
     for (const check_run& cr: check_runs)
