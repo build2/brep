@@ -38,6 +38,8 @@ namespace brep
   // state and the node ID. Return false and issue diagnostics if the request
   // failed.
   //
+  // If the details_url is absent GitHub will use the app's homepage.
+  //
   // The gq_built_result is required if the build_state is built because
   // GitHub does not allow a check run status of `completed` without at least
   // a conclusion.
@@ -55,7 +57,7 @@ namespace brep
                        const string& installation_access_token,
                        const string& repository_id,
                        const string& head_sha,
-                       const string& details_url,
+                       const optional<string>& details_url,
                        build_state,
                        optional<gq_built_result> = nullopt);
 
@@ -64,6 +66,8 @@ namespace brep
   // Send a GraphQL request that updates an existing check run. Update `cr`
   // with the new state. Return false and issue diagnostics if the request
   // failed.
+  //
+  // If the details_url is absent GitHub will use the app's homepage.
   //
   // The gq_built_result is required if the build_state is built because
   // GitHub does not allow a check run status of `completed` without at least
@@ -75,7 +79,7 @@ namespace brep
                        const string& installation_access_token,
                        const string& repository_id,
                        const string& node_id,
-                       const string& details_url,
+                       const optional<string>& details_url,
                        build_state,
                        optional<gq_built_result> = nullopt);
 

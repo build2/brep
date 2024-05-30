@@ -349,13 +349,17 @@ namespace brep
   // other states.
   //
   static string
-  gq_mutation_create_check_runs (const string& ri, // Repository ID
-                                 const string& hs, // Head SHA
-                                 const string& du, // Details URL.
+  gq_mutation_create_check_runs (const string& ri,           // Repository ID
+                                 const string& hs,           // Head SHA
+                                 const optional<string>& du, // Details URL.
                                  const vector<check_run>& crs,
-                                 const string& st, // Check run status.
+                                 const string& st,           // Check run status.
                                  optional<gq_built_result> br = nullopt)
   {
+    // Ensure details URL is non-empty if present.
+    //
+    assert (!du || !du->empty ());
+
     ostringstream os;
 
     os << "mutation {"                                              << '\n';
@@ -371,10 +375,10 @@ namespace brep
          << "  repositoryId: " << gq_str (ri)                       << '\n'
          << "  headSha: "      << gq_str (hs)                       << '\n'
          << "  status: "       << gq_enum (st);
-      if (!du.empty ())
+      if (du)
       {
         os                                                          << '\n';
-        os << "  detailsUrl: " << gq_str (du);
+        os << "  detailsUrl: " << gq_str (*du);
       }
       if (br)
       {
@@ -409,13 +413,17 @@ namespace brep
   // conclusion.
   //
   static string
-  gq_mutation_update_check_run (const string& ri,       // Repository ID.
-                                const string& ni,       // Node ID.
-                                const string& du,       // Details URL.
-                                const string& st,       // Check run status.
-                                optional<timestamp> sa, // Started at.
+  gq_mutation_update_check_run (const string& ri,           // Repository ID.
+                                const string& ni,           // Node ID.
+                                const optional<string>& du, // Details URL.
+                                const string& st,           // Check run status.
+                                optional<timestamp> sa,     // Started at.
                                 optional<gq_built_result> br)
   {
+    // Ensure details URL is non-empty if present.
+    //
+    assert (!du || !du->empty ());
+
     ostringstream os;
 
     os << "mutation {"                                            << '\n'
@@ -428,10 +436,10 @@ namespace brep
       os                                                          << '\n';
       os << "  startedAt: " << gq_str (gh_to_iso8601 (*sa));
     }
-    if (!du.empty ())
+    if (du)
     {
       os                                                          << '\n';
-      os << "  detailsUrl: " << gq_str (du);
+      os << "  detailsUrl: " << gq_str (*du);
     }
     if (br)
     {
@@ -472,8 +480,11 @@ namespace brep
     // Empty details URL because it's not available until building.
     //
     string rq (
-      gq_serialize_request (
-        gq_mutation_create_check_runs (rid, hs, "", crs, gh_to_status (st))));
+      gq_serialize_request (gq_mutation_create_check_runs (rid,
+                                                           hs,
+                                                           nullopt,
+                                                           crs,
+                                                           gh_to_status (st))));
 
     return gq_mutate_check_runs (error, crs, iat, move (rq), st);
   }
@@ -484,17 +495,13 @@ namespace brep
                        const string& iat,
                        const string& rid,
                        const string& hs,
-                       const string& du,
+                       const optional<string>& du,
                        build_state st,
                        optional<gq_built_result> br)
   {
     // Must have a result if state is built.
     //
     assert (st != build_state::built || br);
-
-    // Must have a details URL because `st` should never be queued.
-    //
-    assert (!du.empty ());
 
     vector<check_run> crs {move (cr)};
 
@@ -520,17 +527,13 @@ namespace brep
                        const string& iat,
                        const string& rid,
                        const string& nid,
-                       const string& du,
+                       const optional<string>& du,
                        build_state st,
                        optional<gq_built_result> br)
   {
     // Must have a result if state is built.
     //
     assert (st != build_state::built || br);
-
-    // Must have a details URL for building and built.
-    //
-    assert (!du.empty ());
 
     // Set `startedAt` to current time if updating to building.
     //
