@@ -125,19 +125,19 @@ handle (request& rq, response& rs)
     s << DIV(ID="filter-heading") << "Build Configuration Classes" << ~DIV
       << P(ID="filter");
 
+    bool printed (false);
     for (auto b (cls.begin ()), i (b), e (cls.end ()); i != e; ++i)
     {
-      // Skip the 'hidden' class.
+      // Skip the hidden classes.
       //
       const string& c (*i);
 
-      if (c != "hidden")
+      if (!derived (c, "hidden"))
       {
-        // Note that here we rely on the fact that the first class in the list
-        // can never be 'hidden' (is always 'all').
-        //
-        if (i != b)
+        if (printed)
           s << ' ';
+        else
+          printed = true;
 
         print_class_name (c, c == selected_class);
 

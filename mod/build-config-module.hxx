@@ -54,15 +54,20 @@ namespace brep
                             default_all_ucs);
     }
 
+    // Return true if a class is derived from the base class, recursively.
+    //
+    bool
+    derived (const string&, const char* base_class) const;
+
     // Check if the configuration belongs to the specified class.
     //
     bool
     belongs (const build_target_config&, const char*) const;
 
     bool
-    belongs (const build_target_config& cfg, const string& cls) const
+    belongs (const build_target_config& cfg, const string& classes) const
     {
-      return belongs (cfg, cls.c_str ());
+      return belongs (cfg, classes.c_str ());
     }
 
     // Target/configuration/toolchain combination that, in particular, can be

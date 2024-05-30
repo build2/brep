@@ -148,26 +148,35 @@ namespace brep
   }
 
   bool build_config_module::
-  belongs (const build_target_config& cfg, const char* cls) const
+  derived (const string& c, const char* bc) const
   {
+    if (c == bc)
+      return true;
+
+    // Go through base classes.
+    //
     const map<string, string>& im (target_conf_->class_inheritance_map);
 
-    for (const string& c: cfg.classes)
+    for (auto i (im.find (c)); i != im.end (); )
     {
-      if (c == cls)
+      const string& base (i->second);
+
+      if (base == bc)
         return true;
 
-      // Go through base classes.
-      //
-      for (auto i (im.find (c)); i != im.end (); )
-      {
-        const string& base (i->second);
+      i = im.find (base);
+    }
 
-        if (base == cls)
-          return true;
+    return false;
+  }
 
-        i = im.find (base);
-      }
+  bool build_config_module::
+  belongs (const build_target_config& cfg, const char* cls) const
+  {
+    for (const string& c: cfg.classes)
+    {
+      if (derived (c, cls))
+        return true;
     }
 
     return false;
