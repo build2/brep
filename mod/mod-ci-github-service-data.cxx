@@ -108,7 +108,7 @@ namespace brep
                 timestamp iat_ea,
                 uint64_t iid,
                 string rid,
-                string hs,
+                string rs,
                 string rcu,
                 uint32_t prn)
       : warning_success (ws),
