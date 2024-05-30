@@ -357,7 +357,25 @@ namespace brep
         throw invalid_request (400, move (m));
       }
 
-      return handle_pull_request (move (pr), warning_success);
+      if (pr.action == "opened" || pr.action == "synchronize")
+      {
+        // opened: A pull request was opened.
+        //
+        // synchronize: A pull request's head branch was updated from the base
+        //              branch or new commits were pushed to the head
+        //              branch. (Note that there is no equivalent event for
+        //              the base branch. That case gets handled in
+        //              handle_check_suite_request() instead.)
+        //
+        return handle_pull_request (move (pr), warning_success);
+      }
+      else
+      {
+        // Ignore the remaining actions by sending a 200 response with empty
+        // body.
+        //
+        return true;
+      }
     }
     else
     {
@@ -536,8 +554,6 @@ namespace brep
 
     l3 ([&]{trace << "pull_request event { " << pr << " }";});
 
-    // @@ TODO: check action, ignore those we don't care about.
-
     // While we don't need the installation access token in this request,
     // let's obtain it to flush out any permission issues early. Also, it is
     // valid for an hour so we will most likely make use of it.
@@ -651,7 +667,7 @@ namespace brep
       iat = &sd.installation_access;
 
     if (iat == nullptr)
-      return nullptr;
+      return nullptr; // Try again on the next call.
 
     // Create an in-progress check run. Return the check run on success or
     // nullopt on failure.
@@ -666,8 +682,7 @@ namespace brep
                                iat->token,
                                sd.repository_node_id,
                                sd.report_sha,
-                               // @@ TODO What details URL to use? Omit.
-                               "https://build2.org", // details URL.
+                               nullopt, // details_url
                                build_state::building))
       {
         return cr;
@@ -676,33 +691,31 @@ namespace brep
         return nullopt;
     };
 
-    // Update the merge check run with success or failure. Return the check
-    // run on success or nullopt on failure.
+    // Update a check run with success or failure. Return the check run on
+    // success or nullopt on failure.
     //
-    // @@ Make update_cr;
-    //
-    auto update_merge_cr = [iat,
-                            &merge_node_id,
-                            &error] (result_status rs,
-                                     const string& summary)
+    auto update_cr = [iat, &sd, &error] (const string& node_id,
+                                         const string& name,
+                                         result_status rs,
+                                         string summary)
       -> optional<check_run>
     {
-      assert (!merge_id.empty ());
+      assert (!node_id.empty ());
 
       optional<gq_built_result> br (
         gq_built_result (gh_to_conclusion (rs, sd.warning_success),
                          circle (rs) + ' ' + ucase (to_string (rs)),
-                         summary));
+                         move (summary)));
 
       check_run cr;
-      cr.name = "merge-commit"; // For display purposes only.
+      cr.name = name; // For display purposes only.
 
       if (gq_update_check_run (error,
                                cr,
                                iat->token,
                                sd.repository_node_id,
-                               merge_node_id,
-                               "https://build2.org", // details URL.
+                               node_id,
+                               nullopt, // details_url
                                build_state::built,
                                move (br)))
       {
@@ -734,12 +747,15 @@ namespace brep
     //
     if (first)
     {
-      if (auto cr = create_cr ("merge-commit"))
+      if (auto cr = create_cr (merge_check_run_name))
       {
         l3 ([&]{trace << "created check_run { " << *cr << " }";});
 
-        merge_node_id = move (cr->node_id);
+        merge_node_id = move (*cr->node_id);
       }
+      // @@ TMP If new_iat.has_value() then we won't store the new IAT. Same
+      //    applies to some of the other cases below.
+      //
       else
         return nullptr; // Try again on the next call.
     }
@@ -772,12 +788,22 @@ namespace brep
         // failed synthetic conclusion check run since the PR cannot be merged
         // anyway.
 
-        if (auto cr = update_merge_cr (result_status::error,
-                                       "merge would create conflicts"))
+        if (auto cr = update_cr (merge_node_id, merge_check_run_name,
+                                 result_status::error,
+                                 "Merge would create conflicts"))
         {
           l3 ([&]{trace << "updated check_run { " << *cr << " }";});
 
-          // @@ TODO: cancel CI request
+          // Cancel the CI request.
+          //
+          if (!cancel (error, warn, &trace, *build_db_, ts.type, ts.id))
+          {
+            // Nothing we can do but also highly unlikely.
+            //
+            error << "unable to cancel CI request: "
+                  << "no tenant for service type/ID "
+                  << ts.type << '/' << ts.id;
+          }
 
           return nullptr; // No need to update service data in this case.
         }
@@ -848,31 +874,33 @@ namespace brep
 
     if (second)
     {
-      if (auto cr = create_cr ("conclusion"))
+      if (auto cr = create_cr (conclusion_check_run_name))
       {
         l3 ([&]{trace << "created check_run { " << *cr << " }";});
 
-        conclusion_node_id = move (cr->node_id);
+        conclusion_node_id = move (*cr->node_id);
       }
     }
     else
-      conclusion_node_id = sd.conclusion_node_id;
+      conclusion_node_id = *sd.conclusion_node_id;
 
     if (!conclusion_node_id.empty ()) // Conclusion check run was created.
     {
       // Update merge check run to successful.
       //
-      if (auto cr = update_merge_cr (result_status::success,
-                                     "merge would succeed"))
+      if (auto cr = update_cr (merge_node_id, merge_check_run_name,
+                               result_status::success, "Merge would succeed"))
       {
         l3 ([&]{trace << "updated check_run { " << *cr << " }";});
 
         // Load the CI request.
         //
-        // @@ TODO: commit id.
+        // Example repository URL fragment:
         //
-        repository_location rl (*sd.repository_clone_url + "#refs/pull/" +
-                                to_string (*sd.pr_number) + "/merge",
+        //   #pull/28/merge@1b6c9a361086ed93e6f1e67189e82d52de91c49b
+        //
+        repository_location rl (*sd.repository_clone_url + "#pull/" +
+                                  to_string (*sd.pr_number) + "/merge@" + *mc,
                                 repository_type::git);
 
         optional<start_result> r (
@@ -886,7 +914,13 @@ namespace brep
           else msg += "Internal service error";
           msg += "\n```";
 
-          // @@ TODO: fail conclusion check run.
+          if (auto cr = update_cr (conclusion_node_id,
+                                   conclusion_check_run_name,
+                                   result_status::error,
+                                   move (msg)))
+          {
+            l3 ([&]{trace << "updated check_run { " << *cr << " }";});
+          }
         }
       }
       else
