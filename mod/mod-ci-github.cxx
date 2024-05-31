@@ -676,7 +676,7 @@ namespace brep
     if (iat == nullptr)
       return nullptr; // Try again on the next call.
 
-    auto make_iat_updater = [] ()
+    auto make_iat_updater = [&new_iat, &error] ()
     {
       function<optional<string> (const tenant_service&)> r;
 
@@ -791,7 +791,7 @@ namespace brep
     //
     if (first)
     {
-      if (auto cr = create_cr (merge_check_run_name))
+      if (auto cr = create_synthetic_cr (merge_check_run_name))
       {
         l3 ([&]{trace << "created check_run { " << *cr << " }";});
 
@@ -829,9 +829,11 @@ namespace brep
         // failed synthetic conclusion check run since the PR cannot be merged
         // anyway.
 
-        if (auto cr = update_cr (merge_node_id, merge_check_run_name,
-                                 result_status::error,
-                                 "GitHub is unable to create test merge commit"))
+        if (auto cr = update_synthetic_cr (
+              merge_node_id,
+              merge_check_run_name,
+              result_status::error,
+              "GitHub is unable to create test merge commit"))
         {
           l3 ([&]{trace << "updated check_run { " << *cr << " }";});
 
@@ -915,7 +917,7 @@ namespace brep
 
     if (second)
     {
-      if (auto cr = create_cr (conclusion_check_run_name))
+      if (auto cr = create_synthetic_cr (conclusion_check_run_name))
       {
         l3 ([&]{trace << "created check_run { " << *cr << " }";});
 
@@ -929,10 +931,10 @@ namespace brep
     {
       // Update merge check run to successful.
       //
-      if (auto cr = update_cr (merge_node_id,
-                               merge_check_run_name,
-                               result_status::success,
-                               "GitHub created test merge commit"))
+      if (auto cr = update_synthetic_cr (merge_node_id,
+                                         merge_check_run_name,
+                                         result_status::success,
+                                         "GitHub created test merge commit"))
       {
         l3 ([&]{trace << "updated check_run { " << *cr << " }";});
 
@@ -957,10 +959,10 @@ namespace brep
           else msg += "Internal service error";
           msg += "\n```";
 
-          if (auto cr = update_cr (conclusion_node_id,
-                                   conclusion_check_run_name,
-                                   result_status::error,
-                                   move (msg)))
+          if (auto cr = update_synthetic_cr (conclusion_node_id,
+                                             conclusion_check_run_name,
+                                             result_status::error,
+                                             move (msg)))
           {
             l3 ([&]{trace << "updated check_run { " << *cr << " }";});
           }
