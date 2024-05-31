@@ -631,8 +631,11 @@ namespace brep
     return ""; // Should never reach.
   }
 
-  static string merge_check_run_name ("merge-commit");
-  static string conclusion_check_run_name ("conclusion");
+  // Let's capitalize the synthetic check run names to make them easier to
+  // distinguish from the regular ones.
+  //
+  static string merge_check_run_name ("MERGE-COMMIT");
+  static string conclusion_check_run_name ("CONCLUSION");
 
   function<optional<string> (const tenant_service&)> ci_github::
   build_unloaded (tenant_service&& ts,
