@@ -359,13 +359,17 @@ namespace brep
 
       if (pr.action == "opened" || pr.action == "synchronize")
       {
-        // opened: A pull request was opened.
+        // opened
+        //   A pull request was opened.
         //
-        // synchronize: A pull request's head branch was updated from the base
-        //              branch or new commits were pushed to the head
-        //              branch. (Note that there is no equivalent event for
-        //              the base branch. That case gets handled in
-        //              handle_check_suite_request() instead.)
+        // synchronize
+        //   A pull request's head branch was updated from the base branch or
+        //   new commits were pushed to the head branch. (Note that there is
+        //   no equivalent event for the base branch. That case gets handled
+        //   in handle_check_suite_request() instead.)
+        //
+        // Note that both cases are handled the same: we start a new CI
+        // request which will be reported on the new commit id.
         //
         return handle_pull_request (move (pr), warning_success);
       }
@@ -669,10 +673,46 @@ namespace brep
     if (iat == nullptr)
       return nullptr; // Try again on the next call.
 
-    // Create an in-progress check run. Return the check run on success or
-    // nullopt on failure.
+    auto make_iat_updater = [] ()
+    {
+      function<optional<string> (const tenant_service&)> r;
+
+      if (new_iat)
+      {
+        r = [&error,
+             iat = move (new_iat)] (const tenant_service& ts)
+          -> optional<string>
+        {
+          // NOTE: this lambda may be called repeatedly (e.g., due to
+          // transaction being aborted) and so should not move out of its
+          // captures.
+
+          service_data sd;
+          try
+          {
+            sd = service_data (*ts.data);
+          }
+          catch (const invalid_argument& e)
+          {
+            error << "failed to parse service data: " << e;
+            return nullopt;
+          }
+
+          sd.installation_access = *iat;
+
+          return sd.json ();
+        };
+      }
+
+      return r;
+    };
+
+    // Create a synthetic check run with an in-progress state. Return the
+    // check run on success or nullopt on failure.
     //
-    auto create_cr = [iat, &sd, &error] (string name) -> optional<check_run>
+    auto create_synthetic_cr = [iat,
+                                &sd,
+                                &error] (string name) -> optional<check_run>
     {
       check_run cr;
       cr.name = move (name);
@@ -682,7 +722,7 @@ namespace brep
                                iat->token,
                                sd.repository_node_id,
                                sd.report_sha,
-                               nullopt, // details_url
+                               nullopt /* details_url */,
                                build_state::building))
       {
         return cr;
@@ -691,14 +731,15 @@ namespace brep
         return nullopt;
     };
 
-    // Update a check run with success or failure. Return the check run on
-    // success or nullopt on failure.
+    // Update a synthetic check run with success or failure. Return the check
+    // run on success or nullopt on failure.
     //
-    auto update_cr = [iat, &sd, &error] (const string& node_id,
+    auto update_synthetic_cr = [iat,
+                                &sd,
+                                &error] (const string& node_id,
                                          const string& name,
                                          result_status rs,
-                                         string summary)
-      -> optional<check_run>
+                                         string summary) -> optional<check_run>
     {
       assert (!node_id.empty ());
 
@@ -715,7 +756,7 @@ namespace brep
                                iat->token,
                                sd.repository_node_id,
                                node_id,
-                               nullopt, // details_url
+                               nullopt /* details_url */,
                                build_state::built,
                                move (br)))
       {
@@ -753,11 +794,8 @@ namespace brep
 
         merge_node_id = move (*cr->node_id);
       }
-      // @@ TMP If new_iat.has_value() then we won't store the new IAT. Same
-      //    applies to some of the other cases below.
-      //
       else
-        return nullptr; // Try again on the next call.
+        return make_iat_updater (); // Try again on the next call.
     }
     else
       merge_node_id = *sd.merge_node_id;
@@ -775,7 +813,7 @@ namespace brep
         // then there is nothing to do.
         //
         if (!first)
-          return nullptr;
+          return make_iat_updater ();
 
         // Fall through to update service data.
       }
@@ -790,7 +828,7 @@ namespace brep
 
         if (auto cr = update_cr (merge_node_id, merge_check_run_name,
                                  result_status::error,
-                                 "Merge would create conflicts"))
+                                 "GitHub is unable to create test merge commit"))
         {
           l3 ([&]{trace << "updated check_run { " << *cr << " }";});
 
@@ -813,7 +851,7 @@ namespace brep
           // so that we can try again on the next call.
 
           if (!first)
-            return nullptr;
+            return make_iat_updater ();
 
           // Fall through to update service data.
         }
@@ -888,8 +926,10 @@ namespace brep
     {
       // Update merge check run to successful.
       //
-      if (auto cr = update_cr (merge_node_id, merge_check_run_name,
-                               result_status::success, "Merge would succeed"))
+      if (auto cr = update_cr (merge_node_id,
+                               merge_check_run_name,
+                               result_status::success,
+                               "GitHub created test merge commit"))
       {
         l3 ([&]{trace << "updated check_run { " << *cr << " }";});
 
@@ -900,7 +940,7 @@ namespace brep
         //   #pull/28/merge@1b6c9a361086ed93e6f1e67189e82d52de91c49b
         //
         repository_location rl (*sd.repository_clone_url + "#pull/" +
-                                  to_string (*sd.pr_number) + "/merge@" + *mc,
+                                to_string (*sd.pr_number) + "/merge@" + *mc,
                                 repository_type::git);
 
         optional<start_result> r (
@@ -921,6 +961,13 @@ namespace brep
           {
             l3 ([&]{trace << "updated check_run { " << *cr << " }";});
           }
+          else
+          {
+            // Nothing really we can do in this case since we will not receive
+            // any further notifications.
+          }
+
+          return nullptr; // No need to update service data in this case.
         }
       }
       else
