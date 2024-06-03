@@ -484,8 +484,12 @@ namespace brep
       }
       else
       {
-        error << "unable to create conclusion check run for check suite "
-              << cs.check_suite.node_id;
+        // We could try to carry on in this case by either updating or
+        // creating this conclusion check run later. But let's not complicate
+        // things for now.
+        //
+        fail << "unable to create conclusion check run for check suite "
+             << cs.check_suite.node_id;
       }
     }
 
@@ -514,39 +518,33 @@ namespace brep
     {
       // Update the conclusion check run with failure.
       //
-      if (sd.conclusion_node_id)
+      result_status rs (result_status::error);
+
+      optional<gq_built_result> br (
+        gq_built_result (gh_to_conclusion (rs, sd.warning_success),
+                         circle (rs) + ' ' + ucase (to_string (rs)),
+                         to_check_run_summary (r)));
+
+      check_run cr;
+
+      // Set some fields for display purposes.
+      //
+      cr.node_id = *sd.conclusion_node_id;
+      cr.name = conclusion_check_run_name;
+
+      if (gq_update_check_run (error,
+                               cr,
+                               iat->token,
+                               sd.repository_node_id,
+                               *sd.conclusion_node_id,
+                               nullopt /* details_url */,
+                               build_state::built,
+                               move (br)))
       {
-        result_status rs (result_status::error);
-
-        optional<gq_built_result> br (
-          gq_built_result (gh_to_conclusion (rs, sd.warning_success),
-                           circle (rs) + ' ' + ucase (to_string (rs)),
-                           to_check_run_summary (r)));
-
-        check_run cr;
-        // Set some fields for display purposes.
-        //
-        cr.node_id = *sd.conclusion_node_id;
-        cr.name = conclusion_check_run_name;
-
-        if (gq_update_check_run (error,
-                                 cr,
-                                 iat->token,
-                                 sd.repository_node_id,
-                                 *sd.conclusion_node_id,
-                                 nullopt /* details_url */,
-                                 build_state::built,
-                                 move (br)))
-        {
-          l3 ([&]{trace << "updated check_run { " << cr << " }";});
-        }
-        else
-          error << "unable to update check_run { " << cr << " }";
+        l3 ([&]{trace << "updated check_run { " << cr << " }";});
       }
-
-      fail << "unable to start CI for check suite "
-           << cs.check_suite.node_id << ": "
-           << (r ? r->message : "internal error");
+      else
+        fail << "unable to update check_run { " << cr << " }"; // @@
     }
 
     return true;
@@ -1493,10 +1491,29 @@ namespace brep
     }
 
     check_run cr; // Updated check run.
+    bool unbuilt (false); // True if we have any other unbuilt check runs.
     {
       string bid (gh_check_run_name (b)); // Full Build ID.
 
-      if (const check_run* scr = sd.find_check_run (bid))
+      optional<check_run> scr;
+      for (check_run& cr: sd.check_runs)
+      {
+        if (cr.build_id == bid)
+        {
+          assert (!scr);
+          scr = move (cr);
+        }
+        else
+        {
+          if (scr.state != build_state::built)
+            unbuilt = true;
+        }
+
+        if (scr && unbuilt)
+          break;
+      }
+
+      if (scr)
       {
         if (scr->state != build_state::building)
         {
@@ -1511,7 +1528,7 @@ namespace brep
 
         // Don't move from scr because we search sd.check_runs below.
         //
-        cr = *scr;
+        cr = move (*scr);
       }
       else
       {
@@ -1697,52 +1714,42 @@ namespace brep
 
       // Update the conclusion check run if all check runs are now built.
       //
-      if (cr.state == build_state::built && sd.conclusion_node_id)
+      if (cr.state == build_state::built && !unbuilt)
       {
-        const vector<check_run>& crs (sd.check_runs);
+        assert (sd.conclusion_node_id);
 
-        // Update if there are no queued/building check runs in the service
-        // data.
+        // Update the conclusion check run with success.
         //
-        if (find_if (crs.begin (), crs.end (),
-                     [&cr] (const check_run& scr)
-                     {
-                       // Match if this check run is not built but skip the
-                       // notified build's check run (because this copy is out
-                       // of date).
-                       //
-                       return scr.state != build_state::built &&
-                              scr.node_id != cr.node_id;
-                     }) == crs.end ())
+        result_status rs (result_status::success);
+
+        optional<gq_built_result> br (
+          gq_built_result (gh_to_conclusion (rs, sd.warning_success),
+                           circle (rs) + ' ' + ucase (to_string (rs)),
+                           "All configurations are built"));
+
+        check_run cr;
+
+        // Set some fields for display purposes.
+        //
+        cr.node_id = *sd.conclusion_node_id;
+        cr.name = conclusion_check_run_name;
+
+        if (gq_update_check_run (error,
+                                 cr,
+                                 iat->token,
+                                 sd.repository_node_id,
+                                 *sd.conclusion_node_id,
+                                 nullopt /* details_url */,
+                                 build_state::built,
+                                 move (br)))
         {
-          // Update the conclusion check run with success.
+          l3 ([&]{trace << "updated check_run { " << cr << " }";});
+        }
+        else
+        {
+          // Nothing we can do here except log the error.
           //
-          result_status rs (result_status::success);
-
-          optional<gq_built_result> br (
-            gq_built_result (gh_to_conclusion (rs, sd.warning_success),
-                             circle (rs) + ' ' + ucase (to_string (rs)),
-                             "All configurations completed"));
-
-          check_run cr;
-          // Set some fields for display purposes.
-          //
-          cr.node_id = *sd.conclusion_node_id;
-          cr.name = conclusion_check_run_name;
-
-          if (gq_update_check_run (error,
-                                   cr,
-                                   iat->token,
-                                   sd.repository_node_id,
-                                   *sd.conclusion_node_id,
-                                   nullopt /* details_url */,
-                                   build_state::built,
-                                   move (br)))
-          {
-            l3 ([&]{trace << "updated check_run { " << cr << " }";});
-          }
-          else
-            error << "unable to update check_run { " << cr << " }";
+          error << "unable to update check_run { " << cr << " }"; // @@
         }
       }
     }
