@@ -33,6 +33,7 @@
 #include <libbrep/database-lock.hxx>
 
 #include <load/load-options.hxx>
+#include <load/options-types.hxx>
 
 using std::cout;
 using std::cerr;
@@ -804,8 +805,8 @@ load_packages (const options& lo,
         }
 
         // A non-stub package is buildable if belongs to at least one
-        // buildable repository (see libbrep/package.hxx for details).
-        // Note that if this is an external test package it will be marked as
+        // buildable repository (see libbrep/package.hxx for details). Note
+        // that if this is an external test package it will be marked as
         // unbuildable later (see resolve_dependencies() for details).
         //
         if (rp->buildable && !p->buildable && !p->stub ())
@@ -1206,34 +1207,24 @@ find (const lazy_shared_ptr<repository>& r,
   return false;
 }
 
-// Resolve package regular dependencies and external tests. Make sure that the
-// best matching dependency belongs to the package repositories, their
-// complements, recursively, or their immediate prerequisite repositories
-// (only for regular dependencies). Set the buildable flag to false for the
-// resolved external tests packages. Fail if unable to resolve a regular
-// dependency, unless ignore_unresolved is true in which case leave this
-// dependency NULL. Fail if unable to resolve an external test, unless
-// ignore_unresolved or ignore_unresolved_tests is true in which case leave
-// this dependency NULL, if ignore_unresolved_tests is false, and remove the
-// respective tests manifest entry otherwise. Should be called once per
-// internal package.
+// Try to resolve package regular dependencies and external tests. Make sure
+// that the best matching dependency belongs to the package repositories,
+// their complements, recursively, or their immediate prerequisite
+// repositories (only for regular dependencies). Set the buildable flag to
+// false for the resolved external tests packages. Leave the package member
+// NULL for unresolved dependencies.
 //
 static void
-resolve_dependencies (package& p,
-                      database& db,
-                      bool ignore_unresolved,
-                      bool ignore_unresolved_tests)
+resolve_dependencies (package& p, database& db)
 {
   using brep::dependency;
   using brep::dependency_alternative;
   using brep::dependency_alternatives;
+  using brep::test_dependency;
 
   // Resolve dependencies for internal packages only.
   //
   assert (p.internal ());
-
-  if (p.dependencies.empty () && p.tests.empty ())
-    return;
 
   auto resolve = [&p, &db] (dependency& d, bool test)
   {
@@ -1324,6 +1315,60 @@ resolve_dependencies (package& p,
     return false;
   };
 
+  // Update the package state if any dependency is resolved.
+  //
+  bool update (false);
+
+  for (dependency_alternatives& das: p.dependencies)
+  {
+    for (dependency_alternative& da: das)
+    {
+      for (dependency& d: da)
+      {
+        if (resolve (d, false /* test */))
+          update = true;
+      }
+    }
+  }
+
+  for (test_dependency& td: p.tests)
+  {
+    if (resolve (td, true /* test */))
+      update = true;
+  }
+
+  if (update)
+    db.update (p);
+}
+
+// Verify that the unresolved dependencies can be ignored.
+//
+// Specifically, fail for an unresolved regular dependency, unless
+// ignore_unresolved is true or this is a conditional dependency and either
+// ignore_unresolved_cond argument is 'all' or it is 'tests' and the specified
+// package is a tests, examples, or benchmarks package. Fail for an unresolved
+// external test, unless ignore_unresolved or ignore_unresolved_tests is
+// true. If ignore_unresolved_tests is true, then remove the unresolved tests
+// entry from the package manifest. Should be called once per internal package
+// after resolve_dependencies() is called for all of them.
+//
+static void
+verify_dependencies (
+  package& p,
+  database& db,
+  bool ignore_unresolved,
+  bool ignore_unresolved_tests,
+  optional<ignore_unresolved_conditional_dependencies> ignore_unresolved_cond)
+{
+  using brep::dependency;
+  using brep::dependency_alternative;
+  using brep::dependency_alternatives;
+  using brep::test_dependency;
+
+  // Verify dependencies for internal packages only.
+  //
+  assert (p.internal ());
+
   auto bail = [&p] (const dependency& d, const string& what)
   {
     cerr << "error: can't resolve " << what << ' ' << d << " for the package "
@@ -1334,43 +1379,74 @@ resolve_dependencies (package& p,
     throw failed ();
   };
 
-  for (dependency_alternatives& das: p.dependencies)
+  if (!ignore_unresolved)
   {
-    // Practically it is enough to resolve at least one dependency alternative
-    // to build a package. Meanwhile here we consider an error specifying in
-    // the manifest file an alternative which can't be resolved, unless
-    // unresolved dependencies are allowed.
+    // There must always be a reason why a package is not buildable.
     //
-    for (dependency_alternative& da: das)
+    assert (p.buildable || p.unbuildable_reason);
+
+    bool test (!p.buildable &&
+               *p.unbuildable_reason == unbuildable_reason::test);
+
+    for (dependency_alternatives& das: p.dependencies)
     {
-      for (dependency& d: da)
+      for (dependency_alternative& da: das)
       {
-        if (!resolve (d, false /* test */) && !ignore_unresolved)
-          bail (d, "dependency");
+        for (dependency& d: da)
+        {
+          if (d.package == nullptr)
+          {
+            if (da.enable && ignore_unresolved_cond)
+            {
+              switch (*ignore_unresolved_cond)
+              {
+              case ignore_unresolved_conditional_dependencies::all: continue;
+              case ignore_unresolved_conditional_dependencies::tests:
+                {
+                  if (test)
+                    continue;
+
+                  break;
+                }
+              }
+            }
+
+            bail (d, "dependency");
+          }
+        }
       }
     }
   }
 
-  for (auto i (p.tests.begin ()); i != p.tests.end (); )
+  if (!ignore_unresolved || ignore_unresolved_tests)
   {
-    brep::test_dependency& td (*i);
+    // Update the package state if any test dependency is erased.
+    //
+    bool update (false);
 
-    if (!resolve (td, true /* test */))
+    for (auto i (p.tests.begin ()); i != p.tests.end (); )
     {
-      if (!ignore_unresolved && !ignore_unresolved_tests)
-        bail (td, to_string (td.type));
+      test_dependency& td (*i);
 
-      if (ignore_unresolved_tests)
+      if (td.package == nullptr)
       {
-        i = p.tests.erase (i);
-        continue;
+        if (!ignore_unresolved && !ignore_unresolved_tests)
+          bail (td, to_string (td.type));
+
+        if (ignore_unresolved_tests)
+        {
+          i = p.tests.erase (i);
+          update = true;
+          continue;
+        }
       }
+
+      ++i;
     }
 
-    ++i;
+    if (update)
+      db.update (p);
   }
-
-  db.update (p); // Update the package state.
 }
 
 using package_ids = vector<package_id>;
@@ -1421,19 +1497,24 @@ detect_dependency_cycle (const package_id& id,
     throw failed ();
   }
 
-  chain.push_back (id);
-
-  shared_ptr<package> p (db.load<package> (id));
-  for (const auto& das: p->dependencies)
+  // Note that the package can be an unresolved dependency and may not be
+  // present in the database.
+  //
+  if (shared_ptr<package> p = db.find<package> (id))
   {
-    for (const auto& da: das)
-    {
-      for (const auto& d: da)
-        detect_dependency_cycle (d.package.object_id (), chain, db);
-    }
-  }
+    chain.push_back (id);
 
-  chain.pop_back ();
+    for (const auto& das: p->dependencies)
+    {
+      for (const auto& da: das)
+      {
+        for (const auto& d: da)
+          detect_dependency_cycle (d.package.object_id (), chain, db);
+      }
+    }
+
+    chain.pop_back ();
+  }
 }
 
 // Return the certificate information for a signed repository and nullopt for
@@ -1955,29 +2036,36 @@ try
                          ops.shallow ());
     }
 
-    // Resolve internal packages dependencies and, unless this is a shallow
-    // load, make sure there are no package dependency cycles.
+    // Try to resolve the internal packages dependencies and verify that the
+    // unresolved ones can be ignored. Unless this is a shallow load, make
+    // sure there are no package dependency cycles.
     //
     {
       session s;
       using query = query<package>;
 
-      for (auto& p:
-             db.query<package> (
-               query::id.tenant == tnt &&
-               query::internal_repository.canonical_name.is_not_null ()))
-        resolve_dependencies (p,
-                              db,
-                              ops.shallow (),
-                              ops.ignore_unresolved_tests ());
+      query q (query::id.tenant == tnt &&
+               query::internal_repository.canonical_name.is_not_null ());
+
+      for (auto& p: db.query<package> (q))
+        resolve_dependencies (p, db);
+
+      for (auto& p: db.query<package> (q))
+      {
+        verify_dependencies (
+          p,
+          db,
+          ops.shallow (),
+          ops.ignore_unresolv_tests (),
+          (ops.ignore_unresolv_cond_specified ()
+           ? ops.ignore_unresolv_cond ()
+           : optional<ignore_unresolved_conditional_dependencies> ()));
+      }
 
       if (!ops.shallow ())
       {
         package_ids chain;
-        for (const auto& p:
-               db.query<package> (
-                 query::id.tenant == tnt &&
-                 query::internal_repository.canonical_name.is_not_null ()))
+        for (const auto& p: db.query<package> (q))
           detect_dependency_cycle (p.id, chain, db);
       }
     }

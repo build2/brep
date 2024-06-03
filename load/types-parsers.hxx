@@ -9,6 +9,8 @@
 
 #include <libbrep/types.hxx>
 
+#include <load/options-types.hxx>
+
 namespace cli
 {
   class scanner;
@@ -21,6 +23,13 @@ namespace cli
   {
     static void
     parse (brep::path&, bool&, scanner&);
+  };
+
+  template <>
+  struct parser<brep::ignore_unresolved_conditional_dependencies>
+  {
+    static void
+    parse (brep::ignore_unresolved_conditional_dependencies&, bool&, scanner&);
   };
 }
 

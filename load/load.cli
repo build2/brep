@@ -7,6 +7,8 @@ include <cstdint>; // uint16_t
 
 include <libbrep/types.hxx>;
 
+include <load/options-types.hxx>;
+
 "\section=1"
 "\name=brep-load"
 "\summary=load repositories into brep package database"
@@ -57,12 +59,22 @@ class options
      don't detect package dependency cycles."
   };
 
-  bool --ignore-unresolved-tests
+  bool --ignore-unresolv-tests
   {
     "Ignore tests, examples, and benchmarks package manifest entries which
      cannot be resolved from the main package's complement repositories,
      recursively. Note that in contrast to --shallow option, such entries will
      be removed from the main package manifests outright."
+  }
+
+  brep::ignore_unresolved_conditional_dependencies --ignore-unresolv-cond
+  {
+    "<pkg>",
+    "Ignore conditional package dependencies which cannot be resolved. The
+     valid <pkg> values are \cb{all} and \cb{tests}. If \cb{all} is specified,
+     then unresolved conditional dependencies are ignored in all packages. If
+     \cb{tests} is specified, then unresolved conditional dependencies are
+     only ignored in external tests, examples, and benchmarks packages."
   }
 
   std::string --tenant

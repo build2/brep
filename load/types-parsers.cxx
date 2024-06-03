@@ -39,4 +39,22 @@ namespace cli
     xs = true;
     parse_path (x, s);
   }
+
+  void parser<ignore_unresolved_conditional_dependencies>::
+  parse (ignore_unresolved_conditional_dependencies& x, bool& xs, scanner& s)
+  {
+    xs = true;
+    const char* o (s.next ());
+
+    if (!s.more ())
+      throw missing_value (o);
+
+    const string v (s.next ());
+    if (v == "all")
+      x = ignore_unresolved_conditional_dependencies::all;
+    else if (v == "tests")
+      x = ignore_unresolved_conditional_dependencies::tests;
+    else
+      throw invalid_value (o, v);
+  }
 }
