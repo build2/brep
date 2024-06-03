@@ -488,8 +488,8 @@ namespace brep
         // creating this conclusion check run later. But let's not complicate
         // things for now.
         //
-        fail << "unable to create conclusion check run for check suite "
-             << cs.check_suite.node_id;
+        fail << "check suite " << cs.check_suite.node_id
+             << ": unable to create conclusion check run";
       }
     }
 
@@ -506,9 +506,7 @@ namespace brep
       start (error,
              warn,
              verb_ ? &trace : nullptr,
-             tenant_service (move (cs.check_suite.node_id),
-                             "ci-github",
-                             sd.json ()),
+             tenant_service (cs.check_suite.node_id, "ci-github", sd.json ()),
              move (rl),
              vector<package> {},
              nullopt, /* client_ip */
@@ -544,7 +542,11 @@ namespace brep
         l3 ([&]{trace << "updated check_run { " << cr << " }";});
       }
       else
-        fail << "unable to update check_run { " << cr << " }"; // @@
+      {
+        fail << "check suite " << cs.check_suite.node_id
+             << ": unable to update conclusion check_run "
+             << *sd.conclusion_node_id;
+      }
     }
 
     return true;
@@ -705,7 +707,10 @@ namespace brep
               chrono::seconds (0)  /* delay */));
 
     if (!tid)
-      fail << "unable to create unloaded CI request";
+    {
+      fail << "pull request " << pr.pull_request.node_id
+           << ": unable to create unloaded CI request";
+    }
 
     return true;
   }
@@ -1505,7 +1510,7 @@ namespace brep
         }
         else
         {
-          if (scr.state != build_state::built)
+          if (cr.state != build_state::built)
             unbuilt = true;
         }
 
@@ -1749,7 +1754,9 @@ namespace brep
         {
           // Nothing we can do here except log the error.
           //
-          error << "unable to update check_run { " << cr << " }"; // @@
+          error << "check suite " << ts.id
+                << ": unable to update conclusion check run "
+                << *sd.conclusion_node_id;
         }
       }
     }
