@@ -391,6 +391,51 @@ namespace brep
     }
   }
 
+  // Let's capitalize the synthetic check run names to make them easier to
+  // distinguish from the regular ones.
+  //
+  static string merge_check_run_name ("MERGE-COMMIT");
+  static string conclusion_check_run_name ("CONCLUSION");
+
+  // Return the colored circle corresponding to a result_status.
+  //
+  static string
+  circle (result_status rs)
+  {
+    switch (rs)
+    {
+    case result_status::success:  return "\U0001F7E2"; // Green circle.
+    case result_status::warning:  return "\U0001F7E0"; // Orange circle.
+    case result_status::error:
+    case result_status::abort:
+    case result_status::abnormal: return "\U0001F534"; // Red circle.
+
+      // Valid values we should never encounter.
+      //
+    case result_status::skip:
+    case result_status::interrupt:
+      throw invalid_argument ("unexpected result_status value: " +
+                              to_string (rs));
+    }
+
+    return ""; // Should never reach.
+  }
+
+  // Make a check run summary from a CI start_result.
+  //
+  static string
+  to_check_run_summary (const optional<ci_start::start_result>& r)
+  {
+    string s;
+
+    s = "```\n";
+    if (r) s += r->message;
+    else s += "Internal service error";
+    s += "\n```";
+
+    return s;
+  }
+
   bool ci_github::
   handle_check_suite_request (gh_check_suite_event cs, bool warning_success)
   {
@@ -412,19 +457,43 @@ namespace brep
 
     l3 ([&]{trace << "installation_access_token { " << *iat << " }";});
 
-    // Submit the CI request.
+    service_data sd (warning_success,
+                     iat->token,
+                     iat->expires_at,
+                     cs.installation.id,
+                     move (cs.repository.node_id),
+                     move (cs.check_suite.head_sha));
+
+    // Create the conclusion check run.
+    //
+    {
+      check_run cr;
+      cr.name = conclusion_check_run_name;
+
+      if (gq_create_check_run (error,
+                               cr,
+                               iat->token,
+                               sd.repository_node_id,
+                               sd.report_sha,
+                               nullopt /* details_url */,
+                               build_state::building))
+      {
+        l3 ([&]{trace << "created check_run { " << cr << " }";});
+
+        sd.conclusion_node_id = move (cr.node_id);
+      }
+      else
+      {
+        error << "unable to create conclusion check run for check suite "
+              << cs.check_suite.node_id;
+      }
+    }
+
+    // Start CI for the check suite.
     //
     repository_location rl (cs.repository.clone_url + '#' +
                                 cs.check_suite.head_branch,
                             repository_type::git);
-
-    string sd (service_data (warning_success,
-                             move (iat->token),
-                             iat->expires_at,
-                             cs.installation.id,
-                             move (cs.repository.node_id),
-                             move (cs.check_suite.head_sha))
-                   .json ());
 
     // @@ What happens if we call this functions with an already existing
     //    node_id (e.g., replay attack). See the UUID header above.
@@ -435,14 +504,50 @@ namespace brep
              verb_ ? &trace : nullptr,
              tenant_service (move (cs.check_suite.node_id),
                              "ci-github",
-                             move (sd)),
+                             sd.json ()),
              move (rl),
              vector<package> {},
              nullopt, /* client_ip */
              nullopt  /* user_agent */));
 
-    if (!r)
-      fail << "unable to submit CI request";
+    if (!r || r->status != 200)
+    {
+      // Update the conclusion check run with failure.
+      //
+      if (sd.conclusion_node_id)
+      {
+        result_status rs (result_status::error);
+
+        optional<gq_built_result> br (
+          gq_built_result (gh_to_conclusion (rs, sd.warning_success),
+                           circle (rs) + ' ' + ucase (to_string (rs)),
+                           to_check_run_summary (r)));
+
+        check_run cr;
+        // Set some fields for display purposes.
+        //
+        cr.node_id = *sd.conclusion_node_id;
+        cr.name = conclusion_check_run_name;
+
+        if (gq_update_check_run (error,
+                                 cr,
+                                 iat->token,
+                                 sd.repository_node_id,
+                                 *sd.conclusion_node_id,
+                                 nullopt /* details_url */,
+                                 build_state::built,
+                                 move (br)))
+        {
+          l3 ([&]{trace << "updated check_run { " << cr << " }";});
+        }
+        else
+          error << "unable to update check_run { " << cr << " }";
+      }
+
+      fail << "unable to start CI for check suite "
+           << cs.check_suite.node_id << ": "
+           << (r ? r->message : "internal error");
+    }
 
     return true;
   }
@@ -606,36 +711,6 @@ namespace brep
 
     return true;
   }
-
-  // Return the colored circle corresponding to a result_status.
-  //
-  static string
-  circle (result_status rs)
-  {
-    switch (rs)
-    {
-    case result_status::success:  return "\U0001F7E2"; // Green circle.
-    case result_status::warning:  return "\U0001F7E0"; // Orange circle.
-    case result_status::error:
-    case result_status::abort:
-    case result_status::abnormal: return "\U0001F534"; // Red circle.
-
-      // Valid values we should never encounter.
-      //
-    case result_status::skip:
-    case result_status::interrupt:
-      throw invalid_argument ("unexpected result_status value: " +
-                              to_string (rs));
-    }
-
-    return ""; // Should never reach.
-  }
-
-  // Let's capitalize the synthetic check run names to make them easier to
-  // distinguish from the regular ones.
-  //
-  static string merge_check_run_name ("MERGE-COMMIT");
-  static string conclusion_check_run_name ("CONCLUSION");
 
   function<optional<string> (const tenant_service&)> ci_github::
   build_unloaded (tenant_service&& ts,
@@ -953,16 +1028,10 @@ namespace brep
 
         if (!r || r->status != 200)
         {
-          string msg;
-          msg = "```\n";
-          if (r) msg += r->message;
-          else msg += "Internal service error";
-          msg += "\n```";
-
           if (auto cr = update_synthetic_cr (conclusion_node_id,
                                              conclusion_check_run_name,
                                              result_status::error,
-                                             move (msg)))
+                                             to_check_run_summary (r)))
           {
             l3 ([&]{trace << "updated check_run { " << *cr << " }";});
           }
@@ -1427,7 +1496,7 @@ namespace brep
     {
       string bid (gh_check_run_name (b)); // Full Build ID.
 
-      if (check_run* scr = sd.find_check_run (bid))
+      if (const check_run* scr = sd.find_check_run (bid))
       {
         if (scr->state != build_state::building)
         {
@@ -1440,7 +1509,9 @@ namespace brep
         if (scr->state == build_state::built)
           return nullptr;
 
-        cr = move (*scr);
+        // Don't move from scr because we search sd.check_runs below.
+        //
+        cr = *scr;
       }
       else
       {
@@ -1621,6 +1692,57 @@ namespace brep
           assert (cr.state == build_state::built);
 
           l3 ([&]{trace << "created check_run { " << cr << " }";});
+        }
+      }
+
+      // Update the conclusion check run if all check runs are now built.
+      //
+      if (cr.state == build_state::built && sd.conclusion_node_id)
+      {
+        const vector<check_run>& crs (sd.check_runs);
+
+        // Update if there are no queued/building check runs in the service
+        // data.
+        //
+        if (find_if (crs.begin (), crs.end (),
+                     [&cr] (const check_run& scr)
+                     {
+                       // Match if this check run is not built but skip the
+                       // notified build's check run (because this copy is out
+                       // of date).
+                       //
+                       return scr.state != build_state::built &&
+                              scr.node_id != cr.node_id;
+                     }) == crs.end ())
+        {
+          // Update the conclusion check run with success.
+          //
+          result_status rs (result_status::success);
+
+          optional<gq_built_result> br (
+            gq_built_result (gh_to_conclusion (rs, sd.warning_success),
+                             circle (rs) + ' ' + ucase (to_string (rs)),
+                             "All configurations completed"));
+
+          check_run cr;
+          // Set some fields for display purposes.
+          //
+          cr.node_id = *sd.conclusion_node_id;
+          cr.name = conclusion_check_run_name;
+
+          if (gq_update_check_run (error,
+                                   cr,
+                                   iat->token,
+                                   sd.repository_node_id,
+                                   *sd.conclusion_node_id,
+                                   nullopt /* details_url */,
+                                   build_state::built,
+                                   move (br)))
+          {
+            l3 ([&]{trace << "updated check_run { " << cr << " }";});
+          }
+          else
+            error << "unable to update check_run { " << cr << " }";
         }
       }
     }
