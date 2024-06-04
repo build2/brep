@@ -552,109 +552,101 @@ namespace brep
     return true;
   }
 
-  // High-level description of PR handling:
+  // High-level description of pull request (PR) handling
   //
-  // - CI the merge commit but add checks to PR head ref
+  // - Some GitHub pull request terminology:
   //
-  //   Recommended by the following blog posts by a GitHub employee who is one
-  //   of the best sources on these topics:
+  //   - Fork and pull model: Pull requests are created in a forked
+  //     repository. Thus the head and base repositories are different.
+  //
+  //   - Shared repository model: The pull request head and base branches are
+  //     in the same repository. For example, from a feature branch onto
+  //     master.
+  //
+  // - CI the merge commit but add check runs to the pull request head commit
+  //
+  //   Most of the major CI integrations build the merge commit instead of the
+  //   PR head commit.
+  //
+  //   Adding the check runs to the PR head commit is recommended by the
+  //   following blog posts by a GitHub employee who is one of the best
+  //   sources on these topics:
   //   https://www.kenmuse.com/blog/shared-commits-and-github-checks/ and
   //   https://www.kenmuse.com/blog/creating-github-checks/.
   //
-  //   DO NOT ADD CHECKS TO THE MERGE COMMIT because:
+  //   Do not add any check runs to the merge commit because:
   //
-  //   - The PR head ref is the only commit that can be relied upon to exist
-  //     throughout the PR's lifetime. The merge commit, on the other hand,
-  //     can get replaced during the PR process. When that happens the PR will
-  //     look for checks on the new merge commit, effectively discarding the
-  //     ones we had before.
+  //   - The PR head commit is the only commit that can be relied upon to
+  //     exist throughout the PR's lifetime. The merge commit, on the other
+  //     hand, can change during the PR process. When that happens the PR will
+  //     look for check runs on the new merge commit, effectively discarding
+  //     the ones we had before.
   //
   //   - Although some of the GitHub documentation makes it sound like they
-  //     expect checks to be added to both the PR head and the merge commit,
-  //     the PR UI does not react to the merge commit's checks
-  //     consistently. It actually seems to be quite broken.
+  //     expect check runs to be added to both the PR head commit and the
+  //     merge commit, the PR UI does not react to the merge commit's check
+  //     runs consistently. It actually seems to be quite broken.
   //
   //     The only thing it seems to do reliably is blocking the PR merge if
-  //     the merge commit is not successful (overriding the PR head ref's
-  //     checks). But the UI looks quite messed up generally in this state.
+  //     the merge commit's check runs are not successful (i.e, overriding the
+  //     PR head commit's check runs). But the UI looks quite messed up
+  //     generally in this state.
   //
-  // - PR Creation
-  //
-  //   False green window problem
-  //   - User creates new commit on feature branch
-  //   - We receive check_suite; check runs start, run, succeed
-  //   - User creates PR from feature branch to master
-  //   - Because feature branch head has successful CRs, PR is green to merge
-  //   - But merge commit has not been CI'd yet
-  //   - False green until first merge commit CR is queued
-  //
-  //   check_suite(requested, PR_head): [shared repo model]
-  //
-  //   - Starts CI with check runs on what will become the PR head ref
-  //
-  //   pull_request(opened)
-  //
-  //   - Fetch pull request to trigger start of merge commit job; ignore
-  //     response
-  //
-  //   - To close false green window
-  //     - if pull_request.head.repo.node_id == pull_request.base.repo.node_id
-  //       - Replace all (or just one?) of the CRs on the PR head ref with new,
-  //         queued ones
-  //         - Fetch all check runs on PR head SHA
-  //         - Find CRs with this PR in pull_requests[]
-  //         - Create new CRs with same names as existing, thus effectively
-  //           destroying the old ones
-  //
-  //   - Create unloaded tenant
-  //
-  //   - On callback
-  //     Fetch pull request; if mergeable, start CI proper
+  //   Note that, in the case of a PR from a forked repository (the so-called
+  //   "fork and pull" model), GitHub will copy the PR head commit from the
+  //   head repository (the forked one) into the base repository. So the check
+  //   runs must always be added to the base repository, whether the PR is
+  //   from within the same repository or from a forked repository. The merge
+  //   and head commits will be at refs/pull/<PR-number>/{merge,head}.
   //
   // - New commits are added to PR head branch
   //
-  //   False green window
+  //   @@ TODO In this case we will end up creating two sets of check runs on
+  //      the same commit (pull_request.head.sha and
+  //      check_suite.head_sha). It's not obvious which to prefer but I'm
+  //      thinking the pull request is more important because in most
+  //      development models it represents something that is more likely to
+  //      end up in an important branch (as opposed to the head of a feature
+  //      branch).
   //
-  //     PR already exists so merge will be red initially after CS is
-  //     received, but those CRs could theoretically all succeed before our CI
-  //     of the merge commit starts. Either way the CS CRs are an inaccurate
-  //     representation of what's being CI'd so need to be avoided if
-  //     possible.
+  //   Possible solution: ignore all check_suites with non-empty
+  //   pull_requests[].
   //
-  //   check_suite(requested, PR_head) [shared repo model]
+  //   => check_suite(requested, PR_head) [only in shared repo model]
   //
-  //     Ignore if pull_requests[] is non-empty (which should be the case if
-  //     the head branch is in the same repository).
+  //      Note: check_suite.pull_requests[] will contain all PRs with this
+  //      branch as head.
   //
-  //   pull_request(synchronize)
+  //      Note: check_suite.pull_requests[i].head.sha will be the new, updated
+  //      PR head sha.
   //
-  //   - Fetch pull request to trigger start of merge commit job; ignore
-  //     response
+  //   => pull_request(synchronize)
   //
-  //   - Create unloaded tenant
-  //
-  //   - On callback
-  //     Fetch pull request; if mergeable, start CI proper
+  //   Note: The check_suite and pull_request can arrive in any order.
   //
   // - New commits are added to PR base branch
   //
-  //   check_suite(requested, PR_base)
+  //   Note: In this case pull_request.base.sha does not change, but the merge
+  //   commit will be updated to include the new commits to the base branch.
   //
-  //   Fetch all open PRs for base branch (triggering the merge commit jobs)
+  // - @@ TODO? PR base branch changed (to a different branch)
   //
-  //   Replace CRs on PR head refs to close false green window.
+  //   => pull_request(edited)
   //
-  //   Submit new unloaded tenants for all of the PRs.
+  // - PR closed @@ TODO
   //
-  //   NOTE: pull_request.base.sha does not change. But merge commit (once
-  //         updated) does try to merge PR head to new tip of PR base.
+  //   => pull_request(closed)
   //
-  // - PR closed/merged/etc. @@ TODO
+  //   Cancel CI?
   //
-  //   pull_request(closed/merged/...)
+  // - PR merged @@ TODO
   //
-  //   Note: when a PR is merged we will get a pull_request(closed) and then a
-  //   check_suite for the base branch.
+  //   => pull_request(merged)
+  //
+  //   => check_suite(PR_base)
+  //
+  //   Probably wouldn't want to CI the base again because the PR CI would've
+  //   done the equivalent already.
   //
   bool ci_github::
   handle_pull_request (gh_pull_request_event pr, bool warning_success)
