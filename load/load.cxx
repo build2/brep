@@ -1497,24 +1497,24 @@ detect_dependency_cycle (const package_id& id,
     throw failed ();
   }
 
-  // Note that the package can be an unresolved dependency and may not be
-  // present in the database.
-  //
-  if (shared_ptr<package> p = db.find<package> (id))
-  {
-    chain.push_back (id);
+  chain.push_back (id);
 
-    for (const auto& das: p->dependencies)
+  shared_ptr<package> p (db.load<package> (id));
+  for (const auto& das: p->dependencies)
+  {
+    for (const auto& da: das)
     {
-      for (const auto& da: das)
+      for (const auto& d: da)
       {
-        for (const auto& d: da)
+        // Skip unresolved dependencies.
+        //
+        if (d.package != nullptr)
           detect_dependency_cycle (d.package.object_id (), chain, db);
       }
     }
-
-    chain.pop_back ();
   }
+
+  chain.pop_back ();
 }
 
 // Return the certificate information for a signed repository and nullopt for
