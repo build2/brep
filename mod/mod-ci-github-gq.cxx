@@ -114,10 +114,12 @@ namespace brep
       }
       else if (p.name () == "errors")
       {
-        // Don't stop parsing because the error semantics depends on whether
-        // or not `data` is present.
+        // Skip the errors object but don't stop parsing because the error
+        // semantics depends on whether or not `data` is present.
         //
         err = true; // Handled below.
+
+        p.next_expect_value_skip ();
       }
       else
       {
@@ -622,13 +624,19 @@ namespace brep
 
                 value = move (oid);
               }
-              else if (ma == "CONFLICTING")
+              else
               {
-                value = "";
-              }
-              else if (ma == "UNKNOWN")
-              {
-                // Still being generated; leave value absent.
+                if (ma == "CONFLICTING")
+                  value = "";
+                else if (ma == "UNKNOWN")
+                {
+                  // Still being generated; leave value absent.
+                }
+
+                // Skip the merge commit ID (which should be null).
+                //
+                p.next_expect_name ("potentialMergeCommit");
+                p.next_expect_value_skip ();
               }
 
               p.next_expect (event::end_object);   // node
