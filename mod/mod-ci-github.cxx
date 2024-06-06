@@ -495,7 +495,8 @@ namespace brep
 
     // The merge commits of any open pull requests with this branch as base
     // branch will now be out of date, and thus so will be their CI builds and
-    // associated check runs.
+    // associated check runs (and, no, GitHub does not invalidate those CI
+    // results automatically; see below).
     //
     // Unfortunately GitHub does not provide a webhook for PR base branch
     // updates (as it does for PR head branch updates) so we have to handle it
@@ -512,7 +513,9 @@ namespace brep
     // user would be able to merge a broken PR.
     //
     // Regardless of the nature of the error, we have to let the check suite
-    // handling code proceed so we only issue diagnostics.
+    // handling code proceed so we only issue diagnostics. Note also that we
+    // want to run this code as early as possible to minimize the window of
+    // the user seeing misleading CI results.
     //
     {
       // Fetch open pull requests with the check suite's head branch as base

@@ -628,9 +628,13 @@ namespace brep
               {
                 if (ma == "CONFLICTING")
                   value = "";
-                else if (ma == "UNKNOWN")
+                if (ma == "UNKNOWN")
+                  ; // Still being generated; leave value absent.
+                else
                 {
-                  // Still being generated; leave value absent.
+                  error << "unexpected mergeable value '" << ma << "'";
+
+                  // Carry on as if it were UNKNOWN.
                 }
 
                 // Skip the merge commit ID (which should be null).
@@ -697,7 +701,18 @@ namespace brep
   // page) open pull requests with the specified base branch from the
   // repository with the specified node ID.
   //
-  // @@ TMP Should we support more than 100?
+  // @@ TMP Should we support more/less than 100?
+  //
+  //    Doing more (or even 100) could waste a lot of CI resources on
+  //    re-testing stale PRs. Maybe we should create a failed synthetic
+  //    conclusion check run asking the user to re-run the CI manually if/when
+  //    needed.
+  //
+  //    Note that we cannot request more than 100 at a time (will need to
+  //    do multiple requests with paging, etc).
+  //
+  //    Also, maybe we should limit the result to "fresh" PRs, e.g., those
+  //    that have been "touched" in the last week.
   //
   // Example query:
   //
@@ -789,7 +804,7 @@ namespace brep
         {
           using event = json::event;
 
-          gq_parse_response (p, [this] (json::parser& p)
+          auto parse_data = [this] (json::parser& p)
           {
             p.next_expect (event::begin_object);
 
@@ -825,7 +840,9 @@ namespace brep
             }
 
             p.next_expect (event::end_object);
-          });
+          };
+
+          gq_parse_response (p, move (parse_data));
         }
 
         resp () = default;

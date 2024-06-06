@@ -17,6 +17,8 @@
 
 namespace brep
 {
+  struct service_data;
+
   class ci_github: public database_module,
                    private ci_start,
                    public tenant_service_build_unloaded,
@@ -83,8 +85,8 @@ namespace brep
     // true, cancel its existing CI request first.
     //
     // Return true if an unloaded CI request was created. Ignore failure to
-    // cancel because the CI request may already have been cancelled for a
-    // legitimate reason.
+    // cancel because the CI request may already have been cancelled for other
+    // reasons.
     //
     // After this call we will start getting the build_unloaded()
     // notifications until (1) we load the request, (2) we cancel it, or (3)
@@ -94,7 +96,7 @@ namespace brep
     create_pull_request_ci (const basic_mark& error,
                             const basic_mark& warn,
                             const basic_mark& trace,
-                            string service_data,
+                            const service_data&,
                             const string& pull_request_node_id,
                             bool cancel_first) const;
 
