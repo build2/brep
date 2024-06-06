@@ -309,8 +309,6 @@ namespace brep
         // Someone manually requested to re-run all the check runs in this
         // check suite. Treat as a new request.
         //
-        // @@@ Test and make sure works?
-        //
         return handle_check_suite_request (move (cs), warning_success);
       }
       else if (cs.action == "completed")
@@ -558,6 +556,15 @@ namespace brep
         error << "unable to fetch open pull requests with base branch "
               << cs.check_suite.head_branch;
       }
+    }
+    // Cancel existing CI request if this check suite is being re-run.
+    //
+    else if (cs.action == "rerequested")
+    {
+      const string& nid (cs.check_suite.node_id);
+
+      if (!cancel (error, warn, &trace, *build_db_, "ci-github", nid))
+        error << "check suite " << nid << " (re-requested): unable to cancel";
     }
 
     // Start CI for the check suite.
