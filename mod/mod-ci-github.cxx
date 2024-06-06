@@ -545,7 +545,7 @@ namespace brep
           // we cancel it, or (3) it gets archived after some timeout.
           //
           if (!create_pull_request_ci (error, warn, trace,
-                                       prsd.json (), pr.node_id,
+                                       prsd, pr.node_id,
                                        true /* cancel_first */))
           {
             error << "pull request " << pr.node_id
@@ -762,8 +762,7 @@ namespace brep
     bool cancel_first (pr.action == "synchronize");
 
     if (!create_pull_request_ci (error, warn, trace,
-                                 sd.json (),
-                                 pr.pull_request.node_id,
+                                 sd, pr.pull_request.node_id,
                                  cancel_first))
     {
       fail << "pull request " << pr.pull_request.node_id
@@ -1875,13 +1874,12 @@ namespace brep
   create_pull_request_ci (const basic_mark& error,
                           const basic_mark& warn,
                           const basic_mark& trace,
-                          string sd,
+                          const service_data& sd,
                           const string& nid,
                           bool cf) const
   {
     // Cancel the existing CI request if asked to do so. Ignore failure
-    // because the request may already have been cancelled for a legitimate
-    // reason.
+    // because the request may already have been cancelled for other reasons.
     //
     if (cf)
     {
@@ -1891,7 +1889,7 @@ namespace brep
 
     // Create a new unloaded CI request.
     //
-    tenant_service ts (nid, "ci-github", move (sd));
+    tenant_service ts (nid, "ci-github", sd.json ());
 
     // Note: use no delay since we need to (re)create the synthetic merge
     // check run as soon as possible.
