@@ -73,7 +73,14 @@ namespace brep
       build_state s (to_build_state (p.next_expect_member_string ("state")));
       bool ss (p.next_expect_member_boolean<bool> ("state_synced"));
 
-      check_runs.emplace_back (move (bid), move (nm), move (nid), s, ss);
+      optional<result_status> rs;
+      {
+        string* v (p.next_expect_member_string_null ("status"));
+        if (v != nullptr)
+          rs = bbot::to_result_status (*v);
+      }
+
+      check_runs.emplace_back (move (bid), move (nm), move (nid), s, ss, rs);
 
       p.next_expect (event::end_object);
     }
@@ -178,6 +185,12 @@ namespace brep
 
       s.member ("state", to_string (cr.state));
       s.member ("state_synced", cr.state_synced);
+
+      s.member_name ("status");
+      if (cr.status)
+        s.value (to_string (*cr.status));
+      else
+        s.value (nullptr);
 
       s.end_object ();
     }
