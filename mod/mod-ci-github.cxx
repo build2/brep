@@ -493,6 +493,73 @@ namespace brep
       }
     }
 
+    // The merge commits of any open pull requests with this branch as base
+    // branch will now be out of date, and thus so will be their CI builds and
+    // associated check runs.
+    //
+    // Unfortunately GitHub does not provide a webhook for PR base branch
+    // updates (as it does for PR head branch updates) so we have to handle it
+    // here. We do so by fetching the open pull requests with this branch as
+    // base branch and then recreating the CI requests (cancel existing,
+    // create new) for each pull request.
+    //
+    // If we fail to recreate any of the PR CI requests, they and their check
+    // runs will be left reflecting outdated merge commits. If the new merge
+    // commit failed to be generated (merge conflicts) the PR will not be
+    // mergeable which is not entirely catastrophic. But on the other hand, if
+    // all of the existing CI request's check runs have already succeeded and
+    // the new merge commit succeeds (no conflicts) with logic errors then a
+    // user would be able to merge a broken PR.
+    //
+    // Regardless of the nature of the error, we have to let the check suite
+    // handling code proceed so we only issue diagnostics.
+    //
+    {
+      // Fetch open pull requests with the check suite's head branch as base
+      // branch.
+      //
+      optional<vector<gh_pull_request>> prs (
+        gq_fetch_open_pull_requests (error,
+                                     iat->token,
+                                     sd.repository_node_id,
+                                     cs.check_suite.head_branch));
+
+      if (prs)
+      {
+        // Recreate each PR's CI request.
+        //
+        for (gh_pull_request& pr: *prs)
+        {
+          service_data prsd (sd.warning_success,
+                             sd.installation_access.token,
+                             sd.installation_access.expires_at,
+                             sd.installation_id,
+                             sd.repository_node_id,
+                             pr.head_sha,
+                             cs.repository.clone_url,
+                             pr.number);
+
+          // Cancel the existing CI request and create a new unloaded CI
+          // request. After this call we will start getting the
+          // build_unloaded() notifications until (1) we load the request, (2)
+          // we cancel it, or (3) it gets archived after some timeout.
+          //
+          if (!create_pull_request_ci (error, warn, trace,
+                                       prsd.json (), pr.node_id,
+                                       true /* cancel_first */))
+          {
+            error << "pull request " << pr.node_id
+                  << ": unable to create unloaded CI request";
+          }
+        }
+      }
+      else
+      {
+        error << "unable to fetch open pull requests with base branch "
+              << cs.check_suite.head_branch;
+      }
+    }
+
     // Start CI for the check suite.
     //
     repository_location rl (cs.repository.clone_url + '#' +
@@ -672,33 +739,28 @@ namespace brep
 
     l3 ([&]{trace << "installation_access_token { " << *iat << " }";});
 
-    string sd (service_data (warning_success,
-                             move (iat->token),
-                             iat->expires_at,
-                             pr.installation.id,
-                             move (pr.repository.node_id),
-                             pr.pull_request.head_sha,
-                             pr.repository.clone_url,
-                             pr.pull_request.number)
-                 .json ());
+    service_data sd (warning_success,
+                     move (iat->token),
+                     iat->expires_at,
+                     pr.installation.id,
+                     move (pr.repository.node_id),
+                     pr.pull_request.head_sha,
+                     pr.repository.clone_url,
+                     pr.pull_request.number);
 
-    // Create unloaded CI request. After this call we will start getting the
-    // build_unloaded() notifications until (1) we load the request, (2) we
-    // cancel it, or (3) it gets archived after some timeout.
+    // Create unloaded CI request. Cancel the existing CI request first if the
+    // head branch has been updated (action is `synchronize`).
     //
-    // Note: use no delay since we need to (re)create the synthetic merge
-    // check run as soon as possible.
+    // After this call we will start getting the build_unloaded()
+    // notifications until (1) we load the request, (2) we cancel it, or (3)
+    // it gets archived after some timeout.
     //
-    optional<string> tid (
-      create (error, warn, &trace,
-              *build_db_,
-              tenant_service (move (pr.pull_request.node_id),
-                              "ci-github",
-                              move (sd)),
-              chrono::seconds (30) /* interval */,
-              chrono::seconds (0)  /* delay */));
+    bool cancel_first (pr.action == "synchronize");
 
-    if (!tid)
+    if (!create_pull_request_ci (error, warn, trace,
+                                 sd.json (),
+                                 pr.pull_request.node_id,
+                                 cancel_first))
     {
       fail << "pull request " << pr.pull_request.node_id
            << ": unable to create unloaded CI request";
@@ -707,6 +769,8 @@ namespace brep
     return true;
   }
 
+  // Note: only handles pull requests (not check suites).
+  //
   function<optional<string> (const tenant_service&)> ci_github::
   build_unloaded (tenant_service&& ts,
                   const diag_epilogue& log_writer) const noexcept
@@ -909,14 +973,11 @@ namespace brep
 
           // Cancel the CI request.
           //
+          // Ignore failure because this CI request may have been cancelled
+          // elsewhere due to an update to the PR base or head branches.
+          //
           if (!cancel (error, warn, &trace, *build_db_, ts.type, ts.id))
-          {
-            // Nothing we can do but also highly unlikely.
-            //
-            error << "unable to cancel CI request: "
-                  << "no tenant for service type/ID "
-                  << ts.type << '/' << ts.id;
-          }
+            l3 ([&]{trace << "CI for PR " << ts.id << " already cancelled";});
 
           return nullptr; // No need to update service data in this case.
         }
@@ -1796,6 +1857,38 @@ namespace brep
 
       return sd.json ();
     };
+  }
+
+  bool ci_github::
+  create_pull_request_ci (const basic_mark& error,
+                          const basic_mark& warn,
+                          const basic_mark& trace,
+                          string sd,
+                          const string& nid,
+                          bool cf) const
+  {
+    // Cancel the existing CI request if asked to do so. Ignore failure
+    // because the request may already have been cancelled for a legitimate
+    // reason.
+    //
+    if (cf)
+    {
+      if (!cancel (error, warn, &trace, *build_db_, "ci-github", nid))
+        l3 ([&] {trace << "unable to cancel CI for pull request " << nid;});
+    }
+
+    // Create a new unloaded CI request.
+    //
+    tenant_service ts (nid, "ci-github", move (sd));
+
+    // Note: use no delay since we need to (re)create the synthetic merge
+    // check run as soon as possible.
+    //
+    return create (error, warn, &trace,
+                   *build_db_, move (ts),
+                   chrono::seconds (30) /* interval */,
+                   chrono::seconds (0)  /* delay */)
+      .has_value ();
   }
 
   string ci_github::
