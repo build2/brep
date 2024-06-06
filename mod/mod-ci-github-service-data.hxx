@@ -24,12 +24,14 @@ namespace brep
   //
   struct check_run
   {
-    string                build_id; // Full build id.
-    string                name;     // Potentially shortened build id.
-    optional<string>      node_id;  // GitHub id.
+    string                  build_id; // Full build id.
+    string                  name;     // Potentially shortened build id.
+    optional<string>        node_id;  // GitHub id.
 
-    build_state           state;
-    bool                  state_synced;
+    build_state             state;
+    bool                    state_synced;
+
+    optional<result_status> status; // Only present if state is built.
 
     string
     state_string () const

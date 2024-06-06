@@ -32,8 +32,6 @@
 //      Will need to extract a few more fields from check_runs, but the layout
 //      is very similar to that of check_suite.
 //
-//    - Pull requests. Handle
-//
 //    - Choose strong webhook secret (when deploying).
 //
 //    - Check that delivery UUID has not been received before (replay attack).
@@ -283,8 +281,6 @@ namespace brep
     // @@ There is also check_run even (re-requested by user, either
     //    individual check run or all the failed check runs).
     //
-    // @@ There is also the pull_request event. Probably need to handle.
-    //
     if (event == "check_suite")
     {
       gh_check_suite_event cs;
@@ -310,10 +306,10 @@ namespace brep
       }
       else if (cs.action == "rerequested")
       {
-        // Someone manually requested to re-run the check runs in this check
-        // suite. Treat as a new request.
+        // Someone manually requested to re-run all the check runs in this
+        // check suite. Treat as a new request.
         //
-        // @@ This is probably broken.
+        // @@@ Test and make sure works?
         //
         return handle_check_suite_request (move (cs), warning_success);
       }
@@ -517,6 +513,7 @@ namespace brep
     // want to run this code as early as possible to minimize the window of
     // the user seeing misleading CI results.
     //
+    if (cs.action == "requested")
     {
       // Fetch open pull requests with the check suite's head branch as base
       // branch.
@@ -678,6 +675,10 @@ namespace brep
   //      development models it represents something that is more likely to
   //      end up in an important branch (as opposed to the head of a feature
   //      branch).
+  //
+  //      Note that in these two cases we are building different commit (the
+  //      head commit vs merge commit). So it's not clear how we can have
+  //      a single check_suite result represent both?
   //
   //   Possible solution: ignore all check_suites with non-empty
   //   pull_requests[].
@@ -1551,8 +1552,11 @@ namespace brep
       return nullptr;
     }
 
+    // Absent if have any unbuilt check runs.
+    //
+    optional<result_status> conclusion (*b.status);
+
     check_run cr; // Updated check run.
-    bool unbuilt (false); // True if we have any other unbuilt check runs.
     {
       string bid (gh_check_run_name (b)); // Full Build ID.
 
@@ -1566,11 +1570,16 @@ namespace brep
         }
         else
         {
-          if (cr.state != build_state::built)
-            unbuilt = true;
+          if (cr.state == build_state::built)
+          {
+            if (conclusion)
+              *conclusion |= cr.status
+          }
+          else
+            conclusion = nullopt;
         }
 
-        if (scr && unbuilt)
+        if (scr && !conclusion.has_value ())
           break;
       }
 
@@ -1775,13 +1784,13 @@ namespace brep
 
       // Update the conclusion check run if all check runs are now built.
       //
-      if (cr.state == build_state::built && !unbuilt)
+      if (cr.state == build_state::built && conclusion)
       {
         assert (sd.conclusion_node_id);
 
         // Update the conclusion check run with success.
         //
-        result_status rs (result_status::success);
+        result_status rs (*conclusion);
 
         optional<gq_built_result> br (
           gq_built_result (gh_to_conclusion (rs, sd.warning_success),
