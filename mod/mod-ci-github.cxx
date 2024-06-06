@@ -1572,7 +1572,7 @@ namespace brep
           if (cr.state == build_state::built)
           {
             if (conclusion)
-              *conclusion |= cr.status
+              *conclusion |= *cr.status;
           }
           else
             conclusion = nullopt;
@@ -1781,46 +1781,59 @@ namespace brep
         }
       }
 
-      // Update the conclusion check run if all check runs are now built.
-      //
-      if (cr.state == build_state::built && conclusion)
+      if (cr.state == build_state::built)
       {
-        assert (sd.conclusion_node_id);
-
-        // Update the conclusion check run with success.
+        // Check run was created/updated successfully to built.
         //
-        result_status rs (*conclusion);
-
-        optional<gq_built_result> br (
-          gq_built_result (gh_to_conclusion (rs, sd.warning_success),
-                           circle (rs) + ' ' + ucase (to_string (rs)),
-                           "All configurations are built"));
-
-        check_run cr;
-
-        // Set some fields for display purposes.
+        // @@ TMP Feels like this should also be done inside
+        //    gq_{create,update}_check_run() -- where cr.state is set if the
+        //    create/update succeeds -- but I think we didn't want to pass a
+        //    result_status into a gq_ function because converting to a GitHub
+        //    conclusion/title/summary is reasonably complicated.
         //
-        cr.node_id = *sd.conclusion_node_id;
-        cr.name = conclusion_check_run_name;
+        cr.status = b.status;
 
-        if (gq_update_check_run (error,
-                                 cr,
-                                 iat->token,
-                                 sd.repository_node_id,
-                                 *sd.conclusion_node_id,
-                                 nullopt /* details_url */,
-                                 build_state::built,
-                                 move (br)))
+        // Update the conclusion check run if all check runs are now built.
+        //
+        if (conclusion)
         {
-          l3 ([&]{trace << "updated check_run { " << cr << " }";});
-        }
-        else
-        {
-          // Nothing we can do here except log the error.
+          assert (sd.conclusion_node_id);
+
+          // Update the conclusion check run with success.
           //
-          error << "check suite " << ts.id
-                << ": unable to update conclusion check run "
-                << *sd.conclusion_node_id;
+          result_status rs (*conclusion);
+
+          optional<gq_built_result> br (
+            gq_built_result (gh_to_conclusion (rs, sd.warning_success),
+                             circle (rs) + ' ' + ucase (to_string (rs)),
+                             "All configurations are built"));
+
+          check_run cr;
+
+          // Set some fields for display purposes.
+          //
+          cr.node_id = *sd.conclusion_node_id;
+          cr.name = conclusion_check_run_name;
+
+          if (gq_update_check_run (error,
+                                   cr,
+                                   iat->token,
+                                   sd.repository_node_id,
+                                   *sd.conclusion_node_id,
+                                   nullopt /* details_url */,
+                                   build_state::built,
+                                   move (br)))
+          {
+            l3 ([&]{trace << "updated check_run { " << cr << " }";});
+          }
+          else
+          {
+            // Nothing we can do here except log the error.
+            //
+            error << "check suite " << ts.id
+                  << ": unable to update conclusion check run "
+                  << *sd.conclusion_node_id;
+          }
         }
       }
     }
