@@ -597,6 +597,10 @@ namespace brep
         //
         bool found = false;
 
+        // Non-fatal error message issued during the parse.
+        //
+        string parse_error;
+
         // The response value. Absent if the merge commit is still being
         // generated.
         //
@@ -632,7 +636,7 @@ namespace brep
                   ; // Still being generated; leave value absent.
                 else
                 {
-                  error << "unexpected mergeable value '" << ma << "'";
+                  parse_error = "unexpected mergeable value '" + ma + '\'';
 
                   // Carry on as if it were UNKNOWN.
                 }
@@ -662,6 +666,8 @@ namespace brep
       {
         if (!rs.found)
           error << "pull request '" << nid << "' not found";
+        else if (!rs.parse_error.empty ())
+          error << rs.parse_error;
 
         return rs.value;
       }
