@@ -1579,7 +1579,10 @@ namespace brep
           if (cr.state == build_state::built)
           {
             if (conclusion)
+            {
+              assert (cr.status);
               *conclusion |= *cr.status;
+            }
           }
           else
             conclusion = nullopt;
@@ -1797,6 +1800,15 @@ namespace brep
         //    create/update succeeds -- but I think we didn't want to pass a
         //    result_status into a gq_ function because converting to a GitHub
         //    conclusion/title/summary is reasonably complicated.
+        //
+        //    @@@ We need to redo that code:
+        //
+        //    - Pass the vector of check runs with new state (and status) set.
+        //    - Update synchronized flag inside those functions.
+        //    - Update the state to built if it's already built on GitHub --
+        //      but then what do we set the status to?
+        //    - Maybe signal in return value (optional<bool>?) that there is
+        //      a discrepancy.
         //
         cr.status = b.status;
 
