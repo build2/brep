@@ -46,6 +46,16 @@ namespace brep
     build_unloaded (tenant_service&&,
                     const diag_epilogue& log_writer) const noexcept override;
 
+    function<optional<string> (const tenant_service&)>
+    build_unloaded_pre_check (tenant_service&&,
+                              service_data&&,
+                              const diag_epilogue&) const noexcept;
+
+    function<optional<string> (const tenant_service&)>
+    build_unloaded_load (tenant_service&&,
+                         service_data&&,
+                         const diag_epilogue&) const noexcept;
+
     virtual function<optional<string> (const tenant_service&)>
     build_queued (const tenant_service&,
                   const vector<build>&,

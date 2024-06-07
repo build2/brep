@@ -83,24 +83,6 @@ namespace brep
                        build_state,
                        optional<gq_built_result> = nullopt);
 
-  // Fetch a pull request's mergeability from GitHub and return it in first,
-  // or absent if the merge commit is still being generated.
-  //
-  // Return false in second and issue diagnostics if the request failed.
-  //
-  struct gq_pr_mergeability
-  {
-    // True if the pull request is auto-mergeable; false if it would create
-    // conflicts.
-    //
-    bool mergeable;
-
-    // The ID of the test merge commit. Empty if mergeable is false.
-    //
-    string merge_commit_id;
-  };
-
-
   // Fetch a pull request's mergeability from GitHub. Return absent value if
   // the merge commit is still being generated. Return empty string if the
   // pull request is not auto-mergeable. Otherwise return the test merge
@@ -110,7 +92,8 @@ namespace brep
   // will be treated by the caller as still being generated).
   //
   // Note that the first request causes GitHub to start preparing the test
-  // merge commit.
+  // merge commit. (For details see
+  // https://docs.github.com/rest/guides/getting-started-with-the-git-database-api#checking-mergeability-of-pull-requests.)
   //
   optional<string>
   gq_pull_request_mergeable (const basic_mark& error,

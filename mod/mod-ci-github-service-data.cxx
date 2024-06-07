@@ -74,7 +74,10 @@ namespace brep
       {
         string* v (p.next_expect_member_string_null ("status"));
         if (v != nullptr)
+        {
           rs = bbot::to_result_status (*v);
+          assert (s == build_state::built);
+        }
       }
 
       check_runs.emplace_back (move (bid), move (nm), move (nid), s, ss, rs);
@@ -185,7 +188,10 @@ namespace brep
 
       s.member_name ("status");
       if (cr.status)
+      {
+        assert (cr.state == build_state::built);
         s.value (to_string (*cr.status));
+      }
       else
         s.value (nullptr);
 

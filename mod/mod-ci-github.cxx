@@ -29,6 +29,8 @@
 //      - check_run (action: rerequested): received when user re-runs a
 //        specific check or all failed checks.
 //
+//        @@ TMP I have confirmed that the above is accurate.
+//
 //      Will need to extract a few more fields from check_runs, but the layout
 //      is very similar to that of check_suite.
 //
@@ -275,8 +277,8 @@ namespace brep
     // Note: "GitHub continues to add new event types and new actions to
     // existing event types." As a result we ignore known actions that we are
     // not interested in and log and ignore unknown actions. The thinking here
-    // is that we want be "notified" of new actions at which point we can decide
-    // whether to ignore them or to handle.
+    // is that we want be "notified" of new actions at which point we can
+    // decide whether to ignore them or to handle.
     //
     // @@ There is also check_run even (re-requested by user, either
     //    individual check run or all the failed check runs).
@@ -360,7 +362,7 @@ namespace brep
         //   A pull request's head branch was updated from the base branch or
         //   new commits were pushed to the head branch. (Note that there is
         //   no equivalent event for the base branch. That case gets handled
-        //   in handle_check_suite_request() instead.)
+        //   in handle_check_suite_request() instead. @@ Not anymore.)
         //
         // Note that both cases are handled the same: we start a new CI
         // request which will be reported on the new commit id.
@@ -371,6 +373,8 @@ namespace brep
       {
         // Ignore the remaining actions by sending a 200 response with empty
         // body.
+        //
+        // @@ Ignore known but log unknown, as in check_suite above?
         //
         return true;
       }
@@ -487,6 +491,8 @@ namespace brep
       }
     }
 
+    // @@ Not anymore (and may not need separate create_pull_request_ci()).
+    //
     // The merge commits of any open pull requests with this branch as base
     // branch will now be out of date, and thus so will be their CI builds and
     // associated check runs (and, no, GitHub does not invalidate those CI
@@ -526,7 +532,7 @@ namespace brep
       {
         // Recreate each PR's CI request.
         //
-        for (gh_pull_request& pr: *prs)
+        for (const gh_pull_request& pr: *prs)
         {
           service_data prsd (sd.warning_success,
                              sd.installation_access.token,
@@ -566,6 +572,8 @@ namespace brep
       if (!cancel (error, warn, &trace, *build_db_, "ci-github", nid))
         error << "check suite " << nid << " (re-requested): unable to cancel";
     }
+
+    // @@@ Use repo+head ad service id.
 
     // Start CI for the check suite.
     //
@@ -613,6 +621,8 @@ namespace brep
                                build_state::built,
                                move (br)))
       {
+        assert (cr.state == build_state::built);
+
         l3 ([&]{trace << "updated check_run { " << cr << " }";});
       }
       else
@@ -673,34 +683,66 @@ namespace brep
   //   from within the same repository or from a forked repository. The merge
   //   and head commits will be at refs/pull/<PR-number>/{merge,head}.
   //
-  // - New commits are added to PR head branch
+  // - @@ TODO Shared repo model problems
   //
-  //   @@ TODO In this case we will end up creating two sets of check runs on
-  //      the same commit (pull_request.head.sha and
-  //      check_suite.head_sha). It's not obvious which to prefer but I'm
-  //      thinking the pull request is more important because in most
-  //      development models it represents something that is more likely to
-  //      end up in an important branch (as opposed to the head of a feature
-  //      branch).
+  //      The root of all of these problems is that, in the shared repository
+  //      model, for every PR we also receive a check_suite for the commit to
+  //      the head branch. The situation is exacerbated by the fact that the
+  //      PR and CS can arrive in any order.
   //
-  //      Note that in these two cases we are building different commit (the
-  //      head commit vs merge commit). So it's not clear how we can have
-  //      a single check_suite result represent both?
+  //       - There will be two CIs running concurrently, building different
+  //         commits: the head commit (check_suite) vs merge commit
+  //         (pull_request).
   //
-  //   Possible solution: ignore all check_suites with non-empty
-  //   pull_requests[].
+  //       - The CS and PR check_runs will all be added to the same commit
+  //         SHA: pull_request.head.sha, check_suite.head_sha (see above for
+  //         the reasons we don't put the check_runs on the merge
+  //         commit).
   //
-  //   => check_suite(requested, PR_head) [only in shared repo model]
+  //       - Recall that creating a check_run named `A` will effectively
+  //         replace any existing check_runs with that name. They will still
+  //         exist on the GitHub servers but GitHub will only consider the
+  //         latest one (for display in the UI or in determining the
+  //         mergeability of a PR).
   //
-  //      Note: check_suite.pull_requests[] will contain all PRs with this
-  //      branch as head.
+  //       - Some CS CRs may finish after the corresponding PR CRs, thus
+  //         potentially inverting the true status of a PR (e.g., allow the
+  //         merge of a PR with a bad merge commit).
   //
-  //      Note: check_suite.pull_requests[i].head.sha will be the new, updated
-  //      PR head sha.
+  //   Thus we need a way to prevent any CS check_runs from being updated
+  //   after having received a PR.
   //
-  //   => pull_request(synchronize)
+  //   Problem 1: Create PR from feature branch
   //
-  //   Note: The check_suite and pull_request can arrive in any order.
+  //     - Receive check_suite for commit to feature branch
+  //     - Receive pull_request
+  //
+  //     Solution: When receive a PR, fetch all check_suites with that head
+  //     SHA (curl REPO/commits/SHA/check-suites) and cancel their CI
+  //     jobs.
+  //
+  //     Thus there will be no more CS check_run updates. Note however that in
+  //     most cases the PR will be received long enough after the CS for the
+  //     latter's check_runs to all have completed already.
+  //
+  //     Note that there will not be a merge CR on the head yet so the PR will
+  //     never be green.
+  //
+  //   Problem 2: New commits are added to PR head branch
+  //
+  //     Note: The check_suite and pull_request can arrive in any order.
+  //
+  //     - check_suite(requested, PR_head)
+  //
+  //       Note: check_suite.pull_requests[] will contain all PRs with this
+  //       branch as head.
+  //
+  //       Note: check_suite.pull_requests[i].head.sha will be the new,
+  //       updated PR head sha.
+  //
+  //     - pull_request(synchronize)
+  //
+  //     Solution: Ignore all check_suites with non-empty pull_requests[].
   //
   // - New commits are added to PR base branch
   //
@@ -712,6 +754,9 @@ namespace brep
   //   => pull_request(edited)
   //
   // - PR closed @@ TODO
+  //
+  //   Also received if base branch is deleted. (And presumably same for head
+  //   branch.)
   //
   //   => pull_request(closed)
   //
@@ -779,8 +824,6 @@ namespace brep
     return true;
   }
 
-  // Note: only handles pull requests (not check suites).
-  //
   function<optional<string> (const tenant_service&)> ci_github::
   build_unloaded (tenant_service&& ts,
                   const diag_epilogue& log_writer) const noexcept
@@ -797,6 +840,42 @@ namespace brep
       error << "failed to parse service data: " << e;
       return nullptr;
     }
+
+    return sd.pre_check
+             ? build_unloaded_pre_check (move (ts), move (sd), log_writer)
+             : build_unloaded_load (move (ts), move (sd), log_writer);
+  }
+
+  function<optional<string> (const tenant_service&)> ci_github::
+  build_unloaded_pre_check (
+    tenant_service&&,
+    service_data&&,
+    const diag_epilogue& log_writer) const noexcept
+  {
+    NOTIFICATION_DIAG (log_writer);
+
+    // Note: PR only (but both local and remove).
+    //
+    // - Ask for test merge commit.
+    // - If not ready, get called again.
+    // - If not mergeable, behind, of different head, cancel itself and ignore.
+    // - Otherwise, create unloaded CI tenant (with proper duplicate mode
+    //   based on re_request) and cancel itself.
+
+    return nullptr;
+  }
+
+  function<optional<string> (const tenant_service&)> ci_github::
+  build_unloaded_load (
+    tenant_service&& ts,
+    service_data&& sd,
+    const diag_epilogue& log_writer) const noexcept
+  {
+    NOTIFICATION_DIAG (log_writer);
+
+    // @@@ TODO: load the tenant: should be the same for both branch push and
+    // PR.
+    //
 
     // Get a new installation access token if the current one has expired.
     //
@@ -907,6 +986,8 @@ namespace brep
                                build_state::built,
                                move (br)))
       {
+        assert (cr.state == build_state::built);
+
         return cr;
       }
       else
@@ -1579,7 +1660,10 @@ namespace brep
           if (cr.state == build_state::built)
           {
             if (conclusion)
+            {
+              assert (cr.status);
               *conclusion |= *cr.status;
+            }
           }
           else
             conclusion = nullopt;
@@ -1602,8 +1686,6 @@ namespace brep
         if (scr->state == build_state::built)
           return nullptr;
 
-        // Don't move from scr because we search sd.check_runs below.
-        //
         cr = move (*scr);
       }
       else
@@ -1788,7 +1870,7 @@ namespace brep
         }
       }
 
-      if (cr.state == build_state::built)
+      if (cr.state_synced)
       {
         // Check run was created/updated successfully to built.
         //
@@ -1797,6 +1879,27 @@ namespace brep
         //    create/update succeeds -- but I think we didn't want to pass a
         //    result_status into a gq_ function because converting to a GitHub
         //    conclusion/title/summary is reasonably complicated.
+        //
+        //    @@@ We need to redo that code:
+        //
+        //    - Pass the vector of check runs with new state (and status) set.
+        //    - Update synchronized flag inside those functions.
+        //    - Update the state to built if it's already built on GitHub --
+        //      but then what do we set the status to?
+        //
+        //      @@ TMP This scenario can only arise for updates to building.
+        //         For creations a new CR will always be created so the
+        //         returned state will always be what we asked for; and we
+        //         never update to queued.
+        //
+        //         As for updates to building, if GH has already been updated
+        //         to built then the build_built() lambda will soon save the
+        //         built state and valid status so nothing more should need to
+        //         be done. In fact, whenever updating to building we do stop
+        //         immediately if it's already built on GH.
+        //
+        //    - Maybe signal in return value (optional<bool>?) that there is
+        //      a discrepancy.
         //
         cr.status = b.status;
 
@@ -1831,6 +1934,8 @@ namespace brep
                                    build_state::built,
                                    move (br)))
           {
+            assert (cr.state == build_state::built);
+
             l3 ([&]{trace << "updated check_run { " << cr << " }";});
           }
           else
@@ -1918,7 +2023,7 @@ namespace brep
                    *build_db_, move (ts),
                    chrono::seconds (30) /* interval */,
                    chrono::seconds (0)  /* delay */)
-      .has_value ();
+      .first.has_value (); // @@ TODO HACKED AROUND
   }
 
   string ci_github::
