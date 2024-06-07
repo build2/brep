@@ -265,6 +265,12 @@ namespace brep
 
             build_state rst (gh_from_status (rcr.status)); // Received state.
 
+            // Note that GitHub won't allow us to change a built check run
+            // to any other state.
+            //
+            // @@ Are we handling the case where the resulting state (built)
+            //    differs from what we expect?
+            //
             if (rst != build_state::built && rst != st)
             {
               error << "unexpected check_run status: received '" << rcr.status
@@ -279,7 +285,7 @@ namespace brep
               if (!cr.node_id)
                 cr.node_id = move (rcr.node_id);
 
-              cr.state = gh_from_status (rcr.status);
+              cr.state = rst;
               cr.state_synced = true;
             }
           }
@@ -636,6 +642,8 @@ namespace brep
                   ; // Still being generated; leave value absent.
                 else
                 {
+                  // @@ Let's throw invalid_json.
+                  //
                   parse_error = "unexpected mergeable value '" + ma + '\'';
 
                   // Carry on as if it were UNKNOWN.
