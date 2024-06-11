@@ -1,3 +1,21 @@
+Version 0.17.0
+
+  * Support for auxiliary machines/configurations.
+
+  * Support for tenant-associated service notifications. These can be used,
+    for example, for third-party CI UI integration (such as GitHub).
+
+  * Support for canceling CI requests.
+
+  * Support for custom build bots.
+
+  * The build-toolchain-email configuration option can now be used to specify
+    per-toolchain values.
+
+  * New search-description configuration option.
+
+  * New --ignore-unresolv-tests, --ignore-unresolv-cond loader options.
+
 Version 0.16.0
 
   * Note: brep_build database schema migration from version 18 is unsupported.
