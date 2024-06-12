@@ -2261,10 +2261,13 @@ handle (request& rq, response& rs)
           {
             // Just try with the next rebuild. But first, restore the agent's
             // fingerprint and challenge and reset the task manifest and the
-            // session that we may have prepared.
+            // session that we have prepared.
             //
-            agent_fp      = move (b->agent_fingerprint);
-            challenge     = move (b->agent_challenge);
+            assert (task_build != nullptr);
+
+            agent_fp      = move (task_build->agent_fingerprint);
+            challenge     = move (task_build->agent_challenge);
+            task_build    = nullptr;
             task_response = task_response_manifest ();
           }
 
