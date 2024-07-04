@@ -7,5 +7,9 @@ summary: The Expat Library
 license: MIT
 url: http://www.example.com/expat/
 email: expat-users@example.com
+bootstrap-build:
+\
+project = libexpat
+\
 location: libexpat-5.1.tar.gz
 sha256sum: 75ccba3da34dd0296866027a26b6bacf08cacc80f54516d3b8d8eeccbe31ab93
