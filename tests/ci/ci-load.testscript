@@ -105,11 +105,13 @@
         email: user@example.org
         %depends: \\* build2 .+%
         %depends: \\* bpkg .+%
-        bootstrap-build:\\
+        bootstrap-build:
+        \\
         project = libhello
         %.+
         \\
-        root-build:\\
+        root-build:
+        \\
         cxx.std = latest
         %.+
         \\
@@ -124,11 +126,13 @@
         email: user@example.org
         %depends: \\* build2 .+%
         %depends: \\* bpkg .+%
-        bootstrap-build:\\
+        bootstrap-build:
+        \\
         project = hello
         %.+
         \\
-        root-build:\\
+        root-build:
+        \\
         cxx.std = latest
         %.+
         \\
@@ -164,11 +168,13 @@
         email: user@example.org
         %depends: \\* build2 .+%
         %depends: \\* bpkg .+%
-        bootstrap-build:\\
+        bootstrap-build:
+        \\
         project = hello
         %.+
         \\
-        root-build:\\
+        root-build:
+        \\
         cxx.std = latest
         %.+
         \\
@@ -205,11 +211,13 @@
         email: user@example.org
         %depends: \\* build2 .+%
         %depends: \\* bpkg .+%
-        bootstrap-build:\\
+        bootstrap-build:
+        \\
         project = libhello
         %.+
         \\
-        root-build:\\
+        root-build:
+        \\
         cxx.std = latest
         %.+
         \\

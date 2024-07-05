@@ -182,7 +182,8 @@ clone_root_rep = [cmdline] cp --no-cleanup -r $root_rep ./ &pkg-1/*** &?pkg.lock
     $* $~/brep-loader $~/pkg $~/$data_dir >>~"%EOO%"
       : 1
       status: 400
-      message:\\
+      message:
+      \\
       submitted archive is not a valid package
       %.+
       \\
@@ -203,7 +204,8 @@ clone_root_rep = [cmdline] cp --no-cleanup -r $root_rep ./ &pkg-1/*** &?pkg.lock
     $* $~/brep-loader $~/pkg $~/$data_dir >>~"%EOO%"
       : 1
       status: 400
-      message:\\
+      message:
+      \\
       unable to add package to repository
       %.+
       \\
