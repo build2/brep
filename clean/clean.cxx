@@ -313,76 +313,129 @@ namespace brep
     prep_pkg_query pkg_prep_query (
       conn->prepare_query<build_package_version> ("package-query", pq));
 
+    // On the recoverable database error we will retry querying/traversing
+    // builds in the current chunk, up to 10 times. If we still end up with
+    // the recoverable database error, then just skip this builds chunk.
+    //
+    const size_t max_retries (10);
+    size_t retry (max_retries);
+
+    // If we fail to erase some builds due to the recoverable database error
+    // and no builds are erased during this run, then we terminate with the
+    // exit code 3 (recoverable database error).
+    //
+    bool erased (false);
+    optional<string> re;
+
     for (bool ne (true); ne; )
     {
-      transaction t (conn->begin ());
+      size_t n (0);
 
-      // Query builds.
-      //
-      auto builds (bld_prep_query.execute ());
-
-      if ((ne = !builds.empty ()))
+      try
       {
-        for (const auto& b: builds)
+        transaction t (conn->begin ());
+
+        // Query builds.
+        //
+        auto builds (bld_prep_query.execute ());
+
+        n = builds.size ();
+
+        size_t not_erased (0);
+
+        if ((ne = (n != 0)))
         {
-          auto i (timeouts.find (b.toolchain_name));
-
-          timestamp et (i != timeouts.end ()
-                        ? i->second
-                        : default_timeout);
-
-          // Note that we don't consider the case when both the configuration
-          // and the package still exist but the package now excludes the
-          // configuration (configuration is now of the legacy class instead
-          // of the default class, etc). Should we handle this case and
-          // re-implement in a way brep-monitor does it? Probably not since
-          // the described situation is not very common and storing some extra
-          // builds which sooner or later will be wiped out due to the timeout
-          // is harmless. The current implementation, however, is simpler and
-          // consumes less resources in runtime (doesn't load build package
-          // objects, etc).
-          //
-          bool cleanup (
-            // Check that the build is not stale.
-            //
-            b.timestamp <= et ||
-
-            // Check that the build configuration is still present.
-            //
-            // Note that we unable to detect configuration changes and rely on
-            // periodic rebuilds to take care of that.
-            //
-            configs_set.find (
-              build_target_config_id {b.target,
-                                      b.target_config_name}) ==
-            configs_set.end ());
-
-          // Check that the build package still exists.
-          //
-          if (!cleanup)
+          for (const auto& b: builds)
           {
-            if (tnt != b.tenant || pkg_name != b.package_name)
-            {
-              tnt = b.tenant;
-              pkg_name = b.package_name;
-              package_versions.clear ();
+            auto i (timeouts.find (b.toolchain_name));
 
-              for (auto& p: pkg_prep_query.execute ())
-                package_versions.emplace (move (p.version));
+            timestamp et (i != timeouts.end ()
+                          ? i->second
+                          : default_timeout);
+
+            // Note that we don't consider the case when both the
+            // configuration and the package still exist but the package now
+            // excludes the configuration (configuration is now of the legacy
+            // class instead of the default class, etc). Should we handle this
+            // case and re-implement in a way brep-monitor does it? Probably
+            // not since the described situation is not very common and
+            // storing some extra builds which sooner or later will be wiped
+            // out due to the timeout is harmless. The current implementation,
+            // however, is simpler and consumes less resources in runtime
+            // (doesn't load build package objects, etc).
+            //
+            bool cleanup (
+              // Check that the build is not stale.
+              //
+              b.timestamp <= et ||
+
+              // Check that the build configuration is still present.
+              //
+              // Note that we unable to detect configuration changes and rely
+              // on periodic rebuilds to take care of that.
+              //
+              configs_set.find (
+                build_target_config_id {
+                  b.target, b.target_config_name}) == configs_set.end ());
+
+            // Check that the build package still exists.
+            //
+            if (!cleanup)
+            {
+              if (tnt != b.tenant || pkg_name != b.package_name)
+              {
+                tnt = b.tenant;
+                pkg_name = b.package_name;
+                package_versions.clear ();
+
+                for (auto& p: pkg_prep_query.execute ())
+                  package_versions.emplace (move (p.version));
+              }
+
+              cleanup = package_versions.find (b.package_version) ==
+                        package_versions.end ();
             }
 
-            cleanup = package_versions.find (b.package_version) ==
-                      package_versions.end ();
+            if (cleanup)
+              db.erase (b);
+            else
+              ++not_erased;
           }
-
-          if (cleanup)
-            db.erase (b);
-          else
-            ++offset;
         }
-      }
 
-      t.commit ();
+        t.commit ();
+
+        if (!erased)
+          erased = (not_erased != n);
+
+        offset += not_erased;
+        retry = max_retries;
+      }
+      catch (const recoverable& e)
+      {
+        // Re-iterate over the current builds chunk, unless there are no more
+        // attempts left. In the later case stash the error message, if not
+        // stashed yet, and skip the current builds chunk.
+        //
+        if (retry-- == 0)
+        {
+          offset += n;
+          retry = max_retries;
+
+          if (!re)
+            re = e.what ();
+        }
+
+        tnt = "";
+        pkg_name = package_name ();
+        package_versions.clear ();
+      }
+    }
+
+    if (re && !erased)
+    {
+      cerr << "recoverable database error: " << *re << endl;
+      return 3;
     }
 
     return 0;
