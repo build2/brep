@@ -1,12 +1,61 @@
 <changelog xmlns="http://www.codesynthesis.com/xmlns/odb/changelog" database="pgsql" schema-name="build" version="1">
-  <changeset version="28"/>
-
-  <changeset version="27"/>
-
-  <changeset version="26"/>
-
-  <changeset version="25">
-    <add-table name="build_auxiliary_machines" kind="container">
+  <model version="28">
+    <table name="build" kind="object">
+      <column name="package_tenant" type="TEXT" null="false"/>
+      <column name="package_name" type="CITEXT" null="false"/>
+      <column name="package_version_epoch" type="INTEGER" null="false"/>
+      <column name="package_version_canonical_upstream" type="TEXT" null="false"/>
+      <column name="package_version_canonical_release" type="TEXT" null="false" options="COLLATE &quot;C&quot;"/>
+      <column name="package_version_revision" type="INTEGER" null="false"/>
+      <column name="target" type="TEXT" null="false"/>
+      <column name="target_config_name" type="TEXT" null="false"/>
+      <column name="package_config_name" type="TEXT" null="false"/>
+      <column name="toolchain_name" type="TEXT" null="false"/>
+      <column name="toolchain_version_epoch" type="INTEGER" null="false"/>
+      <column name="toolchain_version_canonical_upstream" type="TEXT" null="false"/>
+      <column name="toolchain_version_canonical_release" type="TEXT" null="false" options="COLLATE &quot;C&quot;"/>
+      <column name="toolchain_version_revision" type="INTEGER" null="false"/>
+      <column name="package_version_upstream" type="TEXT" null="false"/>
+      <column name="package_version_release" type="TEXT" null="true"/>
+      <column name="toolchain_version_upstream" type="TEXT" null="false"/>
+      <column name="toolchain_version_release" type="TEXT" null="true"/>
+      <column name="state" type="TEXT" null="false"/>
+      <column name="interactive" type="TEXT" null="true"/>
+      <column name="timestamp" type="BIGINT" null="false"/>
+      <column name="force" type="TEXT" null="false"/>
+      <column name="status" type="TEXT" null="true"/>
+      <column name="soft_timestamp" type="BIGINT" null="false"/>
+      <column name="hard_timestamp" type="BIGINT" null="false"/>
+      <column name="agent_fingerprint" type="TEXT" null="true"/>
+      <column name="agent_challenge" type="TEXT" null="true"/>
+      <column name="controller_checksum" type="TEXT" null="false"/>
+      <column name="machine_checksum" type="TEXT" null="false"/>
+      <column name="agent_checksum" type="TEXT" null="true"/>
+      <column name="worker_checksum" type="TEXT" null="true"/>
+      <column name="dependency_checksum" type="TEXT" null="true"/>
+      <column name="machine" type="TEXT" null="false"/>
+      <column name="machine_summary" type="TEXT" null="false"/>
+      <primary-key>
+        <column name="package_tenant"/>
+        <column name="package_name"/>
+        <column name="package_version_epoch"/>
+        <column name="package_version_canonical_upstream"/>
+        <column name="package_version_canonical_release"/>
+        <column name="package_version_revision"/>
+        <column name="target"/>
+        <column name="target_config_name"/>
+        <column name="package_config_name"/>
+        <column name="toolchain_name"/>
+        <column name="toolchain_version_epoch"/>
+        <column name="toolchain_version_canonical_upstream"/>
+        <column name="toolchain_version_canonical_release"/>
+        <column name="toolchain_version_revision"/>
+      </primary-key>
+      <index name="build_timestamp_i">
+        <column name="timestamp"/>
+      </index>
+    </table>
+    <table name="build_auxiliary_machines" kind="container">
       <column name="package_tenant" type="TEXT" null="false"/>
       <column name="package_name" type="CITEXT" null="false"/>
       <column name="package_version_epoch" type="INTEGER" null="false"/>
@@ -74,72 +123,6 @@
       </index>
       <index name="build_auxiliary_machines_index_i">
         <column name="index"/>
-      </index>
-    </add-table>
-  </changeset>
-
-  <changeset version="24"/>
-
-  <changeset version="23"/>
-
-  <changeset version="22"/>
-
-  <changeset version="21"/>
-
-  <model version="20">
-    <table name="build" kind="object">
-      <column name="package_tenant" type="TEXT" null="false"/>
-      <column name="package_name" type="CITEXT" null="false"/>
-      <column name="package_version_epoch" type="INTEGER" null="false"/>
-      <column name="package_version_canonical_upstream" type="TEXT" null="false"/>
-      <column name="package_version_canonical_release" type="TEXT" null="false" options="COLLATE &quot;C&quot;"/>
-      <column name="package_version_revision" type="INTEGER" null="false"/>
-      <column name="target" type="TEXT" null="false"/>
-      <column name="target_config_name" type="TEXT" null="false"/>
-      <column name="package_config_name" type="TEXT" null="false"/>
-      <column name="toolchain_name" type="TEXT" null="false"/>
-      <column name="toolchain_version_epoch" type="INTEGER" null="false"/>
-      <column name="toolchain_version_canonical_upstream" type="TEXT" null="false"/>
-      <column name="toolchain_version_canonical_release" type="TEXT" null="false" options="COLLATE &quot;C&quot;"/>
-      <column name="toolchain_version_revision" type="INTEGER" null="false"/>
-      <column name="package_version_upstream" type="TEXT" null="false"/>
-      <column name="package_version_release" type="TEXT" null="true"/>
-      <column name="toolchain_version_upstream" type="TEXT" null="false"/>
-      <column name="toolchain_version_release" type="TEXT" null="true"/>
-      <column name="state" type="TEXT" null="false"/>
-      <column name="interactive" type="TEXT" null="true"/>
-      <column name="timestamp" type="BIGINT" null="false"/>
-      <column name="force" type="TEXT" null="false"/>
-      <column name="status" type="TEXT" null="true"/>
-      <column name="soft_timestamp" type="BIGINT" null="false"/>
-      <column name="hard_timestamp" type="BIGINT" null="false"/>
-      <column name="agent_fingerprint" type="TEXT" null="true"/>
-      <column name="agent_challenge" type="TEXT" null="true"/>
-      <column name="machine" type="TEXT" null="false"/>
-      <column name="machine_summary" type="TEXT" null="false"/>
-      <column name="controller_checksum" type="TEXT" null="false"/>
-      <column name="machine_checksum" type="TEXT" null="false"/>
-      <column name="agent_checksum" type="TEXT" null="true"/>
-      <column name="worker_checksum" type="TEXT" null="true"/>
-      <column name="dependency_checksum" type="TEXT" null="true"/>
-      <primary-key>
-        <column name="package_tenant"/>
-        <column name="package_name"/>
-        <column name="package_version_epoch"/>
-        <column name="package_version_canonical_upstream"/>
-        <column name="package_version_canonical_release"/>
-        <column name="package_version_revision"/>
-        <column name="target"/>
-        <column name="target_config_name"/>
-        <column name="package_config_name"/>
-        <column name="toolchain_name"/>
-        <column name="toolchain_version_epoch"/>
-        <column name="toolchain_version_canonical_upstream"/>
-        <column name="toolchain_version_canonical_release"/>
-        <column name="toolchain_version_revision"/>
-      </primary-key>
-      <index name="build_timestamp_i">
-        <column name="timestamp"/>
       </index>
     </table>
     <table name="build_results" kind="container">

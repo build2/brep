@@ -1,295 +1,37 @@
 <changelog xmlns="http://www.codesynthesis.com/xmlns/odb/changelog" database="pgsql" schema-name="package" version="1">
-  <changeset version="34">
-    <alter-table name="tenant">
-      <add-column name="unloaded_timestamp" type="BIGINT" null="true"/>
-      <add-column name="unloaded_notify_interval" type="BIGINT" null="true"/>
-      <add-index name="tenant_unloaded_timestamp_i">
-        <column name="unloaded_timestamp"/>
-      </add-index>
-    </alter-table>
-  </changeset>
-
-  <changeset version="33">
-    <add-table name="public_key" kind="object">
-      <column name="tenant" type="TEXT" null="false"/>
-      <column name="fingerprint" type="TEXT" null="false"/>
-      <column name="data" type="TEXT" null="false"/>
-      <primary-key>
-        <column name="tenant"/>
-        <column name="fingerprint"/>
-      </primary-key>
-      <foreign-key name="tenant_fk" deferrable="DEFERRED">
-        <column name="tenant"/>
-        <references table="tenant">
-          <column name="id"/>
-        </references>
-      </foreign-key>
-    </add-table>
-    <alter-table name="package">
-      <add-column name="custom_bot" type="BOOLEAN" null="true"/>
-    </alter-table>
-    <add-table name="package_build_bot_keys" kind="container">
-      <column name="tenant" type="TEXT" null="false"/>
-      <column name="name" type="CITEXT" null="false"/>
-      <column name="version_epoch" type="INTEGER" null="false"/>
-      <column name="version_canonical_upstream" type="TEXT" null="false"/>
-      <column name="version_canonical_release" type="TEXT" null="false" options="COLLATE &quot;C&quot;"/>
-      <column name="version_revision" type="INTEGER" null="false"/>
-      <column name="index" type="BIGINT" null="false"/>
-      <column name="key_tenant" type="TEXT" null="false"/>
-      <column name="key_fingerprint" type="TEXT" null="false"/>
-      <foreign-key name="tenant_fk" deferrable="DEFERRED">
-        <column name="tenant"/>
-        <references table="tenant">
-          <column name="id"/>
-        </references>
-      </foreign-key>
-      <foreign-key name="object_id_fk" on-delete="CASCADE">
-        <column name="tenant"/>
-        <column name="name"/>
-        <column name="version_epoch"/>
-        <column name="version_canonical_upstream"/>
-        <column name="version_canonical_release"/>
-        <column name="version_revision"/>
-        <references table="package">
-          <column name="tenant"/>
-          <column name="name"/>
-          <column name="version_epoch"/>
-          <column name="version_canonical_upstream"/>
-          <column name="version_canonical_release"/>
-          <column name="version_revision"/>
-        </references>
-      </foreign-key>
-      <index name="package_build_bot_keys_object_id_i">
-        <column name="tenant"/>
-        <column name="name"/>
-        <column name="version_epoch"/>
-        <column name="version_canonical_upstream"/>
-        <column name="version_canonical_release"/>
-        <column name="version_revision"/>
-      </index>
-      <index name="package_build_bot_keys_index_i">
-        <column name="index"/>
-      </index>
-      <foreign-key name="key_tenant_fk" deferrable="DEFERRED">
-        <column name="key_tenant"/>
-        <references table="tenant">
-          <column name="id"/>
-        </references>
-      </foreign-key>
-      <foreign-key name="key_fk" deferrable="DEFERRED">
-        <column name="key_tenant"/>
-        <column name="key_fingerprint"/>
-        <references table="public_key">
-          <column name="tenant"/>
-          <column name="fingerprint"/>
-        </references>
-      </foreign-key>
-    </add-table>
-    <add-table name="package_build_config_bot_keys" kind="container">
-      <column name="tenant" type="TEXT" null="false"/>
-      <column name="name" type="CITEXT" null="false"/>
-      <column name="version_epoch" type="INTEGER" null="false"/>
-      <column name="version_canonical_upstream" type="TEXT" null="false"/>
-      <column name="version_canonical_release" type="TEXT" null="false" options="COLLATE &quot;C&quot;"/>
-      <column name="version_revision" type="INTEGER" null="false"/>
-      <column name="config_index" type="BIGINT" null="false"/>
-      <column name="index" type="BIGINT" null="false"/>
-      <column name="key_tenant" type="TEXT" null="false"/>
-      <column name="key_fingerprint" type="TEXT" null="false"/>
-      <foreign-key name="tenant_fk" deferrable="DEFERRED">
-        <column name="tenant"/>
-        <references table="tenant">
-          <column name="id"/>
-        </references>
-      </foreign-key>
-      <foreign-key name="object_id_fk" on-delete="CASCADE">
-        <column name="tenant"/>
-        <column name="name"/>
-        <column name="version_epoch"/>
-        <column name="version_canonical_upstream"/>
-        <column name="version_canonical_release"/>
-        <column name="version_revision"/>
-        <references table="package">
-          <column name="tenant"/>
-          <column name="name"/>
-          <column name="version_epoch"/>
-          <column name="version_canonical_upstream"/>
-          <column name="version_canonical_release"/>
-          <column name="version_revision"/>
-        </references>
-      </foreign-key>
-      <index name="package_build_config_bot_keys_object_id_i">
-        <column name="tenant"/>
-        <column name="name"/>
-        <column name="version_epoch"/>
-        <column name="version_canonical_upstream"/>
-        <column name="version_canonical_release"/>
-        <column name="version_revision"/>
-      </index>
-      <foreign-key name="key_tenant_fk" deferrable="DEFERRED">
-        <column name="key_tenant"/>
-        <references table="tenant">
-          <column name="id"/>
-        </references>
-      </foreign-key>
-      <foreign-key name="key_fk" deferrable="DEFERRED">
-        <column name="key_tenant"/>
-        <column name="key_fingerprint"/>
-        <references table="public_key">
-          <column name="tenant"/>
-          <column name="fingerprint"/>
-        </references>
-      </foreign-key>
-    </add-table>
-  </changeset>
-
-  <changeset version="32">
-    <alter-table name="tenant">
-      <add-column name="build_toolchain_name" type="TEXT" null="true"/>
-      <add-column name="build_toolchain_version_epoch" type="INTEGER" null="true"/>
-      <add-column name="build_toolchain_version_canonical_upstream" type="TEXT" null="true"/>
-      <add-column name="build_toolchain_version_canonical_release" type="TEXT" null="true"/>
-      <add-column name="build_toolchain_version_revision" type="INTEGER" null="true"/>
-      <add-column name="build_toolchain_version_upstream" type="TEXT" null="true"/>
-      <add-column name="build_toolchain_version_release" type="TEXT" null="true"/>
-    </alter-table>
-  </changeset>
-
-  <changeset version="31">
-    <add-table name="package_build_auxiliaries" kind="container">
-      <column name="tenant" type="TEXT" null="false"/>
-      <column name="name" type="CITEXT" null="false"/>
-      <column name="version_epoch" type="INTEGER" null="false"/>
-      <column name="version_canonical_upstream" type="TEXT" null="false"/>
-      <column name="version_canonical_release" type="TEXT" null="false" options="COLLATE &quot;C&quot;"/>
-      <column name="version_revision" type="INTEGER" null="false"/>
-      <column name="index" type="BIGINT" null="false"/>
-      <column name="environment_name" type="TEXT" null="false"/>
-      <column name="config" type="TEXT" null="false"/>
-      <column name="comment" type="TEXT" null="false"/>
-      <foreign-key name="tenant_fk" deferrable="DEFERRED">
-        <column name="tenant"/>
-        <references table="tenant">
-          <column name="id"/>
-        </references>
-      </foreign-key>
-      <foreign-key name="object_id_fk" on-delete="CASCADE">
-        <column name="tenant"/>
-        <column name="name"/>
-        <column name="version_epoch"/>
-        <column name="version_canonical_upstream"/>
-        <column name="version_canonical_release"/>
-        <column name="version_revision"/>
-        <references table="package">
-          <column name="tenant"/>
-          <column name="name"/>
-          <column name="version_epoch"/>
-          <column name="version_canonical_upstream"/>
-          <column name="version_canonical_release"/>
-          <column name="version_revision"/>
-        </references>
-      </foreign-key>
-      <index name="package_build_auxiliaries_object_id_i">
-        <column name="tenant"/>
-        <column name="name"/>
-        <column name="version_epoch"/>
-        <column name="version_canonical_upstream"/>
-        <column name="version_canonical_release"/>
-        <column name="version_revision"/>
-      </index>
-      <index name="package_build_auxiliaries_index_i">
-        <column name="index"/>
-      </index>
-    </add-table>
-    <add-table name="package_build_config_auxiliaries" kind="container">
-      <column name="tenant" type="TEXT" null="false"/>
-      <column name="name" type="CITEXT" null="false"/>
-      <column name="version_epoch" type="INTEGER" null="false"/>
-      <column name="version_canonical_upstream" type="TEXT" null="false"/>
-      <column name="version_canonical_release" type="TEXT" null="false" options="COLLATE &quot;C&quot;"/>
-      <column name="version_revision" type="INTEGER" null="false"/>
-      <column name="config_index" type="BIGINT" null="false"/>
-      <column name="index" type="BIGINT" null="false"/>
-      <column name="environment_name" type="TEXT" null="false"/>
-      <column name="config" type="TEXT" null="false"/>
-      <column name="comment" type="TEXT" null="false"/>
-      <foreign-key name="tenant_fk" deferrable="DEFERRED">
-        <column name="tenant"/>
-        <references table="tenant">
-          <column name="id"/>
-        </references>
-      </foreign-key>
-      <foreign-key name="object_id_fk" on-delete="CASCADE">
-        <column name="tenant"/>
-        <column name="name"/>
-        <column name="version_epoch"/>
-        <column name="version_canonical_upstream"/>
-        <column name="version_canonical_release"/>
-        <column name="version_revision"/>
-        <references table="package">
-          <column name="tenant"/>
-          <column name="name"/>
-          <column name="version_epoch"/>
-          <column name="version_canonical_upstream"/>
-          <column name="version_canonical_release"/>
-          <column name="version_revision"/>
-        </references>
-      </foreign-key>
-      <index name="package_build_config_auxiliaries_object_id_i">
-        <column name="tenant"/>
-        <column name="name"/>
-        <column name="version_epoch"/>
-        <column name="version_canonical_upstream"/>
-        <column name="version_canonical_release"/>
-        <column name="version_revision"/>
-      </index>
-    </add-table>
-  </changeset>
-
-  <changeset version="30">
-    <alter-table name="tenant">
-      <add-column name="service_id" type="TEXT" null="true"/>
-      <add-column name="service_type" type="TEXT" null="true"/>
-      <add-column name="service_data" type="TEXT" null="true"/>
-      <add-column name="queued_timestamp" type="BIGINT" null="true"/>
-      <add-index name="tenant_service_i" type="UNIQUE">
-        <column name="service_id"/>
-        <column name="service_type"/>
-      </add-index>
-      <add-index name="tenant_service_id_i">
-        <column name="service_id"/>
-      </add-index>
-    </alter-table>
-  </changeset>
-
-  <changeset version="29">
-    <alter-table name="package_tests">
-      <add-column name="test_enable" type="TEXT" null="true"/>
-    </alter-table>
-  </changeset>
-
-  <changeset version="28">
-    <alter-table name="package_build_configs">
-      <add-column name="config_email" type="TEXT" null="true"/>
-      <add-column name="config_email_comment" type="TEXT" null="true"/>
-      <add-column name="config_warning_email" type="TEXT" null="true"/>
-      <add-column name="config_warning_email_comment" type="TEXT" null="true"/>
-      <add-column name="config_error_email" type="TEXT" null="true"/>
-      <add-column name="config_error_email_comment" type="TEXT" null="true"/>
-    </alter-table>
-  </changeset>
-
-  <model version="27">
+  <model version="34">
     <table name="tenant" kind="object">
       <column name="id" type="TEXT" null="false"/>
       <column name="private" type="BOOLEAN" null="false"/>
       <column name="interactive" type="TEXT" null="true"/>
       <column name="creation_timestamp" type="BIGINT" null="false"/>
       <column name="archived" type="BOOLEAN" null="false"/>
+      <column name="service_id" type="TEXT" null="true"/>
+      <column name="service_type" type="TEXT" null="true"/>
+      <column name="service_data" type="TEXT" null="true"/>
+      <column name="unloaded_timestamp" type="BIGINT" null="true"/>
+      <column name="unloaded_notify_interval" type="BIGINT" null="true"/>
+      <column name="queued_timestamp" type="BIGINT" null="true"/>
+      <column name="build_toolchain_name" type="TEXT" null="true"/>
+      <column name="build_toolchain_version_epoch" type="INTEGER" null="true"/>
+      <column name="build_toolchain_version_canonical_upstream" type="TEXT" null="true"/>
+      <column name="build_toolchain_version_canonical_release" type="TEXT" null="true"/>
+      <column name="build_toolchain_version_revision" type="INTEGER" null="true"/>
+      <column name="build_toolchain_version_upstream" type="TEXT" null="true"/>
+      <column name="build_toolchain_version_release" type="TEXT" null="true"/>
       <primary-key>
         <column name="id"/>
       </primary-key>
+      <index name="tenant_service_i" type="UNIQUE">
+        <column name="service_id"/>
+        <column name="service_type"/>
+      </index>
+      <index name="tenant_service_id_i">
+        <column name="service_id"/>
+      </index>
+      <index name="tenant_unloaded_timestamp_i">
+        <column name="unloaded_timestamp"/>
+      </index>
     </table>
     <table name="repository" kind="object">
       <column name="tenant" type="TEXT" null="false"/>
@@ -409,6 +151,21 @@
         </references>
       </foreign-key>
     </table>
+    <table name="public_key" kind="object">
+      <column name="tenant" type="TEXT" null="false"/>
+      <column name="fingerprint" type="TEXT" null="false"/>
+      <column name="data" type="TEXT" null="false"/>
+      <primary-key>
+        <column name="tenant"/>
+        <column name="fingerprint"/>
+      </primary-key>
+      <foreign-key name="tenant_fk" deferrable="DEFERRED">
+        <column name="tenant"/>
+        <references table="tenant">
+          <column name="id"/>
+        </references>
+      </foreign-key>
+    </table>
     <table name="package" kind="object">
       <column name="tenant" type="TEXT" null="false"/>
       <column name="name" type="CITEXT" null="false"/>
@@ -454,6 +211,7 @@
       <column name="sha256sum" type="TEXT" null="true"/>
       <column name="buildable" type="BOOLEAN" null="false"/>
       <column name="unbuildable_reason" type="TEXT" null="true"/>
+      <column name="custom_bot" type="BOOLEAN" null="true"/>
       <column name="search_index" type="tsvector" null="true"/>
       <primary-key>
         <column name="tenant"/>
@@ -989,6 +747,7 @@
       <column name="test_package_version_revision" type="INTEGER" null="true"/>
       <column name="test_type" type="TEXT" null="false"/>
       <column name="test_buildtime" type="BOOLEAN" null="false"/>
+      <column name="test_enable" type="TEXT" null="true"/>
       <column name="test_reflect" type="TEXT" null="true"/>
       <foreign-key name="tenant_fk" deferrable="DEFERRED">
         <column name="tenant"/>
@@ -1136,6 +895,109 @@
         <column name="index"/>
       </index>
     </table>
+    <table name="package_build_auxiliaries" kind="container">
+      <column name="tenant" type="TEXT" null="false"/>
+      <column name="name" type="CITEXT" null="false"/>
+      <column name="version_epoch" type="INTEGER" null="false"/>
+      <column name="version_canonical_upstream" type="TEXT" null="false"/>
+      <column name="version_canonical_release" type="TEXT" null="false" options="COLLATE &quot;C&quot;"/>
+      <column name="version_revision" type="INTEGER" null="false"/>
+      <column name="index" type="BIGINT" null="false"/>
+      <column name="environment_name" type="TEXT" null="false"/>
+      <column name="config" type="TEXT" null="false"/>
+      <column name="comment" type="TEXT" null="false"/>
+      <foreign-key name="tenant_fk" deferrable="DEFERRED">
+        <column name="tenant"/>
+        <references table="tenant">
+          <column name="id"/>
+        </references>
+      </foreign-key>
+      <foreign-key name="object_id_fk" on-delete="CASCADE">
+        <column name="tenant"/>
+        <column name="name"/>
+        <column name="version_epoch"/>
+        <column name="version_canonical_upstream"/>
+        <column name="version_canonical_release"/>
+        <column name="version_revision"/>
+        <references table="package">
+          <column name="tenant"/>
+          <column name="name"/>
+          <column name="version_epoch"/>
+          <column name="version_canonical_upstream"/>
+          <column name="version_canonical_release"/>
+          <column name="version_revision"/>
+        </references>
+      </foreign-key>
+      <index name="package_build_auxiliaries_object_id_i">
+        <column name="tenant"/>
+        <column name="name"/>
+        <column name="version_epoch"/>
+        <column name="version_canonical_upstream"/>
+        <column name="version_canonical_release"/>
+        <column name="version_revision"/>
+      </index>
+      <index name="package_build_auxiliaries_index_i">
+        <column name="index"/>
+      </index>
+    </table>
+    <table name="package_build_bot_keys" kind="container">
+      <column name="tenant" type="TEXT" null="false"/>
+      <column name="name" type="CITEXT" null="false"/>
+      <column name="version_epoch" type="INTEGER" null="false"/>
+      <column name="version_canonical_upstream" type="TEXT" null="false"/>
+      <column name="version_canonical_release" type="TEXT" null="false" options="COLLATE &quot;C&quot;"/>
+      <column name="version_revision" type="INTEGER" null="false"/>
+      <column name="index" type="BIGINT" null="false"/>
+      <column name="key_tenant" type="TEXT" null="false"/>
+      <column name="key_fingerprint" type="TEXT" null="false"/>
+      <foreign-key name="tenant_fk" deferrable="DEFERRED">
+        <column name="tenant"/>
+        <references table="tenant">
+          <column name="id"/>
+        </references>
+      </foreign-key>
+      <foreign-key name="object_id_fk" on-delete="CASCADE">
+        <column name="tenant"/>
+        <column name="name"/>
+        <column name="version_epoch"/>
+        <column name="version_canonical_upstream"/>
+        <column name="version_canonical_release"/>
+        <column name="version_revision"/>
+        <references table="package">
+          <column name="tenant"/>
+          <column name="name"/>
+          <column name="version_epoch"/>
+          <column name="version_canonical_upstream"/>
+          <column name="version_canonical_release"/>
+          <column name="version_revision"/>
+        </references>
+      </foreign-key>
+      <index name="package_build_bot_keys_object_id_i">
+        <column name="tenant"/>
+        <column name="name"/>
+        <column name="version_epoch"/>
+        <column name="version_canonical_upstream"/>
+        <column name="version_canonical_release"/>
+        <column name="version_revision"/>
+      </index>
+      <index name="package_build_bot_keys_index_i">
+        <column name="index"/>
+      </index>
+      <foreign-key name="key_tenant_fk" deferrable="DEFERRED">
+        <column name="key_tenant"/>
+        <references table="tenant">
+          <column name="id"/>
+        </references>
+      </foreign-key>
+      <foreign-key name="key_fk" deferrable="DEFERRED">
+        <column name="key_tenant"/>
+        <column name="key_fingerprint"/>
+        <references table="public_key">
+          <column name="tenant"/>
+          <column name="fingerprint"/>
+        </references>
+      </foreign-key>
+    </table>
     <table name="package_build_configs" kind="container">
       <column name="tenant" type="TEXT" null="false"/>
       <column name="name" type="CITEXT" null="false"/>
@@ -1147,6 +1009,12 @@
       <column name="config_name" type="TEXT" null="false"/>
       <column name="config_arguments" type="TEXT" null="false"/>
       <column name="config_comment" type="TEXT" null="false"/>
+      <column name="config_email" type="TEXT" null="true"/>
+      <column name="config_email_comment" type="TEXT" null="true"/>
+      <column name="config_warning_email" type="TEXT" null="true"/>
+      <column name="config_warning_email_comment" type="TEXT" null="true"/>
+      <column name="config_error_email" type="TEXT" null="true"/>
+      <column name="config_error_email_comment" type="TEXT" null="true"/>
       <foreign-key name="tenant_fk" deferrable="DEFERRED">
         <column name="tenant"/>
         <references table="tenant">
@@ -1266,6 +1134,105 @@
         <column name="version_canonical_release"/>
         <column name="version_revision"/>
       </index>
+    </table>
+    <table name="package_build_config_auxiliaries" kind="container">
+      <column name="tenant" type="TEXT" null="false"/>
+      <column name="name" type="CITEXT" null="false"/>
+      <column name="version_epoch" type="INTEGER" null="false"/>
+      <column name="version_canonical_upstream" type="TEXT" null="false"/>
+      <column name="version_canonical_release" type="TEXT" null="false" options="COLLATE &quot;C&quot;"/>
+      <column name="version_revision" type="INTEGER" null="false"/>
+      <column name="config_index" type="BIGINT" null="false"/>
+      <column name="index" type="BIGINT" null="false"/>
+      <column name="environment_name" type="TEXT" null="false"/>
+      <column name="config" type="TEXT" null="false"/>
+      <column name="comment" type="TEXT" null="false"/>
+      <foreign-key name="tenant_fk" deferrable="DEFERRED">
+        <column name="tenant"/>
+        <references table="tenant">
+          <column name="id"/>
+        </references>
+      </foreign-key>
+      <foreign-key name="object_id_fk" on-delete="CASCADE">
+        <column name="tenant"/>
+        <column name="name"/>
+        <column name="version_epoch"/>
+        <column name="version_canonical_upstream"/>
+        <column name="version_canonical_release"/>
+        <column name="version_revision"/>
+        <references table="package">
+          <column name="tenant"/>
+          <column name="name"/>
+          <column name="version_epoch"/>
+          <column name="version_canonical_upstream"/>
+          <column name="version_canonical_release"/>
+          <column name="version_revision"/>
+        </references>
+      </foreign-key>
+      <index name="package_build_config_auxiliaries_object_id_i">
+        <column name="tenant"/>
+        <column name="name"/>
+        <column name="version_epoch"/>
+        <column name="version_canonical_upstream"/>
+        <column name="version_canonical_release"/>
+        <column name="version_revision"/>
+      </index>
+    </table>
+    <table name="package_build_config_bot_keys" kind="container">
+      <column name="tenant" type="TEXT" null="false"/>
+      <column name="name" type="CITEXT" null="false"/>
+      <column name="version_epoch" type="INTEGER" null="false"/>
+      <column name="version_canonical_upstream" type="TEXT" null="false"/>
+      <column name="version_canonical_release" type="TEXT" null="false" options="COLLATE &quot;C&quot;"/>
+      <column name="version_revision" type="INTEGER" null="false"/>
+      <column name="config_index" type="BIGINT" null="false"/>
+      <column name="index" type="BIGINT" null="false"/>
+      <column name="key_tenant" type="TEXT" null="false"/>
+      <column name="key_fingerprint" type="TEXT" null="false"/>
+      <foreign-key name="tenant_fk" deferrable="DEFERRED">
+        <column name="tenant"/>
+        <references table="tenant">
+          <column name="id"/>
+        </references>
+      </foreign-key>
+      <foreign-key name="object_id_fk" on-delete="CASCADE">
+        <column name="tenant"/>
+        <column name="name"/>
+        <column name="version_epoch"/>
+        <column name="version_canonical_upstream"/>
+        <column name="version_canonical_release"/>
+        <column name="version_revision"/>
+        <references table="package">
+          <column name="tenant"/>
+          <column name="name"/>
+          <column name="version_epoch"/>
+          <column name="version_canonical_upstream"/>
+          <column name="version_canonical_release"/>
+          <column name="version_revision"/>
+        </references>
+      </foreign-key>
+      <index name="package_build_config_bot_keys_object_id_i">
+        <column name="tenant"/>
+        <column name="name"/>
+        <column name="version_epoch"/>
+        <column name="version_canonical_upstream"/>
+        <column name="version_canonical_release"/>
+        <column name="version_revision"/>
+      </index>
+      <foreign-key name="key_tenant_fk" deferrable="DEFERRED">
+        <column name="key_tenant"/>
+        <references table="tenant">
+          <column name="id"/>
+        </references>
+      </foreign-key>
+      <foreign-key name="key_fk" deferrable="DEFERRED">
+        <column name="key_tenant"/>
+        <column name="key_fingerprint"/>
+        <references table="public_key">
+          <column name="tenant"/>
+          <column name="fingerprint"/>
+        </references>
+      </foreign-key>
     </table>
     <table name="package_other_repositories" kind="container">
       <column name="tenant" type="TEXT" null="false"/>
