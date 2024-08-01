@@ -1,0 +1,6 @@
+# file      : tests/manifest/buildfile
+# license   : MIT; see accompanying LICENSE file
+
+import libs = lib{brep}
+
+exe{driver}: {hxx cxx}{*} $libs testscript{*}

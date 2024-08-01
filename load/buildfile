@@ -6,10 +6,16 @@ import libs += libodb-pgsql%lib{odb-pgsql}
 import libs += libbutl%lib{butl}
 import libs += libbpkg%lib{bpkg}
 
+import mods = bpkg-util%bash{utility}
+
 include ../libbrep/
+
+./: exe{brep-load} exe{brep-load-with-metadata}
 
 exe{brep-load}: {hxx ixx cxx}{* -load-options} {hxx ixx cxx}{load-options} \
                 ../libbrep/lib{brep} $libs
+
+exe{brep-load-with-metadata}: in{load-with-metadata} $mods
 
 # Build options.
 #

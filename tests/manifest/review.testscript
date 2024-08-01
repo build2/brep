@@ -1,0 +1,171 @@
+# file      : tests/manifest/review.testscript
+# license   : MIT; see accompanying LICENSE file
+
+: single-manifest
+:
+{
+  test.options += -r
+
+  : valid
+  :
+  : Roundtrip the review manifest.
+  :
+  {
+    $* <<EOF >>EOF
+    : 1
+    reviewed-by: John Doe <john@doe.com>
+    result-code: pass
+    result-build: fail
+    result-doc: unchanged
+    base-version: 1.0.2+3
+    details-url: https://example.com/issues/1
+    EOF
+  }
+
+  : unknown-name
+  :
+  {
+    $* <<EOI 2>"stdin:2:1: error: unknown name 'unknown-name' in review manifest" != 0
+    : 1
+    unknown-name: John Doe <john@doe.com>
+    EOI
+  }
+
+  : redefinition
+  :
+  {
+    : reviewed-by
+    :
+    {
+      $* <<EOI 2>"stdin:3:1: error: reviewer redefinition" != 0
+      : 1
+      reviewed-by: John Doe <john@doe.com>
+      reviewed-by: John Doe <john@doe.com>
+      EOI
+    }
+
+    : result-code
+    :
+    {
+      $* <<EOI 2>"stdin:3:1: error: code review result redefinition" != 0
+      : 1
+      result-code: pass
+      result-code: fail
+      EOI
+    }
+  }
+
+  : invalid
+  :
+  {
+    : reviewed-by-empty
+    :
+    {
+      $* <<EOI 2>"stdin:2:13: error: empty reviewer" != 0
+      : 1
+      reviewed-by:
+      EOI
+    }
+
+    : result-code
+    :
+    {
+      $* <<EOI 2>"stdin:2:14: error: invalid review result 'fails'" != 0
+      : 1
+      result-code: fails
+      EOI
+    }
+
+    : details-url
+    :
+    {
+      $* <<EOI 2>"stdin:2:13: error: empty URL" != 0
+        : 1
+        details-url:
+        EOI
+    }
+  }
+
+  : mandatory
+  :
+  {
+    : reviewed-by
+    :
+    {
+      $* <<EOI 2>"stdin:2:1: error: no reviewer specified" != 0
+      : 1
+      EOI
+    }
+
+    : no-result
+    :
+    {
+      $* <<EOI 2>"stdin:3:1: error: no result specified" != 0
+        : 1
+        reviewed-by: John Doe <john@doe.com>
+        EOI
+    }
+
+    : no-base-version
+    :
+    {
+      $* <<EOI 2>"stdin:4:1: error: no base version specified" != 0
+        : 1
+        reviewed-by: John Doe <john@doe.com>
+        result-code: unchanged
+        EOI
+    }
+
+    : no-details-url
+    :
+    {
+      $* <<EOI 2>"stdin:4:1: error: no details url specified" != 0
+        : 1
+        reviewed-by: John Doe <john@doe.com>
+        result-code: fail
+        EOI
+    }
+  }
+}
+
+: multiple-manifests
+:
+{
+  test.options += -rl
+
+  : valid-manifest-list
+  :
+  : Roundtrip the review manifests list.
+  :
+  {
+    $* <<EOF >>EOF
+    : 1
+    reviewed-by: John Doe <john@doe.com>
+    result-code: pass
+    :
+    reviewed-by: John Doe <john@doe.com>
+    result-build: pass
+    EOF
+  }
+
+  : empty-manifest-list
+  :
+  : Roundtrip the empty manifests list.
+  :
+  {
+    $* <:'' >:''
+  }
+
+    : no-details-url
+    :
+    {
+      $* <<EOI 2>"stdin:7:1: error: no details url specified" != 0
+        : 1
+        reviewed-by: John Doe <john@doe.com>
+        result-build: pass
+        :
+        reviewed-by: John Doe <john@doe.com>
+        result-code: fail
+        EOI
+    }
+}

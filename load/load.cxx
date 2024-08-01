@@ -3,6 +3,7 @@
 
 #include <signal.h> // signal()
 
+#include <map>
 #include <cerrno>
 #include <chrono>
 #include <thread>   // this_thread::sleep_for()
@@ -31,6 +32,7 @@
 #include <libbrep/package.hxx>
 #include <libbrep/package-odb.hxx>
 #include <libbrep/database-lock.hxx>
+#include <libbrep/review-manifest.hxx>
 
 #include <load/load-options.hxx>
 #include <load/options-types.hxx>
@@ -56,6 +58,7 @@ static const char* help_info (
 
 static const path packages     ("packages.manifest");
 static const path repositories ("repositories.manifest");
+static const path reviews      ("reviews.manifest");
 
 // Retry executing bpkg on recoverable errors for about 10 seconds.
 //
@@ -362,6 +365,56 @@ repository_info (const options& lo, const string& rl, const cstrings& options)
   }
 }
 
+// Map of package versions to their metadata information in the form it is
+// stored in the database (reviews summary, etc).
+//
+// This map is filled by recursively traversing the metadata directory and
+// parsing the encountered metadata manifest files (reviews.manifest, etc; see
+// --metadata option for background on metadata). Afterwards, this map is used
+// as a data source for the being persisted/updated package objects.
+//
+struct package_version_key
+{
+  package_name  name;
+  brep::version version;
+
+  package_version_key (package_name n, brep::version v)
+      : name (move (n)), version (move (v)) {}
+
+  bool
+  operator< (const package_version_key& k) const
+  {
+    if (int r = name.compare (k.name))
+      return r < 0;
+
+    return version < k.version;
+  }
+};
+
+class package_version_metadata
+{
+public:
+  // Extracted from the package metadata directory. Must match the respective
+  // package manifest information.
+  //
+  package_name project;
+
+  optional<reviews_summary> reviews;
+
+  // The directory the metadata manifest files are located. It has the
+  // <project>/<package>/<version> form and is only used for diagnostics.
+  //
+  dir_path
+  directory () const
+  {
+    assert (reviews); // At least one kind of metadata must be present.
+    return reviews->manifest_file.directory ();
+  }
+};
+
+using package_version_metadata_map = std::map<package_version_key,
+                                              package_version_metadata>;
+
 // Load the repository packages from the packages.manifest file and persist
 // the repository. Should be called once per repository.
 //
@@ -372,7 +425,8 @@ load_packages (const options& lo,
                database& db,
                bool ignore_unknown,
                const manifest_name_values& overrides,
-               const string& overrides_name)
+               const string& overrides_name,
+               optional<package_version_metadata_map>& metadata)
 {
   // packages_timestamp other than timestamp_nonexistent signals the
   // repository packages are already loaded.
@@ -728,6 +782,31 @@ load_packages (const options& lo,
               keys_to_objects (move (pm.build_configs[i].bot_keys));
         }
 
+        optional<reviews_summary> rvs;
+
+        if (metadata)
+        {
+          auto i (metadata->find (package_version_key {pm.name, pm.version}));
+
+          if (i != metadata->end ())
+          {
+            package_version_metadata& md (i->second);
+
+            if (md.project != project)
+            {
+              cerr << "error: project '" << project << "' of package "
+                   << pm.name << ' ' << pm.version << " doesn't match "
+                   << "metadata directory path "
+                   << lo.metadata () / md.directory ();
+
+              throw failed ();
+            }
+
+            if (md.reviews)
+              rvs = move (md.reviews);
+          }
+        }
+
         p = make_shared<package> (
           move (pm.name),
           move (pm.version),
@@ -758,6 +837,7 @@ load_packages (const options& lo,
           move (pm.build_auxiliaries),
           move (bot_keys),
           move (build_configs),
+          move (rvs),
           move (pm.location),
           move (pm.fragment),
           move (pm.sha256sum),
@@ -1153,13 +1233,16 @@ load_repositories (const options& lo,
 
     // We don't apply overrides to the external packages.
     //
+    optional<package_version_metadata_map> metadata;
+
     load_packages (lo,
                    pr,
                    !pr->cache_location.empty () ? pr->cache_location : cl,
                    db,
                    ignore_unknown,
                    manifest_name_values () /* overrides */,
-                   "" /* overrides_name */);
+                   "" /* overrides_name */,
+                   metadata);
 
     load_repositories (lo,
                        pr,
@@ -1778,6 +1861,11 @@ try
     }
   }
 
+  // Note: the interactive tenant implies private.
+  //
+  if (ops.interactive_specified ())
+    ops.private_ (true);
+
   // Parse and validate overrides, if specified.
   //
   // Note that here we make sure that the overrides manifest is valid.
@@ -1818,34 +1906,236 @@ try
     ops.db_port (),
     "options='-c default_transaction_isolation=serializable'");
 
-  // Prevent several brep utility instances from updating the package database
-  // simultaneously.
-  //
-  database_lock l (db);
-
-  transaction t (db.begin ());
-
-  // Check that the package database schema matches the current one.
-  //
-  const string ds ("package");
-  if (schema_catalog::current_version (db, ds) != db.schema_version (ds))
-  {
-    cerr << "error: package database schema differs from the current one"
-         << endl << "  info: use brep-migrate to migrate the database" << endl;
-    throw failed ();
-  }
-
-  // Note: the interactive tenant implies private.
-  //
-  if (ops.interactive_specified ())
-    ops.private_ (true);
-
   // Load the description of all the internal repositories from the
   // configuration file.
   //
   internal_repositories irs (load_repositories (path (argv[1])));
 
-  if (ops.force () || changed (tnt, irs, db))
+  // Prevent several brep utility instances from updating the package database
+  // simultaneously.
+  //
+  database_lock l (db);
+
+  // Check that the package database schema matches the current one and if the
+  // package information needs to be (re-)loaded.
+  //
+  bool load_pkgs;
+  {
+    transaction t (db.begin ());
+
+    // Check the database schema match.
+    //
+    const string ds ("package");
+
+    if (schema_catalog::current_version (db, ds) != db.schema_version (ds))
+    {
+      cerr << "error: package database schema differs from the current one"
+           << endl << "  info: use brep-migrate to migrate the database" << endl;
+      throw failed ();
+    }
+
+    load_pkgs = (ops.force () || changed (tnt, irs, db));
+
+    t.commit ();
+  }
+
+  // Check if the package versions metadata needs to be (re-)loaded and, if
+  // that's the case, stash it in the memory.
+  //
+  optional<package_version_metadata_map> metadata;
+  if (ops.metadata_specified () && (load_pkgs || ops.metadata_changed ()))
+  {
+    metadata = package_version_metadata_map ();
+
+    const dir_path& d (ops.metadata ());
+
+    // The first level are package projects.
+    //
+    try
+    {
+      for (const dir_entry& e: dir_iterator (d, dir_iterator::no_follow))
+      {
+        const string& n (e.path ().string ());
+
+        if (e.type () != entry_type::directory || n[0] == '.')
+          continue;
+
+        package_name project;
+
+        try
+        {
+          project = package_name (n);
+        }
+        catch (const invalid_argument& e)
+        {
+          cerr << "error: name of subdirectory '" << n << "' in " << d
+               << " is not a project name: " << e << endl;
+          throw failed ();
+        }
+
+        // The second level are package names.
+        //
+        dir_path pd (d / path_cast<dir_path> (e.path ()));
+
+        try
+        {
+          for (const dir_entry& e: dir_iterator (pd, dir_iterator::no_follow))
+          {
+            const string& n (e.path ().string ());
+
+            if (e.type () != entry_type::directory || n[0] == '.')
+              continue;
+
+            package_name name;
+
+            try
+            {
+              name = package_name (n);
+            }
+            catch (const invalid_argument& e)
+            {
+              cerr << "error: name of subdirectory '" << n << "' in " << pd
+                   << " is not a package name: " << e << endl;
+              throw failed ();
+            }
+
+            // The third level are package versions.
+            //
+            dir_path vd (pd / path_cast<dir_path> (e.path ()));
+
+            try
+            {
+              for (const dir_entry& e: dir_iterator (vd,
+                                                     dir_iterator::no_follow))
+              {
+                const string& n (e.path ().string ());
+
+                if (e.type () != entry_type::directory || n[0] == '.')
+                  continue;
+
+                version ver;
+
+                try
+                {
+                  ver = version (n);
+                }
+                catch (const invalid_argument& e)
+                {
+                  cerr << "error: name of subdirectory '" << n << "' in " << vd
+                       << " is not a package version: " << e << endl;
+                  throw failed ();
+                }
+
+                dir_path md (vd / path_cast<dir_path> (e.path ()));
+
+                // Parse the reviews.manifest file, if present.
+                //
+                // Note that semantically, the absent manifest file and the
+                // empty manifest list are equivalent and result in an absent
+                // reviews summary.
+                //
+                optional<reviews_summary> rs;
+                {
+                  path rf (md / reviews);
+
+                  try
+                  {
+                    if (file_exists (rf))
+                    {
+                      ifdstream ifs (rf);
+                      manifest_parser mp (ifs, rf.string ());
+
+                      // Count the passed and failed reviews.
+                      //
+                      size_t ps (0);
+                      size_t fl (0);
+
+                      for (review_manifest& m:
+                             review_manifests (mp, ops.ignore_unknown ()))
+                      {
+                        bool fail (false);
+
+                        for (const review_aspect& r: m.results)
+                        {
+                          switch (r.result)
+                          {
+                          case review_result::fail: fail = true; break;
+
+                          case review_result::unchanged:
+                            {
+                              cerr << "error: unsupported review result "
+                                   << "'unchanged' in " << rf << endl;
+                              throw failed ();
+                            }
+
+                          case review_result::pass: break; // Noop
+                          }
+                        }
+
+                        ++(fail ? fl : ps);
+                      }
+
+                      if (ps + fl != 0)
+                        rs = reviews_summary {ps, fl, rf.relative (d)};
+                    }
+                  }
+                  catch (const manifest_parsing& e)
+                  {
+                    cerr << "error: unable to parse reviews: " << e << endl;
+                    throw failed ();
+                  }
+                  catch (const io_error& e)
+                  {
+                    cerr << "error: unable to read " << rf << ": " << e << endl;
+                    throw failed ();
+                  }
+                  catch (const system_error& e)
+                  {
+                    cerr << "error: unable to stat " << rf << ": " << e << endl;
+                    throw failed ();
+                  }
+                }
+
+                // Add the package version metadata to the map if any kind of
+                // metadata is present.
+                //
+                if (rs)
+                {
+                  (*metadata)[package_version_key {name, move (ver)}] =
+                    package_version_metadata {project, move (rs)};
+                }
+              }
+            }
+            catch (const system_error& e)
+            {
+              cerr << "error: unable to iterate over " << vd << ": " << e
+                   << endl;
+              throw failed ();
+            }
+          }
+        }
+        catch (const system_error& e)
+        {
+          cerr << "error: unable to iterate over " << pd << ": " << e << endl;
+          throw failed ();
+        }
+      }
+    }
+    catch (const system_error& e)
+    {
+      cerr << "error: unable to iterate over " << d << ": " << e << endl;
+      throw failed ();
+    }
+  }
+
+  // Bail out if no package information nor metadata needs to be loaded.
+  //
+  if (!load_pkgs && !metadata)
+    return 0;
+
+  transaction t (db.begin ());
+
+  if (load_pkgs)
   {
     shared_ptr<tenant> t; // Not NULL in the --existing-tenant mode.
 
@@ -2015,7 +2305,8 @@ try
                      db,
                      ops.ignore_unknown (),
                      overrides,
-                     ops.overrides_file ().string ());
+                     ops.overrides_file ().string (),
+                     metadata);
     }
 
     // On the second pass over the internal repositories we load their
@@ -2067,6 +2358,83 @@ try
         package_ids chain;
         for (const auto& p: db.query<package> (q))
           detect_dependency_cycle (p.id, chain, db);
+      }
+    }
+  }
+  else if (metadata)
+  {
+    // Iterate over the packages which contain metadata and apply the changes,
+    // if present. Erase the metadata map entries which introduce such
+    // changes, so at the end only the newly added metadata is left in the
+    // map.
+    //
+    using query = query<package>;
+
+    for (package& p: db.query<package> (query::reviews.pass.is_not_null ()))
+    {
+      bool u (false);
+      auto i (metadata->find (package_version_key {p.name, p.version}));
+
+      if (i == metadata->end ())
+      {
+        // Mark the section as loaded, so the reviews summary is updated.
+        //
+        p.reviews_section.load ();
+        p.reviews = nullopt;
+        u = true;
+      }
+      else
+      {
+        package_version_metadata& md (i->second);
+
+        if (md.project != p.project)
+        {
+          cerr << "error: project '" << p.project << "' of package "
+               << p.name << ' ' << p.version << " doesn't match metadata "
+               << "directory path " << ops.metadata () / md.directory ();
+
+          throw failed ();
+        }
+
+        db.load (p, p.reviews_section);
+
+        if (p.reviews != md.reviews)
+        {
+          p.reviews = move (md.reviews);
+          u = true;
+        }
+
+        metadata->erase (i);
+      }
+
+      if (u)
+        db.update (p);
+    }
+
+    // Add the newly added metadata to the packages.
+    //
+    for (auto& m: *metadata)
+    {
+      if (shared_ptr<package> p =
+          db.find<package> (package_id (tnt, m.first.name, m.first.version)))
+      {
+        package_version_metadata& md (m.second);
+
+        if (m.second.project != p->project)
+        {
+          cerr << "error: project '" << p->project << "' of package "
+               << p->name << ' ' << p->version << " doesn't match metadata "
+               << "directory path " << ops.metadata () / md.directory ();
+
+          throw failed ();
+        }
+
+        // Mark the section as loaded, so the reviews summary is updated.
+        //
+        p->reviews_section.load ();
+        p->reviews = move (md.reviews);
+
+        db.update (p);
       }
     }
   }

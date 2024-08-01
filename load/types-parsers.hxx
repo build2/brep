@@ -26,6 +26,13 @@ namespace cli
   };
 
   template <>
+  struct parser<brep::dir_path>
+  {
+    static void
+    parse (brep::dir_path&, bool&, scanner&);
+  };
+
+  template <>
   struct parser<brep::ignore_unresolved_conditional_dependencies>
   {
     static void

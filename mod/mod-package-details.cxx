@@ -270,8 +270,16 @@ handle (request& rq, response& rs)
     //
     s <<     TR_REPOSITORY (rl, root, tenant)
       <<     TR_DEPENDS (p->dependencies, root, tenant)
-      <<     TR_REQUIRES (p->requirements)
-      <<   ~TBODY
+      <<     TR_REQUIRES (p->requirements);
+
+    if (options_->reviews_url_specified ())
+    {
+      package_db_->load (*p, p->reviews_section);
+
+      s << TR_REVIEWS_SUMMARY (p->reviews, options_->reviews_url ());
+    }
+
+    s <<   ~TBODY
       << ~TABLE;
   }
   s << ~DIV;

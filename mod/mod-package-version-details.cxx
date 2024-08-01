@@ -528,6 +528,22 @@ handle (request& rq, response& rs)
   print_tests (test_dependency_type::examples);
   print_tests (test_dependency_type::benchmarks);
 
+  if (options_->reviews_url_specified ())
+  {
+    package_db_->load (*pkg, pkg->reviews_section);
+
+    const optional<reviews_summary>& rvs (pkg->reviews);
+    const string& u (options_->reviews_url ());
+
+    s << H3 << "Reviews" << ~H3
+      << TABLE(CLASS="proplist", ID="reviews")
+      <<   TBODY
+      <<     TR_REVIEWS_COUNTER (review_result::fail, rvs, u)
+      <<     TR_REVIEWS_COUNTER (review_result::pass, rvs, u)
+      <<   ~TBODY
+      << ~TABLE;
+  }
+
   bool builds (build_db_ != nullptr && pkg->buildable);
 
   if (builds)

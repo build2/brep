@@ -1,0 +1,130 @@
+#!/usr/bin/env bash
+
+# file      : load/load-with-metadata.in
+# license   : MIT; see accompanying LICENSE file
+
+# The wrapper around brep-load, which pulls the package metadata from a git
+# repository and runs brep-load, passing the metadata directory to it.
+#
+# Specifically, pull a pre-cloned (read-only) git repository with the contents
+# of an archive-based bpkg repository. Run brep-load with the `--metadata
+# <dir>/owners` option, the --metadata-changed option, if the current snapshot
+# of the repository has not yet been processed by brep-load, and forward any
+# further arguments to brep-load.
+#
+# --timeout <seconds>
+#
+#   Git operation timeout. Specifically, the operation will be aborted if
+#   there is no network activity for the specified time. Default is 60
+#   seconds. Note that currently the git timeout is only supported for the
+#   http(s) transport.
+#
+# --brep-load <path>
+#
+#   The brep-load program to be used. This should be the path to the brep-load
+#   executable.
+#
+# Note also that this script maintains the <dir>.load file which contains the
+# last successfully processed commit.
+#
+usage="usage: $0 [<options>] <dir> [<brep-load-args>]"
+
+owd="$(pwd)"
+trap "{ cd '$owd'; exit 1; }" ERR
+set -o errtrace   # Trap in functions and subshells.
+set -o pipefail   # Fail if any pipeline command fails.
+shopt -s lastpipe # Execute last pipeline command in the current shell.
+shopt -s nullglob # Expand no-match globs to nothing rather than themselves.
+
+@import bpkg-util/utility@ # check_git_connectivity()
+
+# The script's own options.
+#
+timeout=60
+brep_load=
+
+while [[ "$#" -gt 0 ]]; do
+  case "$1" in
+    --timeout)
+      shift
+      timeout="$1"
+      shift || true
+      ;;
+    --brep-load)
+      shift
+      brep_load="$1"
+      shift || true
+      ;;
+    *)
+      break
+      ;;
+  esac
+done
+
+# The repository directory.
+#
+repo_dir="${1%/}"
+
+# Validate options and arguments.
+#
+if [[ -z "$repo_dir" ]]; then
+  error "$usage"
+fi
+
+if [[ ! -d "$repo_dir" ]]; then
+  error "'$repo_dir' does not exist or is not a directory"
+fi
+
+shift # repo_dir
+
+# If brep-load path is not specified, then use the brep-load program from the
+# script directory, if present. Otherwise, use the 'brep-load' path.
+#
+if [[ -z "$brep_load" ]]; then
+  brep_load="$(dirname "$(realpath "${BASH_SOURCE[0]}")")/brep-load"
+
+  if [[ ! -x "$brep_load" ]]; then
+    brep_load=brep-load
+  fi
+fi
+
+# Make sure the commit file is present.
+#
+load_commit="$repo_dir.load"
+touch "$load_commit"
+
+# Pull the repository.
+#
+if ! remote_url="$(git -C "$repo_dir" config --get remote.origin.url)"; then
+  error "'$repo_dir' is not a git repository"
+fi
+
+# Git doesn't support the connection timeout option. The options we use are
+# just an approximation of the former, that, in particular, don't cover the
+# connection establishing. To work around this problem, before running a git
+# command that assumes the remote repository communication we manually check
+# connectivity with the remote repository.
+#
+check_git_connectivity "$remote_url" "$timeout"
+
+# Fail if no network activity happens during the time specified.
+#
+git -c http.lowSpeedLimit=1 -c "http.lowSpeedTime=$timeout" \
+  -C "$repo_dir" pull -q
+
+# Match the HEAD commit id to the one stored in the file. If it matches, then
+# nothing changed in the repository since it has been processed by brep-load
+# last time and we should not pass the --metadata-changed option to brep-load.
+#
+commit="$(git -C "$repo_dir" rev-parse HEAD)"
+pc="$(cat "$load_commit")"
+
+loader_options=(--metadata "$repo_dir/owners")
+
+if [[ "$commit" != "$pc" ]]; then
+  loader_options+=(--metadata-changed)
+fi
+
+"$brep_load" "${loader_options[@]}" "$@"
+
+echo "$commit" >"$load_commit"

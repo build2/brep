@@ -20,7 +20,7 @@
 //
 #define LIBBREP_PACKAGE_SCHEMA_VERSION_BASE 34
 
-#pragma db model version(LIBBREP_PACKAGE_SCHEMA_VERSION_BASE, 34, closed)
+#pragma db model version(LIBBREP_PACKAGE_SCHEMA_VERSION_BASE, 35, closed)
 
 namespace brep
 {
@@ -224,9 +224,8 @@ namespace brep
   // certificate
   //
   #pragma db value
-  class certificate
+  struct certificate
   {
-  public:
     string fingerprint;  // SHA256 fingerprint. Note: foreign-mapped in build.
     string name;         // CN component of Subject.
     string organization; // O component of Subject.
@@ -536,6 +535,35 @@ namespace brep
   #pragma db member(package_build_bot_key_key::outer) column("config_index")
   #pragma db member(package_build_bot_key_key::inner) column("index")
 
+  // Number of the passed and failed reviews and the path to the
+  // reviews.manifest file this information comes form. The path is relative
+  // to the root of the package metadata directory.
+  //
+  #pragma db value
+  struct reviews_summary
+  {
+    // May not be both zero.
+    //
+    size_t pass;
+    size_t fail;
+
+    path   manifest_file;
+  };
+
+  inline bool
+  operator== (const reviews_summary& x, const reviews_summary& y)
+  {
+    return x.pass == y.pass &&
+           x.fail == y.fail &&
+           x.manifest_file == y.manifest_file;
+  }
+
+  inline bool
+  operator!= (const reviews_summary& x, const reviews_summary& y)
+  {
+    return !(x == y);
+  }
+
   // Tweak package_id mapping to include a constraint (this only affects the
   // database schema).
   //
@@ -589,6 +617,7 @@ namespace brep
              build_auxiliaries_type,
              package_build_bot_keys,
              package_build_configs,
+             optional<reviews_summary>,
              optional<path> location,
              optional<string> fragment,
              optional<string> sha256sum,
@@ -690,6 +719,9 @@ namespace brep
     // below).
     //
     odb::section build_section;
+
+    optional<reviews_summary> reviews;
+    odb::section reviews_section;
 
     // Note that it is foreign-mapped in build.
     //
@@ -916,8 +948,11 @@ namespace brep
       id_column("") key_column("") value_column("key_") value_not_null  \
       section(unused_section)
 
-    #pragma db member(build_section)  load(lazy) update(always)
-    #pragma db member(unused_section) load(lazy) update(manual)
+    #pragma db member(reviews) section(reviews_section)
+
+    #pragma db member(build_section)   load(lazy) update(always)
+    #pragma db member(reviews_section) load(lazy) update(always)
+    #pragma db member(unused_section)  load(lazy) update(manual)
 
     // other_repositories
     //

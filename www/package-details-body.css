@@ -185,7 +185,8 @@ table.version th {width: 7.6em;}
 table.version tr.version td .value,
 table.version tr.priority td .value,
 table.version tr.depends td .value,
-table.version tr.requires td .value
+table.version tr.requires td .value,
+table.version tr.reviews td .value
 {
   /* <code> style. */
   font-family: monospace;
@@ -195,3 +196,7 @@ table.version tr.requires td .value
 table.version tr.priority td .security {color: #ff0000; font-weight: bold;}
 table.version tr.priority td .high     {color: #ff0000;}
 table.version tr.priority td .medium   {color: #fe7c04;}
+
+table.version tr.reviews td .none {color: #fe7c04;}
+table.version tr.reviews td .fail {color: #ff0000;}
+table.version tr.reviews td .pass {color: #00bb00;}

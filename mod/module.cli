@@ -454,6 +454,25 @@ namespace brep
       }
     };
 
+    class package_version_metadata
+    {
+      string reviews-url
+      {
+        "<url>",
+        "The base URL for the reviews manifest files. If this option is
+         specified, then the review information is displayed on the package
+         version details page.
+
+         The complete URL is formed by adding the following path to the base:
+
+         \
+         <project>/<package>/<version>/reviews.manifest
+         \
+
+         Note that no separator is added between the base and this path."
+      }
+    };
+
     class page
     {
       web::xhtml::fragment logo
@@ -530,6 +549,7 @@ namespace brep
                            search,
                            page,
                            repository_url,
+                           package_version_metadata,
                            handler
     {
     };
@@ -538,6 +558,7 @@ namespace brep
                                    build, build_db,
                                    page,
                                    repository_url,
+                                   package_version_metadata,
                                    handler
     {
       dir_path bindist-root

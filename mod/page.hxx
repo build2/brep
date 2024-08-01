@@ -15,6 +15,7 @@
 
 #include <libbrep/build.hxx>
 #include <libbrep/package.hxx>
+#include <libbrep/review-manifest.hxx> // review_result
 
 #include <mod/diagnostics.hxx>
 #include <mod/options-types.hxx> // page_menu
@@ -369,6 +370,48 @@ namespace brep
 
   private:
     const requirements& requirements_;
+  };
+
+  // Generate package versions reviews summary element.
+  //
+  class TR_REVIEWS_SUMMARY
+  {
+  public:
+    TR_REVIEWS_SUMMARY (const optional<reviews_summary>& rs, const string& u)
+        : reviews_ (rs), reviews_url_ (u) {}
+
+    void
+    operator() (xml::serializer&) const;
+
+  private:
+    const optional<reviews_summary>& reviews_;
+    const string& reviews_url_;
+  };
+
+  // Generate package versions reviews summary counter element. The passed
+  // review result denotes which kind of counter needs to be displayed and can
+  // only be fail or pass.
+  //
+  class TR_REVIEWS_COUNTER
+  {
+  public:
+    TR_REVIEWS_COUNTER (review_result r,
+                        const optional<reviews_summary>& rs,
+                        const string& u)
+        : result (r),
+          reviews_ (rs),
+          reviews_url_ (u)
+    {
+      assert (r == review_result::fail || r == review_result::pass);
+    }
+
+    void
+    operator() (xml::serializer&) const;
+
+  private:
+    review_result result;
+    const optional<reviews_summary>& reviews_;
+    const string& reviews_url_;
   };
 
   // Generate url element. Strip the `<scheme>://` prefix from the link text.

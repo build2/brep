@@ -289,6 +289,24 @@ h1, h2, h3
 }
 
 /*
+ * Reviews.
+ */
+#reviews {margin-top: .4em; margin-bottom: 1em;}
+#reviews th {width: 5.7em;}
+
+#reviews tr.fail td .value,
+#reviews tr.pass td .value
+{
+  /* <code> style. */
+  font-family: monospace;
+  font-size: 0.94em;
+}
+
+#reviews tr td .value .none {color: #fe7c04;}
+#reviews tr td .value .fail {color: #ff0000;}
+#reviews tr td .value .pass {color: #00bb00;}
+
+/*
  * Binaries.
  */
 #binaries

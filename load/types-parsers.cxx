@@ -40,6 +40,13 @@ namespace cli
     parse_path (x, s);
   }
 
+  void parser<dir_path>::
+  parse (dir_path& x, bool& xs, scanner& s)
+  {
+    xs = true;
+    parse_path (x, s);
+  }
+
   void parser<ignore_unresolved_conditional_dependencies>::
   parse (ignore_unresolved_conditional_dependencies& x, bool& xs, scanner& s)
   {

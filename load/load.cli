@@ -126,6 +126,29 @@ class options
      \cb{--service-id} option to be specified."
   };
 
+  brep::dir_path --metadata
+  {
+    "<dir>",
+    "Directory where the package metadata manifest files are located. If
+     specified, then (re-)load the metadata if the package information is also
+     (re-)loaded or update it if the \cb{--metadata-changed} option is
+     specified.
+
+     The subdirectory hierarchy under this directory is expected to be in the
+     following form:
+
+     \
+     <project>/<package>/<version>/
+     \
+     "
+  }
+
+  bool --metadata-changed
+  {
+    "Update the package metadata even if the package information is not
+     reloaded."
+  };
+
   brep::path --overrides-file
   {
     "<file>",
@@ -186,7 +209,7 @@ class options
      this option to specify multiple package manager options."
   }
 
-  brep::path openssl = "openssl"
+  brep::path --openssl = "openssl"
   {
     "<path>",
     "The openssl program to be used for crypto operations. You can also
@@ -195,7 +218,7 @@ class options
      specified, then \cb{brep-load} will use \cb{openssl} by default."
   }
 
-  brep::strings openssl-option
+  brep::strings --openssl-option
   {
     "<opt>",
     "Additional option to be passed to the openssl program (see \cb{openssl}

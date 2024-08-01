@@ -618,6 +618,80 @@ namespace brep
       << ~TR;
   }
 
+  // TR_REVIEWS_SUMMARY
+  //
+  void TR_REVIEWS_SUMMARY::
+  operator() (serializer& s) const
+  {
+    s << TR(CLASS="reviews")
+      <<   TH << "reviews" << ~TH
+      <<   TD
+      <<     SPAN(CLASS="value");
+
+    if (reviews_)
+    {
+      s << A
+        <<   HREF
+        <<     reviews_url_ << reviews_->manifest_file
+        <<   ~HREF;
+
+      if (reviews_->fail != 0)
+        s << SPAN(CLASS="fail") << '-' << reviews_->fail << ~SPAN;
+
+      if (reviews_->fail != 0 && reviews_->pass != 0)
+        s << '/';
+
+      if (reviews_->pass != 0)
+        s << SPAN(CLASS="pass") << '+' << reviews_->pass << ~SPAN;
+
+      s << ~A;
+    }
+    else
+      s << SPAN(CLASS="none") << 0 << ~SPAN;
+
+    s <<     ~SPAN
+      <<   ~TD
+      << ~TR;
+  }
+
+  // TR_REVIEWS_COUNTER
+  //
+  void TR_REVIEWS_COUNTER::
+  operator() (serializer& s) const
+  {
+    const char* l (result == review_result::fail ? "fail" : "pass");
+
+    s << TR(CLASS=l)
+      <<   TH << l << ~TH
+      <<   TD
+      <<     SPAN(CLASS="value");
+
+    if (reviews_)
+    {
+      size_t n (result == review_result::fail
+                ? reviews_->fail
+                : reviews_->pass);
+
+      if (n != 0)
+      {
+        s << A
+          <<   HREF
+          <<     reviews_url_ << reviews_->manifest_file
+          <<   ~HREF
+          <<   SPAN(CLASS=l) << n << ~SPAN
+          << ~A;
+      }
+      else
+        s << n;
+    }
+    else
+      s << SPAN(CLASS="none") << 0 << ~SPAN;
+
+    s <<     ~SPAN
+      <<   ~TD
+      << ~TR;
+  }
+
   // TR_URL
   //
   void TR_URL::
