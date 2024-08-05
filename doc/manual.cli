@@ -596,4 +596,74 @@ message: <string>
 [reference]: <string>
 \
 
+
+\h1#package-review|Package Review Submission|
+
+\h#package-review-manifest|Package Review Manifest|
+
+The package review manifest files are per version/revision and are normally
+stored on the filesystem along with other package metadata (like ownership
+information). Under the metadata root directory, a review manifest file has
+the following path:
+
+\
+<project>/<package>/<version>/reviews.manifest
+\
+
+For example:
+
+\
+hello/libhello/1.2.3+2/reviews.manifest
+\
+
+Note that review manifests are normally not removed when the corresponding
+package archive is removed (for example, as a result of a replacement with a
+revision) because reviews for subsequent versions may refer to review results
+of previous versions (see below).
+
+The package review file is a manifest list with each manifest containing
+the below values in an unspecified order:
+
+\
+reviewed-by: <string>
+result-<name>: pass|fail|unchanged
+[base-version]: <version>
+[details-url]: <url>
+\
+
+For example:
+
+\
+reviewed-by: John Doe <john@example.org>
+result-build: fail
+details-url: https://github.com/build2-packaging/hello/issues/1
+\
+
+The \c{reviewed-by} value identifies the reviewer. For example, a deployment
+policy may require a real name and email address when submitting a review.
+
+The \c{result-<name>} values specify the review results for various aspects of
+the package. At least one result value must be present and duplicates for the
+same aspect name are not allowed. For example, a deployment may define the
+following aspect names: \c{build} (build system), \c{code} (implementation
+source code), \c{test} (tests), \c{doc} (documentation).
+
+The \c{result-<name>} value must be one of \c{pass} (the review passed),
+\c{fail} (the review failed), and \c{unchanged} (the aspect in question hasn't
+changed compared to the previous version, which is identified with the
+\c{base-version} value; see below).
+
+The \c{base-version} value identifies the previous version on which this
+review is based. The idea here is that when reviewing a new revision, a patch
+version, or even a minor version, it is often easier to review the difference
+between the two versions than to review everything from scratch. In such
+cases, if some aspects haven't changed since the previous version, then their
+results can be specified as \c{unchanged}. The \c{base-version} value must be
+present if at least one \c{result-<name>} value is \c{unchanged}.
+
+The \c{details-url} value specifies a URL that contains the details of the
+review (issues identified, etc). It can only be absent if none of the
+\c{result-<name>} values are \c{fail} (a failed review needs an explanation
+of why it failed).
+
 "
