@@ -14,6 +14,7 @@
 namespace brep
 {
   class packages;
+  class advanced_search;
   class package_details;
   class package_version_details;
   class repository_details;
@@ -64,6 +65,7 @@ namespace brep
     shared_ptr<tenant_service_map> tenant_service_map_;
 
     shared_ptr<packages> packages_;
+    shared_ptr<advanced_search> advanced_search_;
     shared_ptr<package_details> package_details_;
     shared_ptr<package_version_details> package_version_details_;
     shared_ptr<repository_details> repository_details_;

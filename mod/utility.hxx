@@ -19,6 +19,13 @@ namespace brep
            ? path_cast<dir_path> (dir / ('@' + tenant))
            : dir;
   }
+
+  // Transform the wildcard to the `SIMILAR TO` pattern.
+  //
+  // Note that the empty wildcard is transformed to the '%' pattern.
+  //
+  string
+  wildcard_to_similar_to_pattern (const string&);
 }
 
 #endif // MOD_UTILITY_HXX

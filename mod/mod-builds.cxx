@@ -27,6 +27,7 @@
 #include <libbrep/build-package-odb.hxx>
 
 #include <mod/page.hxx>
+#include <mod/utility.hxx>        // wildcard_to_similar_to_pattern()
 #include <mod/module-options.hxx>
 
 using namespace std;
@@ -63,71 +64,13 @@ init (scanner& s)
     options_->root (dir_path ("/"));
 }
 
-// Transform the wildcard to the SIMILAR TO-pattern.
-//
-static string
-transform (const string& pattern)
-{
-  if (pattern.empty ())
-    return "%";
-
-  string r;
-  for (const path_pattern_term& pt: path_pattern_iterator (pattern))
-  {
-    switch (pt.type)
-    {
-    case path_pattern_term_type::question: r += '_'; break;
-    case path_pattern_term_type::star:     r += '%'; break;
-    case path_pattern_term_type::bracket:
-      {
-        // Copy the bracket expression translating the inverse character, if
-        // present.
-        //
-        size_t n (r.size ());
-        r.append (pt.begin, pt.end);
-
-        if (r[n + 1] == '!') // ...[!... ?
-          r[n + 1] = '^';
-
-        break;
-      }
-    case path_pattern_term_type::literal:
-      {
-        char c (get_literal (pt));
-
-        // Escape the special characters.
-        //
-        // Note that '.' is not a special character for SIMILAR TO.
-        //
-        switch (c)
-        {
-        case '\\':
-        case '%':
-        case '_':
-        case '|':
-        case '+':
-        case '{':
-        case '}':
-        case '(':
-        case ')':
-        case '[':
-        case ']': r += '\\'; break;
-        }
-
-        r += c;
-        break;
-      }
-    }
-  }
-
-  return r;
-}
-
 template <typename T, typename C>
 static inline query<T>
 match (const C qc, const string& pattern)
 {
-  return qc + "SIMILAR TO" + query<T>::_val (transform (pattern));
+  return qc           +
+         "SIMILAR TO" +
+         query<T>::_val (brep::wildcard_to_similar_to_pattern (pattern));
 }
 
 // If tenant is absent, then query builds from all the public tenants.
@@ -450,9 +393,7 @@ handle (request& rq, response& rs)
       // The 'action' attribute is optional in HTML5. While the standard
       // doesn't specify browser behavior explicitly for the case the
       // attribute is omitted, the only reasonable behavior is to default it
-      // to the current document URL. Note that we specify the function name
-      // using the "hidden" <input/> element since the action url must not
-      // contain the query part.
+      // to the current document URL.
       //
       s << FORM
         <<   TABLE(ID="filter", CLASS="proplist")

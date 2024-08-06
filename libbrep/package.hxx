@@ -983,6 +983,20 @@ namespace brep
     search_text (const weighted_text&) {}
   };
 
+  // Packages count.
+  //
+  #pragma db view object(package)
+  struct package_count
+  {
+    size_t result;
+
+    operator size_t () const {return result;}
+
+    // Database mapping.
+    //
+    #pragma db member(result) column("count(" + package::id.tenant + ")")
+  };
+
   // Package search query matching rank.
   //
   #pragma db view query("/*CALL*/ SELECT * FROM search_latest_packages(?)")
@@ -1009,7 +1023,7 @@ namespace brep
   };
 
   #pragma db view query("/*CALL*/ SELECT count(*) FROM search_packages(?)")
-  struct package_count
+  struct package_search_count
   {
     size_t result;
 

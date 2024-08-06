@@ -1,0 +1,84 @@
+/*
+ * Filter form (based on proplist and form-table)
+ */
+#filter input, #filter select,
+#package-version-count, #package-version-count #count
+{
+  width: 100%;
+  margin:0;
+}
+
+#filter-btn {padding-left: .4em;}
+
+/*
+ * Package version count.
+ */
+#count
+{
+  font-size: 1.32em;
+  line-height: 1.4em;
+  color: #555;
+
+  margin: 1.2em 0 0 0;
+}
+
+/*
+ * Project, Package, and Version tables.
+ */
+table.project, .package, table.version, #filter
+{
+  margin-top: .8em;
+  margin-bottom: .8em;
+
+  padding-top: .4em;
+  padding-bottom: .4em;
+}
+
+.package, #project-break
+{
+  padding-left: 2.25em;
+}
+
+table.version, #package-break
+{
+  padding-left: 4.5em;
+}
+
+table.version:nth-child(even) {background-color: rgba(0, 0, 0, 0.07);}
+
+table.project th, .package th, #filter th
+{
+  width: 5.5em;
+}
+
+table.version th
+{
+  width: 7.3em;
+}
+
+table.project tr.project td .value,
+.package tr.name td .value,
+.package tr.summary td .value,
+.package tr.license td .value,
+table.version tr.version td .value,
+table.version tr.depends td .value,
+table.version tr.requires td .value,
+table.version tr.reviews td .value
+{
+  /* <code> style. */
+  font-family: monospace;
+  font-size: 0.94em;
+}
+
+table.version tr.reviews td .none {color: #fe7c04;}
+table.version tr.reviews td .fail {color: #ff0000;}
+table.version tr.reviews td .pass {color: #00bb00;}
+
+#package-break, #project-break
+{
+  margin-left: -.4rem;
+
+  /* <code> style. */
+  font-family: monospace;
+  font-weight: 500;
+}

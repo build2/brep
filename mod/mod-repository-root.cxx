@@ -25,6 +25,7 @@
 #include <mod/mod-build-result.hxx>
 #include <mod/mod-build-configs.hxx>
 #include <mod/mod-package-details.hxx>
+#include <mod/mod-advanced-search.hxx>
 #include <mod/mod-repository-details.hxx>
 #include <mod/mod-package-version-details.hxx>
 
@@ -118,6 +119,7 @@ namespace brep
         //
         tenant_service_map_ (make_shared<tenant_service_map> ()),
         packages_ (make_shared<packages> ()),
+        advanced_search_ (make_shared<advanced_search> ()),
         package_details_ (make_shared<package_details> ()),
         package_version_details_ (make_shared<package_version_details> ()),
         repository_details_ (make_shared<repository_details> ()),
@@ -153,6 +155,10 @@ namespace brep
           r.initialized_
           ? r.packages_
           : make_shared<packages> (*r.packages_)),
+        advanced_search_ (
+          r.initialized_
+          ? r.advanced_search_
+          : make_shared<advanced_search> (*r.advanced_search_)),
         package_details_ (
           r.initialized_
           ? r.package_details_
@@ -225,6 +231,7 @@ namespace brep
   {
     option_descriptions r (handler::options ());
     append (r, packages_->options ());
+    append (r, advanced_search_->options ());
     append (r, package_details_->options ());
     append (r, package_version_details_->options ());
     append (r, repository_details_->options ());
@@ -272,6 +279,7 @@ namespace brep
     // Initialize sub-handlers.
     //
     sub_init (*packages_, "packages");
+    sub_init (*advanced_search_, "advanced_search");
     sub_init (*package_details_, "package_details");
     sub_init (*package_version_details_, "package_version_details");
     sub_init (*repository_details_, "repository_details");
@@ -305,7 +313,13 @@ namespace brep
     auto verify = [&fail] (const string& v, const char* what)
     {
       cstrings vs ({
-          "packages", "builds", "build-configs", "about", "submit", "ci"});
+          "packages",
+          "advanced-search",
+          "builds",
+          "build-configs",
+          "about",
+          "submit",
+          "ci"});
 
       if (find (vs.begin (), vs.end (), v) == vs.end ())
         fail << what << " value '" << v << "' is invalid";
@@ -458,6 +472,13 @@ namespace brep
             handler_.reset (new packages (*packages_));
 
           return handle ("packages", param);
+        }
+        else if (func == "advanced-search")
+        {
+          if (handler_ == nullptr)
+            handler_.reset (new advanced_search (*advanced_search_));
+
+          return handle ("advanced_search", param);
         }
         else if (func == "about")
         {

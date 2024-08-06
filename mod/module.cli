@@ -545,6 +545,15 @@ namespace brep
       }
     };
 
+    class advanced_search: package_db,
+                           search,
+                           page,
+                           repository_url,
+                           package_version_metadata,
+                           handler
+    {
+    };
+
     class package_details: package, package_db,
                            search,
                            page,
@@ -871,11 +880,11 @@ namespace brep
 
   // Web handler HTTP request parameters.
   //
+  // Use parameters long names in the C++ code, short aliases (if present) in
+  // HTTP URL.
+  //
   namespace params
   {
-    // Use parameters long names in the C++ code, short aliases (if present)
-    // in HTTP URL.
-    //
     class packages
     {
       // Display package search result list starting from this page.
@@ -888,6 +897,38 @@ namespace brep
       // handler (see the request_proxy class for details).
       //
       string q | _;
+    };
+
+    class advanced_search
+    {
+      // Display advanced package search result list starting from this page.
+      //
+      uint16_t page | p;
+
+      // Advanced package search filter options.
+      //
+
+      // Package name wildcard. An empty value is treated the same way as *.
+      //
+      // Note that the advanced-search parameter is renamed to '_' by the root
+      // handler (see the request_proxy class for details).
+      //
+      string name | _;
+
+      // Package version. If empty or *, then no version constraint is applied.
+      // Otherwise the package version must match the value exactly.
+      //
+      string version | pv;
+
+      // Package project wildcard. An empty value is treated the same way as *.
+      //
+      string project | pr;
+
+      // Package version reviews. If *, then no reviews-related constraint is
+      // applied. Otherwise the value is supposed to be the one of the
+      // following statuses: reviewed and unreviewed.
+      //
+      string reviews | rv = "*";
     };
 
     class package_details

@@ -119,7 +119,7 @@ handle (request& rq, response& rs)
     throw invalid_request (400, "invalid package name format");
   }
 
-  const package_name&  name (pkg->name);
+  const package_name& name (pkg->name);
   const string        ename (mime_url_encode (name.string (), false));
 
   auto url = [&ename] (bool f = false,
@@ -226,8 +226,8 @@ handle (request& rq, response& rs)
   }
 
   size_t pkg_count (
-    package_db_->query_value<package_count> (
-      search_params<package_count> (squery, tenant, name)));
+    package_db_->query_value<package_search_count> (
+      search_params<package_search_count> (squery, tenant, name)));
 
   // Let's disable autofocus in the full page mode since clicking the full or
   // more link the user most likely intends to read rather than search, while
@@ -244,8 +244,8 @@ handle (request& rq, response& rs)
            search_params<package_search_rank> (squery, tenant, name) +
            "ORDER BY rank DESC, version_epoch DESC, "
            "version_canonical_upstream DESC, version_canonical_release DESC, "
-           "version_revision DESC" +
-           "OFFSET" + to_string (page * res_page) +
+           "version_revision DESC"                                   +
+           "OFFSET" + to_string (page * res_page)                    +
            "LIMIT" + to_string (res_page)))
   {
     shared_ptr<package> p (package_db_->load<package> (pr.id));
