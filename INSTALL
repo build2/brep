@@ -407,6 +407,23 @@ PATH=/usr/local/bin:/bin:/usr/bin
 Note that here we assume that bpkg (which is executed by brep-load) is in one
 of the PATH's directories (usually /usr/local/bin).
 
+To additionally load the package metadata (reviews, etc) to the database, the
+brep-load-with-metadata wrapper script can be used instead of brep-load
+directly. In this case, the package git repository that contains the owners/
+metadata directory should be pre-cloned (read-only and shallowly) as follows:
+
+$ git init public-metdata
+$ cd public-metdata
+$ git remote add origin <repository-url>
+$ git config core.sparsecheckout true
+$ echo "owners/" > .git/info/sparse-checkout
+$ git pull --depth=1 origin master
+
+And the above crontab brep-load entry needs to be replaced with the following
+version:
+
+$HOME/install/bin/brep-load-with-metadata --timeout 60 /home/brep/public-metdata $HOME/config/loadtab
+
 
 8.b Setup Periodic Loader, Cleaner, and Monitor Execution with systemd
 

@@ -6,6 +6,7 @@ Type=oneshot
 #User=brep
 #Group=brep
 ExecStart=/home/brep/install/bin/brep-load /home/brep/config/loadtab
+#ExecStart=/home/brep/install/bin/brep-load-with-metadata --timeout 60 /home/brep/public-metdata /home/brep/config/loadtab
 
 [Install]
 WantedBy=default.target
