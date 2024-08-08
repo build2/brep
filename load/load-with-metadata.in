@@ -93,10 +93,20 @@ fi
 load_commit="$repo_dir.load"
 touch "$load_commit"
 
-# Pull the repository.
+# Pull the repository shallowly.
 #
 if ! remote_url="$(git -C "$repo_dir" config --get remote.origin.url)"; then
   error "'$repo_dir' is not a git repository"
+fi
+
+# Save the repository name and branch of where the latest commit has been
+# fetched from, separated by space. For example 'origin master'.
+#
+refs=$(git -C "$repo_dir" log -1 --format=%D FETCH_HEAD)
+repo_branch="$(sed -n -E 's%^.+ ([^/ ]+)/([^/ ]+)$%\1 \2%p' <<<"$refs")"
+
+if [[ -z "$repo_branch" ]]; then
+  error "unable to extract repository and branch from '$refs'"
 fi
 
 # Git doesn't support the connection timeout option. The options we use are
@@ -109,8 +119,12 @@ check_git_connectivity "$remote_url" "$timeout"
 
 # Fail if no network activity happens during the time specified.
 #
+# Note: keep $repo_branch expansion unquoted.
+#
 git -c http.lowSpeedLimit=1 -c "http.lowSpeedTime=$timeout" \
-  -C "$repo_dir" pull -q
+  -C "$repo_dir" fetch -q --depth=1 $repo_branch
+
+git -C "$repo_dir" reset -q --hard FETCH_HEAD
 
 # Match the HEAD commit id to the one stored in the file. If it matches, then
 # nothing changed in the repository since it has been processed by brep-load
