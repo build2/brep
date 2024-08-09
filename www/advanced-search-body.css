@@ -25,7 +25,16 @@
 /*
  * Project, Package, and Version tables.
  */
-table.project, .package, table.version, #filter
+table.project
+{
+  margin-top: 1.7em;
+  margin-bottom: -1.2em;
+
+  padding-top: .4em;
+  padding-bottom: .4em;
+}
+
+.package, table.version, #filter
 {
   margin-top: .8em;
   margin-bottom: .8em;
