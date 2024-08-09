@@ -98,6 +98,13 @@ package_query (const brep::params::advanced_search& params)
     if (!params.project ().empty ())
       q = q && match<T> (query::project, params.project ());
 
+    // Package repository.
+    //
+    const string& rp (params.repository ());
+
+    if (rp != "*")
+      q = q && query::internal_repository.canonical_name == rp;
+
     // Reviews.
     //
     const string& rs (params.reviews ());
@@ -138,6 +145,9 @@ handle (request& rq, response& rs)
   // Thus, let's keep it simple for now and just respond with the 501 status
   // code (not implemented) if such a mode is detected.
   //
+  // NOTE: don't forget to update TR_PROJECT::operator() when/if this mode is
+  //       supported.
+  //
   if (!tenant.empty ())
     throw invalid_request (501, "not implemented");
 
@@ -177,6 +187,22 @@ handle (request& rq, response& rs)
     package_db_->query_value<package_count> (
       package_query<package_count> (params)));
 
+  // Load the internal repositories as the canonical name/location pairs,
+  // sorting them in the same way as on the About page.
+  //
+  vector<pair<string, string>> repos ({{"*", "*"}});
+  {
+    using query = query<repository>;
+
+    for (repository& r:
+           package_db_->query<repository> (
+             (query::internal && query::id.tenant == tenant) +
+             "ORDER BY" + query::priority))
+    {
+      repos.emplace_back (move (r.id.canonical_name), r.location.string ());
+    }
+  }
+
   // Print the package builds filter form on the first page only.
   //
   size_t page (params.page ());
@@ -193,7 +219,8 @@ handle (request& rq, response& rs)
       <<     TBODY
       <<       TR_INPUT  ("name", "advanced-search", params.name (), "*", true)
       <<       TR_INPUT  ("version", "pv", params.version (), "*")
-      <<       TR_INPUT  ("project", "pr", params.project (), "*");
+      <<       TR_INPUT  ("project", "pr", params.project (), "*")
+      <<       TR_SELECT ("repository", "rp", params.repository (), repos);
 
     if (options_->reviews_url_specified ())
       s <<     TR_SELECT ("reviews", "rv", params.reviews (), reviews);
@@ -245,10 +272,17 @@ handle (request& rq, response& rs)
     {
       if (p.project == prj)
       {
+        s << ~DIV; // 'versions' class.
+
         if (p.name == pkg)
           s << DIV(ID="package-break") << "..." << ~DIV;
 
         s << DIV(ID="project-break") << "..." << ~DIV;
+
+        // Make sure we don't serialize ~DIV(CLASS="versions") twice (see
+        // below).
+        //
+        pkg = package_name ();
       }
 
       break;
@@ -256,18 +290,24 @@ handle (request& rq, response& rs)
 
     if (p.project != prj)
     {
+      if (!pkg.empty ())
+        s << ~DIV; // 'versions' class.
+
       prj = move (p.project);
       pkg = package_name ();
 
       s << TABLE(CLASS="proplist project")
         <<   TBODY
-        <<     TR_VALUE ("project", prj.string ())
+        <<     TR_PROJECT (prj, root, tenant)
         <<   ~TBODY
         << ~TABLE;
     }
 
     if (p.name != pkg)
     {
+      if (!pkg.empty ())
+        s << ~DIV; // 'versions' class.
+
       pkg = move (p.name);
 
       s << TABLE(CLASS="proplist package")
@@ -276,7 +316,8 @@ handle (request& rq, response& rs)
         <<     TR_SUMMARY (p.summary)
         <<     TR_LICENSE (p.license_alternatives)
         <<   ~TBODY
-        << ~TABLE;
+        << ~TABLE
+        << DIV(CLASS="versions");
     }
 
     s << TABLE(CLASS="proplist version")
@@ -301,6 +342,9 @@ handle (request& rq, response& rs)
     s <<   ~TBODY
       << ~TABLE;
   }
+
+  if (!pkg.empty ())
+    s << ~DIV; // 'versions' class.
 
   t.commit ();
 
@@ -327,6 +371,7 @@ handle (request& rq, response& rs)
 
   add_filter ("pv", params.version ());
   add_filter ("pr", params.project ());
+  add_filter ("rp", params.repository (), "*");
   add_filter ("rv", params.reviews (), "*");
 
   s <<       DIV_PAGER (page,

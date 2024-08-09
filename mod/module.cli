@@ -924,6 +924,12 @@ namespace brep
       //
       string project | pr;
 
+      // Package repositories. If *, then no repository constraint is applied.
+      // Otherwise the package repository canonical name must match the value
+      // exactly.
+      //
+      string repository | rp = "*";
+
       // Package version reviews. If *, then no reviews-related constraint is
       // applied. Otherwise the value is supposed to be the one of the
       // following statuses: reviewed and unreviewed.

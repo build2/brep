@@ -302,15 +302,26 @@ namespace brep
     s << TR(CLASS="project")
       <<   TH << "project" << ~TH
       <<   TD
-      <<     SPAN(CLASS="value")
-      <<       A
-      <<         HREF
-      <<           tenant_dir (root_, tenant_) << "?packages="
-      <<           mime_url_encode (project_.string ())
-      <<         ~HREF
-      <<         project_
-      <<       ~A
-      <<     ~SPAN
+      <<     SPAN(CLASS="value");
+
+    // Note that we currently don't support the advanced package search in the
+    // multi-tenant mode. Thus, we print the project as a plain text in such a
+    // mode, rather than as a link.
+    //
+    if (tenant_.empty ())
+    {
+      s << A
+        <<   HREF
+        <<     tenant_dir (root_, tenant_) << "?advanced-search&pr="
+        <<     mime_url_encode (project_.string ())
+        <<   ~HREF
+        <<   project_
+        << ~A;
+    }
+    else
+      s << project_;
+
+    s <<     ~SPAN
       <<   ~TD
       << ~TR;
   }

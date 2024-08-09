@@ -36,22 +36,29 @@ table.project, .package, table.version, #filter
 
 .package, #project-break
 {
-  padding-left: 2.25em;
+  margin-left: -.4rem;
+  padding-left: 2.25rem;
 }
 
 table.version, #package-break
 {
-  padding-left: 4.5em;
+  margin-left: 4rem;
+  padding-left: .4rem;
 }
 
-table.version:nth-child(even) {background-color: rgba(0, 0, 0, 0.07);}
+table.version
+{
+  width: calc(100% + .8rem - 4.4rem);
+}
 
-table.project th, .package th, #filter th
+table.version:nth-child(odd) {background-color: rgba(0, 0, 0, 0.07);}
+
+table.project th, .package th
 {
   width: 5.5em;
 }
 
-table.version th
+table.version th, #filter th
 {
   width: 7.3em;
 }
@@ -76,8 +83,6 @@ table.version tr.reviews td .pass {color: #00bb00;}
 
 #package-break, #project-break
 {
-  margin-left: -.4rem;
-
   /* <code> style. */
   font-family: monospace;
   font-weight: 500;

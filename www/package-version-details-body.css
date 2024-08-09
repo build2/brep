@@ -171,8 +171,7 @@ h1, h2, h3
 }
 #package th {width: 9.5em;}
 
-#package tr.topics td a,
-#package tr.project td a
+#package tr.topics td a
 {
   display: inline-block;
 
@@ -182,21 +181,18 @@ h1, h2, h3
   margin: 0 0.35em 0.1em 0;
 }
 
-#package tr.topics td a:visited,
-#package tr.project td a:visited
+#package tr.topics td a:visited
 {
   color: #3870c0;
 }
 
-#package tr.topics td a:hover,
-#package tr.project td a:hover
+#package tr.topics td a:hover
 {
   text-decoration: none;
   background-color: #def;
 }
 
-#package tr.topics td,
-#package tr.project td
+#package tr.topics td
 {
   padding: 0;
   margin: 0 0 0 -0.5em;
