@@ -99,11 +99,14 @@ if ! remote_url="$(git -C "$repo_dir" config --get remote.origin.url)"; then
   error "'$repo_dir' is not a git repository"
 fi
 
-# Save the repository name and branch of where the latest commit has been
+# Save the repository name and branch of where the current commit has been
 # fetched from, separated by space. For example 'origin master'.
 #
-refs=$(git -C "$repo_dir" log -1 --format=%D FETCH_HEAD)
-repo_branch="$(sed -n -E 's%^.+ ([^/ ]+)/([^/ ]+)$%\1 \2%p' <<<"$refs")"
+# Note that if the commit belongs to multiple repositories/branches, then we
+# extract the first their pair from the git-log output.
+#
+refs=$(git -C "$repo_dir" log -1 --format=%D)
+repo_branch="$(sed -n -E 's%^[^/]+ ([^/ ]+)/([^/ ,]+).*$%\1 \2%p' <<<"$refs")"
 
 if [[ -z "$repo_branch" ]]; then
   error "unable to extract repository and branch from '$refs'"
