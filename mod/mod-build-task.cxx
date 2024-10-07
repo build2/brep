@@ -1804,7 +1804,8 @@ handle (request& rq, response& rs)
               const config_machine* cm (nullptr);
               optional<collect_auxiliaries_result> aux;
 
-              build_db_->load (*p, p->constraints_section);
+              if (!p->constraints_section.loaded ())
+                build_db_->load (*p, p->constraints_section);
 
               for (auto i (configs.begin ()), e (configs.end ()); i != e; ++i)
               {
