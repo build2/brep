@@ -421,11 +421,10 @@ namespace brep
     return i != cs.end () ? &*i : nullptr;
   }
 
-  // Note that ODB doesn't support containers of value types which contain
-  // containers. Thus, we will persist/load
-  // build_package_config_template<K>::{builds,constraint,auxiliaries,bot_keys}
-  // via the separate nested containers using the adapter classes.
-  //
+  // Note that build_package_configs_template<K> is a container of the value
+  // type build_package_config_template<K>, which contains multiple
+  // containers: builds, constraint, auxiliaries, bot_keys. We will
+  // persist/load each of them via a separate virtual container.
 
   // build_package_config_template<K>::builds
   //
@@ -436,39 +435,6 @@ namespace brep
   #pragma db member(build_class_expr_key::outer) column("config_index")
   #pragma db member(build_class_expr_key::inner) column("index")
 
-  // Adapter for build_package_config_template<K>::builds.
-  //
-  // Note: 1 as for build_package_configs_template.
-  //
-  class build_package_config_builds: public small_vector<build_class_exprs, 1>
-  {
-  public:
-    build_package_config_builds () = default;
-
-    template <typename K>
-    explicit
-    build_package_config_builds (const build_package_configs_template<K>& cs)
-    {
-      reserve (cs.size ());
-      for (const build_package_config_template<K>& c: cs)
-        push_back (c.builds);
-    }
-
-    template <typename K>
-    void
-    to_configs (build_package_configs_template<K>& cs) &&
-    {
-      // Note that the empty trailing entries will be missing (see ODB's
-      // nested-container.hxx for details).
-      //
-      assert (size () <= cs.size ());
-
-      auto i (cs.begin ());
-      for (build_class_exprs& ces: *this)
-        i++->builds = move (ces);
-    }
-  };
-
   // build_package_config_template<K>::constraints
   //
   using build_constraint_key = odb::nested_key<build_constraints>;
@@ -477,41 +443,6 @@ namespace brep
   #pragma db value(build_constraint_key)
   #pragma db member(build_constraint_key::outer) column("config_index")
   #pragma db member(build_constraint_key::inner) column("index")
-
-  // Adapter for build_package_config_template<K>::constraints.
-  //
-  // Note: 1 as for build_package_configs_template.
-  //
-  class build_package_config_constraints:
-    public small_vector<build_constraints, 1>
-  {
-  public:
-    build_package_config_constraints () = default;
-
-    template <typename K>
-    explicit
-    build_package_config_constraints (
-      const build_package_configs_template<K>& cs)
-    {
-      reserve (cs.size ());
-      for (const build_package_config_template<K>& c: cs)
-        push_back (c.constraints);
-    }
-
-    template <typename K>
-    void
-    to_configs (build_package_configs_template<K>& cs) &&
-    {
-      // Note that the empty trailing entries will be missing (see ODB's
-      // nested-container.hxx for details).
-      //
-      assert (size () <= cs.size ());
-
-      auto i (cs.begin ());
-      for (build_constraints& bcs: *this)
-        i++->constraints = move (bcs);
-    }
-  };
 
   // build_package_config_template<K>::auxiliaries
   //
@@ -522,74 +453,11 @@ namespace brep
   #pragma db member(build_auxiliary_key::outer) column("config_index")
   #pragma db member(build_auxiliary_key::inner) column("index")
 
-  // Adapter for build_package_config_template<K>::auxiliaries.
-  //
-  // Note: 1 as for build_package_configs_template.
-  //
-  class build_package_config_auxiliaries:
-    public small_vector<build_auxiliaries, 1>
-  {
-  public:
-    build_package_config_auxiliaries () = default;
-
-    template <typename K>
-    explicit
-    build_package_config_auxiliaries (
-      const build_package_configs_template<K>& cs)
-    {
-      reserve (cs.size ());
-      for (const build_package_config_template<K>& c: cs)
-        push_back (c.auxiliaries);
-    }
-
-    template <typename K>
-    void
-    to_configs (build_package_configs_template<K>& cs) &&
-    {
-      // Note that the empty trailing entries will be missing (see ODB's
-      // nested-container.hxx for details).
-      //
-      assert (size () <= cs.size ());
-
-      auto i (cs.begin ());
-      for (build_auxiliaries& bas: *this)
-        i++->auxiliaries = move (bas);
-    }
-  };
-
   // build_package_config_template<K>::bot_keys
   //
-  // Adapter for build_package_config_template<K>::bot_keys.
-  //
-  // Note: 1 as for build_package_configs_template.
-  //
-  template <typename K>
-  class build_package_config_bot_keys: public small_vector<vector<K>, 1>
-  {
-  public:
-    build_package_config_bot_keys () = default;
-
-    explicit
-    build_package_config_bot_keys (const build_package_configs_template<K>& cs)
-    {
-      this->reserve (cs.size ());
-      for (const build_package_config_template<K>& c: cs)
-        this->push_back (c.bot_keys);
-    }
-
-    void
-    to_configs (build_package_configs_template<K>& cs) &&
-    {
-      // Note that the empty trailing entries will be missing (see ODB's
-      // nested-container.hxx for details).
-      //
-      assert (this->size () <= cs.size ());
-
-      auto i (cs.begin ());
-      for (vector<K>& bks: *this)
-        i++->bot_keys = move (bks);
-    }
-  };
+  // Note that the nested container support types (*_key, *_map, etc) are
+  // package object type-specific for this container and are defined in the
+  // package.hxx and build-package.hxx headers, respectively.
 
   // The primary reason why a package is unbuildable by the build bot
   // controller service.

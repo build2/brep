@@ -288,50 +288,48 @@ namespace brep
     //
     #pragma db member(configs) id_column("") value_column("config_")
 
-    #pragma db member(config_builds)                           \
-      virtual(build_class_exprs_map)                           \
-      after(configs)                                           \
-      get(odb::nested_get (                                    \
-            brep::build_package_config_builds (this.configs))) \
-      set(brep::build_package_config_builds bs;                \
-          odb::nested_set (bs, std::move (?));                 \
-          move (bs).to_configs (this.configs))                 \
-      id_column("") key_column("") value_column("")            \
+    #pragma db member(config_builds)                             \
+      virtual(build_class_exprs_map)                             \
+      after(configs)                                             \
+      get(odb::nested_get (this.configs,                         \
+                           &brep::build_package_config::builds)) \
+      set(odb::nested_set (this.configs,                         \
+                           &brep::build_package_config::builds,  \
+                           std::move (?)))                       \
+      id_column("") key_column("") value_column("")              \
       section(constraints_section)
 
-    #pragma db member(config_constraints)                           \
-      virtual(build_constraints_map)                                \
-      after(config_builds)                                          \
-      get(odb::nested_get (                                         \
-            brep::build_package_config_constraints (this.configs))) \
-      set(brep::build_package_config_constraints cs;                \
-          odb::nested_set (cs, std::move (?));                      \
-          move (cs).to_configs (this.configs))                      \
-      id_column("") key_column("") value_column("")                 \
+    #pragma db member(config_constraints)                             \
+      virtual(build_constraints_map)                                  \
+      after(config_builds)                                            \
+      get(odb::nested_get (this.configs,                              \
+                           &brep::build_package_config::constraints)) \
+      set(odb::nested_set (this.configs,                              \
+                           &brep::build_package_config::constraints,  \
+                           std::move (?)))                            \
+      id_column("") key_column("") value_column("")                   \
       section(constraints_section)
 
-    #pragma db member(config_auxiliaries)                           \
-      virtual(build_auxiliaries_map)                                \
-      after(config_constraints)                                     \
-      get(odb::nested_get (                                         \
-            brep::build_package_config_auxiliaries (this.configs))) \
-      set(brep::build_package_config_auxiliaries as;                \
-          odb::nested_set (as, std::move (?));                      \
-          move (as).to_configs (this.configs))                      \
-      id_column("") key_column("") value_column("")                 \
+    #pragma db member(config_auxiliaries)                             \
+      virtual(build_auxiliaries_map)                                  \
+      after(config_constraints)                                       \
+      get(odb::nested_get (this.configs,                              \
+                           &brep::build_package_config::auxiliaries)) \
+      set(odb::nested_set (this.configs,                              \
+                           &brep::build_package_config::auxiliaries,  \
+                           std::move (?)))                            \
+      id_column("") key_column("") value_column("")                   \
       section(auxiliaries_section)
 
-    #pragma db member(config_bot_keys)                                  \
-      virtual(build_package_bot_keys_map)                               \
-      after(config_auxiliaries)                                         \
-      get(odb::nested_get (                                             \
-            brep::build_package_config_bot_keys<                        \
-              lazy_shared_ptr<brep::build_public_key>> (this.configs))) \
-      set(brep::build_package_config_bot_keys<                          \
-            lazy_shared_ptr<brep::build_public_key>> bks;               \
-          odb::nested_set (bks, std::move (?));                         \
-          move (bks).to_configs (this.configs))                         \
-      id_column("") key_column("") value_column("key_")                 \
+    #pragma db member(config_bot_keys)                             \
+      virtual(build_package_bot_keys_map)                          \
+      after(config_auxiliaries)                                    \
+      get(odb::nested_get (this.configs,                           \
+                           &brep::build_package_config::bot_keys)) \
+      set(odb::nested_set (this.configs,                           \
+                           &brep::build_package_config::bot_keys,  \
+                           std::move (?)))                         \
+      id_column("") key_column("") value_column("key_")            \
       section(bot_keys_section)
 
     #pragma db member(constraints_section) load(lazy) update(always)
