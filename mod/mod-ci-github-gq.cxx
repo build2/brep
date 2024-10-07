@@ -747,6 +747,15 @@ namespace brep
   //     }
   //   }
   //
+  //
+  // pullRequests (last:50 states:[OPEN]
+  //               orderBy:{field:UPDATED_AT direction:ASC}
+  //               baseRefName:"master") {
+  //
+  // updatedAt field changes on PR close, conversion to draft PR, merge
+  // conflict resolution, etc. So seems like it changes with any kind of PR
+  // update.
+  //
   static string
   gq_query_fetch_open_pull_requests (const string& rid, const string& br)
   {

@@ -673,34 +673,66 @@ namespace brep
   //   from within the same repository or from a forked repository. The merge
   //   and head commits will be at refs/pull/<PR-number>/{merge,head}.
   //
-  // - New commits are added to PR head branch
+  // - @@ TODO Shared repo model problems
   //
-  //   @@ TODO In this case we will end up creating two sets of check runs on
-  //      the same commit (pull_request.head.sha and
-  //      check_suite.head_sha). It's not obvious which to prefer but I'm
-  //      thinking the pull request is more important because in most
-  //      development models it represents something that is more likely to
-  //      end up in an important branch (as opposed to the head of a feature
-  //      branch).
+  //      The root of all of these problems is that, in the shared repository
+  //      model, for every PR we also receive a check_suite for the commit to
+  //      the head branch. The situation is exacerbated by the fact that the
+  //      PR and CS can arrive in any order.
   //
-  //      Note that in these two cases we are building different commit (the
-  //      head commit vs merge commit). So it's not clear how we can have
-  //      a single check_suite result represent both?
+  //       - There will be two CIs running concurrently, building different
+  //         commits: the head commit (check_suite) vs merge commit
+  //         (pull_request).
   //
-  //   Possible solution: ignore all check_suites with non-empty
-  //   pull_requests[].
+  //       - The CS and PR check_runs will all be added to the same commit
+  //         SHA: pull_request.head.sha, check_suite.head_sha (see above for
+  //         the reasons we don't put the check_runs on the merge
+  //         commit).
   //
-  //   => check_suite(requested, PR_head) [only in shared repo model]
+  //       - Recall that creating a check_run named `A` will effectively
+  //         replace any existing check_runs with that name. They will still
+  //         exist on the GitHub servers but GitHub will only consider the
+  //         latest one (for display in the UI or in determining the
+  //         mergeability of a PR).
   //
-  //      Note: check_suite.pull_requests[] will contain all PRs with this
-  //      branch as head.
+  //       - Some CS CRs may finish after the corresponding PR CRs, thus
+  //         potentially inverting the true status of a PR (e.g., allow the
+  //         merge of a PR with a bad merge commit).
   //
-  //      Note: check_suite.pull_requests[i].head.sha will be the new, updated
-  //      PR head sha.
+  //   Thus we need a way to prevent any CS check_runs from being updated
+  //   after having received a PR.
   //
-  //   => pull_request(synchronize)
+  //   Problem 1: Create PR from feature branch
   //
-  //   Note: The check_suite and pull_request can arrive in any order.
+  //     - Receive check_suite for commit to feature branch
+  //     - Receive pull_request
+  //
+  //     Solution: When receive a PR, fetch all check_suites with that head
+  //     SHA (curl REPO/commits/SHA/check-suites) and cancel their CI
+  //     jobs.
+  //
+  //     Thus there will be no more CS check_run updates. Note however that in
+  //     most cases the PR will be received long enough after the CS for the
+  //     latter's check_runs to all have completed already.
+  //
+  //     Note that there will not be a merge CR on the head yet so the PR will
+  //     never be green.
+  //
+  //   Problem 2: New commits are added to PR head branch
+  //
+  //     Note: The check_suite and pull_request can arrive in any order.
+  //
+  //     - check_suite(requested, PR_head)
+  //
+  //       Note: check_suite.pull_requests[] will contain all PRs with this
+  //       branch as head.
+  //
+  //       Note: check_suite.pull_requests[i].head.sha will be the new,
+  //       updated PR head sha.
+  //
+  //     - pull_request(synchronize)
+  //
+  //     Solution: Ignore all check_suites with non-empty pull_requests[].
   //
   // - New commits are added to PR base branch
   //
@@ -1791,6 +1823,13 @@ namespace brep
         }
       }
 
+      // @@ TMP Checking for built only to confirm the create/update
+      //    succeeded.
+      //
+      // @@ TODO If cr wasn't in service data then this might be true despite
+      //    the CR not having been created on GH (due to cr.status not being
+      //    initialized and thus containing an indeterminate value).
+      //
       if (cr.state == build_state::built)
       {
         // Check run was created/updated successfully to built.
@@ -1807,6 +1846,18 @@ namespace brep
         //    - Update synchronized flag inside those functions.
         //    - Update the state to built if it's already built on GitHub --
         //      but then what do we set the status to?
+        //
+        //      @@ TMP This scenario can only arise for updates to building.
+        //         For creations a new CR will always be created so the
+        //         returned state will always be what we asked for; and we
+        //         never update to queued.
+        //
+        //         As for updates to building, if GH has already been updated
+        //         to built then the build_built() lambda will soon save the
+        //         built state and valid status so nothing more should need to
+        //         be done. In fact, whenever updating to building we do stop
+        //         immediately if it's already built on GH.
+        //
         //    - Maybe signal in return value (optional<bool>?) that there is
         //      a discrepancy.
         //

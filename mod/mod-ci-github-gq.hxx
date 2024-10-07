@@ -110,7 +110,8 @@ namespace brep
   // will be treated by the caller as still being generated).
   //
   // Note that the first request causes GitHub to start preparing the test
-  // merge commit.
+  // merge commit. (For details see
+  // https://docs.github.com/rest/guides/getting-started-with-the-git-database-api#checking-mergeability-of-pull-requests.)
   //
   optional<string>
   gq_pull_request_mergeable (const basic_mark& error,
