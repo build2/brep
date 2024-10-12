@@ -265,8 +265,8 @@ namespace brep
 
             build_state rst (gh_from_status (rcr.status)); // Received state.
 
-            // Note that GitHub won't allow us to change a built check run
-            // to any other state.
+            // Note that GitHub won't allow us to change a built check run to
+            // any other state (but all other transitions are allowed).
             //
             // @@ Are we handling the case where the resulting state (built)
             //    differs from what we expect?

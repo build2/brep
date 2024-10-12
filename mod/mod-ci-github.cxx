@@ -526,7 +526,7 @@ namespace brep
       {
         // Recreate each PR's CI request.
         //
-        for (gh_pull_request& pr: *prs)
+        for (const gh_pull_request& pr: *prs)
         {
           service_data prsd (sd.warning_success,
                              sd.installation_access.token,
@@ -613,6 +613,8 @@ namespace brep
                                build_state::built,
                                move (br)))
       {
+        assert (cr.state == build_state::built);
+
         l3 ([&]{trace << "updated check_run { " << cr << " }";});
       }
       else
@@ -744,6 +746,9 @@ namespace brep
   //   => pull_request(edited)
   //
   // - PR closed @@ TODO
+  //
+  //   Also received if base branch is deleted. (And presumably same for head
+  //   branch.)
   //
   //   => pull_request(closed)
   //
@@ -939,6 +944,8 @@ namespace brep
                                build_state::built,
                                move (br)))
       {
+        assert (cr.state == build_state::built);
+
         return cr;
       }
       else
@@ -1637,8 +1644,6 @@ namespace brep
         if (scr->state == build_state::built)
           return nullptr;
 
-        // Don't move from scr because we search sd.check_runs below.
-        //
         cr = move (*scr);
       }
       else
@@ -1823,14 +1828,7 @@ namespace brep
         }
       }
 
-      // @@ TMP Checking for built only to confirm the create/update
-      //    succeeded.
-      //
-      // @@ TODO If cr wasn't in service data then this might be true despite
-      //    the CR not having been created on GH (due to cr.status not being
-      //    initialized and thus containing an indeterminate value).
-      //
-      if (cr.state == build_state::built)
+      if (cr.state_synced)
       {
         // Check run was created/updated successfully to built.
         //
@@ -1894,6 +1892,8 @@ namespace brep
                                    build_state::built,
                                    move (br)))
           {
+            assert (cr.state == build_state::built);
+
             l3 ([&]{trace << "updated check_run { " << cr << " }";});
           }
           else
