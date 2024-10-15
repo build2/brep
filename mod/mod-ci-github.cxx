@@ -275,8 +275,8 @@ namespace brep
     // Note: "GitHub continues to add new event types and new actions to
     // existing event types." As a result we ignore known actions that we are
     // not interested in and log and ignore unknown actions. The thinking here
-    // is that we want be "notified" of new actions at which point we can decide
-    // whether to ignore them or to handle.
+    // is that we want be "notified" of new actions at which point we can
+    // decide whether to ignore them or to handle.
     //
     // @@ There is also check_run even (re-requested by user, either
     //    individual check run or all the failed check runs).
@@ -360,7 +360,7 @@ namespace brep
         //   A pull request's head branch was updated from the base branch or
         //   new commits were pushed to the head branch. (Note that there is
         //   no equivalent event for the base branch. That case gets handled
-        //   in handle_check_suite_request() instead.)
+        //   in handle_check_suite_request() instead. @@ Not anymore.)
         //
         // Note that both cases are handled the same: we start a new CI
         // request which will be reported on the new commit id.
@@ -371,6 +371,8 @@ namespace brep
       {
         // Ignore the remaining actions by sending a 200 response with empty
         // body.
+        //
+        // @@ Ignore known but log unknown, as in check_suite above?
         //
         return true;
       }
@@ -487,6 +489,8 @@ namespace brep
       }
     }
 
+    // @@ Not anymore (and may not need separate create_pull_request_ci()).
+    //
     // The merge commits of any open pull requests with this branch as base
     // branch will now be out of date, and thus so will be their CI builds and
     // associated check runs (and, no, GitHub does not invalidate those CI
