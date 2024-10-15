@@ -29,6 +29,8 @@
 //      - check_run (action: rerequested): received when user re-runs a
 //        specific check or all failed checks.
 //
+//        @@ TMP I have confirmed that the above is accurate.
+//
 //      Will need to extract a few more fields from check_runs, but the layout
 //      is very similar to that of check_suite.
 //
