@@ -72,16 +72,38 @@ namespace brep
     // created tenant and set the initial delay for the first notification.
     // See also the build_unloaded() tenant services notification.
     //
+    // The duplicate_tenant_mode argument specifies the behavior in case of
+    // the duplicate tenant_service type/id pair. The default is to fail by
+    // throwing an exception. Alternatively, this can be ignored or the
+    // previous tenant can be canceled (thus freeing the type/id pair; see
+    // below) and a new tenant with the same type/id created. In both these
+    // modes (ignore and replace), the second half of the returned pair
+    // indicates whether there was a duplicate. If there were, then for the
+    // ignore mode the returned reference corresponds to the old tenant and
+    // for the replace mode -- to the new tenant.
+    //
+    // The replace_archived mode is a variant of replace that replaces if the
+    // tenant is already archived and ignores it otherwise (with the result
+    // having the same semantics as in the replace and ignore modes).
+    //
+    // Note also that the duplicate_tenant::replace modes are not the same as
+    // separate calls to create() and then to cancel() since the latter would
+    // happen in two separate transactions and will thus be racy. @@@ TODO
+    //
     // Note: should be called out of the database transaction.
     //
-    optional<string>
+    enum class duplicate_tenant_mode {fail, ignore, replace, replace_archived};
+    enum class duplicate_tenant_result {created, ignored, replaced};
+
+    pair<optional<string>, duplicate_tenant_result>
     create (const basic_mark& error,
             const basic_mark& warn,
             const basic_mark* trace,
             odb::core::database&,
             tenant_service&&,
             duration notify_interval,
-            duration notify_delay) const;
+            duration notify_delay,
+            duplicate_tenant_mode = duplicate_tenant_mode::fail) const;
 
     // Load (and start) previously created (as unloaded) CI request. Similarly
     // to the start() function, return nullopt on an internal error.
@@ -101,6 +123,12 @@ namespace brep
     // Cancel previously created or started CI request. Return the service
     // state or nullopt if there is no tenant for such a type/id pair.
     //
+    // Specifically, this function clears the tenant service state (thus
+    // allowing reusing the same service type/id pair in another tenant) and
+    // archives the tenant, unless the tenant is unloaded, in which case it is
+    // dropped (@@@ TODO). Note that the latter allow using unloaded tenants
+    // as a relatively cheap asynchronous execution mechanism.
+    //
     // Note: should be called out of the database transaction.
     //
     optional<tenant_service>
@@ -114,6 +142,14 @@ namespace brep
     // Cancel previously created or started CI request. Return false if there
     // is no tenant for the specified tenant id. Note that the reason argument
     // is only used for tracing.
+    //
+    // @@@ Is tenant id here and reference above the same thing? Maybe use
+    //     "tenant id" and "service id" terminology throughout?
+    //
+    // Similarly to above, this function archives the tenant, unless the
+    // tenant is unloaded, in which case it is dropped (@@@ TODO). Note,
+    // however, that this version does not touch the service state (use the
+    // above version if you want to clear it).
     //
     // Note: should be called out of the database transaction.
     //

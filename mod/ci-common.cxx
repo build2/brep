@@ -707,6 +707,8 @@ namespace brep
     if (t == nullptr)
       return nullopt;
 
+    // @@ Why not remove it if unloaded (and below)?
+
     optional<tenant_service> r (move (t->service));
     t->service = nullopt;
     t->archived = true;
