@@ -541,6 +541,8 @@ namespace brep
   // Third-party service state which may optionally be associated with a
   // tenant (see also mod/tenant-service.hxx for background).
   //
+  // Note that the {id, type} pair must be unique.
+  //
   #pragma db value
   struct tenant_service
   {
