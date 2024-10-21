@@ -43,11 +43,32 @@ namespace brep
     }
   };
 
+  // We have two kinds of service data that correspond to the following two
+  // scenarios (those are the only possible ones, until/unless we add support
+  // for merge queues):
+  //
+  // 1. Branch push (via check_suite) plus zero or more local PRs (via
+  //    pull_request) that share the same head commit id.
+  //
+  // 2. One or more remote PRs (via pull_request) that share the same head
+  //    commit id (from a repository in another organization).
+  //
+  // Plus, for PRs, the service data may be in the pre-check phase while we
+  // are in the process of requesting the test merge commit and making sure it
+  // can be created and is not behind base. We do all this before we actually
+  // create the CI tenant.
+  //
   struct service_data
   {
     // The data schema version. Note: must be first member in the object.
     //
     uint64_t version = 1;
+
+    // Kind and phase.
+    //
+    enum {local, remote /*, queue */} kind;
+    bool pre_check;
+    bool re_request; // Re-requested (rebuild).
 
     // Check suite settings.
     //
@@ -73,9 +94,16 @@ namespace brep
     //
     optional<string> merge_node_id;
 
-    // The commit ID the check suite or pull request (and its check runs) are
+    // The commit ID the branch push or pull request (and its check runs) are
+    // building. This will be the head commit for the branch push as well as
+    // local pull requests and the test merge commit for remote pull requests.
+    //
+    string check_sha;
+
+    // The commit ID the branch push or pull request (and its check runs) are
     // reporting to. Note that in the case of a pull request this will be the
-    // head commit (`pull_request.head.sha`) as opposed to the merge commit.
+    // head commit (`pull_request.head.sha`) as opposed to the test merge
+    // commit.
     //
     string report_sha;
 

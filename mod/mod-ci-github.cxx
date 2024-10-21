@@ -573,6 +573,8 @@ namespace brep
         error << "check suite " << nid << " (re-requested): unable to cancel";
     }
 
+    // @@@ Use repo+head ad service id.
+
     // Start CI for the check suite.
     //
     repository_location rl (cs.repository.clone_url + '#' +
@@ -822,24 +824,30 @@ namespace brep
     return true;
   }
 
-  // Note: only handles pull requests (not check suites).
-  //
   function<optional<string> (const tenant_service&)> ci_github::
-  build_unloaded (tenant_service&& ts,
-                  const diag_epilogue& log_writer) const noexcept
+  build_unloaded_pre_check (service_data&& sd,
+                            const diag_epilogue& log_writer) const noexcept
   {
     NOTIFICATION_DIAG (log_writer);
 
-    service_data sd;
-    try
-    {
-      sd = service_data (*ts.data);
-    }
-    catch (const invalid_argument& e)
-    {
-      error << "failed to parse service data: " << e;
-      return nullptr;
-    }
+    // Note: PR only (but both local and remove).
+    //
+    // - Ask for test merge commit.
+    // - If not ready, get called again.
+    // - If not mergeable, behind, of different head, cancel itself and ignore.
+    // - Otherwise, create unloaded CI tenant (with proper duplicate mode
+    //   based on re_request) and cancel itself.
+
+    return nullptr;
+  }
+
+  function<optional<string> (const tenant_service&)> ci_github::
+  build_unloaded_load (service_data&& sd,
+                       const diag_epilogue& log_writer) const noexcept
+  {
+    // @@@ TODO: load the tenant: should be the same for both branch push and
+    // PR.
+    //
 
     // Get a new installation access token if the current one has expired.
     //
@@ -1194,6 +1202,28 @@ namespace brep
 
       return sd.json ();
     };
+  }
+
+  function<optional<string> (const tenant_service&)> ci_github::
+  build_unloaded (tenant_service&& ts,
+                  const diag_epilogue& log_writer) const noexcept
+  {
+    NOTIFICATION_DIAG (log_writer);
+
+    service_data sd;
+    try
+    {
+      sd = service_data (*ts.data);
+    }
+    catch (const invalid_argument& e)
+    {
+      error << "failed to parse service data: " << e;
+      return nullptr;
+    }
+
+    return sd.pre_check
+      ? build_unloaded_pre_check (move (sd), log_writer)
+      : build_unloaded_load (move (sd), log_writer)
   }
 
   // Build state change notifications (see tenant-services.hxx for

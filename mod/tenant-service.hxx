@@ -127,7 +127,8 @@ namespace brep
 
   // This notification is only made on unloaded CI requests created with the
   // ci_start::create() call and until they are loaded with ci_start::load()
-  // or, alternatively, abandoned with ci_start::abandon().
+  // or, alternatively, abandoned with ci_start::cancel() (in which case the
+  // returned callback should be NULL).
   //
   // Note: make sure the implementation of this notification does not take
   // too long (currently 40 seconds) to avoid nested notifications. Note

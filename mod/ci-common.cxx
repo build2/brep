@@ -541,7 +541,8 @@ namespace brep
           odb::core::database& db,
           tenant_service&& service,
           duration notify_interval,
-          duration notify_delay) const
+          duration notify_delay,
+          duplicate_tenant_mode) const
   {
     using namespace odb::core;
 
