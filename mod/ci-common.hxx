@@ -86,9 +86,10 @@ namespace brep
     // tenant is already archived and ignores it otherwise (with the result
     // having the same semantics as in the replace and ignore modes).
     //
-    // Note also that the duplicate_tenant::replace modes are not the same as
-    // separate calls to create() and then to cancel() since the latter would
-    // happen in two separate transactions and will thus be racy. @@@ TODO
+    // Note also that the duplicate_tenant_mode::replace modes are not the
+    // same as separate calls to create() and then to cancel() since the
+    // latter would happen in two separate transactions and will thus be
+    // racy. @@@ TODO
     //
     // Note: should be called out of the database transaction.
     //
