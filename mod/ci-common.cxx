@@ -534,7 +534,7 @@ namespace brep
     s.next ("", "");                         // End of manifest.
   }
 
-  pair<optional<string>, ci_start::duplicate_tenant_result> ci_start::
+  optional<pair<string, ci_start::duplicate_tenant_result>> ci_start::
   create (const basic_mark& error,
           const basic_mark&,
           const basic_mark* trace,
@@ -542,9 +542,60 @@ namespace brep
           tenant_service&& service,
           duration notify_interval,
           duration notify_delay,
-          duplicate_tenant_mode) const
+          duplicate_tenant_mode mode) const
   {
     using namespace odb::core;
+
+    assert (!transaction::has_current ());
+
+    duplicate_tenant_result r (duplicate_tenant_result::created);
+
+    transaction tr (db.begin ());
+
+    // Unless we are in the 'fail on duplicate' mode, check if this service
+    // type/id pair is already in use and, if that's the case, either ignore
+    // it or reassign this service to a new tenant, canceling the old one.
+    //
+    if (mode != duplicate_tenant_mode::fail)
+    {
+      using query = query<build_tenant>;
+
+      shared_ptr<build_tenant> t (
+        db.query_one<build_tenant> (query::service.id == service.id &&
+                                    query::service.type == service.type));
+      if (t != nullptr)
+      {
+        // Reduce the replace_archived mode to the replace or ignore mode.
+        //
+        if (mode == duplicate_tenant_mode::replace_archived)
+        {
+          mode = (t->archived
+                  ? duplicate_tenant_mode::replace
+                  : duplicate_tenant_mode::ignore);
+        }
+
+        // Bail out in the ignore mode and cancel the tenant in the replace
+        // mode.
+        //
+        if (mode == duplicate_tenant_mode::ignore)
+          return make_pair (move (t->id), duplicate_tenant_result::ignored);
+
+        assert (mode == duplicate_tenant_mode::replace);
+
+        if (t->unloaded_timestamp)
+        {
+          db.erase (t);
+        }
+        else
+        {
+          t->service = nullopt;
+          t->archived = true;
+          db.update (t);
+        }
+
+        r = duplicate_tenant_result::replaced;
+      }
+    }
 
     // Generate the request id.
     //
@@ -557,7 +608,7 @@ namespace brep
     catch (const system_error& e)
     {
       error << "unable to generate request id: " << e;
-      return {nullopt, duplicate_tenant_result::ignored}; // @@ TODO HACKED AROUND
+      return nullopt;
     }
 
     // Use the generated request id if the tenant service id is not specified.
@@ -569,43 +620,37 @@ namespace brep
                     move (service),
                     system_clock::now () - notify_interval + notify_delay,
                     notify_interval);
-    {
-      assert (!transaction::has_current ());
-
-      transaction tr (db.begin ());
-
-      // Note that in contrast to brep-load, we know that the tenant id is
-      // unique and thus we don't try to remove a tenant with such an id.
-      // There is also not much reason to assume that we may have switched
-      // from the single-tenant mode here and remove the respective tenant,
-      // unless we are in the tenant-service functionality development mode.
-      //
+    // Note that in contrast to brep-load, we know that the tenant id is
+    // unique and thus we don't try to remove a tenant with such an id.
+    // There is also not much reason to assume that we may have switched
+    // from the single-tenant mode here and remove the respective tenant,
+    // unless we are in the tenant-service functionality development mode.
+    //
 #ifdef BREP_CI_TENANT_SERVICE_UNLOADED
-      cstrings ts ({""});
+    cstrings ts ({""});
 
-      db.erase_query<build_package> (
-        query<build_package>::id.tenant.in_range (ts.begin (), ts.end ()));
+    db.erase_query<build_package> (
+      query<build_package>::id.tenant.in_range (ts.begin (), ts.end ()));
 
-      db.erase_query<build_repository> (
-        query<build_repository>::id.tenant.in_range (ts.begin (), ts.end ()));
+    db.erase_query<build_repository> (
+      query<build_repository>::id.tenant.in_range (ts.begin (), ts.end ()));
 
-      db.erase_query<build_public_key> (
-        query<build_public_key>::id.tenant.in_range (ts.begin (), ts.end ()));
+    db.erase_query<build_public_key> (
+      query<build_public_key>::id.tenant.in_range (ts.begin (), ts.end ()));
 
-      db.erase_query<build_tenant> (
-        query<build_tenant>::id.in_range (ts.begin (), ts.end ()));
+    db.erase_query<build_tenant> (
+      query<build_tenant>::id.in_range (ts.begin (), ts.end ()));
 #endif
 
-      db.persist (t);
+    db.persist (t);
 
-      tr.commit ();
-    }
+    tr.commit ();
 
     if (trace != nullptr)
       *trace << "unloaded CI request " << t.id << " for service "
              << t.service->id << ' ' << t.service->type << " is created";
 
-    return {move (t.id), duplicate_tenant_result::created}; // @@ TODO HACKED AROUND
+    return make_pair (move (t.id), r);
   }
 
   optional<ci_start::start_result> ci_start::
@@ -708,12 +753,18 @@ namespace brep
     if (t == nullptr)
       return nullopt;
 
-    // @@ Why not remove it if unloaded (and below)?
-
     optional<tenant_service> r (move (t->service));
-    t->service = nullopt;
-    t->archived = true;
-    db.update (t);
+
+    if (t->unloaded_timestamp)
+    {
+      db.erase (t);
+    }
+    else
+    {
+      t->service = nullopt;
+      t->archived = true;
+      db.update (t);
+    }
 
     tr.commit ();
 
@@ -743,7 +794,11 @@ namespace brep
     if (t == nullptr)
       return false;
 
-    if (!t->archived)
+    if (t->unloaded_timestamp)
+    {
+      db.erase (t);
+    }
+    else if (!t->archived)
     {
       t->archived = true;
       db.update (t);
