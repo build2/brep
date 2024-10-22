@@ -849,7 +849,7 @@ namespace brep
   function<optional<string> (const tenant_service&)> ci_github::
   build_unloaded_pre_check (
     tenant_service&&,
-    service_data&& sd,
+    service_data&&,
     const diag_epilogue& log_writer) const noexcept
   {
     NOTIFICATION_DIAG (log_writer);
