@@ -37,19 +37,28 @@ namespace brep
       optional<brep::version> version;
     };
 
-    // Note that the inability to generate the tenant id is an internal
+    // Note that the inability to generate the reference is an internal
     // error. Thus, it is not optional.
+    //
+    // Note that if the CI request information is persisted to the database
+    // (which, depending on the CI request handler, may not be the case), then
+    // the reference is assumed to be the respective tenant id.
     //
     struct start_result
     {
       uint16_t status;
       string message;
-      string tenant_id;
+      string reference;
       vector<pair<string, string>> custom_result;
     };
 
     // In the optional tenant service information, if service id is empty,
     // then the generated tenant id is used instead.
+    //
+    // Note that if the tenant service is specified, then the CI request
+    // information is expected to be persisted to the database and thus
+    // start_result::reference denotes the tenant id in this case (see above
+    // for details).
     //
     optional<start_result>
     start (const basic_mark& error,
@@ -65,12 +74,12 @@ namespace brep
            const vector<pair<string, string>>& custom_request = {},
            const vector<pair<string, string>>& overrides = {}) const;
 
-    // Create an unloaded CI request returning start_result::tenant_id on
-    // success and nullopt on an internal error. Such a request is not started
-    // until loaded with the load() function below. Configure the time
-    // interval between the build_unloaded() notifications for the being
-    // created tenant and set the initial delay for the first notification.
-    // See also the build_unloaded() tenant services notification.
+    // Create an unloaded CI request returning tenant id on success and
+    // nullopt on an internal error. Such a request is not started until
+    // loaded with the load() function below. Configure the time interval
+    // between the build_unloaded() notifications for the being created tenant
+    // and set the initial delay for the first notification. See also the
+    // build_unloaded() tenant services notification.
     //
     // The duplicate_tenant_mode argument specifies the behavior in case of
     // the duplicate tenant_service type/id pair. The default is to fail by
