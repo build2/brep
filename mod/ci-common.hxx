@@ -96,16 +96,18 @@ namespace brep
     // having the same semantics as in the replace and ignore modes).
     //
     // Note also that the duplicate_tenant_mode::replace modes are not the
-    // same as separate calls to create() and then to cancel() since the
-    // latter would happen in two separate transactions and will thus be
-    // racy. @@@ TODO
+    // same as separate calls to cancel() and then to create() since the
+    // latter would happen in two separate transactions and will thus be racy.
+    //
+    // Finally note that only duplicate_tenant_mode::fail can be used if the
+    // service id is empty.
     //
     // Note: should be called out of the database transaction.
     //
     enum class duplicate_tenant_mode {fail, ignore, replace, replace_archived};
     enum class duplicate_tenant_result {created, ignored, replaced};
 
-    pair<optional<string>, duplicate_tenant_result>
+    optional<pair<string, duplicate_tenant_result>>
     create (const basic_mark& error,
             const basic_mark& warn,
             const basic_mark* trace,
@@ -136,8 +138,8 @@ namespace brep
     // Specifically, this function clears the tenant service state (thus
     // allowing reusing the same service type/id pair in another tenant) and
     // archives the tenant, unless the tenant is unloaded, in which case it is
-    // dropped (@@@ TODO). Note that the latter allow using unloaded tenants
-    // as a relatively cheap asynchronous execution mechanism.
+    // dropped. Note that the latter allow using unloaded tenants as a
+    // relatively cheap asynchronous execution mechanism.
     //
     // Note: should be called out of the database transaction.
     //
@@ -154,9 +156,9 @@ namespace brep
     // is only used for tracing.
     //
     // Similarly to above, this function archives the tenant, unless the
-    // tenant is unloaded, in which case it is dropped (@@@ TODO). Note,
-    // however, that this version does not touch the service state (use the
-    // above version if you want to clear it).
+    // tenant is unloaded, in which case it is dropped. Note, however, that
+    // this version does not touch the service state (use the above version if
+    // you want to clear it).
     //
     // Note: should be called out of the database transaction.
     //

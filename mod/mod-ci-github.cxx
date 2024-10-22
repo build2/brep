@@ -505,14 +505,14 @@ namespace brep
                      chrono::seconds (0) /* delay */,
                      dtm));
 
-    if (!pr.first)
+    if (!pr)
     {
       fail << "check suite " << cs.check_suite.node_id
            << ": unable to create unloaded CI request";
     }
 
     if (dtm == duplicate_tenant_mode::replace &&
-        pr.second == duplicate_tenant_result::created)
+        pr->second == duplicate_tenant_result::created)
     {
       error << "check suite " << cs.check_suite.node_id
             << ": re-requested but tenant_service with id " << sid
@@ -1908,8 +1908,7 @@ namespace brep
     return create (error, warn, &trace,
                    *build_db_, move (ts),
                    chrono::seconds (30) /* interval */,
-                   chrono::seconds (0)  /* delay */)
-      .first.has_value (); // @@ TODO HACKED AROUND
+                   chrono::seconds (0)  /* delay */).has_value ();
   }
 
   string ci_github::
