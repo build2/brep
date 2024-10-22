@@ -134,7 +134,8 @@ namespace brep
                   timestamp iat_expires_at,
                   uint64_t installation_id,
                   string repository_node_id,
-                  string report_sha);
+                  string report_sha,
+                  bool re_request);
 
     // The pull_request constructor.
     //

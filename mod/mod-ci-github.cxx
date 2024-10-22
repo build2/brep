@@ -455,182 +455,54 @@ namespace brep
 
     l3 ([&]{trace << "installation_access_token { " << *iat << " }";});
 
+    // @@ What happens if we call this functions with an already existing
+    //    node_id (e.g., replay attack). See the UUID header above.
+    //
+
+    // @@ TODO Cancel CIs of PRs with this branch as base?
+
+    // Service ID. Uniquely identifies the CI request.
+    //
+    string sid (cs.repository.node_id + ":" + cs.check_suite.head_sha);
+
     service_data sd (warning_success,
                      iat->token,
                      iat->expires_at,
                      cs.installation.id,
                      move (cs.repository.node_id),
-                     move (cs.check_suite.head_sha));
+                     move (cs.check_suite.head_sha),
+                     cs.action == "rerequested" /* re_request */);
 
-    // Create the conclusion check run.
+    // If this check suite is being re-run, replace the existing CI request if
+    // it exists; otherwise create a new one, doing nothing if a request
+    // already exists (which would've been created by handle_pull_request()).
     //
+    duplicate_tenant_mode dtm (sd.re_request ? duplicate_tenant_mode::replace
+                                             : duplicate_tenant_mode::ignore);
+
+    // Create an unloaded CI request.
+    //
+    auto pr (create (error,
+                     warn,
+                     verb_ ? &trace : nullptr,
+                     *build_db_,
+                     tenant_service (move (sid), "ci-github", sd.json ()),
+                     chrono::seconds (30) /* interval */,
+                     chrono::seconds (0) /* delay */,
+                     dtm));
+
+    if (!pr.first)
     {
-      check_run cr;
-      cr.name = conclusion_check_run_name;
-
-      if (gq_create_check_run (error,
-                               cr,
-                               iat->token,
-                               sd.repository_node_id,
-                               sd.report_sha,
-                               nullopt /* details_url */,
-                               build_state::building))
-      {
-        l3 ([&]{trace << "created check_run { " << cr << " }";});
-
-        sd.conclusion_node_id = move (cr.node_id);
-      }
-      else
-      {
-        // We could try to carry on in this case by either updating or
-        // creating this conclusion check run later. But let's not complicate
-        // things for now.
-        //
-        fail << "check suite " << cs.check_suite.node_id
-             << ": unable to create conclusion check run";
-      }
+      fail << "check suite " << cs.check_suite.node_id
+           << ": unable to create unloaded CI request";
     }
 
-    // @@ Not anymore (and may not need separate create_pull_request_ci()).
-    //
-    // The merge commits of any open pull requests with this branch as base
-    // branch will now be out of date, and thus so will be their CI builds and
-    // associated check runs (and, no, GitHub does not invalidate those CI
-    // results automatically; see below).
-    //
-    // Unfortunately GitHub does not provide a webhook for PR base branch
-    // updates (as it does for PR head branch updates) so we have to handle it
-    // here. We do so by fetching the open pull requests with this branch as
-    // base branch and then recreating the CI requests (cancel existing,
-    // create new) for each pull request.
-    //
-    // If we fail to recreate any of the PR CI requests, they and their check
-    // runs will be left reflecting outdated merge commits. If the new merge
-    // commit failed to be generated (merge conflicts) the PR will not be
-    // mergeable which is not entirely catastrophic. But on the other hand, if
-    // all of the existing CI request's check runs have already succeeded and
-    // the new merge commit succeeds (no conflicts) with logic errors then a
-    // user would be able to merge a broken PR.
-    //
-    // Regardless of the nature of the error, we have to let the check suite
-    // handling code proceed so we only issue diagnostics. Note also that we
-    // want to run this code as early as possible to minimize the window of
-    // the user seeing misleading CI results.
-    //
-    if (cs.action == "requested")
+    if (dtm == duplicate_tenant_mode::replace &&
+        pr.second == duplicate_tenant_result::created)
     {
-      // Fetch open pull requests with the check suite's head branch as base
-      // branch.
-      //
-      optional<vector<gh_pull_request>> prs (
-        gq_fetch_open_pull_requests (error,
-                                     iat->token,
-                                     sd.repository_node_id,
-                                     cs.check_suite.head_branch));
-
-      if (prs)
-      {
-        // Recreate each PR's CI request.
-        //
-        for (const gh_pull_request& pr: *prs)
-        {
-          service_data prsd (sd.warning_success,
-                             sd.installation_access.token,
-                             sd.installation_access.expires_at,
-                             sd.installation_id,
-                             sd.repository_node_id,
-                             pr.head_sha,
-                             cs.repository.clone_url,
-                             pr.number);
-
-          // Cancel the existing CI request and create a new unloaded CI
-          // request. After this call we will start getting the
-          // build_unloaded() notifications until (1) we load the request, (2)
-          // we cancel it, or (3) it gets archived after some timeout.
-          //
-          if (!create_pull_request_ci (error, warn, trace,
-                                       prsd, pr.node_id,
-                                       true /* cancel_first */))
-          {
-            error << "pull request " << pr.node_id
-                  << ": unable to create unloaded CI request";
-          }
-        }
-      }
-      else
-      {
-        error << "unable to fetch open pull requests with base branch "
-              << cs.check_suite.head_branch;
-      }
-    }
-    // Cancel existing CI request if this check suite is being re-run.
-    //
-    else if (cs.action == "rerequested")
-    {
-      const string& nid (cs.check_suite.node_id);
-
-      if (!cancel (error, warn, &trace, *build_db_, "ci-github", nid))
-        error << "check suite " << nid << " (re-requested): unable to cancel";
-    }
-
-    // @@@ Use repo+head ad service id.
-
-    // Start CI for the check suite.
-    //
-    repository_location rl (cs.repository.clone_url + '#' +
-                                cs.check_suite.head_branch,
-                            repository_type::git);
-
-    // @@ What happens if we call this functions with an already existing
-    //    node_id (e.g., replay attack). See the UUID header above.
-    //
-    optional<start_result> r (
-      start (error,
-             warn,
-             verb_ ? &trace : nullptr,
-             tenant_service (cs.check_suite.node_id, "ci-github", sd.json ()),
-             move (rl),
-             vector<package> {},
-             nullopt, /* client_ip */
-             nullopt  /* user_agent */));
-
-    if (!r || r->status != 200)
-    {
-      // Update the conclusion check run with failure.
-      //
-      result_status rs (result_status::error);
-
-      optional<gq_built_result> br (
-        gq_built_result (gh_to_conclusion (rs, sd.warning_success),
-                         circle (rs) + ' ' + ucase (to_string (rs)),
-                         to_check_run_summary (r)));
-
-      check_run cr;
-
-      // Set some fields for display purposes.
-      //
-      cr.node_id = *sd.conclusion_node_id;
-      cr.name = conclusion_check_run_name;
-
-      if (gq_update_check_run (error,
-                               cr,
-                               iat->token,
-                               sd.repository_node_id,
-                               *sd.conclusion_node_id,
-                               nullopt /* details_url */,
-                               build_state::built,
-                               move (br)))
-      {
-        assert (cr.state == build_state::built);
-
-        l3 ([&]{trace << "updated check_run { " << cr << " }";});
-      }
-      else
-      {
-        fail << "check suite " << cs.check_suite.node_id
-             << ": unable to update conclusion check_run "
-             << *sd.conclusion_node_id;
-      }
+      error << "check suite " << cs.check_suite.node_id
+            << ": re-requested but tenant_service with ID " << sid
+            << " did not exist";
     }
 
     return true;
@@ -847,10 +719,9 @@ namespace brep
   }
 
   function<optional<string> (const tenant_service&)> ci_github::
-  build_unloaded_pre_check (
-    tenant_service&&,
-    service_data&&,
-    const diag_epilogue& log_writer) const noexcept
+  build_unloaded_pre_check (tenant_service&&,
+                            service_data&&,
+                            const diag_epilogue& log_writer) const noexcept
   {
     NOTIFICATION_DIAG (log_writer);
 
@@ -858,7 +729,9 @@ namespace brep
     //
     // - Ask for test merge commit.
     // - If not ready, get called again.
-    // - If not mergeable, behind, of different head, cancel itself and ignore.
+    // - If not mergeable, behind, or different head (head changed while
+    //   waiting for merge commit and thus differs from what's in the
+    //   service_data), cancel itself and ignore.
     // - Otherwise, create unloaded CI tenant (with proper duplicate mode
     //   based on re_request) and cancel itself.
 
@@ -866,10 +739,9 @@ namespace brep
   }
 
   function<optional<string> (const tenant_service&)> ci_github::
-  build_unloaded_load (
-    tenant_service&& ts,
-    service_data&& sd,
-    const diag_epilogue& log_writer) const noexcept
+  build_unloaded_load (tenant_service&& ts,
+                       service_data&& sd,
+                       const diag_epilogue& log_writer) const noexcept
   {
     NOTIFICATION_DIAG (log_writer);
 

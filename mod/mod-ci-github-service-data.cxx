@@ -97,14 +97,18 @@ namespace brep
     p.next_expect (event::end_object);
   }
 
+  // check_suite constructor.
+  //
   service_data::
   service_data (bool ws,
                 string iat_tok,
                 timestamp iat_ea,
                 uint64_t iid,
                 string rid,
-                string rs)
-      : warning_success (ws),
+                string rs,
+                bool rr)
+      : kind (local), pre_check (false), re_request (rr),
+        warning_success (ws),
         installation_access (move (iat_tok), iat_ea),
         installation_id (iid),
         repository_node_id (move (rid)),
@@ -112,6 +116,8 @@ namespace brep
   {
   }
 
+  // pull_request constructor.
+  //
   service_data::
   service_data (bool ws,
                 string iat_tok,
@@ -121,7 +127,8 @@ namespace brep
                 string rs,
                 string rcu,
                 uint32_t prn)
-      : warning_success (ws),
+      : kind (local), pre_check (true), re_request (false),
+        warning_success (ws),
         installation_access (move (iat_tok), iat_ea),
         installation_id (iid),
         repository_node_id (move (rid)),
