@@ -534,7 +534,7 @@ namespace brep
     s.next ("", "");                         // End of manifest.
   }
 
-  optional<string> ci_start::
+  pair<optional<string>, ci_start::duplicate_tenant_result> ci_start::
   create (const basic_mark& error,
           const basic_mark&,
           const basic_mark* trace,
@@ -557,7 +557,7 @@ namespace brep
     catch (const system_error& e)
     {
       error << "unable to generate request id: " << e;
-      return nullopt;
+      return {nullopt, duplicate_tenant_result::ignored}; // @@ TODO HACKED AROUND
     }
 
     // Use the generated request id if the tenant service id is not specified.
@@ -605,7 +605,7 @@ namespace brep
       *trace << "unloaded CI request " << t.id << " for service "
              << t.service->id << ' ' << t.service->type << " is created";
 
-    return move (t.id);
+    return {move (t.id), duplicate_tenant_result::created}; // @@ TODO HACKED AROUND
   }
 
   optional<ci_start::start_result> ci_start::

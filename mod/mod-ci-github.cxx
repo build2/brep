@@ -825,8 +825,32 @@ namespace brep
   }
 
   function<optional<string> (const tenant_service&)> ci_github::
-  build_unloaded_pre_check (service_data&& sd,
-                            const diag_epilogue& log_writer) const noexcept
+  build_unloaded (tenant_service&& ts,
+                  const diag_epilogue& log_writer) const noexcept
+  {
+    NOTIFICATION_DIAG (log_writer);
+
+    service_data sd;
+    try
+    {
+      sd = service_data (*ts.data);
+    }
+    catch (const invalid_argument& e)
+    {
+      error << "failed to parse service data: " << e;
+      return nullptr;
+    }
+
+    return sd.pre_check
+             ? build_unloaded_pre_check (move (ts), move (sd), log_writer)
+             : build_unloaded_load (move (ts), move (sd), log_writer);
+  }
+
+  function<optional<string> (const tenant_service&)> ci_github::
+  build_unloaded_pre_check (
+    tenant_service&&,
+    service_data&& sd,
+    const diag_epilogue& log_writer) const noexcept
   {
     NOTIFICATION_DIAG (log_writer);
 
@@ -842,9 +866,13 @@ namespace brep
   }
 
   function<optional<string> (const tenant_service&)> ci_github::
-  build_unloaded_load (service_data&& sd,
-                       const diag_epilogue& log_writer) const noexcept
+  build_unloaded_load (
+    tenant_service&& ts,
+    service_data&& sd,
+    const diag_epilogue& log_writer) const noexcept
   {
+    NOTIFICATION_DIAG (log_writer);
+
     // @@@ TODO: load the tenant: should be the same for both branch push and
     // PR.
     //
@@ -1202,28 +1230,6 @@ namespace brep
 
       return sd.json ();
     };
-  }
-
-  function<optional<string> (const tenant_service&)> ci_github::
-  build_unloaded (tenant_service&& ts,
-                  const diag_epilogue& log_writer) const noexcept
-  {
-    NOTIFICATION_DIAG (log_writer);
-
-    service_data sd;
-    try
-    {
-      sd = service_data (*ts.data);
-    }
-    catch (const invalid_argument& e)
-    {
-      error << "failed to parse service data: " << e;
-      return nullptr;
-    }
-
-    return sd.pre_check
-      ? build_unloaded_pre_check (move (sd), log_writer)
-      : build_unloaded_load (move (sd), log_writer)
   }
 
   // Build state change notifications (see tenant-services.hxx for
@@ -2017,7 +2023,7 @@ namespace brep
                    *build_db_, move (ts),
                    chrono::seconds (30) /* interval */,
                    chrono::seconds (0)  /* delay */)
-      .has_value ();
+      .first.has_value (); // @@ TODO HACKED AROUND
   }
 
   string ci_github::
