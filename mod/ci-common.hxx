@@ -37,19 +37,19 @@ namespace brep
       optional<brep::version> version;
     };
 
-    // Note that the inability to generate the reference is an internal
+    // Note that the inability to generate the tenant id is an internal
     // error. Thus, it is not optional.
     //
     struct start_result
     {
       uint16_t status;
       string message;
-      string reference;
+      string tenant_id;
       vector<pair<string, string>> custom_result;
     };
 
-    // In the optional service information, if id is empty, then the generated
-    // reference is used instead.
+    // In the optional tenant service information, if service id is empty,
+    // then the generated tenant id is used instead.
     //
     optional<start_result>
     start (const basic_mark& error,
@@ -65,7 +65,7 @@ namespace brep
            const vector<pair<string, string>>& custom_request = {},
            const vector<pair<string, string>>& overrides = {}) const;
 
-    // Create an unloaded CI request returning start_result::reference on
+    // Create an unloaded CI request returning start_result::tenant_id on
     // success and nullopt on an internal error. Such a request is not started
     // until loaded with the load() function below. Configure the time
     // interval between the build_unloaded() notifications for the being
@@ -79,7 +79,7 @@ namespace brep
     // below) and a new tenant with the same type/id created. In both these
     // modes (ignore and replace), the second half of the returned pair
     // indicates whether there was a duplicate. If there were, then for the
-    // ignore mode the returned reference corresponds to the old tenant and
+    // ignore mode the returned tenant id corresponds to the old tenant and
     // for the replace mode -- to the new tenant.
     //
     // The replace_archived mode is a variant of replace that replaces if the
@@ -143,9 +143,6 @@ namespace brep
     // Cancel previously created or started CI request. Return false if there
     // is no tenant for the specified tenant id. Note that the reason argument
     // is only used for tracing.
-    //
-    // @@@ Is tenant id here and reference above the same thing? Maybe use
-    //     "tenant id" and "service id" terminology throughout?
     //
     // Similarly to above, this function archives the tenant, unless the
     // tenant is unloaded, in which case it is dropped (@@@ TODO). Note,
