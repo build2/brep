@@ -198,6 +198,9 @@ handle (request& rq, response& rs)
   //
   connection_ptr conn (build_db_->connection ());
 
+  // NOTE: don't forget to update ci_start::rebuild() if changing anything
+  //       here.
+  //
   {
     transaction t (conn->begin ());
 
@@ -206,8 +209,11 @@ handle (request& rq, response& rs)
 
     if (!build_db_->query_one<package_build> (
           query<package_build>::build::id == id, pb) ||
+        pb.archived                                  ||
         (b = move (pb.build))->state == build_state::queued)
+    {
       config_expired ("no package build");
+    }
 
     force_state force (b->state == build_state::built
                        ? force_state::forced

@@ -14,6 +14,8 @@
 #include <libbutl/process-io.hxx>          // operator<<(ostream, process_args)
 #include <libbutl/manifest-serializer.hxx>
 
+#include <libbrep/build.hxx>
+#include <libbrep/build-odb.hxx>
 #include <libbrep/build-package.hxx>
 #include <libbrep/build-package-odb.hxx>
 
@@ -814,5 +816,44 @@ namespace brep
                  : string (reason, 0, 50) + "...");
 
     return true;
+  }
+
+  optional<build_state> ci_start::
+  rebuild (odb::core::database& db, const build_id& id) const
+  {
+    using namespace odb::core;
+
+    // NOTE: don't forget to update build_force::handle() if changing anything
+    //       here.
+    //
+    transaction t (db.begin ());
+
+    package_build pb;
+    if (!db.query_one<package_build> (query<package_build>::build::id == id,
+                                      pb) ||
+        pb.archived)
+    {
+      return nullopt;
+    }
+
+    const shared_ptr<build>& b (pb.build);
+    build_state s (b->state);
+
+    if (s != build_state::queued)
+    {
+      force_state force (s == build_state::built
+                         ? force_state::forced
+                         : force_state::forcing);
+
+      if (b->force != force)
+      {
+        b->force = force;
+        db.update (b);
+      }
+    }
+
+    t.commit ();
+
+    return s;
   }
 }
