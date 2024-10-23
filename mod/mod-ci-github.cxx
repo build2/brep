@@ -441,6 +441,10 @@ namespace brep
 
     l3 ([&]{trace << "check_suite event { " << cs << " }";});
 
+    // While we don't need the installation access token in this request,
+    // let's obtain it to flush out any permission issues early. Also, it is
+    // valid for an hour so we will most likely make use of it.
+    //
     optional<string> jwt (generate_jwt (trace, error));
     if (!jwt)
       throw server_error ();
@@ -449,7 +453,6 @@ namespace brep
         obtain_installation_access_token (cs.installation.id,
                                           move (*jwt),
                                           error));
-
     if (!iat)
       throw server_error ();
 
@@ -459,9 +462,14 @@ namespace brep
     //    node_id (e.g., replay attack). See the UUID header above.
     //
 
-    // @@ TODO Cancel CIs of PRs with this branch as base?
+    // While it would have been nice to cancel CIs of PRs with this branch as
+    // base not to waste resources, there are complications: Firsty, we can
+    // only do this for remote PRs (since local PRs may share the result with
+    // branch push). Secondly, we try to do our best even if the branch
+    // protection rule for head behind is not enabled. In this case, it would
+    // be good to complete the CI. So maybe/later.
 
-    // Service ID. Uniquely identifies the CI request.
+    // Service id that uniquely identifies the CI request.
     //
     string sid (cs.repository.node_id + ":" + cs.check_suite.head_sha);
 
@@ -475,18 +483,24 @@ namespace brep
 
     // If this check suite is being re-run, replace the existing CI request if
     // it exists; otherwise create a new one, doing nothing if a request
-    // already exists (which would've been created by handle_pull_request()).
+    // already exists (which could've been created by handle_pull_request()).
+    //
+    // Note that GitHub UI does not allow re-running the entire check suite
+    // until all the check runs are completed.
     //
     duplicate_tenant_mode dtm (sd.re_request ? duplicate_tenant_mode::replace
                                              : duplicate_tenant_mode::ignore);
 
     // Create an unloaded CI request.
     //
+    // Note that we use the create() API instead of start() since duplicate
+    // management is no available in start().
+    //
     auto pr (create (error,
                      warn,
                      verb_ ? &trace : nullptr,
                      *build_db_,
-                     tenant_service (move (sid), "ci-github", sd.json ()),
+                     tenant_service (sid, "ci-github", sd.json ()),
                      chrono::seconds (30) /* interval */,
                      chrono::seconds (0) /* delay */,
                      dtm));
@@ -501,7 +515,7 @@ namespace brep
         pr.second == duplicate_tenant_result::created)
     {
       error << "check suite " << cs.check_suite.node_id
-            << ": re-requested but tenant_service with ID " << sid
+            << ": re-requested but tenant_service with id " << sid
             << " did not exist";
     }
 
