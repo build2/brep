@@ -203,6 +203,41 @@ package_query (bool custom_bot,
       query::build_repository::id.canonical_name.in_range (rp.begin (),
                                                            rp.end ());
 
+  // Filter by the types of services associated with the tenants, where the
+  // empty type denotes tenants without associated service.
+  //
+  if (params.tenant_service_type_specified ())
+  {
+    cstrings ts;
+    bool et (false);
+
+    for (const string& t: params.tenant_service_type ())
+    {
+      if (!t.empty ())
+        ts.push_back (t.c_str ());
+      else
+        et = true;
+    }
+
+    if (!ts.empty () && et)
+    {
+      q = q &&
+        (query::build_tenant::service.type.in_range (ts.begin (), ts.end ()) ||
+         query::build_tenant::service.type.is_null ());
+    }
+    else if (!ts.empty ())
+    {
+      q = q && query::build_tenant::service.type.in_range (ts.begin (),
+                                                           ts.end ());
+    }
+    else
+    {
+      assert (et);
+
+      q = q && query::build_tenant::service.type.is_null ();
+    }
+  }
+
   // If the interactive mode is false or true, then filter out the respective
   // packages.
   //

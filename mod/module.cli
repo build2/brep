@@ -1001,6 +1001,13 @@ namespace brep
       // Only consider tenants with this interactive build mode.
       //
       bbot::interactive_mode interactive = bbot::interactive_mode::both;
+
+      // Only consider tenants which have third-party services of any of these
+      // types. The special empty type value denotes tenants without the
+      // associated service. If this parameter is absent, then consider all
+      // tenant types.
+      //
+      vector<string> tenant_service_type | t;
     };
 
     class build_result
