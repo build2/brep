@@ -473,6 +473,8 @@ namespace brep
     //
     string sid (cs.repository.node_id + ":" + cs.check_suite.head_sha);
 
+    // @@ Let's pass the "state" arguments explicitly in both constructors.
+    //
     service_data sd (warning_success,
                      iat->token,
                      iat->expires_at,
@@ -493,8 +495,15 @@ namespace brep
 
     // Create an unloaded CI request.
     //
+    // Note: use no delay since we need to (re)create the synthetic conclusion
+    // check run as soon as possible.
+    //
     // Note that we use the create() API instead of start() since duplicate
-    // management is no available in start().
+    // management is not available in start().
+    //
+    // After this call we will start getting the build_unloaded()
+    // notifications until (1) we load the request, (2) we cancel it, or (3)
+    // it gets archived after some timeout.
     //
     auto pr (create (error,
                      warn,
@@ -508,7 +517,7 @@ namespace brep
     if (!pr)
     {
       fail << "check suite " << cs.check_suite.node_id
-           << ": unable to create unloaded CI request";
+           << ": unable to create unloaded CI tenant";
     }
 
     if (dtm == duplicate_tenant_mode::replace &&
@@ -523,6 +532,8 @@ namespace brep
   }
 
   // High-level description of pull request (PR) handling
+  //
+  // @@ TODO Update these comments.
   //
   // - Some GitHub pull request terminology:
   //
@@ -681,30 +692,61 @@ namespace brep
 
     l3 ([&]{trace << "installation_access_token { " << *iat << " }";});
 
+    // Note that similar to the branch push case above, while it would have
+    // been nice to cancel the previous CI job once the PR head moves (the
+    // "synchronize" event), due to the head sharing problem the previous CI
+    // job might actually still be relevant (in both local and remote PR
+    // cases).
+
+    // @@ TMP We can already determine whether the PR is local or remote so we
+    //    could pass `kind` to the service_data constructor. Let's do.
+
+    // @@ TODO: what happens when the entire PR build is re-requested?
+
+    // @@ TODO Serialize the new service_data fields!
+    //
+    // Note that check_sha will be set later, in build_unloaded_pre_check().
+    //
     service_data sd (warning_success,
                      move (iat->token),
                      iat->expires_at,
                      pr.installation.id,
                      move (pr.repository.node_id),
-                     pr.pull_request.head_sha,
-                     pr.repository.clone_url,
+                     move (pr.pull_request.head_sha) /* report_sha */,
+                     move (pr.repository.clone_url),
                      pr.pull_request.number);
 
-    // Create unloaded CI request. Cancel the existing CI request first if the
-    // head branch has been updated (action is `synchronize`).
+    assert (sd.pre_check); // @@ Get rid (once ctor changed).
+
+    // Create an unloaded CI request for the pre-check phase (during which we
+    // wait for the PR's merge commit and behindness to become available).
+    //
+    // Create with an empty service id so that the generated tenant id is used
+    // instead during the pre-check phase (so as not to clash with a proper
+    // service id for this head commit, potentially created in
+    // handle_check_suite() or as another PR).
+    //
+    tenant_service ts ("", "ci-github", sd.json ());
+
+    // Note: use no delay since we need to start the actual CI (which in turn
+    // (re)creates the synthetic conclusion check run) as soon as possible.
     //
     // After this call we will start getting the build_unloaded()
-    // notifications until (1) we load the request, (2) we cancel it, or (3)
-    // it gets archived after some timeout.
+    // notifications -- which will be routed to build_unloaded_pre_check() --
+    // until we cancel the request or it gets archived after some
+    // timeout. (Note that we never actually load this request, we always
+    // cancel it; see build_unloaded_pre_check() for details.)
     //
-    bool cancel_first (pr.action == "synchronize");
-
-    if (!create_pull_request_ci (error, warn, trace,
-                                 sd, pr.pull_request.node_id,
-                                 cancel_first))
+    if (!create (error,
+                 warn,
+                 &trace,
+                 *build_db_,
+                 move (ts),
+                 chrono::seconds (30) /* interval */,
+                 chrono::seconds (0) /* delay */))
     {
       fail << "pull request " << pr.pull_request.node_id
-           << ": unable to create unloaded CI request";
+           << ": unable to create unloaded pre-check tenant";
     }
 
     return true;
@@ -748,6 +790,12 @@ namespace brep
     //   service_data), cancel itself and ignore.
     // - Otherwise, create unloaded CI tenant (with proper duplicate mode
     //   based on re_request) and cancel itself.
+
+    // Note that in case of a mixed local/remote case, whether we CI the head
+    // commit or test merge commit will be racy and there is nothing we can do
+    // about (the purely local case can get "upgraded" to mixed after we have
+    // started the CI job).
+    //
 
     return nullptr;
   }
@@ -1879,36 +1927,6 @@ namespace brep
 
       return sd.json ();
     };
-  }
-
-  bool ci_github::
-  create_pull_request_ci (const basic_mark& error,
-                          const basic_mark& warn,
-                          const basic_mark& trace,
-                          const service_data& sd,
-                          const string& nid,
-                          bool cf) const
-  {
-    // Cancel the existing CI request if asked to do so. Ignore failure
-    // because the request may already have been cancelled for other reasons.
-    //
-    if (cf)
-    {
-      if (!cancel (error, warn, &trace, *build_db_, "ci-github", nid))
-        l3 ([&] {trace << "unable to cancel CI for pull request " << nid;});
-    }
-
-    // Create a new unloaded CI request.
-    //
-    tenant_service ts (nid, "ci-github", sd.json ());
-
-    // Note: use no delay since we need to (re)create the synthetic merge
-    // check run as soon as possible.
-    //
-    return create (error, warn, &trace,
-                   *build_db_, move (ts),
-                   chrono::seconds (30) /* interval */,
-                   chrono::seconds (0)  /* delay */).has_value ();
   }
 
   string ci_github::
