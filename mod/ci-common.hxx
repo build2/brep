@@ -101,6 +101,9 @@ namespace brep
     //
     // Note: should be called out of the database transaction.
     //
+    // @@ TMP Shouldn't the comments mention that if tenant_service.id is an
+    //    empty string then the generated tenant id will be used?
+    //
     enum class duplicate_tenant_mode {fail, ignore, replace, replace_archived};
     enum class duplicate_tenant_result {created, ignored, replaced};
 
