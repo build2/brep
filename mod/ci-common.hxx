@@ -9,6 +9,7 @@
 #include <libbrep/types.hxx>
 #include <libbrep/utility.hxx>
 
+#include <libbrep/build.hxx>
 #include <libbrep/common.hxx>
 
 #include <mod/diagnostics.hxx>
@@ -169,6 +170,40 @@ namespace brep
             const string& reason,
             odb::core::database&,
             const string& tenant_id) const;
+
+    // Schedule the re-build of the package build and return the build object
+    // current state.
+    //
+    // Specifically:
+    //
+    // - If the build has expired (build or package object doesn't exist or
+    //   the package is archived or is not buildable anymore, etc), then do
+    //   nothing and return nullopt.
+    //
+    //   Note, however, that this function doesn't check if the build
+    //   configuration still exists in the buildtab. It is supposed that the
+    //   caller has already checked for that if necessary (see
+    //   build_force::handle() for an example of this check). And if not
+    //   then a re-build will be scheduled and later cleaned by the cleaner
+    //   (without notifications).
+    //
+    // - Otherwise, if the build object is in the queued state, then do
+    //   nothing and return build_state::queued. It is assumed that a build
+    //   object in such a state is already about to be built.
+    //
+    // - Otherwise (the build object is in the building or built state),
+    //   schedule the object for the rebuild and return the current state.
+    //
+    // Note that in contrast to the build-force handler, this function doesn't
+    // send the build_queued() notification to the tenant-associated service
+    // if the object is in the building state (which is done as soon as
+    // possible to avoid races). Instead, it is assumed the service will
+    // perform any equivalent actions directly based on the returned state.
+    //
+    // Note: should be called out of the database transaction.
+    //
+    optional<build_state>
+    rebuild (odb::core::database&, const build_id&) const;
 
     // Helpers.
     //
