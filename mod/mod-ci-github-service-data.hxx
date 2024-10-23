@@ -66,6 +66,8 @@ namespace brep
 
     // Kind and phase.
     //
+    // @@ TODO Serialize these fields.
+    //
     enum {local, remote /*, queue */} kind;
     bool pre_check;
     bool re_request; // Re-requested (rebuild).
@@ -129,12 +131,15 @@ namespace brep
 
     // The check_suite constructor.
     //
+    // Note that check_sha and report_sha are both the SHA of the
+    // check_suite's head commit.
+    //
     service_data (bool warning_success,
                   string iat_token,
                   timestamp iat_expires_at,
                   uint64_t installation_id,
                   string repository_node_id,
-                  string report_sha,
+                  string head_sha,
                   bool re_request);
 
     // The pull_request constructor.

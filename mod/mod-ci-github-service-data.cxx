@@ -105,14 +105,15 @@ namespace brep
                 timestamp iat_ea,
                 uint64_t iid,
                 string rid,
-                string rs,
+                string hs,
                 bool rr)
       : kind (local), pre_check (false), re_request (rr),
         warning_success (ws),
         installation_access (move (iat_tok), iat_ea),
         installation_id (iid),
         repository_node_id (move (rid)),
-        report_sha (move (rs))
+        check_sha (hs),
+        report_sha (move (hs))
   {
   }
 
