@@ -546,6 +546,7 @@ namespace brep
   {
     using namespace odb::core;
 
+    assert (mode == duplicate_tenant_mode::fail || !service.id.empty ());
     assert (!transaction::has_current ());
 
     duplicate_tenant_result r (duplicate_tenant_result::created);

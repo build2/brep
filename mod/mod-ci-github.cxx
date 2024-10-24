@@ -473,6 +473,8 @@ namespace brep
     //
     string sid (cs.repository.node_id + ":" + cs.check_suite.head_sha);
 
+    // @@ Let's pass the "state" arguments explicitly in both constructors.
+    //
     service_data sd (warning_success,
                      iat->token,
                      iat->expires_at,
@@ -515,7 +517,7 @@ namespace brep
     if (!pr)
     {
       fail << "check suite " << cs.check_suite.node_id
-           << ": unable to create unloaded CI request";
+           << ": unable to create unloaded CI tenant";
     }
 
     if (dtm == duplicate_tenant_mode::replace &&
@@ -690,14 +692,16 @@ namespace brep
 
     l3 ([&]{trace << "installation_access_token { " << *iat << " }";});
 
-    // @@ TMP Regarding pushes to PR head branches ("synchronize"): If a
-    //    remote PR head branch is not behind base, wouldn't we want to cancel
-    //    existing CIs and restart? This is the only event we'll see when the
-    //    user clicks the "update PR head branch with base" button.
-    //
+    // Note that similar to the branch push case above, while it would have
+    // been nice to cancel the previous CI job once the PR head moves (the
+    // "synchronize" event), due to the head sharing problem the previous CI
+    // job might actually still be relevant (in both local and remote PR
+    // cases).
 
     // @@ TMP We can already determine whether the PR is local or remote so we
-    //    could pass `kind` to the service_data constructor.
+    //    could pass `kind` to the service_data constructor. Let's do.
+
+    // @@ TODO: what happens when the entire PR build is re-requested?
 
     // @@ TODO Serialize the new service_data fields!
     //
@@ -712,7 +716,7 @@ namespace brep
                      move (pr.repository.clone_url),
                      pr.pull_request.number);
 
-    assert (sd.pre_check);
+    assert (sd.pre_check); // @@ Get rid (once ctor changed).
 
     // Create an unloaded CI request for the pre-check phase (during which we
     // wait for the PR's merge commit and behindness to become available).
@@ -720,12 +724,12 @@ namespace brep
     // Create with an empty service id so that the generated tenant id is used
     // instead during the pre-check phase (so as not to clash with a proper
     // service id for this head commit, potentially created in
-    // handle_check_suite()).
+    // handle_check_suite() or as another PR).
     //
     tenant_service ts ("", "ci-github", sd.json ());
 
-    // Note: use no delay since we need to (re)create the synthetic conclusion
-    // check run as soon as possible.
+    // Note: use no delay since we need to start the actual CI (which in turn
+    // (re)creates the synthetic conclusion check run) as soon as possible.
     //
     // After this call we will start getting the build_unloaded()
     // notifications -- which will be routed to build_unloaded_pre_check() --
@@ -742,7 +746,7 @@ namespace brep
                  chrono::seconds (0) /* delay */))
     {
       fail << "pull request " << pr.pull_request.node_id
-           << ": unable to create unloaded CI request";
+           << ": unable to create unloaded pre-check tenant";
     }
 
     return true;
@@ -786,6 +790,12 @@ namespace brep
     //   service_data), cancel itself and ignore.
     // - Otherwise, create unloaded CI tenant (with proper duplicate mode
     //   based on re_request) and cancel itself.
+
+    // Note that in case of a mixed local/remote case, whether we CI the head
+    // commit or test merge commit will be racy and there is nothing we can do
+    // about (the purely local case can get "upgraded" to mixed after we have
+    // started the CI job).
+    //
 
     return nullptr;
   }

@@ -11,6 +11,8 @@
 
 namespace brep
 {
+  // @@@ Check is any data members are unused.
+
   // Service data associated with the tenant (corresponds to GH check suite).
   //
   // It is always a top-level JSON object and the first member is always the
@@ -44,8 +46,7 @@ namespace brep
   };
 
   // We have two kinds of service data that correspond to the following two
-  // scenarios (those are the only possible ones, until/unless we add support
-  // for merge queues):
+  // typical scenarios (until/unless we add support for merge queues):
   //
   // 1. Branch push (via check_suite) plus zero or more local PRs (via
   //    pull_request) that share the same head commit id.
@@ -57,6 +58,13 @@ namespace brep
   // are in the process of requesting the test merge commit and making sure it
   // can be created and is not behind base. We do all this before we actually
   // create the CI tenant.
+  //
+  // Note that the above two cases are typical but not the only possible
+  // scenarios. Specifically, it is possible to have a mixture of all three
+  // kinds (branch push, local PR, and remote PR) since the same head commit
+  // id can be present in both local and remote branches. There is no way to
+  // handle this case perfectly and we do the best we can (see
+  // build_unloaded_pre_check() for details).
   //
   struct service_data
   {

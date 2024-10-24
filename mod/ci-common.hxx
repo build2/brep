@@ -99,10 +99,10 @@ namespace brep
     // same as separate calls to cancel() and then to create() since the
     // latter would happen in two separate transactions and will thus be racy.
     //
-    // Note: should be called out of the database transaction.
+    // Finally note that only duplicate_tenant_mode::fail can be used if the
+    // service id is empty.
     //
-    // @@ TMP Shouldn't the comments mention that if tenant_service.id is an
-    //    empty string then the generated tenant id will be used?
+    // Note: should be called out of the database transaction.
     //
     enum class duplicate_tenant_mode {fail, ignore, replace, replace_archived};
     enum class duplicate_tenant_result {created, ignored, replaced};
