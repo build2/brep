@@ -704,13 +704,12 @@ namespace brep
     //
 
     // Distinguish between local and remote PRs by comparing the head and base
-    // repositories' full names (which look like
-    // <username>/<repository-name>).
+    // repositories' paths.
     //
-    enum service_data::kind kind (pr.pull_request.head_fullname ==
-                                  pr.pull_request.base_fullname
-                                  ? service_data::local
-                                  : service_data::remote);
+    enum service_data::kind kind (
+      pr.pull_request.head_path == pr.pull_request.base_path
+      ? service_data::local
+      : service_data::remote);
 
     // Note that check_sha will be set later, in build_unloaded_pre_check().
     //
