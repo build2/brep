@@ -698,13 +698,20 @@ namespace brep
     // job might actually still be relevant (in both local and remote PR
     // cases).
 
-    // @@ TMP We can already determine whether the PR is local or remote so we
-    //    could pass `kind` to the service_data constructor. Let's do.
-
     // @@ TODO: what happens when the entire PR build is re-requested?
 
     // @@ TODO Serialize the new service_data fields!
     //
+
+    // Distinguish between local and remote PRs by comparing the head and base
+    // repositories' full names (which look like
+    // <username>/<repository-name>).
+    //
+    enum service_data::kind kind (pr.pull_request.head_fullname ==
+                                  pr.pull_request.base_fullname
+                                  ? service_data::local
+                                  : service_data::remote);
+
     // Note that check_sha will be set later, in build_unloaded_pre_check().
     //
     service_data sd (warning_success,
@@ -712,9 +719,7 @@ namespace brep
                      iat->expires_at,
                      pr.installation.id,
                      move (pr.repository.node_id),
-                     service_data::local, // @@ TODO
-                     true /* pre_check */,
-                     false /* re_request */,
+                     kind, true /* pre_check */, false /* re_request */,
                      move (pr.pull_request.head_sha) /* report_sha */,
                      move (pr.repository.clone_url),
                      pr.pull_request.number);
