@@ -205,6 +205,16 @@ namespace brep
     optional<build_state>
     rebuild (odb::core::database&, const build_id&) const;
 
+    // Find the tenant given the tenant service type and id and return the
+    // associated data or nullopt if there is no such tenant.
+    //
+    // Note: should be called out of the database transaction.
+    //
+    optional<tenant_service>
+    find (odb::core::database&,
+          const string& type,
+          const string& id) const;
+
     // Helpers.
     //
 

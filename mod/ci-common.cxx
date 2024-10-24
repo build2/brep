@@ -856,4 +856,30 @@ namespace brep
 
     return s;
   }
+
+  optional<tenant_service> ci_start::
+  find (odb::core::database& db,
+        const string& type,
+        const string& id) const
+  {
+    using namespace odb::core;
+
+    assert (!transaction::has_current ());
+
+    transaction tr (db.begin ());
+
+    using query = query<build_tenant>;
+
+    shared_ptr<build_tenant> t (
+      db.query_one<build_tenant> (query::service.id == id &&
+                                  query::service.type == type));
+
+    tr.commit ();
+
+    optional<tenant_service> r;
+    if (t != nullptr)
+      r = move (t->service);
+
+    return r;
+  }
 }

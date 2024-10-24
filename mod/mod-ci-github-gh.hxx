@@ -21,6 +21,8 @@ namespace butl
 
 namespace brep
 {
+   // @@@ Check if any data members are unused (once the dust settles).
+
   using build_queued_hints = tenant_service_build_queued::build_queued_hints;
 
   // GitHub request/response types (all start with gh_).
@@ -45,7 +47,7 @@ namespace brep
   struct gh_check_suite
   {
     string node_id;
-    string head_branch;
+    optional<string> head_branch;
     string head_sha;
 
     explicit
@@ -81,14 +83,12 @@ namespace brep
     optional<bool> mergeable;
     string merge_commit_sha;
 
-    // @@ TODO Remove label if unused.
-    string base_label; // Name distinguishing the base from the head.
-    string base_ref;
-    string base_sha;
+    string base_path; // Repository path (<org>/<repo>) under github.com.
+    string base_ref;  // @@ TODO Remove if remains unused.
+    string base_sha;  // @@ TODO Remove if remains unused.
 
-    // @@ TODO Remove label if unused.
-    string head_label; // Name distinguishing the head from the base.
-    string head_ref;
+    string head_path;
+    string head_ref; // @@ TODO Remove if remains unused.
     string head_sha;
 
     explicit
@@ -124,7 +124,7 @@ namespace brep
   {
     string node_id;
     string name;
-    string full_name;
+    string path; // Repository path (<org>/<repo>) under github.com.
     string default_branch;
     string clone_url;
 

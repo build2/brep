@@ -473,15 +473,61 @@ namespace brep
     //
     string sid (cs.repository.node_id + ":" + cs.check_suite.head_sha);
 
-    // @@ Let's pass the "state" arguments explicitly in both constructors.
+    // If the user requests a rebuild of the (entire) PR, then this manifests
+    // as the check_suite rather than pull_request event. Specifically:
     //
+    // - For a local PR, this event is shared with the branch push and all we
+    //   need to do is restart the CI for the head commit.
+    //
+    // - For a remote PR, this event will have no gh_check_suite::head_branch.
+    //   In this case we need to load the existing service data for this head
+    //   commit, extract the test merge commit, and restart the CI for that.
+    //
+    string check_sha;
+    service_data::kind_type kind;
+
+    bool re_requested (cs.action == "rerequested");
+    if (re_requested && !cs.check_suite.head_branch)
+    {
+      kind = service_data::remote;
+
+      if (optional<tenant_service> ts = find (*build_db_, "ci-github", sid))
+      {
+        try
+        {
+          service_data sd (*ts->data);
+          check_sha = move (sd.check_sha); // Test merge commit.
+        }
+        catch (const invalid_argument& e)
+        {
+          fail << "failed to parse service data: " << e;
+        }
+      }
+      else
+      {
+        error << "check suite for remote pull request "
+              << cs.check_suite.node_id
+              << ": re-requested but tenant_service with id " << sid
+              << " did not exist";
+        return true;
+      }
+    }
+    else
+    {
+      // Branch push or local PR rebuild.
+      //
+      kind = service_data::local;
+      check_sha = cs.check_suite.head_sha;
+    }
+
     service_data sd (warning_success,
                      iat->token,
                      iat->expires_at,
                      cs.installation.id,
                      move (cs.repository.node_id),
-                     move (cs.check_suite.head_sha),
-                     cs.action == "rerequested" /* re_request */);
+                     kind, false /* pre_check */, re_requested,
+                     move (check_sha),
+                     move (cs.check_suite.head_sha) /* report_sha */);
 
     // If this check suite is being re-run, replace the existing CI request if
     // it exists; otherwise create a new one, doing nothing if a request
@@ -490,8 +536,9 @@ namespace brep
     // Note that GitHub UI does not allow re-running the entire check suite
     // until all the check runs are completed.
     //
-    duplicate_tenant_mode dtm (sd.re_request ? duplicate_tenant_mode::replace
-                                             : duplicate_tenant_mode::ignore);
+    duplicate_tenant_mode dtm (re_requested
+                               ? duplicate_tenant_mode::replace
+                               : duplicate_tenant_mode::ignore);
 
     // Create an unloaded CI request.
     //
@@ -526,6 +573,7 @@ namespace brep
       error << "check suite " << cs.check_suite.node_id
             << ": re-requested but tenant_service with id " << sid
             << " did not exist";
+      return true;
     }
 
     return true;
@@ -698,25 +746,36 @@ namespace brep
     // job might actually still be relevant (in both local and remote PR
     // cases).
 
-    // @@ TMP We can already determine whether the PR is local or remote so we
-    //    could pass `kind` to the service_data constructor. Let's do.
-
-    // @@ TODO: what happens when the entire PR build is re-requested?
-
     // @@ TODO Serialize the new service_data fields!
     //
-    // Note that check_sha will be set later, in build_unloaded_pre_check().
+
+    // Distinguish between local and remote PRs by comparing the head and base
+    // repositories' paths.
+    //
+    service_data::kind_type kind (
+      pr.pull_request.head_path == pr.pull_request.base_path
+      ? service_data::local
+      : service_data::remote);
+
+    // Note: for remote PRs the check_sha will be set later, in
+    // build_unloaded_pre_check(), to test merge commit id.
+    //
+    string check_sha (kind == service_data::local
+                      ? pr.pull_request.head_sha
+                      : "");
+
+    // Note that PR rebuilds (re-requested) are handled by check_suite().
     //
     service_data sd (warning_success,
                      move (iat->token),
                      iat->expires_at,
                      pr.installation.id,
                      move (pr.repository.node_id),
+                     kind, true /* pre_check */, false /* re_request */,
+                     move (check_sha),
                      move (pr.pull_request.head_sha) /* report_sha */,
                      move (pr.repository.clone_url),
                      pr.pull_request.number);
-
-    assert (sd.pre_check); // @@ Get rid (once ctor changed).
 
     // Create an unloaded CI request for the pre-check phase (during which we
     // wait for the PR's merge commit and behindness to become available).

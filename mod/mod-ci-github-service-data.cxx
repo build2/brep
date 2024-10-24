@@ -102,15 +102,18 @@ namespace brep
                 timestamp iat_ea,
                 uint64_t iid,
                 string rid,
-                string hs,
-                bool rr)
-      : kind (local), pre_check (false), re_request (rr),
+                kind_type k,
+                bool rr,
+                bool pc,
+                string cs,
+                string rs)
+      : kind (k), pre_check (pc), re_request (rr),
         warning_success (ws),
         installation_access (move (iat_tok), iat_ea),
         installation_id (iid),
         repository_node_id (move (rid)),
-        check_sha (hs),
-        report_sha (move (hs))
+        check_sha (move (cs)),
+        report_sha (move (rs))
   {
   }
 
@@ -122,16 +125,21 @@ namespace brep
                 timestamp iat_ea,
                 uint64_t iid,
                 string rid,
+                kind_type k,
+                bool rr,
+                bool pc,
+                string cs,
                 string rs,
                 string rcu,
                 uint32_t prn)
-      : kind (local), pre_check (true), re_request (false),
+      : kind (k), pre_check (pc), re_request (rr),
         warning_success (ws),
         installation_access (move (iat_tok), iat_ea),
         installation_id (iid),
         repository_node_id (move (rid)),
         repository_clone_url (move (rcu)),
         pr_number (prn),
+        check_sha (move (cs)),
         report_sha (move (rs))
   {
   }
