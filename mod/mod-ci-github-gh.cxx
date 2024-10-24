@@ -208,37 +208,61 @@ namespace brep
       {
         p.next_expect (event::begin_object);
 
-        bool l (false), r (false), s (false);
+        bool r (false), s (false), rp (false), fn (false);
 
         while (p.next_expect (event::name, event::end_object))
         {
-          if      (c (l, "label")) base_label = p.next_expect_string ();
-          else if (c (r, "ref"))   base_ref = p.next_expect_string ();
+          if      (c (r, "ref"))   base_ref = p.next_expect_string ();
           else if (c (s, "sha"))   base_sha = p.next_expect_string ();
+          else if (c (rp, "repo"))
+          {
+            p.next_expect (event::begin_object);
+
+            while (p.next_expect (event::name, event::end_object))
+            {
+              if (c (fn, "full_name"))
+                base_fullname = p.next_expect_string ();
+              else
+                p.next_expect_value_skip ();
+            }
+          }
           else p.next_expect_value_skip ();
         }
 
-        if (!l) missing_member (p, "gh_pull_request.base", "label");
-        if (!r) missing_member (p, "gh_pull_request.base", "ref");
-        if (!s) missing_member (p, "gh_pull_request.base", "sha");
+        if (!r)  missing_member (p, "gh_pull_request.base", "ref");
+        if (!s)  missing_member (p, "gh_pull_request.base", "sha");
+        if (!rp) missing_member (p, "gh_pull_request.base", "repo");
+        if (!fn) missing_member (p, "gh_pull_request.base.repo", "full_name");
       }
       else if (c (hd, "head"))
       {
         p.next_expect (event::begin_object);
 
-        bool l (false), r (false), s (false);
+        bool r (false), s (false), rp (false), fn (false);
 
         while (p.next_expect (event::name, event::end_object))
         {
-          if      (c (l, "label")) head_label = p.next_expect_string ();
-          else if (c (r, "ref"))   head_ref = p.next_expect_string ();
+          if      (c (r, "ref"))   head_ref = p.next_expect_string ();
           else if (c (s, "sha"))   head_sha = p.next_expect_string ();
+          else if (c (rp, "repo"))
+          {
+            p.next_expect (event::begin_object);
+
+            while (p.next_expect (event::name, event::end_object))
+            {
+              if (c (fn, "full_name"))
+                head_fullname = p.next_expect_string ();
+              else
+                p.next_expect_value_skip ();
+            }
+          }
           else p.next_expect_value_skip ();
         }
 
-        if (!l) missing_member (p, "gh_pull_request.head", "label");
-        if (!r) missing_member (p, "gh_pull_request.head", "ref");
-        if (!s) missing_member (p, "gh_pull_request.head", "sha");
+        if (!r)  missing_member (p, "gh_pull_request.head", "ref");
+        if (!s)  missing_member (p, "gh_pull_request.head", "sha");
+        if (!rp) missing_member (p, "gh_pull_request.head", "repo");
+        if (!fn) missing_member (p, "gh_pull_request.head.repo", "full_name");
       }
       else p.next_expect_value_skip ();
     }
@@ -265,12 +289,12 @@ namespace brep
                               : "null")
        << ", merge_commit_sha:" << pr.merge_commit_sha
        << ", base: { "
-       << "label: " << pr.base_label
+       << "full_name: " << pr.base_fullname
        << ", ref: " << pr.base_ref
        << ", sha: " << pr.base_sha
        << " }"
        << ", head: { "
-       << "label: " << pr.head_label
+       << "full_name: " << pr.head_fullname
        << ", ref: " << pr.head_ref
        << ", sha: " << pr.head_sha
        << " }";
