@@ -47,7 +47,7 @@ namespace brep
   struct gh_check_suite
   {
     string node_id;
-    string head_branch;
+    string head_branch; // @@ Make optional (can be NULL).
     string head_sha;
 
     explicit

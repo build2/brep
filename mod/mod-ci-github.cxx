@@ -473,15 +473,36 @@ namespace brep
     //
     string sid (cs.repository.node_id + ":" + cs.check_suite.head_sha);
 
+    // If the user requests a rebuilt of the (entire) PR, then this manifests
+    // as check_suite rather than pull_request event. Specifically:
+    //
+    // - For a local PR, this event is shared with the branch push and all we
+    //   need to do is restart the CI for the head commit.
+    //
+    // - For a remote PR, this event will have no gh_check_suite::head_branch.
+    //   In this case we need to load the existing service data for this head
+    //   commit, extract the test merge commit, and restart the CI for that.
+    //
+    string check_sha;
+
+    bool re_requested (cs.action == "rerequested");
+    if (re_requested && !cs.check_suite.head_branch)
+    {
+      // @@ TODO: load data, copy check_sha.
+    }
+    else
+      check_sha = cs.check_suite.head_sha;
+
+    // @@ Add check/report sha member to both ctors.
+    //
     service_data sd (warning_success,
                      iat->token,
                      iat->expires_at,
                      cs.installation.id,
                      move (cs.repository.node_id),
-                     service_data::local,
-                     false /* pre_check */,
-                     cs.action == "rerequested" /* re_request */,
-                     move (cs.check_suite.head_sha));
+                     service_data::local, false /* pre_check */, re_requested,
+                     move (check_sha),
+                     move (cs.check_suite.head_sha) /* report_sha */);
 
     // If this check suite is being re-run, replace the existing CI request if
     // it exists; otherwise create a new one, doing nothing if a request
@@ -698,8 +719,6 @@ namespace brep
     // job might actually still be relevant (in both local and remote PR
     // cases).
 
-    // @@ TODO: what happens when the entire PR build is re-requested?
-
     // @@ TODO Serialize the new service_data fields!
     //
 
@@ -711,6 +730,8 @@ namespace brep
       ? service_data::local
       : service_data::remote);
 
+    // Note that PR rebuilds (re-requested) are handled by check_suite().
+    //
     // Note that check_sha will be set later, in build_unloaded_pre_check().
     //
     service_data sd (warning_success,
