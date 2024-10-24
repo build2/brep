@@ -11,8 +11,6 @@
 
 namespace brep
 {
-  // @@@ Check is any data members are unused.
-
   // Service data associated with the tenant (corresponds to GH check suite).
   //
   // It is always a top-level JSON object and the first member is always the
@@ -76,7 +74,7 @@ namespace brep
     //
     // @@ TODO Serialize these fields.
     //
-    enum {local, remote /*, queue */} kind;
+    enum kind {local, remote /*, queue */} kind;
     bool pre_check;
     bool re_request; // Re-requested (rebuild).
 
@@ -101,6 +99,8 @@ namespace brep
 
     // The GitHub ID of the synthetic PR merge check run or absent if it
     // hasn't been created yet.
+    //
+    // @@ TODO Remove once merge check run code has been removed.
     //
     optional<string> merge_node_id;
 
@@ -147,8 +147,10 @@ namespace brep
                   timestamp iat_expires_at,
                   uint64_t installation_id,
                   string repository_node_id,
-                  string head_sha,
-                  bool re_request);
+                  enum kind kind,
+                  bool pre_check,
+                  bool re_request,
+                  string head_sha);
 
     // The pull_request constructor.
     //
@@ -157,6 +159,9 @@ namespace brep
                   timestamp iat_expires_at,
                   uint64_t installation_id,
                   string repository_node_id,
+                  enum kind kind,
+                  bool pre_check,
+                  bool re_request,
                   string report_sha,
                   string repository_clone_url,
                   uint32_t pr_number);

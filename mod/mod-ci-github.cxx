@@ -473,15 +473,15 @@ namespace brep
     //
     string sid (cs.repository.node_id + ":" + cs.check_suite.head_sha);
 
-    // @@ Let's pass the "state" arguments explicitly in both constructors.
-    //
     service_data sd (warning_success,
                      iat->token,
                      iat->expires_at,
                      cs.installation.id,
                      move (cs.repository.node_id),
-                     move (cs.check_suite.head_sha),
-                     cs.action == "rerequested" /* re_request */);
+                     service_data::local,
+                     false /* pre_check */,
+                     cs.action == "rerequested" /* re_request */,
+                     move (cs.check_suite.head_sha));
 
     // If this check suite is being re-run, replace the existing CI request if
     // it exists; otherwise create a new one, doing nothing if a request
@@ -712,11 +712,12 @@ namespace brep
                      iat->expires_at,
                      pr.installation.id,
                      move (pr.repository.node_id),
+                     service_data::local, // @@ TODO
+                     true /* pre_check */,
+                     false /* re_request */,
                      move (pr.pull_request.head_sha) /* report_sha */,
                      move (pr.repository.clone_url),
                      pr.pull_request.number);
-
-    assert (sd.pre_check); // @@ Get rid (once ctor changed).
 
     // Create an unloaded CI request for the pre-check phase (during which we
     // wait for the PR's merge commit and behindness to become available).
