@@ -474,7 +474,7 @@ namespace brep
     string sid (cs.repository.node_id + ":" + cs.check_suite.head_sha);
 
     // If the user requests a rebuild of the (entire) PR, then this manifests
-    // as check_suite rather than pull_request event. Specifically:
+    // as the check_suite rather than pull_request event. Specifically:
     //
     // - For a local PR, this event is shared with the branch push and all we
     //   need to do is restart the CI for the head commit.
@@ -484,21 +484,19 @@ namespace brep
     //   commit, extract the test merge commit, and restart the CI for that.
     //
     string check_sha;
-    service_data::kind_type kind (service_data::local);
+    service_data::kind_type kind;
 
     bool re_requested (cs.action == "rerequested");
     if (re_requested && !cs.check_suite.head_branch)
     {
       kind = service_data::remote;
 
-      optional<tenant_service> ts (find (*build_db_, "ci-github", sid));
-
-      if (ts)
+      if (optional<tenant_service> ts = find (*build_db_, "ci-github", sid))
       {
         try
         {
           service_data sd (*ts->data);
-          check_sha = move (sd.check_sha);
+          check_sha = move (sd.check_sha); // Test merge commit.
         }
         catch (const invalid_argument& e)
         {
@@ -507,20 +505,20 @@ namespace brep
       }
       else
       {
-        // Proceed as for a rebuild of a local PR, letting the "no such
-        // tenant" error be reported below.
-        //
-        // @@ TMP Why do we want to continue? Feels like we're mangling the CS
-        //    quite badly. Is this a best effort attempt to handle the
-        //    rebuilding of archived PR tenants?
-        //
-        //
-        kind = service_data::local;
-        check_sha = cs.check_suite.head_sha;
+        error << "check suite for remote pull request "
+              << cs.check_suite.node_id
+              << ": re-requested but tenant_service with id " << sid
+              << " did not exist";
+        return true;
       }
     }
     else
+    {
+      // Branch push or local PR rebuild.
+      //
+      kind = service_data::local;
       check_sha = cs.check_suite.head_sha;
+    }
 
     service_data sd (warning_success,
                      iat->token,
@@ -538,8 +536,9 @@ namespace brep
     // Note that GitHub UI does not allow re-running the entire check suite
     // until all the check runs are completed.
     //
-    duplicate_tenant_mode dtm (re_requested ? duplicate_tenant_mode::replace
-                                            : duplicate_tenant_mode::ignore);
+    duplicate_tenant_mode dtm (re_requested
+                               ? duplicate_tenant_mode::replace
+                               : duplicate_tenant_mode::ignore);
 
     // Create an unloaded CI request.
     //
@@ -574,6 +573,7 @@ namespace brep
       error << "check suite " << cs.check_suite.node_id
             << ": re-requested but tenant_service with id " << sid
             << " did not exist";
+      return true;
     }
 
     return true;
@@ -757,11 +757,12 @@ namespace brep
       ? service_data::local
       : service_data::remote);
 
-    // Note: For remote PRs the check_sha will be set later, in
-    // build_unloaded_pre_check().
+    // Note: for remote PRs the check_sha will be set later, in
+    // build_unloaded_pre_check(), to test merge commit id.
     //
-    string check_sha (kind == service_data::local ? pr.pull_request.head_sha
-                                                  : "");
+    string check_sha (kind == service_data::local
+                      ? pr.pull_request.head_sha
+                      : "");
 
     // Note that PR rebuilds (re-requested) are handled by check_suite().
     //
