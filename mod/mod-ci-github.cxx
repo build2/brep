@@ -473,7 +473,7 @@ namespace brep
     //
     string sid (cs.repository.node_id + ":" + cs.check_suite.head_sha);
 
-    // If the user requests a rebuilt of the (entire) PR, then this manifests
+    // If the user requests a rebuild of the (entire) PR, then this manifests
     // as check_suite rather than pull_request event. Specifically:
     //
     // - For a local PR, this event is shared with the branch push and all we
@@ -484,23 +484,50 @@ namespace brep
     //   commit, extract the test merge commit, and restart the CI for that.
     //
     string check_sha;
+    service_data::kind_type kind (service_data::local);
 
     bool re_requested (cs.action == "rerequested");
     if (re_requested && !cs.check_suite.head_branch)
     {
-      // @@ TODO: load data, copy check_sha.
+      kind = service_data::remote;
+
+      optional<tenant_service> ts (find (*build_db_, "ci-github", sid));
+
+      if (ts)
+      {
+        try
+        {
+          service_data sd (*ts->data);
+          check_sha = move (sd.check_sha);
+        }
+        catch (const invalid_argument& e)
+        {
+          fail << "failed to parse service data: " << e;
+        }
+      }
+      else
+      {
+        // Proceed as for a rebuild of a local PR, letting the "no such
+        // tenant" error be reported below.
+        //
+        // @@ TMP Why do we want to continue? Feels like we're mangling the CS
+        //    quite badly. Is this a best effort attempt to handle the
+        //    rebuilding of archived PR tenants?
+        //
+        //
+        kind = service_data::local;
+        check_sha = cs.check_suite.head_sha;
+      }
     }
     else
       check_sha = cs.check_suite.head_sha;
 
-    // @@ Add check/report sha member to both ctors.
-    //
     service_data sd (warning_success,
                      iat->token,
                      iat->expires_at,
                      cs.installation.id,
                      move (cs.repository.node_id),
-                     service_data::local, false /* pre_check */, re_requested,
+                     kind, false /* pre_check */, re_requested,
                      move (check_sha),
                      move (cs.check_suite.head_sha) /* report_sha */);
 
@@ -511,8 +538,8 @@ namespace brep
     // Note that GitHub UI does not allow re-running the entire check suite
     // until all the check runs are completed.
     //
-    duplicate_tenant_mode dtm (sd.re_request ? duplicate_tenant_mode::replace
-                                             : duplicate_tenant_mode::ignore);
+    duplicate_tenant_mode dtm (re_requested ? duplicate_tenant_mode::replace
+                                            : duplicate_tenant_mode::ignore);
 
     // Create an unloaded CI request.
     //
