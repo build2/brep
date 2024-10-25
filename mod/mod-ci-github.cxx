@@ -725,14 +725,18 @@ namespace brep
     // Distinguish between local and remote PRs by comparing the head and base
     // repositories' paths.
     //
-    enum service_data::kind kind (
+    service_data::kind_type kind (
       pr.pull_request.head_path == pr.pull_request.base_path
       ? service_data::local
       : service_data::remote);
 
-    // Note that PR rebuilds (re-requested) are handled by check_suite().
+    // Note: For remote PRs the check_sha will be set later, in
+    // build_unloaded_pre_check().
     //
-    // Note that check_sha will be set later, in build_unloaded_pre_check().
+    string check_sha (kind == service_data::local ? pr.pull_request.head_sha
+                                                  : "");
+
+    // Note that PR rebuilds (re-requested) are handled by check_suite().
     //
     service_data sd (warning_success,
                      move (iat->token),
@@ -740,6 +744,7 @@ namespace brep
                      pr.installation.id,
                      move (pr.repository.node_id),
                      kind, true /* pre_check */, false /* re_request */,
+                     move (check_sha),
                      move (pr.pull_request.head_sha) /* report_sha */,
                      move (pr.repository.clone_url),
                      pr.pull_request.number);

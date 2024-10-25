@@ -129,9 +129,14 @@ namespace brep
         return p.name () == s ? (v = true) : false;
       };
 
-      if      (c (ni, "node_id"))     node_id = p.next_expect_string ();
-      else if (c (hb, "head_branch")) head_branch = p.next_expect_string ();
-      else if (c (hs, "head_sha"))    head_sha = p.next_expect_string ();
+      if      (c (ni, "node_id")) node_id = p.next_expect_string ();
+      else if (c (hb, "head_branch"))
+      {
+        string* v (p.next_expect_string_null ());
+        if (v != nullptr)
+          head_branch = *v;
+      }
+      else if (c (hs, "head_sha")) head_sha = p.next_expect_string ();
       else p.next_expect_value_skip ();
     }
 
@@ -144,7 +149,7 @@ namespace brep
   operator<< (ostream& os, const gh_check_suite& cs)
   {
     os << "node_id: " << cs.node_id
-       << ", head_branch: " << cs.head_branch
+       << ", head_branch: " << (cs.head_branch ? *cs.head_branch : "null")
        << ", head_sha: " << cs.head_sha;
 
     return os;
@@ -221,7 +226,7 @@ namespace brep
             while (p.next_expect (event::name, event::end_object))
             {
               if (c (fn, "full_name"))
-                base_fullname = p.next_expect_string ();
+                base_path = p.next_expect_string ();
               else
                 p.next_expect_value_skip ();
             }
@@ -251,7 +256,7 @@ namespace brep
             while (p.next_expect (event::name, event::end_object))
             {
               if (c (fn, "full_name"))
-                head_fullname = p.next_expect_string ();
+                head_path = p.next_expect_string ();
               else
                 p.next_expect_value_skip ();
             }
@@ -289,12 +294,12 @@ namespace brep
                               : "null")
        << ", merge_commit_sha:" << pr.merge_commit_sha
        << ", base: { "
-       << "full_name: " << pr.base_fullname
+       << "path: " << pr.base_path
        << ", ref: " << pr.base_ref
        << ", sha: " << pr.base_sha
        << " }"
        << ", head: { "
-       << "full_name: " << pr.head_fullname
+       << "path: " << pr.head_path
        << ", ref: " << pr.head_ref
        << ", sha: " << pr.head_sha
        << " }";
@@ -322,7 +327,7 @@ namespace brep
 
       if      (c (ni, "node_id"))        node_id = p.next_expect_string ();
       else if (c (nm, "name"))           name = p.next_expect_string ();
-      else if (c (fn, "full_name"))      full_name = p.next_expect_string ();
+      else if (c (fn, "full_name"))      path = p.next_expect_string ();
       else if (c (db, "default_branch")) default_branch = p.next_expect_string ();
       else if (c (cu, "clone_url"))      clone_url = p.next_expect_string ();
       else p.next_expect_value_skip ();
@@ -340,7 +345,7 @@ namespace brep
   {
     os << "node_id: " << rep.node_id
        << ", name: " << rep.name
-       << ", full_name: " << rep.full_name
+       << ", path: " << rep.path
        << ", default_branch: " << rep.default_branch
        << ", clone_url: " << rep.clone_url;
 

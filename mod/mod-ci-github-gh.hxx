@@ -47,7 +47,7 @@ namespace brep
   struct gh_check_suite
   {
     string node_id;
-    string head_branch; // @@ Make optional (can be NULL).
+    optional<string> head_branch;
     string head_sha;
 
     explicit
@@ -124,7 +124,7 @@ namespace brep
   {
     string node_id;
     string name;
-    string full_name;
+    string path; // Repository path (<org>/<repo>) under github.com.
     string default_branch;
     string clone_url;
 

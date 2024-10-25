@@ -149,10 +149,11 @@ namespace brep
                   timestamp iat_expires_at,
                   uint64_t installation_id,
                   string repository_node_id,
-                  enum kind kind,
+                  kind_type kind,
                   bool pre_check,
                   bool re_request,
-                  string head_sha);
+                  string check_sha,
+                  string report_sha);
 
     // The pull_request constructor.
     //
@@ -161,9 +162,10 @@ namespace brep
                   timestamp iat_expires_at,
                   uint64_t installation_id,
                   string repository_node_id,
-                  enum kind kind,
+                  kind_type kind,
                   bool pre_check,
                   bool re_request,
+                  string check_sha,
                   string report_sha,
                   string repository_clone_url,
                   uint32_t pr_number);
