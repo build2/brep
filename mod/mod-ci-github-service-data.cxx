@@ -40,6 +40,7 @@ namespace brep
         p.next_expect_member_number<uint64_t> ("installation_id");
 
     repository_node_id = p.next_expect_member_string ("repository_node_id");
+    event_node_id = p.next_expect_member_string ("event_node_id");
 
     {
       string* s (p.next_expect_member_string_null ("repository_clone_url"));
@@ -105,6 +106,7 @@ namespace brep
                 timestamp iat_ea,
                 uint64_t iid,
                 string rid,
+                string eid,
                 kind_type k,
                 bool rr,
                 bool pc,
@@ -115,6 +117,7 @@ namespace brep
         installation_access (move (iat_tok), iat_ea),
         installation_id (iid),
         repository_node_id (move (rid)),
+        event_node_id (move (eid)),
         check_sha (move (cs)),
         report_sha (move (rs))
   {
@@ -128,6 +131,7 @@ namespace brep
                 timestamp iat_ea,
                 uint64_t iid,
                 string rid,
+                string eid,
                 kind_type k,
                 bool rr,
                 bool pc,
@@ -140,6 +144,7 @@ namespace brep
         installation_access (move (iat_tok), iat_ea),
         installation_id (iid),
         repository_node_id (move (rid)),
+        event_node_id (move (eid)),
         repository_clone_url (move (rcu)),
         pr_number (prn),
         check_sha (move (cs)),
@@ -168,6 +173,7 @@ namespace brep
 
     s.member ("installation_id", installation_id);
     s.member ("repository_node_id", repository_node_id);
+    s.member ("event_node_id", event_node_id);
 
     s.member_name ("repository_clone_url");
     if (repository_clone_url)

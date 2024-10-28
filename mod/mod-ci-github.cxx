@@ -525,6 +525,7 @@ namespace brep
                      iat->expires_at,
                      cs.installation.id,
                      move (cs.repository.node_id),
+                     cs.check_suite.node_id,
                      kind, false /* pre_check */, re_requested,
                      move (check_sha),
                      move (cs.check_suite.head_sha) /* report_sha */);
@@ -771,6 +772,7 @@ namespace brep
                      iat->expires_at,
                      pr.installation.id,
                      move (pr.repository.node_id),
+                     pr.pull_request.node_id,
                      kind, true /* pre_check */, false /* re_request */,
                      move (check_sha),
                      move (pr.pull_request.head_sha) /* report_sha */,

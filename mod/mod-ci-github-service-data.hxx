@@ -92,6 +92,8 @@ namespace brep
 
     string repository_node_id; // GitHub-internal opaque repository id.
 
+    string event_node_id; // check_suite/pull_request node id.
+
     // The following two are only used for pull requests.
     //
     // @@ TODO/LATER: maybe put them in a struct?
@@ -149,6 +151,7 @@ namespace brep
                   timestamp iat_expires_at,
                   uint64_t installation_id,
                   string repository_node_id,
+                  string event_node_id,
                   kind_type kind,
                   bool pre_check,
                   bool re_request,
@@ -162,6 +165,7 @@ namespace brep
                   timestamp iat_expires_at,
                   uint64_t installation_id,
                   string repository_node_id,
+                  string event_node_id,
                   kind_type kind,
                   bool pre_check,
                   bool re_request,
