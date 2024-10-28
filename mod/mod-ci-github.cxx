@@ -505,9 +505,9 @@ namespace brep
       }
       else
       {
-        error << "check suite for remote pull request "
-              << cs.check_suite.node_id
-              << ": re-requested but tenant_service with id " << sid
+        error << "check suite " << cs.check_suite.node_id
+              << " for remote pull request:"
+              << " re-requested but tenant_service with id " << sid
               << " did not exist";
         return true;
       }
@@ -800,7 +800,7 @@ namespace brep
     //
     if (!create (error,
                  warn,
-                 &trace,
+                 verb_ ? &trace : nullptr,
                  *build_db_,
                  move (ts),
                  chrono::seconds (30) /* interval */,
@@ -1025,10 +1025,10 @@ namespace brep
 
     // Start/check PR mergeability.
     //
-    optional<string> mc (
-      gq_pull_request_mergeable (error, iat->token, ts.id)); // Merge commit.
+    optional<gq_pr_pre_check> mc ( // Merge commit.
+      gq_pull_request_pre_check_info (error, iat->token, sd.event_node_id));
 
-    if (!mc || mc->empty ())
+    if (!mc || mc->merge_commit_sha.empty ())
     {
       if (!mc) // No merge commit yet.
       {
@@ -1062,8 +1062,12 @@ namespace brep
           // Ignore failure because this CI request may have been cancelled
           // elsewhere due to an update to the PR base or head branches.
           //
-          if (!cancel (error, warn, &trace, *build_db_, ts.type, ts.id))
-            l3 ([&]{trace << "CI for PR " << ts.id << " already cancelled";});
+          if (!cancel (error, warn, verb_ ? &trace : nullptr,
+                       *build_db_, ts.type, ts.id))
+          {
+            l3 ([&]{trace << "CI for PR " << sd.event_node_id
+                          << " already cancelled";});
+          }
 
           return nullptr; // No need to update service data in this case.
         }
@@ -1162,11 +1166,12 @@ namespace brep
         //   #pull/28/merge@1b6c9a361086ed93e6f1e67189e82d52de91c49b
         //
         repository_location rl (*sd.repository_clone_url + "#pull/" +
-                                to_string (*sd.pr_number) + "/merge@" + *mc,
+                                to_string (*sd.pr_number) + "/merge@" +
+                                mc->merge_commit_sha,
                                 repository_type::git);
 
-        optional<start_result> r (
-          load (error, warn, &trace, *build_db_, move (ts), rl));
+        optional<start_result> r (load (error, warn, verb_ ? &trace : nullptr,
+                                        *build_db_, move (ts), rl));
 
         if (!r || r->status != 200)
         {
@@ -1621,6 +1626,10 @@ namespace brep
                const build& b,
                const diag_epilogue& log_writer) const noexcept
   {
+    // @@ TODO Include service_data::event_node_id and perhaps ts.id in
+    //    diagnostics? E.g. when failing to update check runs we print the
+    //    build ID only.
+    //
     NOTIFICATION_DIAG (log_writer);
 
     service_data sd;
@@ -1937,7 +1946,7 @@ namespace brep
           {
             // Nothing we can do here except log the error.
             //
-            error << "check suite " << ts.id
+            error << "tenant_service id " << ts.id
                   << ": unable to update conclusion check run "
                   << *sd.conclusion_node_id;
           }
