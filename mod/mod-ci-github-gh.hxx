@@ -80,6 +80,8 @@ namespace brep
     // the merge commit. If false then `merge_commit_sha` is either empty or
     // no longer valid.
     //
+    //   @@ TODO These appear to be unused.
+    //
     optional<bool> mergeable;
     string merge_commit_sha;
 
