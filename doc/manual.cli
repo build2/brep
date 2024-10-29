@@ -683,7 +683,7 @@ GitHub supports integration of third-party CI services into the repository
 workflow by allowing such third-party services to register for events (called
 \i{web hooks} in the GitHub terminology).
 
-\N|This mechanism should not be confused with GitHub Actions, with is a GitHub
+\N|This mechanism should not be confused with GitHub Actions, which is a GitHub
 built-in CI service. As far as we understand, it uses ad hoc integration
 rather than the same integration mechanism as available to third-party CI
 services.|
@@ -758,7 +758,7 @@ PR does not get invalidated (because the PR head hasn't changed).
 
 Let's consider two representative examples of each case that show how the
 GitHub behavior can lead us to making wrong decisions. But before we do that,
-last bit of terminology: we will distinguish between \i{local PRs}, those with
+a last bit of terminology: we will distinguish between \i{local PRs}, those with
 the head branch from the same repository, and \i{remote PRs}, those with the
 head branch belonging to another user/organization (called \i{forked PR} in
 the GitHub terminology).
