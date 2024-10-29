@@ -50,7 +50,9 @@ namespace brep
   // sense for the implementation to protect against overwriting later states
   // with earlier. For example, if it's possible to place a condition on a
   // notification, it makes sense to only set the state to queued if none of
-  // the later states (e.g., building) are already in effect.
+  // the later states (e.g., building) are already in effect. See also
+  // ci_start::rebuild() for additional details on the build->queued
+  // transition.
   //
   // Note also that it's possible for the build to get deleted at any stage
   // without any further notifications. This can happen, for example, due to
@@ -131,8 +133,9 @@ namespace brep
   // returned callback should be NULL).
   //
   // Note: make sure the implementation of this notification does not take
-  // too long (currently 40 seconds) to avoid nested notifications. Note
-  // also that the first notification is delayed (currently 10 seconds).
+  // longer than the notification_interval argument of ci_start::create() to
+  // avoid nested notifications. The first notification can be delayed with
+  // the notify_delay argument.
   //
   class tenant_service_build_unloaded: public virtual tenant_service_base
   {

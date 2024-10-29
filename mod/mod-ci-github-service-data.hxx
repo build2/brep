@@ -74,8 +74,6 @@ namespace brep
 
     // Kind and phase.
     //
-    // @@ TODO Serialize these fields.
-    //
     enum kind_type {local, remote /*, queue */} kind;
     bool pre_check;
     bool re_request; // Re-requested (rebuild).
@@ -92,19 +90,14 @@ namespace brep
 
     string repository_node_id; // GitHub-internal opaque repository id.
 
+    string repository_clone_url;
+
     // The following two are only used for pull requests.
     //
     // @@ TODO/LATER: maybe put them in a struct?
     //
-    optional<string> repository_clone_url;
+    optional<string>   pr_node_id;
     optional<uint32_t> pr_number;
-
-    // The GitHub ID of the synthetic PR merge check run or absent if it
-    // hasn't been created yet.
-    //
-    // @@ TODO Remove once merge check run code has been removed.
-    //
-    optional<string> merge_node_id;
 
     // The commit ID the branch push or pull request (and its check runs) are
     // building. This will be the head commit for the branch push as well as
@@ -122,7 +115,7 @@ namespace brep
     vector<check_run> check_runs;
 
     // The GitHub ID of the synthetic conclusion check run or absent if it
-    // hasn't been created yet. See also merge_node_id above.
+    // hasn't been created yet.
     //
     optional<string> conclusion_node_id;
 
@@ -149,6 +142,7 @@ namespace brep
                   timestamp iat_expires_at,
                   uint64_t installation_id,
                   string repository_node_id,
+                  string repository_clone_url,
                   kind_type kind,
                   bool pre_check,
                   bool re_request,
@@ -162,12 +156,13 @@ namespace brep
                   timestamp iat_expires_at,
                   uint64_t installation_id,
                   string repository_node_id,
+                  string repository_clone_url,
                   kind_type kind,
                   bool pre_check,
                   bool re_request,
                   string check_sha,
                   string report_sha,
-                  string repository_clone_url,
+                  string pr_node_id,
                   uint32_t pr_number);
 
     service_data () = default;

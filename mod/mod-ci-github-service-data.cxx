@@ -26,6 +26,22 @@ namespace brep
                               to_string (version));
     }
 
+    {
+      string v (p.next_expect_member_string ("kind"));
+
+      if      (v == "local")  kind = local;
+      else if (v == "remote") kind = remote;
+      else
+      {
+        throw json::invalid_json_input (
+          p.input_name, p.line (), p.column (), p.position (),
+          "invalid service data kind: '" + v + '\'');
+      }
+    }
+
+    pre_check = p.next_expect_member_boolean<bool> ("pre_check");
+    re_request = p.next_expect_member_boolean<bool> ("re_request");
+
     warning_success = p.next_expect_member_boolean<bool> ("warning_success");
 
     // Installation access token.
@@ -37,21 +53,17 @@ namespace brep
         p.next_expect_member_number<uint64_t> ("installation_id");
 
     repository_node_id = p.next_expect_member_string ("repository_node_id");
+    repository_clone_url = p.next_expect_member_string ("repository_clone_url");
 
     {
-      string* s (p.next_expect_member_string_null ("repository_clone_url"));
+      string* s (p.next_expect_member_string_null ("pr_node_id"));
       if (s != nullptr)
-        repository_clone_url = *s;
+        pr_node_id = *s;
     }
 
     pr_number = p.next_expect_member_number_null<uint32_t> ("pr_number");
 
-    {
-      string* s (p.next_expect_member_string_null ("merge_node_id"));
-      if (s != nullptr)
-        merge_node_id = *s;
-    }
-
+    check_sha = p.next_expect_member_string ("check_sha");
     report_sha = p.next_expect_member_string ("report_sha");
 
     p.next_expect_member_array ("check_runs");
@@ -102,6 +114,7 @@ namespace brep
                 timestamp iat_ea,
                 uint64_t iid,
                 string rid,
+                string rcu,
                 kind_type k,
                 bool rr,
                 bool pc,
@@ -112,6 +125,7 @@ namespace brep
         installation_access (move (iat_tok), iat_ea),
         installation_id (iid),
         repository_node_id (move (rid)),
+        repository_clone_url (move (rcu)),
         check_sha (move (cs)),
         report_sha (move (rs))
   {
@@ -125,12 +139,13 @@ namespace brep
                 timestamp iat_ea,
                 uint64_t iid,
                 string rid,
+                string rcu,
                 kind_type k,
                 bool rr,
                 bool pc,
                 string cs,
                 string rs,
-                string rcu,
+                string pid,
                 uint32_t prn)
       : kind (k), pre_check (pc), re_request (rr),
         warning_success (ws),
@@ -138,6 +153,7 @@ namespace brep
         installation_id (iid),
         repository_node_id (move (rid)),
         repository_clone_url (move (rcu)),
+        pr_node_id (move (pid)),
         pr_number (prn),
         check_sha (move (cs)),
         report_sha (move (rs))
@@ -154,6 +170,16 @@ namespace brep
 
     s.member ("version", 1);
 
+    s.member_name ("kind");
+    switch (kind)
+    {
+    case local:  s.value ("local"); break;
+    case remote: s.value ("remote"); break;
+    }
+
+    s.member ("pre_check", pre_check);
+    s.member ("re_request", re_request);
+
     s.member ("warning_success", warning_success);
 
     // Installation access token.
@@ -165,10 +191,11 @@ namespace brep
 
     s.member ("installation_id", installation_id);
     s.member ("repository_node_id", repository_node_id);
+    s.member ("repository_clone_url", repository_clone_url);
 
-    s.member_name ("repository_clone_url");
-    if (repository_clone_url)
-      s.value (*repository_clone_url);
+    s.member_name ("pr_node_id");
+    if (pr_node_id)
+      s.value (*pr_node_id);
     else
       s.value (nullptr);
 
@@ -178,12 +205,7 @@ namespace brep
     else
       s.value (nullptr);
 
-    s.member_name ("merge_node_id");
-    if (merge_node_id)
-      s.value (*merge_node_id);
-    else
-      s.value (nullptr);
-
+    s.member ("check_sha", check_sha);
     s.member ("report_sha", report_sha);
 
     s.member_begin_array ("check_runs");

@@ -578,7 +578,10 @@ namespace brep
     os << "query {"                                              << '\n'
        << "  node(id:" << gq_str (nid) << ") {"                  << '\n'
        << "    ... on PullRequest {"                             << '\n'
-       << "      mergeable potentialMergeCommit { oid }"         << '\n'
+       << "      headRefOid"                                     << '\n'
+       << "      mergeStateStatus"                               << '\n'
+       << "      mergeable"                                      << '\n'
+       << "      potentialMergeCommit { oid }"                   << '\n'
        << "    }"                                                << '\n'
        << "  }"                                                  << '\n'
        << "}"                                                    << '\n';
@@ -586,10 +589,10 @@ namespace brep
     return os.str ();
   }
 
-  optional<string>
-  gq_pull_request_mergeable (const basic_mark& error,
-                             const string& iat,
-                             const string& nid)
+  optional<gq_pr_pre_check_info>
+  gq_fetch_pull_request_pre_check_info (const basic_mark& error,
+                                        const string& iat,
+                                        const string& nid)
   {
     string rq (gq_serialize_request (gq_query_pr_mergeability (nid)));
 
@@ -610,7 +613,7 @@ namespace brep
         // The response value. Absent if the merge commit is still being
         // generated.
         //
-        optional<string> value;
+        optional<gq_pr_pre_check_info> r;
 
         resp (json::parser& p)
         {
@@ -624,32 +627,42 @@ namespace brep
             {
               found = true;
 
+              string hs (p.next_expect_member_string ("headRefOid"));
+              string ms (p.next_expect_member_string ("mergeStateStatus"));
               string ma (p.next_expect_member_string ("mergeable"));
 
-              if (ma == "MERGEABLE")
+              if (ms == "BEHIND")
+              {
+                // The PR head branch is not up to date with the PR base
+                // branch.
+                //
+                // Note that we can only get here if the head-not-behind
+                // protection rule is active on the PR base branch.
+                //
+                r = {move (hs), true, nullopt};
+              }
+              else if (ma == "MERGEABLE")
               {
                 p.next_expect_member_object ("potentialMergeCommit");
                 string oid (p.next_expect_member_string ("oid"));
                 p.next_expect (event::end_object);
 
-                value = move (oid);
+                r = {move (hs), false, move (oid)};
               }
               else
               {
                 if (ma == "CONFLICTING")
-                  value = "";
+                  r = {move (hs), false, nullopt};
                 if (ma == "UNKNOWN")
-                  ; // Still being generated; leave value absent.
+                  ; // Still being generated; leave r absent.
                 else
-                {
-                  // @@ Let's throw invalid_json.
-                  //
-                  parse_error = "unexpected mergeable value '" + ma + '\'';
+                  throw_json (p, "unexpected mergeable value '" + ma + '\'');
+              }
 
-                  // Carry on as if it were UNKNOWN.
-                }
-
-                // Skip the merge commit ID (which should be null).
+              if (!r || !r->merge_commit_sha)
+              {
+                // Skip the merge commit ID if it has not yet been extracted
+                // (in which case it should be null).
                 //
                 p.next_expect_name ("potentialMergeCommit");
                 p.next_expect_value_skip ();
@@ -677,7 +690,7 @@ namespace brep
         else if (!rs.parse_error.empty ())
           error << rs.parse_error;
 
-        return rs.value;
+        return rs.r;
       }
       else
         error << "failed to fetch pull request: error HTTP response status "
@@ -710,215 +723,6 @@ namespace brep
 
     return nullopt;
   }
-
-  // Serialize a GraphQL query that fetches the last 100 (the maximum per
-  // page) open pull requests with the specified base branch from the
-  // repository with the specified node ID.
-  //
-  // @@ TMP Should we support more/less than 100?
-  //
-  //    Doing more (or even 100) could waste a lot of CI resources on
-  //    re-testing stale PRs. Maybe we should create a failed synthetic
-  //    conclusion check run asking the user to re-run the CI manually if/when
-  //    needed.
-  //
-  //    Note that we cannot request more than 100 at a time (will need to
-  //    do multiple requests with paging, etc).
-  //
-  //    Also, maybe we should limit the result to "fresh" PRs, e.g., those
-  //    that have been "touched" in the last week.
-  //
-  // Example query:
-  //
-  //   query {
-  //     node(id:"R_kgDOLc8CoA")
-  //     {
-  //       ... on Repository {
-  //         pullRequests (last:100 states:OPEN baseRefName:"master") {
-  //           edges {
-  //             node {
-  //               id
-  //               number
-  //               headRefOid
-  //             }
-  //           }
-  //         }
-  //       }
-  //     }
-  //   }
-  //
-  //
-  // pullRequests (last:50 states:[OPEN]
-  //               orderBy:{field:UPDATED_AT direction:ASC}
-  //               baseRefName:"master") {
-  //
-  // updatedAt field changes on PR close, conversion to draft PR, merge
-  // conflict resolution, etc. So seems like it changes with any kind of PR
-  // update.
-  //
-  static string
-  gq_query_fetch_open_pull_requests (const string& rid, const string& br)
-  {
-    ostringstream os;
-
-    os << "query {"                                              << '\n'
-       << "  node(id:" << gq_str (rid) << ") {"                  << '\n'
-       << "    ... on Repository {"                              << '\n'
-       << "      pullRequests (last:100"                         << '\n'
-       << "                    states:" << gq_enum ("OPEN")      << '\n'
-       << "                    baseRefName:" << gq_str (br)      << '\n'
-       << "                   ) {"                               << '\n'
-       << "        totalCount"                                   << '\n'
-       << "        edges { node { id number headRefOid } }"      << '\n'
-       << "      }"                                              << '\n'
-       << "    }"                                                << '\n'
-       << "  }"                                                  << '\n'
-       << "}"                                                    << '\n';
-
-    return os.str ();
-  }
-
-  optional<vector<gh_pull_request>>
-  gq_fetch_open_pull_requests (const basic_mark& error,
-                               const string& iat,
-                               const string& nid,
-                               const string& br)
-  {
-    string rq (
-      gq_serialize_request (gq_query_fetch_open_pull_requests (nid, br)));
-
-    try
-    {
-      // Response parser.
-      //
-      // Example response (only the part we need to parse here):
-      //
-      //   {
-      //     "node": {
-      //       "pullRequests": {
-      //         "totalCount": 2,
-      //         "edges": [
-      //           {
-      //             "node": {
-      //               "id": "PR_kwDOLc8CoM5vRS0y",
-      //               "number": 7,
-      //               "headRefOid": "cf72888be9484d6946a1340264e7abf18d31cc92"
-      //             }
-      //           },
-      //           {
-      //             "node": {
-      //               "id": "PR_kwDOLc8CoM5vRzHs",
-      //               "number": 8,
-      //               "headRefOid": "626d25b318aad27bc0005277afefe3e8d6b2d434"
-      //             }
-      //           }
-      //         ]
-      //       }
-      //     }
-      //   }
-      //
-      struct resp
-      {
-        bool found = false;
-
-        vector<gh_pull_request> pull_requests;
-
-        resp (json::parser& p)
-        {
-          using event = json::event;
-
-          auto parse_data = [this] (json::parser& p)
-          {
-            p.next_expect (event::begin_object);
-
-            if (p.next_expect_member_object_null ("node"))
-            {
-              found = true;
-
-              p.next_expect_member_object ("pullRequests");
-
-              uint16_t n (p.next_expect_member_number<uint16_t> ("totalCount"));
-
-              p.next_expect_member_array ("edges");
-              for (size_t i (0); i != n; ++i)
-              {
-                p.next_expect (event::begin_object); // edges[i]
-
-                p.next_expect_member_object ("node");
-                {
-                  gh_pull_request pr;
-                  pr.node_id = p.next_expect_member_string ("id");
-                  pr.number = p.next_expect_member_number<unsigned int> ("number");
-                  pr.head_sha = p.next_expect_member_string ("headRefOid");
-                  pull_requests.push_back (move (pr));
-                }
-                p.next_expect (event::end_object); // node
-
-                p.next_expect (event::end_object); // edges[i]
-              }
-              p.next_expect (event::end_array); // edges
-
-              p.next_expect (event::end_object); // pullRequests
-              p.next_expect (event::end_object); // node
-            }
-
-            p.next_expect (event::end_object);
-          };
-
-          gq_parse_response (p, move (parse_data));
-        }
-
-        resp () = default;
-      } rs;
-
-      uint16_t sc (github_post (rs,
-                                "graphql", // API Endpoint.
-                                strings {"Authorization: Bearer " + iat},
-                                move (rq)));
-
-      if (sc == 200)
-      {
-        if (!rs.found)
-        {
-          error << "repository '" << nid << "' not found";
-
-          return nullopt;
-        }
-
-        return rs.pull_requests;
-      }
-      else
-        error << "failed to fetch repository pull requests: "
-              << "error HTTP response status " << sc;
-    }
-    catch (const json::invalid_json_input& e)
-    {
-      // Note: e.name is the GitHub API endpoint.
-      //
-      error << "malformed JSON in response from " << e.name << ", line: "
-            << e.line << ", column: " << e.column << ", byte offset: "
-            << e.position << ", error: " << e;
-    }
-    catch (const invalid_argument& e)
-    {
-      error << "malformed header(s) in response: " << e;
-    }
-    catch (const system_error& e)
-    {
-      error << "unable to fetch repository pull requests (errno=" << e.code ()
-            << "): " << e.what ();
-    }
-    catch (const runtime_error& e) // From response type's parsing constructor.
-    {
-      // GitHub response contained error(s) (could be ours or theirs at this
-      // point).
-      //
-      error << "unable to fetch repository pull requests: " << e;
-    }
-
-    return nullopt;
-  }
-
 
   // GraphQL serialization functions.
   //

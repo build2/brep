@@ -389,10 +389,9 @@ namespace brep
     }
   }
 
-  // Let's capitalize the synthetic check run names to make them easier to
-  // distinguish from the regular ones.
+  // Let's capitalize the synthetic conclusion check run name to make it
+  // easier to distinguish from the regular ones.
   //
-  static string merge_check_run_name ("MERGE-COMMIT");
   static string conclusion_check_run_name ("CONCLUSION");
 
   // Return the colored circle corresponding to a result_status.
@@ -469,7 +468,7 @@ namespace brep
     // protection rule for head behind is not enabled. In this case, it would
     // be good to complete the CI. So maybe/later.
 
-    // Service id that uniquely identifies the CI request.
+    // Service id that uniquely identifies the CI tenant.
     //
     string sid (cs.repository.node_id + ":" + cs.check_suite.head_sha);
 
@@ -482,6 +481,12 @@ namespace brep
     // - For a remote PR, this event will have no gh_check_suite::head_branch.
     //   In this case we need to load the existing service data for this head
     //   commit, extract the test merge commit, and restart the CI for that.
+    //
+    //   Note that it's possible the base branch has moved in the meantime and
+    //   ideally we would want to re-request the test merge commit, etc.
+    //   However, this will only be necessary if the user does not follow our
+    //   recommendation of enabling the head-behind-base protection. And it
+    //   seems all this extra complexity would not be warranted.
     //
     string check_sha;
     service_data::kind_type kind;
@@ -505,9 +510,9 @@ namespace brep
       }
       else
       {
-        error << "check suite for remote pull request "
-              << cs.check_suite.node_id
-              << ": re-requested but tenant_service with id " << sid
+        error << "check suite " << cs.check_suite.node_id
+              << " for remote pull request:"
+              << " re-requested but tenant_service with id " << sid
               << " did not exist";
         return true;
       }
@@ -525,12 +530,13 @@ namespace brep
                      iat->expires_at,
                      cs.installation.id,
                      move (cs.repository.node_id),
+                     move (cs.repository.clone_url),
                      kind, false /* pre_check */, re_requested,
                      move (check_sha),
                      move (cs.check_suite.head_sha) /* report_sha */);
 
-    // If this check suite is being re-run, replace the existing CI request if
-    // it exists; otherwise create a new one, doing nothing if a request
+    // If this check suite is being re-run, replace the existing CI tenant if
+    // it exists; otherwise create a new one, doing nothing if a tenant
     // already exists (which could've been created by handle_pull_request()).
     //
     // Note that GitHub UI does not allow re-running the entire check suite
@@ -540,7 +546,7 @@ namespace brep
                                ? duplicate_tenant_mode::replace
                                : duplicate_tenant_mode::ignore);
 
-    // Create an unloaded CI request.
+    // Create an unloaded CI tenant.
     //
     // Note: use no delay since we need to (re)create the synthetic conclusion
     // check run as soon as possible.
@@ -549,7 +555,7 @@ namespace brep
     // management is not available in start().
     //
     // After this call we will start getting the build_unloaded()
-    // notifications until (1) we load the request, (2) we cancel it, or (3)
+    // notifications until (1) we load the tenant, (2) we cancel it, or (3)
     // it gets archived after some timeout.
     //
     auto pr (create (error,
@@ -746,9 +752,6 @@ namespace brep
     // job might actually still be relevant (in both local and remote PR
     // cases).
 
-    // @@ TODO Serialize the new service_data fields!
-    //
-
     // Distinguish between local and remote PRs by comparing the head and base
     // repositories' paths.
     //
@@ -771,13 +774,14 @@ namespace brep
                      iat->expires_at,
                      pr.installation.id,
                      move (pr.repository.node_id),
+                     move (pr.repository.clone_url),
                      kind, true /* pre_check */, false /* re_request */,
                      move (check_sha),
                      move (pr.pull_request.head_sha) /* report_sha */,
-                     move (pr.repository.clone_url),
+                     pr.pull_request.node_id,
                      pr.pull_request.number);
 
-    // Create an unloaded CI request for the pre-check phase (during which we
+    // Create an unloaded CI tenant for the pre-check phase (during which we
     // wait for the PR's merge commit and behindness to become available).
     //
     // Create with an empty service id so that the generated tenant id is used
@@ -792,13 +796,13 @@ namespace brep
     //
     // After this call we will start getting the build_unloaded()
     // notifications -- which will be routed to build_unloaded_pre_check() --
-    // until we cancel the request or it gets archived after some
-    // timeout. (Note that we never actually load this request, we always
-    // cancel it; see build_unloaded_pre_check() for details.)
+    // until we cancel the tenant or it gets archived after some timeout.
+    // (Note that we never actually load this request, we always cancel it;
+    // see build_unloaded_pre_check() for details.)
     //
     if (!create (error,
                  warn,
-                 &trace,
+                 verb_ ? &trace : nullptr,
                  *build_db_,
                  move (ts),
                  chrono::seconds (30) /* interval */,
@@ -834,27 +838,139 @@ namespace brep
   }
 
   function<optional<string> (const tenant_service&)> ci_github::
-  build_unloaded_pre_check (tenant_service&&,
-                            service_data&&,
+  build_unloaded_pre_check (tenant_service&& ts,
+                            service_data&& sd,
                             const diag_epilogue& log_writer) const noexcept
   {
     NOTIFICATION_DIAG (log_writer);
 
-    // Note: PR only (but both local and remove).
+    // We get here for PRs only (but both local and remote). The overall
+    // plan is as follows:
     //
-    // - Ask for test merge commit.
-    // - If not ready, get called again.
-    // - If not mergeable, behind, or different head (head changed while
-    //   waiting for merge commit and thus differs from what's in the
-    //   service_data), cancel itself and ignore.
-    // - Otherwise, create unloaded CI tenant (with proper duplicate mode
-    //   based on re_request) and cancel itself.
-
+    // 1. Ask for the mergeability/behind status/test merge commit.
+    //
+    // 2. If not ready, get called again.
+    //
+    // 3. If not mergeable, behind, or different head (head changed while
+    //    waiting for merge commit and thus differs from what's in the
+    //    service_data), cancel the pre-check tenant and do nothing.
+    //
+    // 4. Otherwise, create an unloaded CI tenant and cancel ourselves. Note
+    //    that all re-requested cases are handled elsewhere.
+    //
     // Note that in case of a mixed local/remote case, whether we CI the head
     // commit or test merge commit will be racy and there is nothing we can do
     // about (the purely local case can get "upgraded" to mixed after we have
     // started the CI job).
     //
+
+    // Request PR pre-check info (triggering the generation of the test merge
+    // commit on the GitHub's side).
+    //
+    optional<gq_pr_pre_check_info> pc (
+      gq_fetch_pull_request_pre_check_info (error,
+                                            sd.installation_access.token,
+                                            *sd.pr_node_id));
+
+    if (!pc)
+    {
+      // Test merge commit not available yet: get called again to retry.
+      //
+      return nullptr;
+    }
+
+    // Create the CI tenant if nothing is wrong, otherwise issue diagnostics.
+    //
+    if (pc->behind)
+    {
+      l3 ([&]{trace << "ignoring pull request " << *sd.pr_node_id
+                    << ": head is behind base";});
+    }
+    else if (!pc->merge_commit_sha)
+    {
+      l3 ([&]{trace << "ignoring pull request " << *sd.pr_node_id
+                    << ": not auto-mergeable";});
+    }
+    else if (pc->head_sha != sd.report_sha)
+    {
+      l3 ([&]{trace << "ignoring pull request " << *sd.pr_node_id
+                    << ": head commit has changed";});
+    }
+    else
+    {
+      // Create the CI tenant.
+
+      // Update service data's check_sha if this is a remote PR.
+      //
+      if (sd.kind == service_data::remote)
+        sd.check_sha = *pc->merge_commit_sha;
+
+      // Service id that will uniquely identify the CI tenant.
+      //
+      string sid (sd.repository_node_id + ":" + sd.report_sha);
+
+      // Create an unloaded CI tenant, doing nothing if one already exists
+      // (which could've been created by a head branch push or another PR
+      // sharing the same head commit).
+      //
+      // Note: use no delay since we need to (re)create the synthetic
+      // conclusion check run as soon as possible.
+      //
+      // Note that we use the create() API instead of start() since duplicate
+      // management is not available in start().
+      //
+      // After this call we will start getting the build_unloaded()
+      // notifications until (1) we load the tenant, (2) we cancel it, or (3)
+      // it gets archived after some timeout.
+      //
+      if (auto pr = create (error, warn, verb_ ? &trace : nullptr,
+                            *build_db_,
+                            tenant_service (sid, "ci-github", sd.json ()),
+                            chrono::seconds (30) /* interval */,
+                            chrono::seconds (0) /* delay */,
+                            duplicate_tenant_mode::ignore))
+      {
+        if (pr->second == duplicate_tenant_result::ignored)
+        {
+          // This PR is sharing a head commit with something else.
+          //
+          // If this is a local PR then it's probably the branch push, which
+          // is expected, so do nothing.
+          //
+          // If this is a remote PR then it could be anything (branch push,
+          // local PR, or another remote PR) which in turn means the CI result
+          // may end up being for head, not merge commit. There is nothing we
+          // can do about it on our side (the user can enable the head-behind-
+          // base protection on their side).
+          //
+          if (sd.kind == service_data::remote)
+          {
+            l3 ([&]{trace << "remote pull request " << *sd.pr_node_id
+                          << ": CI tenant already exists for " << sid;});
+          }
+        }
+      }
+      else
+      {
+        error << "pull request " << *sd.pr_node_id
+              << ": unable to create unloaded CI tenant "
+              << "with tenant_service id " << sid;
+
+        // Fall through to cancel.
+      }
+    }
+
+    // Cancel the pre-check tenant.
+    //
+    if (!cancel (error, warn, verb_ ? &trace : nullptr,
+                 *build_db_, ts.type, ts.id))
+    {
+      // Should never happen (no such tenant).
+      //
+      error << "pull request " << *sd.pr_node_id
+            << ": failed to cancel pre-check tenant with tenant_service id "
+            << ts.id;
+    }
 
     return nullptr;
   }
@@ -866,8 +982,15 @@ namespace brep
   {
     NOTIFICATION_DIAG (log_writer);
 
-    // @@@ TODO: load the tenant: should be the same for both branch push and
-    // PR.
+    // Load the tenant, which is essentially the same for both branch push and
+    // PR. The overall plan is as follows:
+    //
+    // - Create synthetic conclusion check run with the in-progress state. If
+    //   unable to, get called again to re-try.
+    //
+    // - Load the tenant. If unable to, fail the conclusion check run.
+    //
+    // - Update service data.
     //
 
     // Get a new installation access token if the current one has expired.
@@ -891,40 +1014,6 @@ namespace brep
 
     if (iat == nullptr)
       return nullptr; // Try again on the next call.
-
-    auto make_iat_updater = [&new_iat, &error] ()
-    {
-      function<optional<string> (const tenant_service&)> r;
-
-      if (new_iat)
-      {
-        r = [&error,
-             iat = move (new_iat)] (const tenant_service& ts)
-          -> optional<string>
-        {
-          // NOTE: this lambda may be called repeatedly (e.g., due to
-          // transaction being aborted) and so should not move out of its
-          // captures.
-
-          service_data sd;
-          try
-          {
-            sd = service_data (*ts.data);
-          }
-          catch (const invalid_argument& e)
-          {
-            error << "failed to parse service data: " << e;
-            return nullopt;
-          }
-
-          sd.installation_access = *iat;
-
-          return sd.json ();
-        };
-      }
-
-      return r;
-    };
 
     // Create a synthetic check run with an in-progress state. Return the
     // check run on success or nullopt on failure.
@@ -980,221 +1069,82 @@ namespace brep
                                move (br)))
       {
         assert (cr.state == build_state::built);
-
         return cr;
       }
       else
         return nullopt;
     };
 
-    // Synthetic merge check run node ID. Empty until created on the first
-    // call or retrieved from service data on subsequent calls.
-    //
-    string merge_node_id;
+    // Note that there is a window between receipt of a check_suite or
+    // pull_request event and the first bot/worker asking for a task, which
+    // could be substantial. We could probably (also) try to (re)create the
+    // conclusion checkrun in the webhook handler. @@ Maybe/later.
 
-    // True if this is the first call (or the merge commit couldn't be created
-    // on the first call, in which case we just re-try by treating it as a
-    // first call).
+    // (Re)create the synthetic conclusion check run first in order to convert
+    // a potentially completed check suite to building as early as possible.
     //
-    bool first (!sd.merge_node_id);
+    string conclusion_node_id; // Conclusion check run node ID.
 
-    // If this is the first call, (re)create the synthetic merge check run as
-    // soon as possible to make sure the previous check suite, if any, is no
-    // longer completed.
-    //
-    // Note that there is still a window between receipt of the pull_request
-    // event and the first bot/worker asking for a task, which could be
-    // substantial. We could probably (also) try to (re)create the merge
-    // checkrun in the webhook. @@ Maybe/later.
-    //
-    if (first)
+    if (auto cr = create_synthetic_cr (conclusion_check_run_name))
     {
-      if (auto cr = create_synthetic_cr (merge_check_run_name))
-      {
-        l3 ([&]{trace << "created check_run { " << *cr << " }";});
+      l3 ([&]{trace << "created check_run { " << *cr << " }";});
 
-        merge_node_id = move (*cr->node_id);
+      conclusion_node_id = move (*cr->node_id);
+    }
+
+    // Load the CI tenant if the conclusion check run was created.
+    //
+    if (!conclusion_node_id.empty ())
+    {
+      string ru; // Repository URL.
+
+      // CI the merge test commit for remote PRs and the head commit for
+      // everything else (branch push or local PRs).
+      //
+      if (sd.kind == service_data::remote)
+      {
+        // E.g. #pull/28/merge@1b6c9a361086ed93e6f1e67189e82d52de91c49b
+        //
+        ru = sd.repository_clone_url + "#pull/" + to_string (*sd.pr_number) +
+             "/merge@" + sd.check_sha;
       }
       else
-        return make_iat_updater (); // Try again on the next call.
-    }
-    else
-      merge_node_id = *sd.merge_node_id;
+        ru = sd.repository_clone_url + '#' + sd.check_sha;
 
-    // Start/check PR mergeability.
-    //
-    optional<string> mc (
-      gq_pull_request_mergeable (error, iat->token, ts.id)); // Merge commit.
+      repository_location rl (move (ru), repository_type::git);
 
-    if (!mc || mc->empty ())
-    {
-      if (!mc) // No merge commit yet.
+      optional<start_result> r (load (error, warn, verb_ ? &trace : nullptr,
+                                      *build_db_,
+                                      move (ts),
+                                      move (rl)));
+
+      if (!r || r->status != 200)
       {
-        // If this is a subsequent notification and there is no merge commit,
-        // then there is nothing to do.
-        //
-        if (!first)
-          return make_iat_updater ();
-
-        // Fall through to update service data.
-      }
-      else // Not mergeable.
-      {
-        // If the commit is not mergeable, cancel the CI request and fail the
-        // merge check run.
-        //
-        // Note that it feels like in this case we don't really need to create a
-        // failed synthetic conclusion check run since the PR cannot be merged
-        // anyway.
-
-        if (auto cr = update_synthetic_cr (
-              merge_node_id,
-              merge_check_run_name,
-              result_status::error,
-              "GitHub is unable to create test merge commit"))
+        if (auto cr = update_synthetic_cr (conclusion_node_id,
+                                           conclusion_check_run_name,
+                                           result_status::error,
+                                           to_check_run_summary (r)))
         {
           l3 ([&]{trace << "updated check_run { " << *cr << " }";});
-
-          // Cancel the CI request.
-          //
-          // Ignore failure because this CI request may have been cancelled
-          // elsewhere due to an update to the PR base or head branches.
-          //
-          if (!cancel (error, warn, &trace, *build_db_, ts.type, ts.id))
-            l3 ([&]{trace << "CI for PR " << ts.id << " already cancelled";});
-
-          return nullptr; // No need to update service data in this case.
         }
         else
         {
-          // Don't cancel the CI request if the merge check run update failed
-          // so that we can try again on the next call.
+          // Nothing really we can do in this case since we will not receive
+          // any further notifications. Log the error as a last resort.
 
-          if (!first)
-            return make_iat_updater ();
-
-          // Fall through to update service data.
-        }
-      }
-
-      // This is a first notification, so record the merge check run in the
-      // service data.
-      //
-      return [&error,
-              iat = move (new_iat),
-              mni = move (merge_node_id)] (const tenant_service& ts)
-        -> optional<string>
-      {
-        // NOTE: this lambda may be called repeatedly (e.g., due to
-        // transaction being aborted) and so should not move out of its
-        // captures.
-
-        service_data sd;
-        try
-        {
-          sd = service_data (*ts.data);
-        }
-        catch (const invalid_argument& e)
-        {
-          error << "failed to parse service data: " << e;
-          return nullopt;
+          error << "failed to load CI tenant " << ts.id
+                << " and unable to update conclusion";
         }
 
-        if (iat)
-          sd.installation_access = *iat;
-
-        sd.merge_node_id = mni;
-
-        return sd.json ();
-      };
-    }
-
-    // If we are here, then it means we have a merge commit that we can load.
-    //
-    // Note that this can still be the first call (first=true).
-    //
-
-    // As a first step, (re)create the synthetic conclusion check run and then
-    // change the merge check run state to success. Do it in this order so
-    // that the check suite does not become completed.
-
-    // Synthetic conclusion check run node ID. Empty until created on the
-    // "second" call or retrieved from service data on subsequent calls.
-    //
-    string conclusion_node_id;
-
-    // True if this is the first call after the merge commit became available,
-    // which we will call the "second" call (or we couldn't create the
-    // conclusion check run on the first such call, in which case we just
-    // re-try by treating it as a "second" call).
-    //
-    bool second (!sd.conclusion_node_id);
-
-    if (second)
-    {
-      if (auto cr = create_synthetic_cr (conclusion_check_run_name))
-      {
-        l3 ([&]{trace << "created check_run { " << *cr << " }";});
-
-        conclusion_node_id = move (*cr->node_id);
+        return nullptr; // No need to update service data in this case.
       }
     }
-    else
-      conclusion_node_id = *sd.conclusion_node_id;
-
-    if (!conclusion_node_id.empty ()) // Conclusion check run was created.
-    {
-      // Update merge check run to successful.
-      //
-      if (auto cr = update_synthetic_cr (merge_node_id,
-                                         merge_check_run_name,
-                                         result_status::success,
-                                         "GitHub created test merge commit"))
-      {
-        l3 ([&]{trace << "updated check_run { " << *cr << " }";});
-
-        // Load the CI request.
-        //
-        // Example repository URL fragment:
-        //
-        //   #pull/28/merge@1b6c9a361086ed93e6f1e67189e82d52de91c49b
-        //
-        repository_location rl (*sd.repository_clone_url + "#pull/" +
-                                to_string (*sd.pr_number) + "/merge@" + *mc,
-                                repository_type::git);
-
-        optional<start_result> r (
-          load (error, warn, &trace, *build_db_, move (ts), rl));
-
-        if (!r || r->status != 200)
-        {
-          if (auto cr = update_synthetic_cr (conclusion_node_id,
-                                             conclusion_check_run_name,
-                                             result_status::error,
-                                             to_check_run_summary (r)))
-          {
-            l3 ([&]{trace << "updated check_run { " << *cr << " }";});
-          }
-          else
-          {
-            // Nothing really we can do in this case since we will not receive
-            // any further notifications.
-          }
-
-          return nullptr; // No need to update service data in this case.
-        }
-      }
-      else
-      {
-        // Don't load the CI request if the merge check run update failed so
-        // that we can try again on the next call.
-      }
-    }
+    else if (!new_iat)
+      return nullptr; // Nothing to save (but retry on next call).
 
     return [&error,
             iat = move (new_iat),
-            mni = (first ? move (merge_node_id) : string ()),
-            cni = (second ? move (conclusion_node_id) : string ())]
+            cni = move (conclusion_node_id)]
       (const tenant_service& ts) -> optional<string>
     {
       // NOTE: this lambda may be called repeatedly (e.g., due to
@@ -1215,9 +1165,6 @@ namespace brep
       if (iat)
         sd.installation_access = *iat;
 
-      if (!mni.empty ())
-        sd.merge_node_id = mni;
-
       if (!cni.empty ())
         sd.conclusion_node_id = cni;
 
@@ -1234,7 +1181,9 @@ namespace brep
   //    them when notifying GitHub. The first is not important (we expect the
   //    state to go back to building shortly). The second should normally not
   //    happen and would mean that a completed check suite may go back on its
-  //    conclusion (which would be pretty confusing for the user).
+  //    conclusion (which would be pretty confusing for the user). @@@ This
+  //    can/will happen on check run rebuild. Distinguish between internal
+  //    and external rebuilds?
   //
   //    So, for GitHub notifications, we only have the following linear
   //    transition sequence:
@@ -1340,7 +1289,7 @@ namespace brep
     //
     for (const build& b: builds)
     {
-      string bid (gh_check_run_name (b)); // Full build ID.
+      string bid (gh_check_run_name (b)); // Full build id.
 
       if (const check_run* scr = sd.find_check_run (bid))
       {
@@ -1362,6 +1311,8 @@ namespace brep
         else
         {
           // Ignore interrupted.
+          //
+          assert (*istate == build_state::building);
         }
       }
       else
@@ -1406,7 +1357,7 @@ namespace brep
     //
     if (iat != nullptr)
     {
-      // Create a check_run for each build.
+      // Create a check_run for each build as a single request.
       //
       if (gq_create_check_runs (error,
                                 crs,
@@ -1416,6 +1367,8 @@ namespace brep
       {
         for (const check_run& cr: crs)
         {
+          // We can only create a check run in the queued state.
+          //
           assert (cr.state == build_state::queued);
           l3 ([&]{trace << "created check_run { " << cr << " }";});
         }
@@ -1490,13 +1443,12 @@ namespace brep
     }
 
     optional<check_run> cr; // Updated check run.
-    string bid (gh_check_run_name (b)); // Full Build ID.
+    string bid (gh_check_run_name (b)); // Full build id.
 
     if (check_run* scr = sd.find_check_run (bid)) // Stored check run.
     {
       // Update the check run if it exists on GitHub and the queued
-      // notification succeeded and updated the service data, otherwise do
-      // nothing.
+      // notification updated the service data, otherwise do nothing.
       //
       if (scr->state == build_state::queued)
       {
@@ -1561,12 +1513,10 @@ namespace brep
         if (cr->state == build_state::built)
         {
           warn << "check run " << bid << ": already in built state on GitHub";
-
           return nullptr;
         }
 
         assert (cr->state == build_state::building);
-
         l3 ([&]{trace << "updated check_run { " << *cr << " }";});
       }
     }
@@ -1619,6 +1569,10 @@ namespace brep
                const build& b,
                const diag_epilogue& log_writer) const noexcept
   {
+    // @@ TODO Include service_data::event_node_id and perhaps ts.id in
+    //    diagnostics? E.g. when failing to update check runs we print the
+    //    build ID only.
+    //
     NOTIFICATION_DIAG (log_writer);
 
     service_data sd;
@@ -1632,13 +1586,16 @@ namespace brep
       return nullptr;
     }
 
-    // Absent if have any unbuilt check runs.
+    // Here we need to update the state of this check run and, if there are no
+    // more unbuilt ones, update the synthetic conclusion check run.
+    //
+    // Absent means we still have unbuilt check runs.
     //
     optional<result_status> conclusion (*b.status);
 
     check_run cr; // Updated check run.
     {
-      string bid (gh_check_run_name (b)); // Full Build ID.
+      string bid (gh_check_run_name (b)); // Full build id.
 
       optional<check_run> scr;
       for (check_run& cr: sd.check_runs)
@@ -1652,11 +1609,10 @@ namespace brep
         {
           if (cr.state == build_state::built)
           {
+            assert (cr.status);
+
             if (conclusion)
-            {
-              assert (cr.status);
               *conclusion |= *cr.status;
-            }
           }
           else
             conclusion = nullopt;
@@ -1686,6 +1642,9 @@ namespace brep
         warn << "check run " << bid << ": out of order built notification; "
              << "no check run state in service data";
 
+        // Note that we have no hints here and so have to use the full build
+        // id for name.
+        //
         cr.build_id = move (bid);
         cr.name = cr.build_id;
       }
@@ -1815,10 +1774,10 @@ namespace brep
         sm = os.str ();
       }
 
-      gq_built_result br (gh_to_conclusion (*b.status, sd.warning_success),
-                          circle (*b.status) + ' ' +
-                            ucase (to_string (*b.status)),
-                          move (sm));
+      gq_built_result br (
+        gh_to_conclusion (*b.status, sd.warning_success),
+        circle (*b.status) + ' ' + ucase (to_string (*b.status)),
+        move (sm));
 
       if (cr.node_id)
       {
@@ -1834,7 +1793,6 @@ namespace brep
                                  move (br)))
         {
           assert (cr.state == build_state::built);
-
           l3 ([&]{trace << "updated check_run { " << cr << " }";});
         }
       }
@@ -1843,7 +1801,7 @@ namespace brep
         // Create new check run.
         //
         // Note that we don't have build hints so will be creating this check
-        // run with the full build ID as name. In the unlikely event that an
+        // run with the full build id as name. In the unlikely event that an
         // out of order build_queued() were to run before we've saved this
         // check run to the service data it will create another check run with
         // the shortened name which will never get to the built state.
@@ -1858,7 +1816,6 @@ namespace brep
                                  move (br)))
         {
           assert (cr.state == build_state::built);
-
           l3 ([&]{trace << "created check_run { " << cr << " }";});
         }
       }
@@ -1902,8 +1859,6 @@ namespace brep
         {
           assert (sd.conclusion_node_id);
 
-          // Update the conclusion check run with success.
-          //
           result_status rs (*conclusion);
 
           optional<gq_built_result> br (
@@ -1928,14 +1883,13 @@ namespace brep
                                    move (br)))
           {
             assert (cr.state == build_state::built);
-
-            l3 ([&]{trace << "updated check_run { " << cr << " }";});
+            l3 ([&]{trace << "updated conclusion check_run { " << cr << " }";});
           }
           else
           {
             // Nothing we can do here except log the error.
             //
-            error << "check suite " << ts.id
+            error << "tenant_service id " << ts.id
                   << ": unable to update conclusion check run "
                   << *sd.conclusion_node_id;
           }
