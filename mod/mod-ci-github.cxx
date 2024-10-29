@@ -836,13 +836,13 @@ namespace brep
   }
 
   function<optional<string> (const tenant_service&)> ci_github::
-  build_unloaded_pre_check (tenant_service&&,
-                            service_data&&,
+  build_unloaded_pre_check (tenant_service&& ts,
+                            service_data&& sd,
                             const diag_epilogue& log_writer) const noexcept
   {
     NOTIFICATION_DIAG (log_writer);
 
-    // Note: PR only (but both local and remove).
+    // Note: PR only (but both local and remote).
     //
     // - Ask for test merge commit.
     // - If not ready, get called again.
@@ -857,6 +857,122 @@ namespace brep
     // about (the purely local case can get "upgraded" to mixed after we have
     // started the CI job).
     //
+
+    // Request PR pre-check info (triggering the generation of the test merge
+    // commit on GitHub's side).
+    //
+    optional<gq_pr_pre_check> pc ( // Pre-check information.
+      gq_pull_request_pre_check_info (error,
+                                      sd.installation_access.token,
+                                      sd.event_node_id));
+
+    if (!pc)
+    {
+      // Test merge commit not available yet: get called again to retry.
+      //
+      return nullptr;
+    }
+
+    // Create the CI request if nothing is wrong, otherwise issue diagnostics.
+    //
+    if (pc->behind)
+    {
+      l3 ([&]{trace << "ignoring pull request " << sd.event_node_id
+                    << ": head is behind base";});
+    }
+    else if (pc->merge_commit_sha.empty ())
+    {
+      l3 ([&]{trace << "ignoring pull request " << sd.event_node_id
+                    << ": not auto-mergeable";});
+    }
+    else if (pc->head_sha != sd.report_sha)
+    {
+      l3 ([&]{trace << "ignoring pull request " << sd.event_node_id
+                    << ": head commit has changed";});
+    }
+    else
+    {
+      // Create the CI request.
+
+      // Update service data's check_sha if this is a remote PR.
+      //
+      if (sd.kind == service_data::remote)
+        sd.check_sha = pc->merge_commit_sha;
+
+      // Service id that will uniquely identify the CI request.
+      //
+      string sid (sd.repository_node_id + ":" + sd.report_sha);
+
+      // Create an unloaded CI request, doing nothing if one already exists
+      // (which could've been created by a head branch push or another PR
+      // sharing the same head commit).
+      //
+      // Note: use no delay since we need to (re)create the synthetic conclusion
+      // check run as soon as possible.
+      //
+      // Note that we use the create() API instead of start() since duplicate
+      // management is not available in start().
+      //
+      // After this call we will start getting the build_unloaded()
+      // notifications until (1) we load the request, (2) we cancel it, or (3)
+      // it gets archived after some timeout.
+      //
+      if (auto pr = create (error, warn, verb_ ? &trace : nullptr,
+                            *build_db_,
+                            tenant_service (sid, "ci-github", sd.json ()),
+                            chrono::seconds (30) /* interval */,
+                            chrono::seconds (0) /* delay */,
+                            duplicate_tenant_mode::ignore))
+      {
+        if (pr->second == duplicate_tenant_result::ignored)
+        {
+          // This PR is sharing a head commit with something else.
+          //
+          // If this is a local PR then it's probably the branch push, which
+          // is expected, so do nothing.
+          //
+          // If this is a remote PR then it could be anything (branch push,
+          // local PR, or another remote PR), so we can't recover. This PR
+          // could go green despite its test merge commit not having been
+          // CI'd.
+          //
+          //   @@ TMP Perhaps we should update the conclusion CR to failing
+          //      with a message asking the user to sort the problem out
+          //      manually and then re-request the checks in the UI if they
+          //      want to re-CI the branch push or, if they want to CI one of
+          //      the PRs, they can close and reopen it (action "reopened").
+          //
+          if (sd.kind == service_data::remote)
+          {
+            l3 ([&]{trace << "remote pull request " << sd.event_node_id
+                          << ": CI request already exists for " << sid;});
+          }
+        }
+      }
+      else
+      {
+        error << "pull request " << sd.event_node_id
+              << ": unable to create unloaded CI request "
+              << "with tenant_service id " << sid;
+
+        // Retry by bailing out before cancelling in order to get called
+        // again.
+        //
+        return nullptr;
+      }
+    }
+
+    // Cancel this, the pre-check request.
+    //
+    if (!cancel (error, warn, verb_ ? &trace : nullptr,
+                 *build_db_, ts.type, ts.id))
+    {
+      // Should never happen (no such tenant).
+      //
+      error << "pull request " << sd.event_node_id
+            << ": failed to cancel pre-check request with tenant_service id "
+            << ts.id;
+    }
 
     return nullptr;
   }
