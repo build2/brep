@@ -666,4 +666,166 @@ review (issues identified, etc). It can only be absent if none of the
 \c{result-<name>} values are \c{fail} (a failed review needs an explanation
 of why it failed).
 
+
+\h1#github-ci|GitHub CI Integration|
+
+This chapter describes the integration of the \l{#ci Package CI} functionality
+with GitHub.
+
+\h#github-ci-background|GitHub CI Background|
+
+The GitHub CI model has a number of limitations that are important to
+understand in order to use the provided integration correctly. To understand
+the limitations, however, we first need to understand how the integration
+works, at least at the high level.
+
+GitHub supports integration of third-party CI services into the repository
+workflow by allowing such third-party services to register for events (called
+\i{web hooks} in the GitHub terminology).
+
+\N|This mechanism should not be confused with GitHub Actions, which is a GitHub
+built-in CI service. As far as we understand, it uses ad hoc integration
+rather than the same integration mechanism as available to third-party CI
+services.|
+
+While there are many repository workflow events, for CI the only relevant ones
+are:
+
+\ol|
+
+\li|\i{Branch push} (BP), which is triggered when a new commit is pushed
+to a branch in your repository.|
+
+\li|\i{Pull request} (PR), which is triggered when a new pull request is
+created on your repository. It is also triggered when new commits are added
+to the existing PR.||
+
+\N|Another relevant event is \i{Merge queue}. However, merge queues are
+not yet supported by this integration.|
+
+In response to these events the third-party CI service is expected to start a
+number of CI jobs (called \i{checks} in the GitHub terminology) and then
+report their progress and results back to GitHub to be shown to the user,
+and, in case of PRs, to prevent them from being merged in case the result
+is unsuccessful.
+
+Let's examine in more detail what exactly happens in case of a branch push and
+a pull request.
+
+The branch push (BP) case is pretty straightforward: when you push a new
+commit to a branch in your repository, this commit is CI'ed by the third-party
+service and the result is associated with this commit. If you push another
+commit, the process repeats and you get a new set of CI results associated
+with the new commit. The important point here is that the CI results for each
+commit are associated with that commit id (called \i{head sha} in the GitHub
+terminology).
+
+The pull request (PR) case is more complicated: the aim of a PR is to merge
+one or more commits from one branch (called \i{head branch} in the GitHub
+terminology) to another branch (called \i{base branch} in the GitHub
+terminology). If the base branch can be fast-forwarded to the head commit of
+the head branch, then we can CI this head commit and the result will be
+representative of the merge. However, if base cannot be fast-forwarded, then a
+general merge of the two branches must be performed, with potential conflict
+resolution, etc. And in this case the CI result for the head commit may not
+necessarily represent the result of the merge.
+
+To support the general case (when the base branch cannot be fast-forwarded)
+GitHub creates a tentative merge commit (called \i{test merge commit} in the
+GitHub terminology) and expects the CI service to test that commit rather than
+the head commit (this is what most of the major CI integrations do). See
+\l{https://www.kenmuse.com/blog/the-many-shas-of-a-github-pull-request/ The
+Many SHAs of a GitHub Pull Request} for additional details.
+
+While the PR case is more complicated, so far everything makes sense. But that
+ends once we understand what GitHub associates the CI result with in case of a
+PR. Since the CI service is expected to test the merge commit, it would make
+sense to associate the result of this test with the merge commit.  Instead,
+GitHub expects the CI service to report it as associated with the head commit!
+
+This strange decision by GitHub, which we will refer to as \"head sharing\",
+has two serious consequences for trusting CI results when making decisions
+about merging PRs.
+
+Firstly, if the branch push and/or several pull requests share the same head
+commit, then they will share the CI result, regardless of the state of the
+PRs' base branches. Or, to put it another way, in the GitHub model there is a
+single CI result per head commit that is shared by all the BPs and PRs with
+this head commit.
+
+Secondly, if the base branch of a PR moves, the CI result associated with the
+PR does not get invalidated (because the PR head hasn't changed).
+
+Let's consider two representative examples of each case that show how the
+GitHub behavior can lead us to making wrong decisions. But before we do that,
+a last bit of terminology: we will distinguish between \i{local PRs}, those with
+the head branch from the same repository, and \i{remote PRs}, those with the
+head branch belonging to another user/organization (called \i{forked PR} in
+the GitHub terminology).
+
+The first representative example is a feature branch: we develop a feature in
+a branch of our repository and once it is ready, we create a local PR to merge
+it to the \c{master}/\c{main} branch. We typically go through the PR instead
+of merging our branch directly in order to have the changes reviewed by
+someone else. In this scenario, the head commit of our feature branch and of
+the PR we created will be the same, which means our PR will share the CI
+result with the feature branch push, which is presumably successful. This can
+lead us to merging the PR based on this result even though the merge commit of
+the PR may not have the same contents as the head commit of the result. For
+example, we may have forgotten to rebase our feature branch on the base branch
+(\c{master}/\c{main} in our example) before creating the PR and the base
+branch has moved while we developed the feature. Or the review may have taken
+some time and the base branch likewise has moved in the meantime. In both
+these cases while the changes to the base branch may not render our head
+commit unmergeable (for example, due to conflicts), they may render our
+changes uncompilable or otherwise buggy once merged.
+
+The second representative example is a single remote PR: someone creates a PR
+with a feature or bugfix from their fork of our repository. There is no
+corresponding branch push for this PR's head commit in our repository so it
+sounds like there is only one place (the PR) where the CI result, if
+associated with this head commit, will be reported in our repository and so
+the head sharing should not be an issue, right? While it's true that
+\i{spatial} sharing, that is between BP and/or several PRs, is not an issue in
+this case, \i{temporal} sharing still is. Specifically, if the base branch
+moves before we examine the PR, we again may end up merging it based on the CI
+results that are not representative of the merge commit.
+
+Hopefully you see the underlying theme by now: the only way to ensure
+correctness in the GitHub CI model is to make sure the PR's head and merge
+commits are the same, which is only the case when the PR base branch can be
+fast-forwarded to head.
+
+Thankfully, GitHub provides a branch protection rule that prevents merging of
+a PR with the head branch behind base (we will refer to it as the
+\i{head-behind-base} protection). Enabling of this protection rule is a
+prerequisite for this CI integration to work correctly.
+
+Note, however, that even with the head-behind-base protection enabled, some of
+the GitHub behavior can be counter-intuitive.
+
+For one, GitHub does not prevent the CI build from starting if this protection
+rule is violated. While this integration checks the result of this protection
+rule and does not start the build if the head is behind, the CI result may
+already be available (if this head is shared with a branch push and/or another
+PR), in which case GitHub will show it. So you may end up with a violated
+head-behind-base protection but with a successful CI result.
+
+Another surprising consequence of the head sharing is the instantaneous
+availability of the CI result, which may look suspicious. For example, if you
+create a PR from a local feature branch, you may immediately see the
+successful CI result because it is the same as for the branch push
+to the feature branch.
+
+Finally note that the GitHub CI model is quite wasteful of CI resources in
+general and the head sharing makes this problem even worse. Specifically,
+GitHub CI builds every commit indiscriminately, regardless of what was
+changed. So a minor tweak to \c{README.md} will trigger a full rebuild even
+though nothing that needs building has changed. The head sharing issue makes
+the situation worse because the CI integration cannot easily cancel an
+in-progress build when a new commit is added to a PR because the result could
+be shared with a branch push or another PR. Nevertheless, this integration
+will attempt to cancel a stale build of a remote PR provided it's not
+(currently) shared.
+
 "
