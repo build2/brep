@@ -578,7 +578,10 @@ namespace brep
     os << "query {"                                              << '\n'
        << "  node(id:" << gq_str (nid) << ") {"                  << '\n'
        << "    ... on PullRequest {"                             << '\n'
-       << "      mergeable potentialMergeCommit { oid }"         << '\n'
+       << "      headRefOid"                                     << '\n'
+       << "      mergeStateStatus"                               << '\n'
+       << "      mergeable"                                      << '\n'
+       << "      potentialMergeCommit { oid }"                   << '\n'
        << "    }"                                                << '\n'
        << "  }"                                                  << '\n'
        << "}"                                                    << '\n';
@@ -586,10 +589,10 @@ namespace brep
     return os.str ();
   }
 
-  optional<string>
-  gq_pull_request_mergeable (const basic_mark& error,
-                             const string& iat,
-                             const string& nid)
+  optional<gq_pr_pre_check>
+  gq_pull_request_pre_check_info (const basic_mark& error,
+                                  const string& iat,
+                                  const string& nid)
   {
     string rq (gq_serialize_request (gq_query_pr_mergeability (nid)));
 
@@ -610,7 +613,7 @@ namespace brep
         // The response value. Absent if the merge commit is still being
         // generated.
         //
-        optional<string> value;
+        optional<gq_pr_pre_check> r;
 
         resp (json::parser& p)
         {
@@ -624,32 +627,42 @@ namespace brep
             {
               found = true;
 
+              string hs (p.next_expect_member_string ("headRefOid"));
+              string ms (p.next_expect_member_string ("mergeStateStatus"));
               string ma (p.next_expect_member_string ("mergeable"));
 
-              if (ma == "MERGEABLE")
+              if (ms == "BEHIND")
+              {
+                // The PR head branch is not up to date with the PR base
+                // branch.
+                //
+                // Note that we can only get here if the head-not-behind
+                // protection rule is active on the PR base branch.
+                //
+                r = {move (hs), true, ""};
+              }
+              else if (ma == "MERGEABLE")
               {
                 p.next_expect_member_object ("potentialMergeCommit");
                 string oid (p.next_expect_member_string ("oid"));
                 p.next_expect (event::end_object);
 
-                value = move (oid);
+                r = {move (hs), false, move (oid)};
               }
               else
               {
                 if (ma == "CONFLICTING")
-                  value = "";
+                  r = {move (hs), false, ""};
                 if (ma == "UNKNOWN")
-                  ; // Still being generated; leave value absent.
+                  ; // Still being generated; leave r absent.
                 else
-                {
-                  // @@ Let's throw invalid_json.
-                  //
-                  parse_error = "unexpected mergeable value '" + ma + '\'';
+                  throw_json (p, "unexpected mergeable value '" + ma + '\'');
+              }
 
-                  // Carry on as if it were UNKNOWN.
-                }
-
-                // Skip the merge commit ID (which should be null).
+              if (!r || r->merge_commit_sha.empty ())
+              {
+                // Skip the merge commit ID if it has not yet been extracted
+                // (in which case it should be null).
                 //
                 p.next_expect_name ("potentialMergeCommit");
                 p.next_expect_value_skip ();
@@ -677,7 +690,7 @@ namespace brep
         else if (!rs.parse_error.empty ())
           error << rs.parse_error;
 
-        return rs.value;
+        return rs.r;
       }
       else
         error << "failed to fetch pull request: error HTTP response status "

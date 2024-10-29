@@ -83,10 +83,15 @@ namespace brep
                        build_state,
                        optional<gq_built_result> = nullopt);
 
-  // Fetch a pull request's mergeability from GitHub. Return absent value if
-  // the merge commit is still being generated. Return empty string if the
-  // pull request is not auto-mergeable. Otherwise return the test merge
-  // commit id.
+  // Fetch pre-check information for a pull request from GitHub. This
+  // information is used to decide whether or not to CI the PR and is
+  // comprised of the PR's head commit SHA, whether its head branch is behind
+  // its base branch, and its test merge commit SHA.
+  //
+  // Return absent value if the merge commit is still being generated (which
+  // means PR head branch behindness is not yet known either). See the
+  // gq_pr_pre_check struct's field comments for non-absent return value
+  // semantics.
   //
   // Issue diagnostics and return absent if the request failed (which means it
   // will be treated by the caller as still being generated).
@@ -95,10 +100,26 @@ namespace brep
   // merge commit. (For details see
   // https://docs.github.com/rest/guides/getting-started-with-the-git-database-api#checking-mergeability-of-pull-requests.)
   //
-  optional<string>
-  gq_pull_request_mergeable (const basic_mark& error,
-                             const string& installation_access_token,
-                             const string& node_id);
+  struct gq_pr_pre_check
+  {
+    // The PR head commit ID.
+    //
+    string head_sha;
+
+    // True if the PR's head branch is behind its base branch.
+    //
+    bool behind;
+
+    // The commit ID of the test merge commit. Empty if behind or the PR is
+    // not auto-mergeable.
+    //
+    string merge_commit_sha;
+  };
+
+  optional<gq_pr_pre_check>
+  gq_pull_request_pre_check_info (const basic_mark& error,
+                                  const string& installation_access_token,
+                                  const string& node_id);
 
   // Fetch the last 100 open pull requests with the specified base branch from
   // the repository with the specified node ID.
