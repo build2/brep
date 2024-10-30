@@ -92,14 +92,13 @@ namespace brep
 
     string repository_node_id; // GitHub-internal opaque repository id.
 
-    string event_node_id; // check_suite/pull_request node id.
-
     // The following two are only used for pull requests.
     //
     // @@ TODO/LATER: maybe put them in a struct?
     //
-    optional<string> repository_clone_url;
+    optional<string>   pr_node_id;
     optional<uint32_t> pr_number;
+    optional<string>   pr_repository_clone_url;
 
     // The GitHub ID of the synthetic PR merge check run or absent if it
     // hasn't been created yet.

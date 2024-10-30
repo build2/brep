@@ -90,7 +90,7 @@ namespace brep
   //
   // Return absent value if the merge commit is still being generated (which
   // means PR head branch behindness is not yet known either). See the
-  // gq_pr_pre_check struct's field comments for non-absent return value
+  // gq_pr_pre_check struct's member comments for non-absent return value
   // semantics.
   //
   // Issue diagnostics and return absent if the request failed (which means it
@@ -100,9 +100,9 @@ namespace brep
   // merge commit. (For details see
   // https://docs.github.com/rest/guides/getting-started-with-the-git-database-api#checking-mergeability-of-pull-requests.)
   //
-  struct gq_pr_pre_check
+  struct gq_pr_pre_check_info
   {
-    // The PR head commit ID.
+    // The PR head commit id.
     //
     string head_sha;
 
@@ -110,22 +110,25 @@ namespace brep
     //
     bool behind;
 
-    // The commit ID of the test merge commit. Empty if behind or the PR is
+    // The commit id of the test merge commit. Absent if behind or the PR is
     // not auto-mergeable.
     //
-    string merge_commit_sha;
+    optional<string> merge_commit_sha;
   };
 
-  optional<gq_pr_pre_check>
-  gq_pull_request_pre_check_info (const basic_mark& error,
-                                  const string& installation_access_token,
-                                  const string& node_id);
+  optional<gq_pr_pre_check_info>
+  gq_fetch_pull_request_pre_check_info (
+    const basic_mark& error,
+    const string& installation_access_token,
+    const string& node_id);
 
   // Fetch the last 100 open pull requests with the specified base branch from
   // the repository with the specified node ID.
   //
   // Issue diagnostics and return nullopt if the repository was not found or
   // an error occurred.
+  //
+  // @@@ Looks like not needed anymore.
   //
   optional<vector<gh_pull_request>>
   gq_fetch_open_pull_requests (const basic_mark& error,

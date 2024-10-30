@@ -469,7 +469,7 @@ namespace brep
     // protection rule for head behind is not enabled. In this case, it would
     // be good to complete the CI. So maybe/later.
 
-    // Service id that uniquely identifies the CI request.
+    // Service id that uniquely identifies the CI tenant.
     //
     string sid (cs.repository.node_id + ":" + cs.check_suite.head_sha);
 
@@ -482,6 +482,12 @@ namespace brep
     // - For a remote PR, this event will have no gh_check_suite::head_branch.
     //   In this case we need to load the existing service data for this head
     //   commit, extract the test merge commit, and restart the CI for that.
+    //
+    //   Note that it's possible the base branch has moved in the meantime and
+    //   ideally we would want to re-request the test merge commit, etc.
+    //   However, this will only be necessary if the user does not follow our
+    //   recommendation of enabling the head-behind-base protection. And it
+    //   seems all this extra complexity would not be warranted.
     //
     string check_sha;
     service_data::kind_type kind;
@@ -530,8 +536,8 @@ namespace brep
                      move (check_sha),
                      move (cs.check_suite.head_sha) /* report_sha */);
 
-    // If this check suite is being re-run, replace the existing CI request if
-    // it exists; otherwise create a new one, doing nothing if a request
+    // If this check suite is being re-run, replace the existing CI tenant if
+    // it exists; otherwise create a new one, doing nothing if a tenant
     // already exists (which could've been created by handle_pull_request()).
     //
     // Note that GitHub UI does not allow re-running the entire check suite
@@ -541,7 +547,7 @@ namespace brep
                                ? duplicate_tenant_mode::replace
                                : duplicate_tenant_mode::ignore);
 
-    // Create an unloaded CI request.
+    // Create an unloaded CI tenant.
     //
     // Note: use no delay since we need to (re)create the synthetic conclusion
     // check run as soon as possible.
@@ -550,7 +556,7 @@ namespace brep
     // management is not available in start().
     //
     // After this call we will start getting the build_unloaded()
-    // notifications until (1) we load the request, (2) we cancel it, or (3)
+    // notifications until (1) we load the tenant, (2) we cancel it, or (3)
     // it gets archived after some timeout.
     //
     auto pr (create (error,
@@ -779,7 +785,7 @@ namespace brep
                      move (pr.repository.clone_url),
                      pr.pull_request.number);
 
-    // Create an unloaded CI request for the pre-check phase (during which we
+    // Create an unloaded CI tenant for the pre-check phase (during which we
     // wait for the PR's merge commit and behindness to become available).
     //
     // Create with an empty service id so that the generated tenant id is used
@@ -794,9 +800,9 @@ namespace brep
     //
     // After this call we will start getting the build_unloaded()
     // notifications -- which will be routed to build_unloaded_pre_check() --
-    // until we cancel the request or it gets archived after some
-    // timeout. (Note that we never actually load this request, we always
-    // cancel it; see build_unloaded_pre_check() for details.)
+    // until we cancel the tenant or it gets archived after some timeout.
+    // (Note that we never actually load this request, we always cancel it;
+    // see build_unloaded_pre_check() for details.)
     //
     if (!create (error,
                  warn,
@@ -842,16 +848,20 @@ namespace brep
   {
     NOTIFICATION_DIAG (log_writer);
 
-    // Note: PR only (but both local and remote).
+    // We get here for PRs only (but both local and remote). The overall
+    // plan is as follows:
     //
-    // - Ask for test merge commit.
-    // - If not ready, get called again.
-    // - If not mergeable, behind, or different head (head changed while
-    //   waiting for merge commit and thus differs from what's in the
-    //   service_data), cancel itself and ignore.
-    // - Otherwise, create unloaded CI tenant (with proper duplicate mode
-    //   based on re_request) and cancel itself.
-
+    // 1. Ask for the mergeability/behind status/test merge commit.
+    //
+    // 2. If not ready, get called again.
+    //
+    // 3. If not mergeable, behind, or different head (head changed while
+    //    waiting for merge commit and thus differs from what's in the
+    //    service_data), cancel the pre-check tenant and do nothing.
+    //
+    // 4. Otherwise, create an unloaded CI tenant and cancel ourselves. Note
+    //    that all re-requested cases are handled elsewhere.
+    //
     // Note that in case of a mixed local/remote case, whether we CI the head
     // commit or test merge commit will be racy and there is nothing we can do
     // about (the purely local case can get "upgraded" to mixed after we have
@@ -859,12 +869,12 @@ namespace brep
     //
 
     // Request PR pre-check info (triggering the generation of the test merge
-    // commit on GitHub's side).
+    // commit on the GitHub's side).
     //
-    optional<gq_pr_pre_check> pc ( // Pre-check information.
-      gq_pull_request_pre_check_info (error,
-                                      sd.installation_access.token,
-                                      sd.event_node_id));
+    optional<gq_pr_pre_check_info> pc (
+      gq_fetch_pull_request_pre_check_info (error,
+                                            sd.installation_access.token,
+                                            sd.event_node_id));
 
     if (!pc)
     {
@@ -873,7 +883,7 @@ namespace brep
       return nullptr;
     }
 
-    // Create the CI request if nothing is wrong, otherwise issue diagnostics.
+    // Create the CI tenant if nothing is wrong, otherwise issue diagnostics.
     //
     if (pc->behind)
     {
@@ -892,29 +902,29 @@ namespace brep
     }
     else
     {
-      // Create the CI request.
+      // Create the CI tenant.
 
       // Update service data's check_sha if this is a remote PR.
       //
       if (sd.kind == service_data::remote)
         sd.check_sha = pc->merge_commit_sha;
 
-      // Service id that will uniquely identify the CI request.
+      // Service id that will uniquely identify the CI tenant.
       //
       string sid (sd.repository_node_id + ":" + sd.report_sha);
 
-      // Create an unloaded CI request, doing nothing if one already exists
+      // Create an unloaded CI tenant, doing nothing if one already exists
       // (which could've been created by a head branch push or another PR
       // sharing the same head commit).
       //
-      // Note: use no delay since we need to (re)create the synthetic conclusion
-      // check run as soon as possible.
+      // Note: use no delay since we need to (re)create the synthetic
+      // conclusion check run as soon as possible.
       //
       // Note that we use the create() API instead of start() since duplicate
       // management is not available in start().
       //
       // After this call we will start getting the build_unloaded()
-      // notifications until (1) we load the request, (2) we cancel it, or (3)
+      // notifications until (1) we load the tenant, (2) we cancel it, or (3)
       // it gets archived after some timeout.
       //
       if (auto pr = create (error, warn, verb_ ? &trace : nullptr,
@@ -932,15 +942,10 @@ namespace brep
           // is expected, so do nothing.
           //
           // If this is a remote PR then it could be anything (branch push,
-          // local PR, or another remote PR), so we can't recover. This PR
-          // could go green despite its test merge commit not having been
-          // CI'd.
-          //
-          //   @@ TMP Perhaps we should update the conclusion CR to failing
-          //      with a message asking the user to sort the problem out
-          //      manually and then re-request the checks in the UI if they
-          //      want to re-CI the branch push or, if they want to CI one of
-          //      the PRs, they can close and reopen it (action "reopened").
+          // local PR, or another remote PR) which in turn means the CI result
+          // may end up being for head, not merge commit. There is nothing we
+          // can do about it on our side (the user can enable the head-behing-
+          // base protection on their side).
           //
           if (sd.kind == service_data::remote)
           {
@@ -955,14 +960,11 @@ namespace brep
               << ": unable to create unloaded CI request "
               << "with tenant_service id " << sid;
 
-        // Retry by bailing out before cancelling in order to get called
-        // again.
-        //
-        return nullptr;
+        // Fall throught to cancel.
       }
     }
 
-    // Cancel this, the pre-check request.
+    // Cancel the pre-check tenant.
     //
     if (!cancel (error, warn, verb_ ? &trace : nullptr,
                  *build_db_, ts.type, ts.id))
@@ -984,8 +986,15 @@ namespace brep
   {
     NOTIFICATION_DIAG (log_writer);
 
-    // @@@ TODO: load the tenant: should be the same for both branch push and
-    // PR.
+    // Load the tenant, which is essentially the same for both branch push and
+    // PR. The overall plan is as follows:
+    //
+    // - Create synthetic conclusion check run with the building state. If
+    //   unable to, get called again to re-try.
+    //
+    // - Load the tenant. If unable to, fail the conclusion check run.
+    //
+    // - Update service data.
     //
 
     // Get a new installation access token if the current one has expired.
@@ -1139,6 +1148,9 @@ namespace brep
     else
       merge_node_id = *sd.merge_node_id;
 
+    // @@@ TMP: move/remove.
+    //
+#if 0
     // Start/check PR mergeability.
     //
     optional<gq_pr_pre_check> mc ( // Merge commit.
@@ -1230,6 +1242,7 @@ namespace brep
         return sd.json ();
       };
     }
+#endif
 
     // If we are here, then it means we have a merge commit that we can load.
     //
