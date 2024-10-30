@@ -531,7 +531,6 @@ namespace brep
                      iat->expires_at,
                      cs.installation.id,
                      move (cs.repository.node_id),
-                     cs.check_suite.node_id,
                      kind, false /* pre_check */, re_requested,
                      move (check_sha),
                      move (cs.check_suite.head_sha) /* report_sha */);
@@ -782,8 +781,8 @@ namespace brep
                      kind, true /* pre_check */, false /* re_request */,
                      move (check_sha),
                      move (pr.pull_request.head_sha) /* report_sha */,
-                     move (pr.repository.clone_url),
-                     pr.pull_request.number);
+                     pr.pull_request.number,
+                     move (pr.repository.clone_url));
 
     // Create an unloaded CI tenant for the pre-check phase (during which we
     // wait for the PR's merge commit and behindness to become available).
@@ -874,7 +873,7 @@ namespace brep
     optional<gq_pr_pre_check_info> pc (
       gq_fetch_pull_request_pre_check_info (error,
                                             sd.installation_access.token,
-                                            sd.event_node_id));
+                                            *sd.pr_node_id));
 
     if (!pc)
     {
@@ -887,17 +886,17 @@ namespace brep
     //
     if (pc->behind)
     {
-      l3 ([&]{trace << "ignoring pull request " << sd.event_node_id
+      l3 ([&]{trace << "ignoring pull request " << *sd.pr_node_id
                     << ": head is behind base";});
     }
-    else if (pc->merge_commit_sha.empty ())
+    else if (!pc->merge_commit_sha)
     {
-      l3 ([&]{trace << "ignoring pull request " << sd.event_node_id
+      l3 ([&]{trace << "ignoring pull request " << *sd.pr_node_id
                     << ": not auto-mergeable";});
     }
     else if (pc->head_sha != sd.report_sha)
     {
-      l3 ([&]{trace << "ignoring pull request " << sd.event_node_id
+      l3 ([&]{trace << "ignoring pull request " << *sd.pr_node_id
                     << ": head commit has changed";});
     }
     else
@@ -907,7 +906,7 @@ namespace brep
       // Update service data's check_sha if this is a remote PR.
       //
       if (sd.kind == service_data::remote)
-        sd.check_sha = pc->merge_commit_sha;
+        sd.check_sha = *pc->merge_commit_sha;
 
       // Service id that will uniquely identify the CI tenant.
       //
@@ -944,23 +943,23 @@ namespace brep
           // If this is a remote PR then it could be anything (branch push,
           // local PR, or another remote PR) which in turn means the CI result
           // may end up being for head, not merge commit. There is nothing we
-          // can do about it on our side (the user can enable the head-behing-
+          // can do about it on our side (the user can enable the head-behind-
           // base protection on their side).
           //
           if (sd.kind == service_data::remote)
           {
-            l3 ([&]{trace << "remote pull request " << sd.event_node_id
-                          << ": CI request already exists for " << sid;});
+            l3 ([&]{trace << "remote pull request " << *sd.pr_node_id
+                          << ": CI tenant already exists for " << sid;});
           }
         }
       }
       else
       {
-        error << "pull request " << sd.event_node_id
-              << ": unable to create unloaded CI request "
+        error << "pull request " << *sd.pr_node_id
+              << ": unable to create unloaded CI tenant "
               << "with tenant_service id " << sid;
 
-        // Fall throught to cancel.
+        // Fall through to cancel.
       }
     }
 
@@ -971,8 +970,8 @@ namespace brep
     {
       // Should never happen (no such tenant).
       //
-      error << "pull request " << sd.event_node_id
-            << ": failed to cancel pre-check request with tenant_service id "
+      error << "pull request " << *sd.pr_node_id
+            << ": failed to cancel pre-check tenant with tenant_service id "
             << ts.id;
     }
 
@@ -1154,7 +1153,7 @@ namespace brep
     // Start/check PR mergeability.
     //
     optional<gq_pr_pre_check> mc ( // Merge commit.
-      gq_pull_request_pre_check_info (error, iat->token, sd.event_node_id));
+      gq_pull_request_pre_check_info (error, iat->token, *sd.pr_node_id));
 
     if (!mc || mc->merge_commit_sha.empty ())
     {
@@ -1193,7 +1192,7 @@ namespace brep
           if (!cancel (error, warn, verb_ ? &trace : nullptr,
                        *build_db_, ts.type, ts.id))
           {
-            l3 ([&]{trace << "CI for PR " << sd.event_node_id
+            l3 ([&]{trace << "CI for PR " << *sd.pr_node_id
                           << " already cancelled";});
           }
 
@@ -1294,9 +1293,9 @@ namespace brep
         //
         //   #pull/28/merge@1b6c9a361086ed93e6f1e67189e82d52de91c49b
         //
-        repository_location rl (*sd.repository_clone_url + "#pull/" +
+        repository_location rl (*sd.pr_repository_clone_url + "#pull/" +
                                 to_string (*sd.pr_number) + "/merge@" +
-                                mc->merge_commit_sha,
+                                sd.check_sha, // @@ TODO Not for local PRs
                                 repository_type::git);
 
         optional<start_result> r (load (error, warn, verb_ ? &trace : nullptr,

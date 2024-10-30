@@ -589,7 +589,7 @@ namespace brep
     return os.str ();
   }
 
-  optional<gq_pr_pre_check>
+  optional<gq_pr_pre_check_info>
   gq_pull_request_pre_check_info (const basic_mark& error,
                                   const string& iat,
                                   const string& nid)
@@ -613,7 +613,7 @@ namespace brep
         // The response value. Absent if the merge commit is still being
         // generated.
         //
-        optional<gq_pr_pre_check> r;
+        optional<gq_pr_pre_check_info> r;
 
         resp (json::parser& p)
         {
@@ -639,7 +639,7 @@ namespace brep
                 // Note that we can only get here if the head-not-behind
                 // protection rule is active on the PR base branch.
                 //
-                r = {move (hs), true, ""};
+                r = {move (hs), true, nullopt};
               }
               else if (ma == "MERGEABLE")
               {
@@ -652,14 +652,14 @@ namespace brep
               else
               {
                 if (ma == "CONFLICTING")
-                  r = {move (hs), false, ""};
+                  r = {move (hs), false, nullopt};
                 if (ma == "UNKNOWN")
                   ; // Still being generated; leave r absent.
                 else
                   throw_json (p, "unexpected mergeable value '" + ma + '\'');
               }
 
-              if (!r || r->merge_commit_sha.empty ())
+              if (!r || !r->merge_commit_sha)
               {
                 // Skip the merge commit ID if it has not yet been extracted
                 // (in which case it should be null).
