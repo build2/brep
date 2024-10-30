@@ -40,21 +40,15 @@ namespace brep
         p.next_expect_member_number<uint64_t> ("installation_id");
 
     repository_node_id = p.next_expect_member_string ("repository_node_id");
-    event_node_id = p.next_expect_member_string ("event_node_id");
+    repository_clone_url = p.next_expect_member_string ("repository_clone_url");
 
     {
-      string* s (p.next_expect_member_string_null ("repository_clone_url"));
+      string* s (p.next_expect_member_string_null ("pr_node_id"));
       if (s != nullptr)
-        repository_clone_url = *s;
+        pr_node_id = *s;
     }
 
     pr_number = p.next_expect_member_number_null<uint32_t> ("pr_number");
-
-    {
-      string* s (p.next_expect_member_string_null ("merge_node_id"));
-      if (s != nullptr)
-        merge_node_id = *s;
-    }
 
     report_sha = p.next_expect_member_string ("report_sha");
 
@@ -106,7 +100,7 @@ namespace brep
                 timestamp iat_ea,
                 uint64_t iid,
                 string rid,
-                string eid,
+                string rcu,
                 kind_type k,
                 bool rr,
                 bool pc,
@@ -117,7 +111,7 @@ namespace brep
         installation_access (move (iat_tok), iat_ea),
         installation_id (iid),
         repository_node_id (move (rid)),
-        event_node_id (move (eid)),
+        repository_clone_url (move (rcu)),
         check_sha (move (cs)),
         report_sha (move (rs))
   {
@@ -131,21 +125,21 @@ namespace brep
                 timestamp iat_ea,
                 uint64_t iid,
                 string rid,
-                string eid,
+                string rcu,
+                string pid,
                 kind_type k,
                 bool rr,
                 bool pc,
                 string cs,
                 string rs,
-                string rcu,
                 uint32_t prn)
       : kind (k), pre_check (pc), re_request (rr),
         warning_success (ws),
         installation_access (move (iat_tok), iat_ea),
         installation_id (iid),
         repository_node_id (move (rid)),
-        event_node_id (move (eid)),
         repository_clone_url (move (rcu)),
+        pr_node_id (move (pid)),
         pr_number (prn),
         check_sha (move (cs)),
         report_sha (move (rs))
@@ -173,23 +167,17 @@ namespace brep
 
     s.member ("installation_id", installation_id);
     s.member ("repository_node_id", repository_node_id);
-    s.member ("event_node_id", event_node_id);
+    s.member ("repository_clone_url", repository_clone_url);
 
-    s.member_name ("repository_clone_url");
-    if (repository_clone_url)
-      s.value (*repository_clone_url);
+    s.member_name ("pr_node_id");
+    if (pr_node_id)
+      s.value (*pr_node_id);
     else
       s.value (nullptr);
 
     s.member_name ("pr_number");
     if (pr_number)
       s.value (*pr_number);
-    else
-      s.value (nullptr);
-
-    s.member_name ("merge_node_id");
-    if (merge_node_id)
-      s.value (*merge_node_id);
     else
       s.value (nullptr);
 
