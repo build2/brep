@@ -797,7 +797,24 @@ commits are the same, which is only the case when the PR base branch can be
 fast-forwarded to head.
 
 Thankfully, GitHub provides a branch protection rule that prevents merging of
-a PR with the head branch behind base. And enabling of this protection rule is
-a prerequisite for this CI integration to work correctly.
+a PR with the head branch behind base (we will refer to it as the
+\i{head-behind-base} protection). Enabling of this protection rule is a
+prerequisite for this CI integration to work correctly.
+
+Note, however, that even with the head-behind-base protection enabled, some of
+the GitHub behavior can be counter-intuitive.
+
+For one, GitHub does not prevent the CI build from starting if this protection
+rule is violated. While this integration checks the result of this protection
+rule and does not start the build if the head is behind, the CI result may
+already be available (if this head is shared with a branch push and/or another
+PR), in which case GitHub will show it. So you may end up with a violated
+head-behind-base protection but with a successful CI result.
+
+Another surprising consequent of the head sharing is the instantaneous
+availability of the CI result, which may look suspicious. For example, if you
+create a PR from a local feature branch, you may immediately see the
+successful CI result because it is the same as for the branch push
+to the feature branch.
 
 "
