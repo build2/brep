@@ -1370,7 +1370,9 @@ namespace brep
   //    them when notifying GitHub. The first is not important (we expect the
   //    state to go back to building shortly). The second should normally not
   //    happen and would mean that a completed check suite may go back on its
-  //    conclusion (which would be pretty confusing for the user).
+  //    conclusion (which would be pretty confusing for the user). @@@ This
+  //    can/will happen on check run rebuild. Distinguish between internal
+  //    and external rebuilds?
   //
   //    So, for GitHub notifications, we only have the following linear
   //    transition sequence:
@@ -1476,7 +1478,7 @@ namespace brep
     //
     for (const build& b: builds)
     {
-      string bid (gh_check_run_name (b)); // Full build ID.
+      string bid (gh_check_run_name (b)); // Full build id.
 
       if (const check_run* scr = sd.find_check_run (bid))
       {
@@ -1498,6 +1500,8 @@ namespace brep
         else
         {
           // Ignore interrupted.
+          //
+          assert (*istate == build_state::building);
         }
       }
       else
@@ -1542,7 +1546,7 @@ namespace brep
     //
     if (iat != nullptr)
     {
-      // Create a check_run for each build.
+      // Create a check_run for each build as a single request.
       //
       if (gq_create_check_runs (error,
                                 crs,
@@ -1552,6 +1556,8 @@ namespace brep
       {
         for (const check_run& cr: crs)
         {
+          // We can only create a check run in the queued state.
+          //
           assert (cr.state == build_state::queued);
           l3 ([&]{trace << "created check_run { " << cr << " }";});
         }
@@ -1626,13 +1632,12 @@ namespace brep
     }
 
     optional<check_run> cr; // Updated check run.
-    string bid (gh_check_run_name (b)); // Full Build ID.
+    string bid (gh_check_run_name (b)); // Full build id.
 
     if (check_run* scr = sd.find_check_run (bid)) // Stored check run.
     {
       // Update the check run if it exists on GitHub and the queued
-      // notification succeeded and updated the service data, otherwise do
-      // nothing.
+      // notification updated the service data, otherwise do nothing.
       //
       if (scr->state == build_state::queued)
       {
@@ -1697,12 +1702,10 @@ namespace brep
         if (cr->state == build_state::built)
         {
           warn << "check run " << bid << ": already in built state on GitHub";
-
           return nullptr;
         }
 
         assert (cr->state == build_state::building);
-
         l3 ([&]{trace << "updated check_run { " << *cr << " }";});
       }
     }
@@ -1772,13 +1775,16 @@ namespace brep
       return nullptr;
     }
 
-    // Absent if have any unbuilt check runs.
+    // Here we need to update the state of this check run and, if there are no
+    // more unbuilt ones, update the synthetic conclusion check run.
+    //
+    // Absent means we still have unbuilt check runs.
     //
     optional<result_status> conclusion (*b.status);
 
     check_run cr; // Updated check run.
     {
-      string bid (gh_check_run_name (b)); // Full Build ID.
+      string bid (gh_check_run_name (b)); // Full build id.
 
       optional<check_run> scr;
       for (check_run& cr: sd.check_runs)
@@ -1792,11 +1798,10 @@ namespace brep
         {
           if (cr.state == build_state::built)
           {
+            assert (cr.status);
+
             if (conclusion)
-            {
-              assert (cr.status);
               *conclusion |= *cr.status;
-            }
           }
           else
             conclusion = nullopt;
@@ -1826,6 +1831,9 @@ namespace brep
         warn << "check run " << bid << ": out of order built notification; "
              << "no check run state in service data";
 
+        // Note that we have no hints here and so have to use the full build
+        // id for name.
+        //
         cr.build_id = move (bid);
         cr.name = cr.build_id;
       }
@@ -1955,10 +1963,10 @@ namespace brep
         sm = os.str ();
       }
 
-      gq_built_result br (gh_to_conclusion (*b.status, sd.warning_success),
-                          circle (*b.status) + ' ' +
-                            ucase (to_string (*b.status)),
-                          move (sm));
+      gq_built_result br (
+        gh_to_conclusion (*b.status, sd.warning_success),
+        circle (*b.status) + ' ' + ucase (to_string (*b.status)),
+        move (sm));
 
       if (cr.node_id)
       {
@@ -1974,7 +1982,6 @@ namespace brep
                                  move (br)))
         {
           assert (cr.state == build_state::built);
-
           l3 ([&]{trace << "updated check_run { " << cr << " }";});
         }
       }
@@ -1983,7 +1990,7 @@ namespace brep
         // Create new check run.
         //
         // Note that we don't have build hints so will be creating this check
-        // run with the full build ID as name. In the unlikely event that an
+        // run with the full build id as name. In the unlikely event that an
         // out of order build_queued() were to run before we've saved this
         // check run to the service data it will create another check run with
         // the shortened name which will never get to the built state.
@@ -1998,7 +2005,6 @@ namespace brep
                                  move (br)))
         {
           assert (cr.state == build_state::built);
-
           l3 ([&]{trace << "created check_run { " << cr << " }";});
         }
       }
@@ -2042,8 +2048,6 @@ namespace brep
         {
           assert (sd.conclusion_node_id);
 
-          // Update the conclusion check run with success.
-          //
           result_status rs (*conclusion);
 
           optional<gq_built_result> br (
@@ -2068,8 +2072,7 @@ namespace brep
                                    move (br)))
           {
             assert (cr.state == build_state::built);
-
-            l3 ([&]{trace << "updated check_run { " << cr << " }";});
+            l3 ([&]{trace << "updated conclusion check_run { " << cr << " }";});
           }
           else
           {
