@@ -26,6 +26,22 @@ namespace brep
                               to_string (version));
     }
 
+    {
+      string v (p.next_expect_member_string ("kind"));
+
+      if      (v == "local")  kind = local;
+      else if (v == "remote") kind = remote;
+      else
+      {
+        throw json::invalid_json_input (
+          p.input_name, p.line (), p.column (), p.position (),
+          "invalid service data kind: '" + v + '\'');
+      }
+    }
+
+    pre_check = p.next_expect_member_boolean<bool> ("pre_check");
+    re_request = p.next_expect_member_boolean<bool> ("re_request");
+
     warning_success = p.next_expect_member_boolean<bool> ("warning_success");
 
     // Installation access token.
@@ -50,6 +66,7 @@ namespace brep
 
     pr_number = p.next_expect_member_number_null<uint32_t> ("pr_number");
 
+    check_sha = p.next_expect_member_string ("check_sha");
     report_sha = p.next_expect_member_string ("report_sha");
 
     p.next_expect_member_array ("check_runs");
@@ -156,6 +173,16 @@ namespace brep
 
     s.member ("version", 1);
 
+    s.member_name ("kind");
+    switch (kind)
+    {
+    case local:  s.value ("local"); break;
+    case remote: s.value ("remote"); break;
+    }
+
+    s.member ("pre_check", pre_check);
+    s.member ("re_request", re_request);
+
     s.member ("warning_success", warning_success);
 
     // Installation access token.
@@ -181,6 +208,7 @@ namespace brep
     else
       s.value (nullptr);
 
+    s.member ("check_sha", check_sha);
     s.member ("report_sha", report_sha);
 
     s.member_begin_array ("check_runs");

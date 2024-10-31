@@ -74,8 +74,6 @@ namespace brep
 
     // Kind and phase.
     //
-    // @@ TODO Serialize these fields.
-    //
     enum kind_type {local, remote /*, queue */} kind;
     bool pre_check;
     bool re_request; // Re-requested (rebuild).

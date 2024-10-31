@@ -752,9 +752,6 @@ namespace brep
     // job might actually still be relevant (in both local and remote PR
     // cases).
 
-    // @@ TODO Serialize the new service_data fields!
-    //
-
     // Distinguish between local and remote PRs by comparing the head and base
     // repositories' paths.
     //
