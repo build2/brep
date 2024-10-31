@@ -778,10 +778,10 @@ namespace brep
                      pr.installation.id,
                      move (pr.repository.node_id),
                      move (pr.repository.clone_url),
-                     pr.pull_request.node_id,
                      kind, true /* pre_check */, false /* re_request */,
                      move (check_sha),
                      move (pr.pull_request.head_sha) /* report_sha */,
+                     pr.pull_request.node_id,
                      pr.pull_request.number);
 
     // Create an unloaded CI tenant for the pre-check phase (during which we

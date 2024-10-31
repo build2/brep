@@ -126,12 +126,12 @@ namespace brep
                 uint64_t iid,
                 string rid,
                 string rcu,
-                string pid,
                 kind_type k,
                 bool rr,
                 bool pc,
                 string cs,
                 string rs,
+                string pid,
                 uint32_t prn)
       : kind (k), pre_check (pc), re_request (rr),
         warning_success (ws),

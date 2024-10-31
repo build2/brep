@@ -590,9 +590,9 @@ namespace brep
   }
 
   optional<gq_pr_pre_check_info>
-  gq_pull_request_pre_check_info (const basic_mark& error,
-                                  const string& iat,
-                                  const string& nid)
+  gq_fetch_pull_request_pre_check_info (const basic_mark& error,
+                                        const string& iat,
+                                        const string& nid)
   {
     string rq (gq_serialize_request (gq_query_pr_mergeability (nid)));
 
