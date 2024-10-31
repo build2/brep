@@ -75,15 +75,8 @@ namespace brep
 
     string state; // "open" or "closed".
 
-    // If absent then the result of the test merge commit is not yet
-    // available. If true then `merge_commit_sha` contains the commit ID of
-    // the merge commit. If false then `merge_commit_sha` is either empty or
-    // no longer valid.
-    //
-    //   @@ TODO These appear to be unused.
-    //
-    optional<bool> mergeable;
-    string merge_commit_sha;
+    // @@ TMP The unused base/head members may be useful for trace output when
+    //    we receive the pull_request webhook.
 
     string base_path; // Repository path (<org>/<repo>) under github.com.
     string base_ref;  // @@ TODO Remove if remains unused.
