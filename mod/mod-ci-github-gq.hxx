@@ -26,6 +26,11 @@ namespace brep
   // Note: no details_url yet since there will be no entry in the build result
   // search page until the task starts building.
   //
+  // Note that creating a check_run named `foo` will effectively replace any
+  // existing check_runs with that name. They will still exist on the GitHub
+  // servers but GitHub will only consider the latest one (for display in the
+  // UI or in determining the mergeability of a PR).
+  //
   bool
   gq_create_check_runs (const basic_mark& error,
                         vector<check_run>& check_runs,
@@ -86,7 +91,7 @@ namespace brep
   // Fetch pre-check information for a pull request from GitHub. This
   // information is used to decide whether or not to CI the PR and is
   // comprised of the PR's head commit SHA, whether its head branch is behind
-  // its base branch, and its test merge commit SHA.
+  // its base branch, and its mergeability and test merge commit SHA.
   //
   // Return absent value if the merge commit is still being generated (which
   // means PR head branch behindness is not yet known either). See the
@@ -97,8 +102,12 @@ namespace brep
   // will be treated by the caller as still being generated).
   //
   // Note that the first request causes GitHub to start preparing the test
-  // merge commit. (For details see
-  // https://docs.github.com/rest/guides/getting-started-with-the-git-database-api#checking-mergeability-of-pull-requests.)
+  // merge commit.
+  //
+  // For details regarding the test merge commit and how to check/poll for PR
+  // mergeability see
+  // https://docs.github.com/en/rest/pulls/pulls?#get-a-pull-request and
+  // https://docs.github.com/en/rest/guides/using-the-rest-api-to-interact-with-your-git-database?#checking-mergeability-of-pull-requests
   //
   struct gq_pr_pre_check_info
   {

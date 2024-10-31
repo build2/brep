@@ -7,8 +7,7 @@
 
 namespace brep
 {
-  // Return the GitHub check run status corresponding to a build_state. Throw
-  // invalid_argument if the build_state value was invalid.
+  // Return the GitHub check run status corresponding to a build_state.
   //
   string
   gh_to_status (build_state st)
