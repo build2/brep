@@ -186,7 +186,7 @@ namespace brep
   {
     p.next_expect (event::begin_object);
 
-    bool ni (false), nu (false), st (false), bs (false), hd (false);
+    bool ni (false), nu (false), bs (false), hd (false);
 
     // Skip unknown/uninteresting members.
     //
@@ -199,7 +199,6 @@ namespace brep
 
       if      (c (ni, "node_id"))   node_id = p.next_expect_string ();
       else if (c (nu, "number"))    number = p.next_expect_number<unsigned int> ();
-      else if (c (st, "state"))     state = p.next_expect_string ();
       else if (c (bs, "base"))
       {
         p.next_expect (event::begin_object);
@@ -265,7 +264,6 @@ namespace brep
 
     if (!ni) missing_member (p, "gh_pull_request", "node_id");
     if (!nu) missing_member (p, "gh_pull_request", "number");
-    if (!st) missing_member (p, "gh_pull_request", "state");
     if (!bs) missing_member (p, "gh_pull_request", "base");
     if (!hd) missing_member (p, "gh_pull_request", "head");
   }
@@ -275,7 +273,6 @@ namespace brep
   {
     os << "node_id: " << pr.node_id
        << ", number: " << pr.number
-       << ", state: " << pr.state
        << ", base: { "
        << "path: " << pr.base_path
        << ", ref: " << pr.base_ref

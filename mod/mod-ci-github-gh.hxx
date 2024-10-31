@@ -73,8 +73,6 @@ namespace brep
     string node_id;
     unsigned int number;
 
-    string state; // "open" or "closed".
-
     // @@ TMP The unused base/head members may be useful for trace output when
     //    we receive the pull_request webhook.
 
