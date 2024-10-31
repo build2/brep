@@ -33,7 +33,7 @@ namespace brep
     build_state             state;
     bool                    state_synced;
 
-    optional<result_status> status; // Only present if state is built.
+    optional<result_status> status; // Only if state is built & synced.
 
     string
     state_string () const

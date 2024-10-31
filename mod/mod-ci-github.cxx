@@ -585,120 +585,25 @@ namespace brep
     return true;
   }
 
-  // High-level description of pull request (PR) handling
+  // Miscellaneous pull request facts
   //
-  // @@ TODO Update these comments.
+  // - Although some of the GitHub documentation makes it sound like they
+  //   expect check runs to be added to both the PR head commit and the merge
+  //   commit, the PR UI does not react to the merge commit's check runs
+  //   consistently. It actually seems to be quite broken. The only thing it
+  //   does seem to do reliably is blocking the PR merge if the merge commit's
+  //   check runs are not successful (i.e, overriding the PR head commit's
+  //   check runs). But the UI looks quite messed up generally in this state.
   //
-  // - Some GitHub pull request terminology:
+  // - When new commits are added to a PR base branch, pull_request.base.sha
+  //   does not change, but the test merge commit will be updated to include
+  //   the new commits to the base branch.
   //
-  //   - Fork and pull model: Pull requests are created in a forked
-  //     repository. Thus the head and base repositories are different.
+  // - When new commits are added to a PR head branch, pull_request.head.sha
+  //   gets updated with the head commit's SHA and check_suite.pull_requests[]
+  //   will contain all PRs with this branch as head.
   //
-  //   - Shared repository model: The pull request head and base branches are
-  //     in the same repository. For example, from a feature branch onto
-  //     master.
-  //
-  // - CI the merge commit but add check runs to the pull request head commit
-  //
-  //   Most of the major CI integrations build the merge commit instead of the
-  //   PR head commit.
-  //
-  //   Adding the check runs to the PR head commit is recommended by the
-  //   following blog posts by a GitHub employee who is one of the best
-  //   sources on these topics:
-  //   https://www.kenmuse.com/blog/shared-commits-and-github-checks/ and
-  //   https://www.kenmuse.com/blog/creating-github-checks/.
-  //
-  //   Do not add any check runs to the merge commit because:
-  //
-  //   - The PR head commit is the only commit that can be relied upon to
-  //     exist throughout the PR's lifetime. The merge commit, on the other
-  //     hand, can change during the PR process. When that happens the PR will
-  //     look for check runs on the new merge commit, effectively discarding
-  //     the ones we had before.
-  //
-  //   - Although some of the GitHub documentation makes it sound like they
-  //     expect check runs to be added to both the PR head commit and the
-  //     merge commit, the PR UI does not react to the merge commit's check
-  //     runs consistently. It actually seems to be quite broken.
-  //
-  //     The only thing it seems to do reliably is blocking the PR merge if
-  //     the merge commit's check runs are not successful (i.e, overriding the
-  //     PR head commit's check runs). But the UI looks quite messed up
-  //     generally in this state.
-  //
-  //   Note that, in the case of a PR from a forked repository (the so-called
-  //   "fork and pull" model), GitHub will copy the PR head commit from the
-  //   head repository (the forked one) into the base repository. So the check
-  //   runs must always be added to the base repository, whether the PR is
-  //   from within the same repository or from a forked repository. The merge
-  //   and head commits will be at refs/pull/<PR-number>/{merge,head}.
-  //
-  // - @@ TODO Shared repo model problems
-  //
-  //      The root of all of these problems is that, in the shared repository
-  //      model, for every PR we also receive a check_suite for the commit to
-  //      the head branch. The situation is exacerbated by the fact that the
-  //      PR and CS can arrive in any order.
-  //
-  //       - There will be two CIs running concurrently, building different
-  //         commits: the head commit (check_suite) vs merge commit
-  //         (pull_request).
-  //
-  //       - The CS and PR check_runs will all be added to the same commit
-  //         SHA: pull_request.head.sha, check_suite.head_sha (see above for
-  //         the reasons we don't put the check_runs on the merge
-  //         commit).
-  //
-  //       - Recall that creating a check_run named `A` will effectively
-  //         replace any existing check_runs with that name. They will still
-  //         exist on the GitHub servers but GitHub will only consider the
-  //         latest one (for display in the UI or in determining the
-  //         mergeability of a PR).
-  //
-  //       - Some CS CRs may finish after the corresponding PR CRs, thus
-  //         potentially inverting the true status of a PR (e.g., allow the
-  //         merge of a PR with a bad merge commit).
-  //
-  //   Thus we need a way to prevent any CS check_runs from being updated
-  //   after having received a PR.
-  //
-  //   Problem 1: Create PR from feature branch
-  //
-  //     - Receive check_suite for commit to feature branch
-  //     - Receive pull_request
-  //
-  //     Solution: When receive a PR, fetch all check_suites with that head
-  //     SHA (curl REPO/commits/SHA/check-suites) and cancel their CI
-  //     jobs.
-  //
-  //     Thus there will be no more CS check_run updates. Note however that in
-  //     most cases the PR will be received long enough after the CS for the
-  //     latter's check_runs to all have completed already.
-  //
-  //     Note that there will not be a merge CR on the head yet so the PR will
-  //     never be green.
-  //
-  //   Problem 2: New commits are added to PR head branch
-  //
-  //     Note: The check_suite and pull_request can arrive in any order.
-  //
-  //     - check_suite(requested, PR_head)
-  //
-  //       Note: check_suite.pull_requests[] will contain all PRs with this
-  //       branch as head.
-  //
-  //       Note: check_suite.pull_requests[i].head.sha will be the new,
-  //       updated PR head sha.
-  //
-  //     - pull_request(synchronize)
-  //
-  //     Solution: Ignore all check_suites with non-empty pull_requests[].
-  //
-  // - New commits are added to PR base branch
-  //
-  //   Note: In this case pull_request.base.sha does not change, but the merge
-  //   commit will be updated to include the new commits to the base branch.
+  // Remaining TODOs
   //
   // - @@ TODO? PR base branch changed (to a different branch)
   //
@@ -768,6 +673,12 @@ namespace brep
                       : "");
 
     // Note that PR rebuilds (re-requested) are handled by check_suite().
+    //
+    // Note that, in the case of a remote PR, GitHub will copy the PR head
+    // commit from the head (forked) repository into the base repository. So
+    // the check runs must always be added to the base repository, whether the
+    // PR is local or remote. The head commit refs are located at
+    // refs/pull/<PR-number>/head.
     //
     service_data sd (warning_success,
                      move (iat->token),
@@ -898,9 +809,12 @@ namespace brep
     }
     else
     {
-      // Create the CI tenant.
+      // Create the CI tenant by reusing the pre-check service data.
+      //
+      sd.pre_check = false;
 
-      // Update service data's check_sha if this is a remote PR.
+      // Set the service data's check_sha if this is a remote PR. The test
+      // merge commit refs are located at refs/pull/<PR-number>/merge.
       //
       if (sd.kind == service_data::remote)
         sd.check_sha = *pc->merge_commit_sha;
@@ -1098,7 +1012,7 @@ namespace brep
     {
       string ru; // Repository URL.
 
-      // CI the merge test commit for remote PRs and the head commit for
+      // CI the test merge commit for remote PRs and the head commit for
       // everything else (branch push or local PRs).
       //
       if (sd.kind == service_data::remote)
@@ -1822,34 +1736,8 @@ namespace brep
 
       if (cr.state_synced)
       {
-        // Check run was created/updated successfully to built.
-        //
-        // @@ TMP Feels like this should also be done inside
-        //    gq_{create,update}_check_run() -- where cr.state is set if the
-        //    create/update succeeds -- but I think we didn't want to pass a
-        //    result_status into a gq_ function because converting to a GitHub
-        //    conclusion/title/summary is reasonably complicated.
-        //
-        //    @@@ We need to redo that code:
-        //
-        //    - Pass the vector of check runs with new state (and status) set.
-        //    - Update synchronized flag inside those functions.
-        //    - Update the state to built if it's already built on GitHub --
-        //      but then what do we set the status to?
-        //
-        //      @@ TMP This scenario can only arise for updates to building.
-        //         For creations a new CR will always be created so the
-        //         returned state will always be what we asked for; and we
-        //         never update to queued.
-        //
-        //         As for updates to building, if GH has already been updated
-        //         to built then the build_built() lambda will soon save the
-        //         built state and valid status so nothing more should need to
-        //         be done. In fact, whenever updating to building we do stop
-        //         immediately if it's already built on GH.
-        //
-        //    - Maybe signal in return value (optional<bool>?) that there is
-        //      a discrepancy.
+        // Check run was created/updated successfully to built (with
+        // status we specified).
         //
         cr.status = b.status;
 
@@ -1919,24 +1807,30 @@ namespace brep
       if (iat)
         sd.installation_access = *iat;
 
-      if (check_run* scr = sd.find_check_run (cr.build_id))
+      // Only update the check_run state in service data if it matches the
+      // state (specifically, status) on GitHub.
+      //
+      if (cr.state_synced)
       {
-        // This will most commonly generate a duplicate warning (see above).
-        // We could save the old state and only warn if it differs but let's
-        // not complicate things for now.
-        //
-#if 0
-        if (scr->state != build_state::building)
+        if (check_run* scr = sd.find_check_run (cr.build_id))
         {
-          warn << "check run " << cr.build_id << ": out of order built "
-               << "notification service data update; existing state: "
-               << scr->state_string ();
-        }
+          // This will most commonly generate a duplicate warning (see above).
+          // We could save the old state and only warn if it differs but let's
+          // not complicate things for now.
+          //
+#if 0
+          if (scr->state != build_state::building)
+          {
+            warn << "check run " << cr.build_id << ": out of order built "
+                 << "notification service data update; existing state: "
+                 << scr->state_string ();
+          }
 #endif
-        *scr = cr;
+          *scr = cr;
+        }
+        else
+          sd.check_runs.push_back (cr);
       }
-      else
-        sd.check_runs.push_back (cr);
 
       return sd.json ();
     };

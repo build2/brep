@@ -7,8 +7,7 @@
 
 namespace brep
 {
-  // Return the GitHub check run status corresponding to a build_state. Throw
-  // invalid_argument if the build_state value was invalid.
+  // Return the GitHub check run status corresponding to a build_state.
   //
   string
   gh_to_status (build_state st)
@@ -187,8 +186,7 @@ namespace brep
   {
     p.next_expect (event::begin_object);
 
-    bool ni (false), nu (false), st (false), ma (false), ms (false),
-      bs (false), hd (false);
+    bool ni (false), nu (false), bs (false), hd (false);
 
     // Skip unknown/uninteresting members.
     //
@@ -201,14 +199,6 @@ namespace brep
 
       if      (c (ni, "node_id"))   node_id = p.next_expect_string ();
       else if (c (nu, "number"))    number = p.next_expect_number<unsigned int> ();
-      else if (c (st, "state"))     state = p.next_expect_string ();
-      else if (c (ma, "mergeable")) mergeable = p.next_expect_boolean_null<bool> ();
-      else if (c (ms, "merge_commit_sha"))
-      {
-        string* v (p.next_expect_string_null ());
-        if (v != nullptr)
-          merge_commit_sha = *v;
-      }
       else if (c (bs, "base"))
       {
         p.next_expect (event::begin_object);
@@ -274,9 +264,6 @@ namespace brep
 
     if (!ni) missing_member (p, "gh_pull_request", "node_id");
     if (!nu) missing_member (p, "gh_pull_request", "number");
-    if (!st) missing_member (p, "gh_pull_request", "state");
-    if (!ma) missing_member (p, "gh_pull_request", "mergeable");
-    if (!ms) missing_member (p, "gh_pull_request", "merge_commit_sha");
     if (!bs) missing_member (p, "gh_pull_request", "base");
     if (!hd) missing_member (p, "gh_pull_request", "head");
   }
@@ -286,13 +273,6 @@ namespace brep
   {
     os << "node_id: " << pr.node_id
        << ", number: " << pr.number
-       << ", state: " << pr.state
-       << ", mergeable: " << (pr.mergeable
-                              ? *pr.mergeable
-                                ? "true"
-                                : "false"
-                              : "null")
-       << ", merge_commit_sha:" << pr.merge_commit_sha
        << ", base: { "
        << "path: " << pr.base_path
        << ", ref: " << pr.base_ref
@@ -314,7 +294,7 @@ namespace brep
   {
     p.next_expect (event::begin_object);
 
-    bool ni (false), nm (false), fn (false), db (false), cu (false);
+    bool ni (false), nm (false), fn (false), cu (false);
 
     // Skip unknown/uninteresting members.
     //
@@ -328,7 +308,6 @@ namespace brep
       if      (c (ni, "node_id"))        node_id = p.next_expect_string ();
       else if (c (nm, "name"))           name = p.next_expect_string ();
       else if (c (fn, "full_name"))      path = p.next_expect_string ();
-      else if (c (db, "default_branch")) default_branch = p.next_expect_string ();
       else if (c (cu, "clone_url"))      clone_url = p.next_expect_string ();
       else p.next_expect_value_skip ();
     }
@@ -336,7 +315,6 @@ namespace brep
     if (!ni) missing_member (p, "gh_repository", "node_id");
     if (!nm) missing_member (p, "gh_repository", "name");
     if (!fn) missing_member (p, "gh_repository", "full_name");
-    if (!db) missing_member (p, "gh_repository", "default_branch");
     if (!cu) missing_member (p, "gh_repository", "clone_url");
   }
 
@@ -346,7 +324,6 @@ namespace brep
     os << "node_id: " << rep.node_id
        << ", name: " << rep.name
        << ", path: " << rep.path
-       << ", default_branch: " << rep.default_branch
        << ", clone_url: " << rep.clone_url;
 
     return os;
