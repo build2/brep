@@ -988,7 +988,7 @@ namespace brep
     // Load the tenant, which is essentially the same for both branch push and
     // PR. The overall plan is as follows:
     //
-    // - Create synthetic conclusion check run with the building state. If
+    // - Create synthetic conclusion check run with the in-progress state. If
     //   unable to, get called again to re-try.
     //
     // - Load the tenant. If unable to, fail the conclusion check run.
@@ -1072,7 +1072,6 @@ namespace brep
                                move (br)))
       {
         assert (cr.state == build_state::built);
-
         return cr;
       }
       else
@@ -1118,7 +1117,9 @@ namespace brep
       repository_location rl (move (ru), repository_type::git);
 
       optional<start_result> r (load (error, warn, verb_ ? &trace : nullptr,
-                                      *build_db_, move (ts), move (rl)));
+                                      *build_db_,
+                                      move (ts),
+                                      move (rl)));
 
       if (!r || r->status != 200)
       {
@@ -1134,7 +1135,8 @@ namespace brep
           // Nothing really we can do in this case since we will not receive
           // any further notifications. Log the error as a last resort.
 
-          error << "failed to load CI tenant " << ts.id;
+          error << "failed to load CI tenant " << ts.id
+                << " and unable to update conclusion";
         }
 
         return nullptr; // No need to update service data in this case.

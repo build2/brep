@@ -159,12 +159,12 @@ namespace brep
                   uint64_t installation_id,
                   string repository_node_id,
                   string repository_clone_url,
-                  string pr_node_id,
                   kind_type kind,
                   bool pre_check,
                   bool re_request,
                   string check_sha,
                   string report_sha,
+                  string pr_node_id,
                   uint32_t pr_number);
 
     service_data () = default;
