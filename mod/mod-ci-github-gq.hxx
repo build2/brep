@@ -121,20 +121,6 @@ namespace brep
     const basic_mark& error,
     const string& installation_access_token,
     const string& node_id);
-
-  // Fetch the last 100 open pull requests with the specified base branch from
-  // the repository with the specified node ID.
-  //
-  // Issue diagnostics and return nullopt if the repository was not found or
-  // an error occurred.
-  //
-  // @@@ Looks like not needed anymore.
-  //
-  optional<vector<gh_pull_request>>
-  gq_fetch_open_pull_requests (const basic_mark& error,
-                               const string& installation_access_token,
-                               const string& repository_node_id,
-                               const string& base_branch);
 }
 
 #endif // MOD_MOD_CI_GITHUB_GQ_HXX
