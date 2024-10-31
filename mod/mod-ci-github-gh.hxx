@@ -118,7 +118,6 @@ namespace brep
     string node_id;
     string name;
     string path; // Repository path (<org>/<repo>) under github.com.
-    string default_branch;
     string clone_url;
 
     explicit
