@@ -733,7 +733,7 @@ necessarily represent the result of the merge.
 To support the general case (when the base branch cannot be fast-forwarded)
 GitHub creates a tentative merge commit (called \i{test merge commit} in the
 GitHub terminology) and expects the CI service to test that commit rather than
-the head commit. See
+the head commit (this is what most of the major CI integrations do). See
 \l{https://www.kenmuse.com/blog/the-many-shas-of-a-github-pull-request/ The
 Many SHAs of a GitHub Pull Request} for additional details.
 
@@ -744,7 +744,7 @@ sense to associate the result of this test with the merge commit.  Instead,
 GitHub expects the CI service to report it as associated with the head commit!
 
 This strange decision by GitHub, which we will refer to as \"head sharing\",
-has two serious consequences for trusting CI results when make decisions
+has two serious consequences for trusting CI results when making decisions
 about merging PRs.
 
 Firstly, if the branch push and/or several pull requests share the same head
@@ -784,7 +784,7 @@ The second representative example is a single remote PR: someone creates a PR
 with a feature or bugfix from their fork of our repository. There is no
 corresponding branch push for this PR's head commit in our repository so it
 sounds like there is only one place (the PR) where the CI result of the head
-commit will be reported in our repository and so the head sharing should not
+commit (@@ Shouldn't this be `merge commit`?) will be reported in our repository and so the head sharing should not
 be an issue, right? While it's true that \i{spatial} sharing, that is between
 BP and/or several PRs, is not an issue in this case, \i{temporal} sharing
 still is. Specifically, if the base branch moves before we examine the PR, we
@@ -811,7 +811,7 @@ already be available (if this head is shared with a branch push and/or another
 PR), in which case GitHub will show it. So you may end up with a violated
 head-behind-base protection but with a successful CI result.
 
-Another surprising consequent of the head sharing is the instantaneous
+Another surprising consequence of the head sharing is the instantaneous
 availability of the CI result, which may look suspicious. For example, if you
 create a PR from a local feature branch, you may immediately see the
 successful CI result because it is the same as for the branch push
