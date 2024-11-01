@@ -811,6 +811,8 @@ namespace brep
     {
       // Create the CI tenant.
 
+      sd.pre_check = false;
+
       // Set the service data's check_sha if this is a remote PR. The test
       // merge commit refs are located at refs/pull/<PR-number>/merge.
       //
