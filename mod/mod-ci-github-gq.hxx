@@ -20,8 +20,8 @@ namespace brep
   //
 
   // Create a new check run on GitHub for each build. Update `check_runs` with
-  // the new states and node IDs. Return false and issue diagnostics if the
-  // request failed.
+  // the new data (node id, state, and state_synced). Return false and issue
+  // diagnostics if the request failed.
   //
   // Note: no details_url yet since there will be no entry in the build result
   // search page until the task starts building.
@@ -40,8 +40,8 @@ namespace brep
                         build_state);
 
   // Create a new check run on GitHub for a build. Update `cr` with the new
-  // state and the node ID. Return false and issue diagnostics if the request
-  // failed.
+  // data (node id, state, and state_synced). Return false and issue
+  // diagnostics if the request failed.
   //
   // If the details_url is absent GitHub will use the app's homepage.
   //
@@ -69,8 +69,12 @@ namespace brep
   // Update a check run on GitHub.
   //
   // Send a GraphQL request that updates an existing check run. Update `cr`
-  // with the new state. Return false and issue diagnostics if the request
-  // failed.
+  // with the new data (state and state_synced). Return false and issue
+  // diagnostics if the request failed.
+  //
+  // Note that GitHub allows any state transitions except from built (but
+  // built to built is allowed). The latter case is signalled by setting the
+  // check_run state_synced member to false and the state member to built.
   //
   // If the details_url is absent GitHub will use the app's homepage.
   //

@@ -241,7 +241,8 @@ namespace brep
       {
         vector<gh_check_run> check_runs; // Received check runs.
 
-        resp (json::parser& p): check_runs (gq_parse_response_check_runs (p)) {}
+        resp (json::parser& p)
+            : check_runs (gq_parse_response_check_runs (p)) {}
 
         resp () = default;
       } rs;
@@ -271,23 +272,23 @@ namespace brep
             // @@ Are we handling the case where the resulting state (built)
             //    differs from what we expect?
             //
-            if (rst != build_state::built && rst != st)
+            // @@@ Does built-to-built transition updates status?
+            //
+            if (rst != st && rst != build_state::built)
             {
               error << "unexpected check_run status: received '" << rcr.status
                     << "' but expected '" << gh_to_status (st) << '\'';
 
               return false; // Fail because something is clearly very wrong.
             }
-            else
-            {
-              check_run& cr (crs[i]);
 
-              if (!cr.node_id)
-                cr.node_id = move (rcr.node_id);
+            check_run& cr (crs[i]);
 
-              cr.state = rst;
-              cr.state_synced = true;
-            }
+            if (!cr.node_id)
+              cr.node_id = move (rcr.node_id);
+
+            cr.state = rst;
+            cr.state_synced = (rst == st);
           }
 
           return true;

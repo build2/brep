@@ -1736,34 +1736,8 @@ namespace brep
 
       if (cr.state_synced)
       {
-        // Check run was created/updated successfully to built.
-        //
-        // @@ TMP Feels like this should also be done inside
-        //    gq_{create,update}_check_run() -- where cr.state is set if the
-        //    create/update succeeds -- but I think we didn't want to pass a
-        //    result_status into a gq_ function because converting to a GitHub
-        //    conclusion/title/summary is reasonably complicated.
-        //
-        //    @@@ We need to redo that code:
-        //
-        //    - Pass the vector of check runs with new state (and status) set.
-        //    - Update synchronized flag inside those functions.
-        //    - Update the state to built if it's already built on GitHub --
-        //      but then what do we set the status to?
-        //
-        //      @@ TMP This scenario can only arise for updates to building.
-        //         For creations a new CR will always be created so the
-        //         returned state will always be what we asked for; and we
-        //         never update to queued.
-        //
-        //         As for updates to building, if GH has already been updated
-        //         to built then the build_built() lambda will soon save the
-        //         built state and valid status so nothing more should need to
-        //         be done. In fact, whenever updating to building we do stop
-        //         immediately if it's already built on GH.
-        //
-        //    - Maybe signal in return value (optional<bool>?) that there is
-        //      a discrepancy.
+        // Check run was created/updated successfully to built (with
+        // status we specified).
         //
         cr.status = b.status;
 
@@ -1833,24 +1807,30 @@ namespace brep
       if (iat)
         sd.installation_access = *iat;
 
-      if (check_run* scr = sd.find_check_run (cr.build_id))
+      // Only update the check_run state in service data if it matches the
+      // state (specifically, status) on GitHub.
+      //
+      if (cr.state_synced)
       {
-        // This will most commonly generate a duplicate warning (see above).
-        // We could save the old state and only warn if it differs but let's
-        // not complicate things for now.
-        //
-#if 0
-        if (scr->state != build_state::building)
+        if (check_run* scr = sd.find_check_run (cr.build_id))
         {
-          warn << "check run " << cr.build_id << ": out of order built "
-               << "notification service data update; existing state: "
-               << scr->state_string ();
-        }
+          // This will most commonly generate a duplicate warning (see above).
+          // We could save the old state and only warn if it differs but let's
+          // not complicate things for now.
+          //
+#if 0
+          if (scr->state != build_state::building)
+          {
+            warn << "check run " << cr.build_id << ": out of order built "
+                 << "notification service data update; existing state: "
+                 << scr->state_string ();
+          }
 #endif
-        *scr = cr;
+          *scr = cr;
+        }
+        else
+          sd.check_runs.push_back (cr);
       }
-      else
-        sd.check_runs.push_back (cr);
 
       return sd.json ();
     };
