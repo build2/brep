@@ -783,13 +783,13 @@ changes uncompilable or otherwise buggy once merged.
 The second representative example is a single remote PR: someone creates a PR
 with a feature or bugfix from their fork of our repository. There is no
 corresponding branch push for this PR's head commit in our repository so it
-sounds like there is only one place (the PR) where the CI result of the head
-commit (@@ Shouldn't this be `merge commit`?) will be reported in our repository and so the head sharing should not
-be an issue, right? While it's true that \i{spatial} sharing, that is between
-BP and/or several PRs, is not an issue in this case, \i{temporal} sharing
-still is. Specifically, if the base branch moves before we examine the PR, we
-again may end up merging it based on the CI results that are not
-representative of the merge commit.
+sounds like there is only one place (the PR) where the CI result, if
+associated with this head commit, will be reported in our repository and so
+the head sharing should not be an issue, right? While it's true that
+\i{spatial} sharing, that is between BP and/or several PRs, is not an issue in
+this case, \i{temporal} sharing still is. Specifically, if the base branch
+moves before we examine the PR, we again may end up merging it based on the CI
+results that are not representative of the merge commit.
 
 Hopefully you see the underlying theme by now: the only way to ensure
 correctness in the GitHub CI model is to make sure the PR's head and merge

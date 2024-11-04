@@ -809,8 +809,8 @@ namespace brep
     }
     else
     {
-      // Create the CI tenant.
-
+      // Create the CI tenant by reusing the pre-check service data.
+      //
       sd.pre_check = false;
 
       // Set the service data's check_sha if this is a remote PR. The test
