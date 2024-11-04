@@ -156,19 +156,46 @@ namespace brep
 
   // gh_check_run
   //
+  // Note that this constructor parses both 1) webhook events/REST responses
+  // and 2) GraphQL responses. In the former case (in addition to expecting a
+  // few more fields to be present) the node id is in the `node_id` field
+  // whereas in the latter it is in the `id` field. However we use the GraphQL
+  // field alias feature to rename the `id` field to `node_id` so we only ever
+  // have to look for `node_id`.
+  //
   gh_check_run::
-  gh_check_run (json::parser& p)
+  gh_check_run (json::parser& p, bool wor)
   {
     p.next_expect (event::begin_object);
 
-    // We always ask for this exact set of fields to be returned in GraphQL
-    // requests.
-    //
-    node_id = p.next_expect_member_string ("id");
-    name = p.next_expect_member_string ("name");
-    status = p.next_expect_member_string ("status");
+    bool ni (false), nm (false), st (false), du (false), cs (false);
 
-    p.next_expect (event::end_object);
+    // Skip unknown/uninteresting members.
+    //
+    while (p.next_expect (event::name, event::end_object))
+    {
+      auto c = [&p] (bool& v, const char* s)
+      {
+        return p.name () == s ? (v = true) : false;
+      };
+
+      if      (c (ni, "node_id"))     node_id = p.next_expect_string ();
+      else if (c (nm, "name"))        name = p.next_expect_string ();
+      else if (c (st, "status"))      status = p.next_expect_string ();
+      else if (c (du, "details_url")) details_url = p.next_expect_string ();
+      else if (c (cs, "check_suite")) check_suite = gh_check_suite (p);
+      else p.next_expect_value_skip ();
+    }
+
+    if (!ni) missing_member (p, "gh_check_run", "node_id");
+    if (!nm) missing_member (p, "gh_check_run", "name");
+    if (!st) missing_member (p, "gh_check_run", "status");
+
+    if (wor) // Parsing a webhook event or REST API response.
+    {
+      if (!du) missing_member (p, "gh_check_run", "details_url");
+      if (!cs) missing_member (p, "gh_check_run", "check_suite");
+    }
   }
 
   ostream&
@@ -177,6 +204,9 @@ namespace brep
     os << "node_id: " << cr.node_id
        << ", name: " << cr.name
        << ", status: " << cr.status;
+
+    if (cr.check_suite)
+      os << ", check_suite: { " << *cr.check_suite << " }";
 
     return os;
   }
@@ -400,6 +430,52 @@ namespace brep
     os << ", check_suite { " << cs.check_suite << " }";
     os << ", repository { "  << cs.repository << " }";
     os << ", installation { " << cs.installation << " }";
+
+    return os;
+  }
+
+  // gh_check_run_event
+  //
+  gh_check_run_event::
+  gh_check_run_event (json::parser& p)
+  {
+    p.next_expect (event::begin_object);
+
+    bool ac (false), cs (false), rp (false), in (false);
+
+    // Skip unknown/uninteresting members.
+    //
+    while (p.next_expect (event::name, event::end_object))
+    {
+      auto c = [&p] (bool& v, const char* s)
+      {
+        return p.name () == s ? (v = true) : false;
+      };
+
+      // Pass true to gh_check_run() to indicate that the we're parsing a
+      // webhook event or REST API response (in which case more fields are
+      // expected to be present than in a GraphQL response).
+      //
+      if      (c (ac, "action"))       action = p.next_expect_string ();
+      else if (c (cs, "check_run"))    check_run = gh_check_run (p, true);
+      else if (c (rp, "repository"))   repository = gh_repository (p);
+      else if (c (in, "installation")) installation = gh_installation (p);
+      else p.next_expect_value_skip ();
+    }
+
+    if (!ac) missing_member (p, "gh_check_run_event", "action");
+    if (!cs) missing_member (p, "gh_check_run_event", "check_run");
+    if (!rp) missing_member (p, "gh_check_run_event", "repository");
+    if (!in) missing_member (p, "gh_check_run_event", "installation");
+  }
+
+  ostream&
+  operator<< (ostream& os, const gh_check_run_event& cr)
+  {
+    os << "action: " << cr.action;
+    os << ", check_run { " << cr.check_run << " }";
+    os << ", repository { "  << cr.repository << " }";
+    os << ", installation { " << cr.installation << " }";
 
     return os;
   }
