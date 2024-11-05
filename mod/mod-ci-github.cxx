@@ -561,7 +561,7 @@ namespace brep
     auto pr (create (error,
                      warn,
                      verb_ ? &trace : nullptr,
-                     *build_db_,
+                     *build_db_, retry_,
                      tenant_service (sid, "ci-github", sd.json ()),
                      chrono::seconds (30) /* interval */,
                      chrono::seconds (0) /* delay */,
@@ -714,7 +714,7 @@ namespace brep
     if (!create (error,
                  warn,
                  verb_ ? &trace : nullptr,
-                 *build_db_,
+                 *build_db_, retry_,
                  move (ts),
                  chrono::seconds (30) /* interval */,
                  chrono::seconds (0) /* delay */))
@@ -838,7 +838,7 @@ namespace brep
       // it gets archived after some timeout.
       //
       if (auto pr = create (error, warn, verb_ ? &trace : nullptr,
-                            *build_db_,
+                            *build_db_, retry_,
                             tenant_service (sid, "ci-github", sd.json ()),
                             chrono::seconds (30) /* interval */,
                             chrono::seconds (0) /* delay */,
@@ -877,7 +877,9 @@ namespace brep
     // Cancel the pre-check tenant.
     //
     if (!cancel (error, warn, verb_ ? &trace : nullptr,
-                 *build_db_, ts.type, ts.id))
+                 *build_db_, retry_,
+                 ts.type,
+                 ts.id))
     {
       // Should never happen (no such tenant).
       //
@@ -1028,7 +1030,7 @@ namespace brep
       repository_location rl (move (ru), repository_type::git);
 
       optional<start_result> r (load (error, warn, verb_ ? &trace : nullptr,
-                                      *build_db_,
+                                      *build_db_, retry_,
                                       move (ts),
                                       move (rl)));
 
