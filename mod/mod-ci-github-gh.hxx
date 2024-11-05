@@ -64,16 +64,20 @@ namespace brep
     string node_id;
     string name;
     string status;
-    optional<string> details_url; // Webhooks/REST only.
 
-    optional<gh_check_suite> check_suite; // Webhooks/REST only.
-
-    // If the second argument is true then we're parsing a webhook event or
-    // REST API response in which case we expect a few more fields to be
-    // present than in a GraphQL response.
-    //
     explicit
-    gh_check_run (json::parser&, bool webhook_or_rest = false);
+    gh_check_run (json::parser&);
+
+    gh_check_run () = default;
+  };
+
+  struct gh_check_run_ex: gh_check_run
+  {
+    string details_url;
+    gh_check_suite check_suite;
+
+    explicit
+    gh_check_run (json::parser&);
 
     gh_check_run () = default;
   };
@@ -164,7 +168,7 @@ namespace brep
   struct gh_check_run_event
   {
     string action;
-    gh_check_run check_run;
+    gh_check_run_ex check_run;
     gh_repository repository;
     gh_installation installation;
 
