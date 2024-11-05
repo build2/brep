@@ -168,14 +168,14 @@ namespace brep
   //  {
   //    "cr0": {
   //      "checkRun": {
-  //        "id": "CR_kwDOLc8CoM8AAAAFQ5GqPg",
+  //        "node_id": "CR_kwDOLc8CoM8AAAAFQ5GqPg",
   //        "name": "libb2/0.98.1+2/x86_64-linux-gnu/linux_debian_12-gcc_13.1-O3/default/dev/0.17.0-a.1",
   //        "status": "QUEUED"
   //      }
   //    },
   //    "cr1": {
   //      "checkRun": {
-  //        "id": "CR_kwDOLc8CoM8AAAAFQ5GqhQ",
+  //        "node_id": "CR_kwDOLc8CoM8AAAAFQ5GqhQ",
   //        "name": "libb2/0.98.1+2/x86_64-linux-gnu/linux_debian_12-gcc_13.1/default/dev/0.17.0-a.1",
   //        "status": "QUEUED"
   //      }
@@ -399,11 +399,13 @@ namespace brep
            << "  }";
       }
       os << "})"                                                    << '\n'
-        // Specify the selection set (fields to be returned).
+        // Specify the selection set (fields to be returned). Note that we
+        // rename `id` to `node_id` (using a field alias) for consistency with
+        // webhook events and REST API responses.
         //
          << "{"                                                     << '\n'
          << "  checkRun {"                                          << '\n'
-         << "    id"                                                << '\n'
+         << "    node_id: id"                                       << '\n'
          << "    name"                                              << '\n'
          << "    status"                                            << '\n'
          << "  }"                                                   << '\n'
@@ -460,11 +462,13 @@ namespace brep
          << "  }";
     }
     os << "})"                                                    << '\n'
-      // Specify the selection set (fields to be returned).
+      // Specify the selection set (fields to be returned). Note that we
+      // rename `id` to `node_id` (using a field alias) for consistency with
+      // webhook events and REST API responses.
       //
        << "{"                                                     << '\n'
        << "  checkRun {"                                          << '\n'
-       << "    id"                                                << '\n'
+       << "    node_id: id"                                       << '\n'
        << "    name"                                              << '\n'
        << "    status"                                            << '\n'
        << "  }"                                                   << '\n'
