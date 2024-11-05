@@ -200,10 +200,20 @@ namespace brep
     // possible to avoid races). Instead, it is assumed the service will
     // perform any equivalent actions directly based on the returned state.
     //
+    // The last argument, if not NULL, is called to update the service data
+    // associated with the tenant to which this build object belongs. It has
+    // the same semantics as the returned function in the tenant service
+    // callbacks (see tenant_service_build_queued). Note that it is only
+    // called if the rebuild was actually scheduled, that is, the current
+    // state is building or built.
+    //
     // Note: should be called out of the database transaction.
     //
     optional<build_state>
-    rebuild (odb::core::database&, const build_id&) const;
+    rebuild (odb::core::database&,
+             const build_id&,
+             function<optional<string> (const tenant_service&,
+                                        build_state)> = nullptr) const;
 
     // Find the tenant given the tenant service type and id and return the
     // associated data or nullopt if there is no such tenant.

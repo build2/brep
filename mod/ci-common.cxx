@@ -819,9 +819,15 @@ namespace brep
   }
 
   optional<build_state> ci_start::
-  rebuild (odb::core::database& db, const build_id& id) const
+  rebuild (odb::core::database& db,
+           const build_id& id,
+           function<optional<string> (const tenant_service&,
+                                      build_state)> uf) const
   {
     using namespace odb::core;
+
+    //@@@ Should we not retry transactions (here and in other functions that
+    //    update)?
 
     // NOTE: don't forget to update build_force::handle() if changing anything
     //       here.
@@ -849,6 +855,21 @@ namespace brep
       {
         b->force = force;
         db.update (b);
+      }
+
+      if (uf != nullptr)
+      {
+        shared_ptr<build_tenant> t (db.load<build_tenant> (b->tenant));
+
+        assert (t->service);
+
+        tenant_service& ts (*t->service);
+
+        if (optional<string> data = uf (ts, s))
+        {
+          ts.data = move (*data);
+          db.update (t);
+        }
       }
     }
 
