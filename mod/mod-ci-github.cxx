@@ -1241,7 +1241,7 @@ namespace brep
       return nullptr;
     }
 
-    // Ignore attempts to add new builds to a completed check run. This can
+    // Ignore attempts to add new builds to a completed check suite. This can
     // happen, for example, if a new build configuration is added before
     // the tenant is archived.
     //
@@ -1411,7 +1411,7 @@ namespace brep
     }
 
     // Similar to build_queued(), ignore attempts to add new builds to a
-    // completed check run.
+    // completed check suite.
     //
     if (sd.completed)
       return nullptr;
@@ -1561,14 +1561,14 @@ namespace brep
     }
 
     // Similar to build_queued(), ignore attempts to add new builds to a
-    // completed check run.
+    // completed check suite.
     //
     if (sd.completed)
       return nullptr;
 
     // Here we need to update the state of this check run and, if there are no
     // more unbuilt ones, update the synthetic conclusion check run and mark
-    // the check run as completed.
+    // the check suite as completed.
     //
     // Absent means we still have unbuilt check runs.
     //
