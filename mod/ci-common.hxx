@@ -202,9 +202,9 @@ namespace brep
     //
     // The last argument, if not NULL, is called to update the service data
     // associated with the tenant to which this build object belongs. It has
-    // the same semantics as the retuned function in the tenant service
+    // the same semantics as the returned function in the tenant service
     // callbacks (see tenant_service_build_queued). Note that it is only
-    // called if the rebuild was actually schedules, that is, the current
+    // called if the rebuild was actually scheduled, that is, the current
     // state is building or built.
     //
     // Note: should be called out of the database transaction.
