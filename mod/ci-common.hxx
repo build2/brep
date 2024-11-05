@@ -103,6 +103,9 @@ namespace brep
     // Finally note that only duplicate_tenant_mode::fail can be used if the
     // service id is empty.
     //
+    // Repeat the attempts on the recoverable database failures (deadlocks,
+    // etc) and throw runtime_error if no more retries left.
+    //
     // Note: should be called out of the database transaction.
     //
     enum class duplicate_tenant_mode {fail, ignore, replace, replace_archived};
@@ -113,6 +116,7 @@ namespace brep
             const basic_mark& warn,
             const basic_mark* trace,
             odb::core::database&,
+            size_t retry,
             tenant_service&&,
             duration notify_interval,
             duration notify_delay,
@@ -120,6 +124,9 @@ namespace brep
 
     // Load (and start) previously created (as unloaded) CI request. Similarly
     // to the start() function, return nullopt on an internal error.
+    //
+    // Repeat the attempts on the recoverable database failures (deadlocks,
+    // etc) and throw runtime_error if no more retries left.
     //
     // Note that tenant_service::id is used to identify the CI request tenant.
     //
@@ -130,6 +137,7 @@ namespace brep
           const basic_mark& warn,
           const basic_mark* trace,
           odb::core::database&,
+          size_t retry,
           tenant_service&&,
           const repository_location& repository) const;
 
@@ -142,6 +150,9 @@ namespace brep
     // dropped. Note that the latter allow using unloaded tenants as a
     // relatively cheap asynchronous execution mechanism.
     //
+    // Repeat the attempts on the recoverable database failures (deadlocks,
+    // etc) and throw runtime_error if no more retries left.
+    //
     // Note: should be called out of the database transaction.
     //
     optional<tenant_service>
@@ -149,6 +160,7 @@ namespace brep
             const basic_mark& warn,
             const basic_mark* trace,
             odb::core::database&,
+            size_t retry,
             const string& type,
             const string& id) const;
 
@@ -161,6 +173,9 @@ namespace brep
     // this version does not touch the service state (use the above version if
     // you want to clear it).
     //
+    // Repeat the attempts on the recoverable database failures (deadlocks,
+    // etc) and throw runtime_error if no more retries left.
+    //
     // Note: should be called out of the database transaction.
     //
     bool
@@ -169,6 +184,7 @@ namespace brep
             const basic_mark* trace,
             const string& reason,
             odb::core::database&,
+            size_t retry,
             const string& tenant_id) const;
 
     // Schedule the re-build of the package build and return the build object
@@ -207,10 +223,14 @@ namespace brep
     // called if the rebuild was actually scheduled, that is, the current
     // state is building or built.
     //
+    // Repeat the attempts on the recoverable database failures (deadlocks,
+    // etc) and throw runtime_error if no more retries left.
+    //
     // Note: should be called out of the database transaction.
     //
     optional<build_state>
     rebuild (odb::core::database&,
+             size_t retry,
              const build_id&,
              function<optional<string> (const tenant_service&,
                                         build_state)> = nullptr) const;

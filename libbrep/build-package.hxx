@@ -42,6 +42,10 @@ namespace brep
           unloaded_timestamp (t),
           unloaded_notify_interval (n) {}
 
+    // Create tenant for subsequent loading or incremental building.
+    //
+    build_tenant () = default;
+
     string id;
 
     bool private_ = false;
@@ -57,10 +61,6 @@ namespace brep
     // Database mapping.
     //
     #pragma db member(id) id
-
-  private:
-    friend class odb::access;
-    build_tenant () = default;
   };
 
   // Foreign object that is mapped to a subset of the repository object.
