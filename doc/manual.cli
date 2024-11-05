@@ -817,4 +817,15 @@ create a PR from a local feature branch, you may immediately see the
 successful CI result because it is the same as for the branch push
 to the feature branch.
 
+Finally note that the GitHub CI model is quite wasteful of CI resources in
+general and the head sharing makes this problem even worse. Specifically,
+GitHub CI builds every commit indiscriminately, regardless of what was
+changed. So a minor tweak to \c{README.md} will trigger a full rebuild even
+though nothing that needs building has changed. The head sharing issue makes
+the situation worse because the CI integration cannot easily cancel an
+in-progress build when a new commit is added to a PR because the result could
+be shared with a branch push or another PR. Nevertheless, this integration
+will attempt to cancel a stale build of a remote PR provided it's not
+(currently) shared.
+
 "
