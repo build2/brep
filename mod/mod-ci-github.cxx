@@ -334,6 +334,41 @@ namespace brep
         return true;
       }
     }
+    else if (event == "check_run")
+    {
+      gh_check_run_event cr;
+      try
+      {
+        json::parser p (body.data (), body.size (), "check_run event");
+
+        cr = gh_check_run_event (p);
+      }
+      catch (const json::invalid_json_input& e)
+      {
+        string m ("malformed JSON in " + e.name + " request body");
+
+        error << m << ", line: " << e.line << ", column: " << e.column
+              << ", byte offset: " << e.position << ", error: " << e;
+
+        throw invalid_request (400, move (m));
+      }
+
+      if (cr.action == "rerequested")
+      {
+        // Someone manually requested to re-run a specific check run.
+        //
+        return handle_check_run_request (move (cr), warning_success);
+      }
+      else
+      {
+        // Ignore unknown actions by sending a 200 response with empty body
+        // but also log as an error since we want to notice new actions.
+        //
+        error << "unknown action '" << cr.action << "' in check_run event";
+
+        return true;
+      }
+    }
     else if (event == "pull_request")
     {
       gh_pull_request_event pr;
@@ -581,6 +616,16 @@ namespace brep
             << " did not exist";
       return true;
     }
+
+    return true;
+  }
+
+  bool ci_github::
+  handle_check_run_request (gh_check_run_event cr, bool warning_success)
+  {
+    HANDLER_DIAG;
+
+    l3 ([&]{trace << "check_run event { " << cr << " }";});
 
     return true;
   }
