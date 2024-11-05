@@ -859,10 +859,17 @@ namespace brep
 
       if (uf != nullptr)
       {
-        // @@ TODO:
-        //
-        // - get tenant from build object?
-        // - call function and update tenant if necessary.
+        shared_ptr<build_tenant> t (db.load<build_tenant> (b->tenant));
+
+        assert (t->service);
+
+        tenant_service& ts (*t->service);
+
+        if (optional<string> data = uf (ts, s))
+        {
+          ts.data = move (*data);
+          db.update (t);
+        }
       }
     }
 
