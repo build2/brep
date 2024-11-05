@@ -114,6 +114,11 @@ namespace brep
 
     vector<check_run> check_runs;
 
+    // Flag indicating that all the elements in check_runs are built and this
+    // check suite is completed.
+    //
+    bool completed;
+
     // The GitHub ID of the synthetic conclusion check run or absent if it
     // hasn't been created yet.
     //

@@ -1194,6 +1194,13 @@ namespace brep
       return nullptr;
     }
 
+    // Ignore attempts to add new builds to a completed check run. This can
+    // happen, for example, if a new build configuration is added before
+    // the tenant is archived.
+    //
+    if (sd.completed)
+      return nullptr;
+
     // The builds for which we will be creating check runs.
     //
     vector<reference_wrapper<const build>> bs;
@@ -1356,6 +1363,12 @@ namespace brep
       return nullptr;
     }
 
+    // Similar to build_queued(), ignore attempts to add new builds to a
+    // completed check run.
+    //
+    if (sd.completed)
+      return nullptr;
+
     optional<check_run> cr; // Updated check run.
     string bid (gh_check_run_name (b)); // Full build id.
 
@@ -1500,8 +1513,15 @@ namespace brep
       return nullptr;
     }
 
+    // Similar to build_queued(), ignore attempts to add new builds to a
+    // completed check run.
+    //
+    if (sd.completed)
+      return nullptr;
+
     // Here we need to update the state of this check run and, if there are no
-    // more unbuilt ones, update the synthetic conclusion check run.
+    // more unbuilt ones, update the synthetic conclusion check run and mark
+    // the check run as completed.
     //
     // Absent means we still have unbuilt check runs.
     //
@@ -1584,6 +1604,8 @@ namespace brep
     }
     else
       iat = &sd.installation_access;
+
+    bool completed (false);
 
     // Note: we treat the failure to obtain the installation access token the
     // same as the failure to notify GitHub (state is updated but not marked
@@ -1781,12 +1803,15 @@ namespace brep
                   << ": unable to update conclusion check run "
                   << *sd.conclusion_node_id;
           }
+
+          completed = true;
         }
       }
     }
 
     return [iat = move (new_iat),
             cr = move (cr),
+            completed = completed,
             error = move (error),
             warn = move (warn)] (const tenant_service& ts) -> optional<string>
     {
@@ -1831,6 +1856,9 @@ namespace brep
         else
           sd.check_runs.push_back (cr);
       }
+
+      if (completed)
+        sd.completed = true;
 
       return sd.json ();
     };
