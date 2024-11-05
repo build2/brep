@@ -119,10 +119,14 @@ namespace brep
       }
       catch (const odb::recoverable& e)
       {
-        if (retry-- == 0)
-          throw;
-
         HANDLER_DIAG;
+
+        // If no more retries left, don't re-throw odb::recoverable not to
+        // retry at the upper level.
+        //
+        if (retry-- == 0)
+          fail << e << "; no tenant service state update retries left";
+
         l1 ([&]{trace << e << "; " << retry + 1 << " tenant service "
                       << "state update retries left";});
 

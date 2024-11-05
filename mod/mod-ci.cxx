@@ -590,7 +590,10 @@ handle (request& rq, response& rs)
   if (tid.empty ())
     throw invalid_request (400, "invalid CI request id");
 
-  if (!cancel (error, warn, verb_ ? &trace : nullptr, reason, *build_db_, tid))
+  if (!cancel (error, warn, verb_ ? &trace : nullptr,
+               reason,
+               *build_db_, retry_,
+               tid))
     throw invalid_request (400, "unknown CI request id");
 
   // We have all the data, so don't buffer the response content.
