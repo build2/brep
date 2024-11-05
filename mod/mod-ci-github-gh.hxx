@@ -77,9 +77,9 @@ namespace brep
     gh_check_suite check_suite;
 
     explicit
-    gh_check_run (json::parser&);
+    gh_check_run_ex (json::parser&);
 
-    gh_check_run () = default;
+    gh_check_run_ex () = default;
   };
 
   struct gh_pull_request

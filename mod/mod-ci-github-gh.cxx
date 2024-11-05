@@ -156,15 +156,37 @@ namespace brep
 
   // gh_check_run
   //
-  // Note that this constructor parses both 1) webhook events/REST responses
-  // and 2) GraphQL responses. In the former case (in addition to expecting a
-  // few more fields to be present) the node id is in the `node_id` field
-  // whereas in the latter it is in the `id` field. However we use the GraphQL
-  // field alias feature to rename the `id` field to `node_id` so we only ever
-  // have to look for `node_id`.
-  //
   gh_check_run::
-  gh_check_run (json::parser& p, bool wor)
+  gh_check_run (json::parser& p)
+  {
+    p.next_expect (event::begin_object);
+
+    bool ni (false), nm (false), st (false);
+
+    // Skip unknown/uninteresting members.
+    //
+    while (p.next_expect (event::name, event::end_object))
+    {
+      auto c = [&p] (bool& v, const char* s)
+      {
+        return p.name () == s ? (v = true) : false;
+      };
+
+      if      (c (ni, "node_id")) node_id = p.next_expect_string ();
+      else if (c (nm, "name"))    name = p.next_expect_string ();
+      else if (c (st, "status"))  status = p.next_expect_string ();
+      else p.next_expect_value_skip ();
+    }
+
+    if (!ni) missing_member (p, "gh_check_run", "node_id");
+    if (!nm) missing_member (p, "gh_check_run", "name");
+    if (!st) missing_member (p, "gh_check_run", "status");
+  }
+
+  // gh_check_run_ex
+  //
+  gh_check_run_ex::
+  gh_check_run_ex (json::parser& p)
   {
     p.next_expect (event::begin_object);
 
@@ -190,13 +212,10 @@ namespace brep
     if (!ni) missing_member (p, "gh_check_run", "node_id");
     if (!nm) missing_member (p, "gh_check_run", "name");
     if (!st) missing_member (p, "gh_check_run", "status");
-
-    if (wor) // Parsing a webhook event or REST API response.
-    {
-      if (!du) missing_member (p, "gh_check_run", "details_url");
-      if (!cs) missing_member (p, "gh_check_run", "check_suite");
-    }
+    if (!du) missing_member (p, "gh_check_run", "details_url");
+    if (!cs) missing_member (p, "gh_check_run", "check_suite");
   }
+
 
   ostream&
   operator<< (ostream& os, const gh_check_run& cr)
@@ -205,8 +224,15 @@ namespace brep
        << ", name: " << cr.name
        << ", status: " << cr.status;
 
-    if (cr.check_suite)
-      os << ", check_suite: { " << *cr.check_suite << " }";
+    return os;
+  }
+
+  ostream&
+  operator<< (ostream& os, const gh_check_run_ex& cr)
+  {
+    os << static_cast<const gh_check_run&> (cr)
+       << ", details_url: " << cr.details_url
+       << ", check_suite: { " << cr.check_suite << " }";
 
     return os;
   }
@@ -457,7 +483,7 @@ namespace brep
       // expected to be present than in a GraphQL response).
       //
       if      (c (ac, "action"))       action = p.next_expect_string ();
-      else if (c (cs, "check_run"))    check_run = gh_check_run (p, true);
+      else if (c (cs, "check_run"))    check_run = gh_check_run_ex (p);
       else if (c (rp, "repository"))   repository = gh_repository (p);
       else if (c (in, "installation")) installation = gh_installation (p);
       else p.next_expect_value_skip ();
