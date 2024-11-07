@@ -621,7 +621,7 @@ namespace brep
   }
 
   bool ci_github::
-  handle_check_run_request (gh_check_run_event cr, bool warning_success)
+  handle_check_run_request (gh_check_run_event cr, bool /* warning_success */)
   {
     HANDLER_DIAG;
 

@@ -248,16 +248,27 @@ handle (request& rq, response&)
     }
     else if (authenticate_session (*options_, rqm.challenge, *b, rqm.session))
     {
+      // If the build is not in the `forcing` state, then retrieve the tenant
+      // service callback, if present, for subsequent notification (`queued`
+      // for the interrupted build and `built` otherwise; see below). Note
+      // that for the `forcing` state the service already assumes the `queued`
+      // state (see build_force::handle() and ci_start::rebuild() for
+      // details).
+      //
       const tenant_service_base* ts (nullptr);
+      shared_ptr<build_tenant> t;
 
-      shared_ptr<build_tenant> t (build_db_->load<build_tenant> (b->tenant));
-
-      if (t->service)
+      if (b->force != force_state::forcing)
       {
-        auto i (tenant_service_map_.find (t->service->type));
+        t = build_db_->load<build_tenant> (b->tenant);
 
-        if (i != tenant_service_map_.end ())
-          ts = i->second.get ();
+        if (t->service)
+        {
+          auto i (tenant_service_map_.find (t->service->type));
+
+          if (i != tenant_service_map_.end ())
+            ts = i->second.get ();
+        }
       }
 
       // If the build is interrupted, then revert it to the original built
@@ -348,6 +359,8 @@ handle (request& rq, response&)
         //
         if (tsq != nullptr)
         {
+          assert (t != nullptr);
+
           // Calculate the tenant service hints.
           //
           buildable_package_count tpc (
@@ -498,7 +511,11 @@ handle (request& rq, response&)
       // If required, stash the service notification information.
       //
       if (tsb != nullptr || tsq != nullptr)
+      {
+        assert (t != nullptr);
+
         tss = make_pair (move (*t->service), move (b));
+      }
     }
 
     t.commit ();
