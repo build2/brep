@@ -1917,6 +1917,8 @@ namespace brep
       // Only update the check_run state in service data if it matches the
       // state (specifically, status) on GitHub.
       //
+      // @@ TMP Shouldn't we update service data either way?
+      //
       if (cr.state_synced)
       {
         if (check_run* scr = sd.find_check_run (cr.build_id))
@@ -1937,19 +1939,38 @@ namespace brep
         }
         else
           sd.check_runs.push_back (cr);
-      }
 
-      if (completed)
-      {
-        // Note that this can be racy: while we calculated the completed value
-        // based on the snapshot of the service data, it could have been
-        // changed (e.g., by handle_check_run_request()). So we Re-calculate
-        // it based on the check run states and only update if matches.
-        // Otherwise, we log an error.
-        //
-        // @@@ TODO
+        if (completed)
+        {
+          // Note that this can be racy: while we calculated the completed
+          // value based on the snapshot of the service data, it could have
+          // been changed (e.g., by handle_check_run_rerequest()). So we
+          // Re-calculate it based on the check run states and only update if
+          // matches.  Otherwise, we log an error.
+          //
+          bool u (true); // True if completeness should be updated.
 
-        sd.completed = true;
+          for (const check_run& scr: sd.check_runs)
+          {
+            // Note: the CR has already been saved to the service data as
+            // built.
+            //
+            if (scr.state != build_state::built)
+            {
+              string sid (sd.repository_node_id + ':' + sd.report_sha);
+
+              error << "tenant_service id " << sid
+                    << ": out of order built notification service data update; "
+                    << "check suite is no longer complete";
+
+              u = false;
+              break;
+            }
+          }
+
+          if (u)
+            sd.completed = true;
+        }
       }
 
       return sd.json ();
