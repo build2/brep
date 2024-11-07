@@ -357,8 +357,18 @@ namespace brep
       {
         // Someone manually requested to re-run a specific check run.
         //
-        return handle_check_run_request (move (cr), warning_success);
+        return handle_check_run_rerequest (move (cr), warning_success);
       }
+#if 0
+      // It loos like we shouldn't be receiving these since we are not
+      // subscribed to them.
+      //
+      else if (cr.action == "created"   ||
+               cr.action == "completed" ||
+               cr.action == "requested_action")
+      {
+      }
+#endif
       else
       {
         // Ignore unknown actions by sending a 200 response with empty body
@@ -621,11 +631,36 @@ namespace brep
   }
 
   bool ci_github::
-  handle_check_run_request (gh_check_run_event cr, bool /* warning_success */)
+  handle_check_run_rerequest (gh_check_run_event cr, bool /* warning_success */)
   {
     HANDLER_DIAG;
 
     l3 ([&]{trace << "check_run event { " << cr << " }";});
+
+    // The overall plan is as follows:
+    //
+    // 1. Call the rebuild() function to attempt to schedule a rebuild. Pass
+    //    the update function that does the following (if called):
+    //
+    //    a. Update the check run being rebuilt (may also not exist).
+    //
+    //    b. Clear the completed flag if true.
+    //
+    //    c. "Return" the service data to be used after the call.
+    //
+    // 2. If the result of rebuild() indicates the tenant is archived, fail
+    //    the conclusion check run with appropriate diagnostics.
+    //
+    // 3. If original state is queued, then no rebuild was scheduled and we do
+    //    nothing.
+    //
+    // 4. Otherwise (the original state is building or built):
+    //
+    //    a. Change the check run state to queued.
+    //
+    //    b. Change the conclusion check run to building (do unconditionally
+    //       to mitigate races).
+    //
 
     return true;
   }
@@ -1905,7 +1940,17 @@ namespace brep
       }
 
       if (completed)
+      {
+        // Note that this can be racy: while we calculated the completed value
+        // based on the snapshot of the service data, it could have been
+        // changed (e.g., by handle_check_run_request()). So we Re-calculate
+        // it based on the check run states and only update if matches.
+        // Otherwise, we log an error.
+        //
+        // @@@ TODO
+
         sd.completed = true;
+      }
 
       return sd.json ();
     };
