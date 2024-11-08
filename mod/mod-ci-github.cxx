@@ -1980,6 +1980,8 @@ namespace brep
   string ci_github::
   details_url (const build& b) const
   {
+    // This code is based on build_force_url() in mod/build.cxx.
+    //
     return options_->host ()                                          +
       "/@" + b.tenant                                                 +
       "?builds=" + mime_url_encode (b.package_name.string ())         +
@@ -1987,7 +1989,8 @@ namespace brep
       "&tg=" + mime_url_encode (b.target.string ())                   +
       "&tc=" + mime_url_encode (b.target_config_name)                 +
       "&pc=" + mime_url_encode (b.package_config_name)                +
-      "&th=" + mime_url_encode (b.toolchain_version.string ());
+      "&th=" + mime_url_encode (b.toolchain_name)                     + '-' +
+                                b.toolchain_version.string ();
   }
 
   optional<string> ci_github::
