@@ -1731,7 +1731,11 @@ namespace brep
       //
       if (scr->state == build_state::queued)
       {
-        if (scr->node_id)
+        // An absent node id with a true state_synced flag is a signal from
+        // handle_check_run_rerequest() that we need to create a new check run
+        // here (see that function for details).
+        //
+        if (scr->node_id || scr->state_synced)
         {
           cr = move (*scr);
           cr->state_synced = false;
@@ -1777,26 +1781,48 @@ namespace brep
     //
     if (iat != nullptr)
     {
-      if (gq_update_check_run (error,
-                               *cr,
-                               iat->token,
-                               sd.repository_node_id,
-                               *cr->node_id,
-                               details_url (b),
-                               build_state::building))
+      // Update the check run if we have a node id, otherwise create a new
+      // one.
+      //
+      if (cr->node_id)
       {
-        // Do nothing further if the state was already built on GitHub (note
-        // that this is based on the above-mentioned special GitHub semantics
-        // of preventing changes to the built status).
-        //
-        if (cr->state == build_state::built)
+        if (gq_update_check_run (error,
+                                 *cr,
+                                 iat->token,
+                                 sd.repository_node_id,
+                                 *cr->node_id,
+                                 details_url (b),
+                                 build_state::building))
         {
-          warn << "check run " << bid << ": already in built state on GitHub";
-          return nullptr;
-        }
+          // Do nothing further if the state was already built on GitHub (note
+          // that this is based on the above-mentioned special GitHub
+          // semantics of preventing changes to the built status).
+          //
+          if (cr->state == build_state::built)
+          {
+            warn << "check run " << bid << ": already in built state on GitHub";
+            return nullptr;
+          }
 
-        assert (cr->state == build_state::building);
-        l3 ([&]{trace << "updated check_run { " << *cr << " }";});
+          assert (cr->state == build_state::building);
+          l3 ([&]{trace << "updated check_run { " << *cr << " }";});
+        }
+      }
+      else
+      {
+        // Create a new check run as requested by build_building() (see above).
+        //
+        if (gq_create_check_run (error,
+                                 *cr,
+                                 iat->token,
+                                 sd.repository_node_id,
+                                 sd.report_sha,
+                                 details_url (b),
+                                 build_state::building))
+        {
+          assert (cr->state == build_state::building);
+          l3 ([&]{trace << "created check_run { " << *cr << " }";});
+        }
       }
     }
 
