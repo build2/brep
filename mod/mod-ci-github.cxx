@@ -630,6 +630,13 @@ namespace brep
     return true;
   }
 
+  // Parse a check run details URL into a build_id.
+  //
+  // Return nullopt if the URL is invalid.
+  //
+  static optional<build_id>
+  parse_details_url (const string& details_url);
+
   bool ci_github::
   handle_check_run_rerequest (gh_check_run_event cr, bool /* warning_success */)
   {
@@ -661,6 +668,18 @@ namespace brep
     //    b. Change the conclusion check run to building (do unconditionally
     //       to mitigate races).
     //
+
+
+    // Parse the CR's details_url.
+    //
+    optional<build_id> bid (parse_details_url (cr.check_run.details_url));
+
+    // auto fn = [] (const tenant_service&,
+    //               build_state)> -> optional<string>
+    // {
+    // };
+
+    // optional<build_state> bs (rebuild (*build_db_, retry_, bid, fn));
 
     return true;
   }
@@ -1991,6 +2010,95 @@ namespace brep
       "&pc=" + mime_url_encode (b.package_config_name)                +
       "&th=" + mime_url_encode (b.toolchain_name)                     + '-' +
                                 b.toolchain_version.string ();
+  }
+
+  static optional<build_id>
+  parse_details_url (const string& details_url)
+  try
+  {
+    // See details_url() above for an idea of what the URL looks like.
+
+    url u (details_url);
+
+    if (!u.query || !u.path || u.path->size () <= 1)
+      return nullopt;
+
+    build_id r;
+
+    // Extract the tenant from the URL path.
+    //
+    // Example path: @d2586f57-21dc-40b7-beb2-6517ad7917dd
+    //
+    r.package.tenant = u.path->substr (1);
+
+    if (r.package.tenant.empty ())
+      return nullopt;
+
+    // Extract the rest of the build_id members from the URL query.
+    //
+    bool pn (false), pv (false), tg (false), tc (false), pc (false),
+      th (false);
+
+    // This URL query parsing code is based on
+    // web::apache::request::parse_url_parameters().
+    //
+    for (const char* qp (u.query->c_str ()); qp != nullptr; )
+    {
+      const char* vp (strchr (qp, '='));
+      const char* ep (strchr (qp, '&'));
+
+      if (vp == nullptr || (ep != nullptr && ep < vp))
+        return nullopt; // Missing value.
+
+      string n (mime_url_decode (qp, vp)); // Name.
+
+      ++vp; // Skip '='
+
+      const char* ve (ep ? ep : vp + strlen (vp)); // Value end pointer.
+
+      // Get the value as-is or URL-decode it.
+      //
+      auto getval = [vp, ve] () { return string (vp, ve); };
+      auto decval = [vp, ve] () { return mime_url_decode (vp, ve); };
+
+      auto make_version = [] (string&& v)
+      { return canonical_version (brep::version (move (v))); };
+
+      auto c = [&n] (bool& b, const char* s)
+      { return n == s ? (b = true) : false; };
+
+      if (c (pn, "builds"))  r.package.name        = package_name (decval ());
+      else if (c (pv, "pv")) r.package.version     = make_version (getval ());
+      else if (c (tg, "tg")) r.target              = target_triplet (decval ());
+      else if (c (tc, "tc")) r.target_config_name  = decval ();
+      else if (c (pc, "pc")) r.package_config_name = decval ();
+      else if (c (th, "th"))
+      {
+        // Toolchain name and version. E.g. "public-0.17.0"
+
+        string v (getval ());
+
+        // Note: parsing code based on mod/mod-builds.cxx.
+        //
+        size_t p (v.find_first_of ('-'));
+        if (p >= v.size () - 1)
+          return nullopt; // Invalid format.
+
+        r.toolchain_name    = v.substr (0, p);
+        r.toolchain_version = make_version (v.substr (p + 1));
+      }
+
+      qp = ep ? ep + 1 : nullptr;
+    }
+
+    if (!pn || !pv || !tg || !tc || !pc || !th)
+      return nullopt; // Fail if any query parameters are absent.
+
+    return r;
+  }
+  catch (const invalid_argument&)
+  {
+    return nullopt;
   }
 
   optional<string> ci_github::
