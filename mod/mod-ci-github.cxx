@@ -360,7 +360,7 @@ namespace brep
         return handle_check_run_rerequest (move (cr), warning_success);
       }
 #if 0
-      // It loos like we shouldn't be receiving these since we are not
+      // It looks like we shouldn't be receiving these since we are not
       // subscribed to them.
       //
       else if (cr.action == "created"   ||
