@@ -638,7 +638,8 @@ namespace brep
   parse_details_url (const string& details_url);
 
   bool ci_github::
-  handle_check_run_rerequest (gh_check_run_event cr, bool warning_success)
+  handle_check_run_rerequest (const gh_check_run_event& cr,
+                              bool warning_success)
   {
     HANDLER_DIAG;
 
@@ -648,6 +649,9 @@ namespace brep
     //
     if (cr.check_run.name == conclusion_check_run_name)
     {
+      // @@ Fail conclusion check run with appropriate message and reurn
+      //    true.
+
       l3 ([&]{trace << "ignoring conclusion check_run";});
 
       // 422 Unprocessable Content: The request was well-formed (i.e.,
@@ -681,12 +685,10 @@ namespace brep
     // Return the check run on success or nullopt on failure.
     //
     auto create_conclusion_cr =
-      [&rni = cr.repository.node_id,
-       &hs = cr.check_run.check_suite.head_sha,
-       &error, warning_success] (const gh_installation_access_token& iat,
-                                 build_state bs,
-                                 optional<result_status> rs = nullopt,
-                                 optional<string> msg = nullopt)
+      [&cr, &error, warning_success] (const gh_installation_access_token& iat,
+                                      build_state bs,
+                                      optional<result_status> rs = nullopt,
+                                      optional<string> msg = nullopt)
       -> optional<check_run>
     {
       optional<gq_built_result> br;
@@ -780,8 +782,7 @@ namespace brep
     auto update_sd = [&iat,
                       &cr_found,
                       &error,
-                      ni = cr.check_run.node_id] (const tenant_service& ts,
-                                                  build_state)
+                      &cr] (const tenant_service& ts, build_state)
       -> optional<string>
     {
       // NOTE: this lambda may be called repeatedly (e.g., due to transaction
@@ -804,9 +805,11 @@ namespace brep
       // If the re-requested check run is found, update it in the service
       // data.
       //
+      const string& nid (cr.check_run.node_id);
+
       for (check_run& cr: sd.check_runs)
       {
-        if (cr.node_id && *cr.node_id == ni)
+        if (cr.node_id && *cr.node_id == nid)
         {
           cr_found = true;
           cr.state = build_state::queued;
@@ -848,11 +851,6 @@ namespace brep
             "Unable to rebuild: tenant has been archived or no such build"))
       {
         l3 ([&]{trace << "created conclusion check_run { " << *ccr << " }";});
-
-        // Respond with an error otherwise GitHub will post a message in its
-        // GUI saying "you have successfully requested a rebuild of ...."
-        //
-        throw invalid_request (404);
       }
       else
       {
@@ -862,16 +860,12 @@ namespace brep
         fail << "check run " << cr.check_run.node_id
              << ": unable to create conclusion check run";
       }
-
-      return true;
     }
     else if (*bs == build_state::queued)
     {
       // The build was already queued so nothing to be done. This might happen
       // if the user clicked "re-run" multiple times before we managed to
       // update the check run.
-      //
-      return true;
     }
     else
     {
@@ -901,7 +895,7 @@ namespace brep
       }
 
       // Update (by replacing) the re-requested and conclusion check runs to
-      // building and queued.
+      // queued and building, respectively.
       //
       // If either fails we can only log the error but build_building() and/or
       // build_built() should correct the situation (see above for details).
@@ -942,9 +936,9 @@ namespace brep
         error << "check_run " << cr.check_run.node_id
               << ": unable to create (to update) conclusion check run";
       }
-
-      return true;
     }
+
+    return true;
   }
 
   // Miscellaneous pull request facts
@@ -1796,8 +1790,6 @@ namespace brep
       // Update the check run if we have a node id, otherwise create a new one
       // (as requested by handle_check_run_rerequest(); see above).
       //
-      bool updated (cr->node_id.has_value ());
-
       if (gq_update_or_create_check_run (error,
                                          *cr,
                                          iat->token,
@@ -1811,15 +1803,14 @@ namespace brep
         // that this is based on the above-mentioned special GitHub
         // semantics of preventing changes to the built status).
         //
-        if (updated && cr->state == build_state::built)
+        if (cr->state == build_state::built)
         {
           warn << "check run " << bid << ": already in built state on GitHub";
           return nullptr;
         }
 
         assert (cr->state == build_state::building);
-        l3 ([&]{trace << (updated ? "updated" : "created")
-                      << " check_run { " << *cr << " }";});
+        l3 ([&]{trace << "updated check_run { " << *cr << " }";});
       }
     }
 
@@ -1850,7 +1841,7 @@ namespace brep
       if (check_run* scr = sd.find_check_run (cr.build_id))
       {
         if (scr->state == build_state::queued)
-          *scr = cr;
+          *scr = cr; // Note: also update node_id if created above.
         else
         {
           warn << "check run " << cr.build_id << ": out of order building "
