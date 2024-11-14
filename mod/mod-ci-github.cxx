@@ -648,10 +648,12 @@ namespace brep
     //
     if (cr.check_run.name == conclusion_check_run_name)
     {
-      // @@ Let's fail it with appropriate diagnostics.
-
       l3 ([&]{trace << "ignoring conclusion check_run";});
-      return true;
+
+      // 422 Unprocessable Content: The request was well-formed (i.e.,
+      // syntactically correct) but could not be processed.
+      //
+      throw invalid_request (422, "Conclusion check run cannot be rebuilt");
     }
 
     // Get a new installation access token.
