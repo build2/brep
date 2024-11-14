@@ -644,10 +644,12 @@ namespace brep
 
     l3 ([&]{trace << "check_run event { " << cr << " }";});
 
-    // Bail out if this is the conclusion check run.
+    // Fail if this is the conclusion check run.
     //
     if (cr.check_run.name == conclusion_check_run_name)
     {
+      // @@ Let's fail it with appropriate diagnostics.
+
       l3 ([&]{trace << "ignoring conclusion check_run";});
       return true;
     }
@@ -672,6 +674,8 @@ namespace brep
       return iat;
     };
 
+    // @@ Change to only handle conclusion, copy for cr inline.
+    //
     // Create a new check run, replacing any existing ones with the same name.
     //
     // Return the check run on success or nullopt on failure.
@@ -748,19 +752,24 @@ namespace brep
     // This results in a new node id for each check run but we can't save them
     // to the service data after the rebuild() call. As a workaround, when
     // updating the service data we 1) clear the re-requested check run's node
-    // id and set the state_synced flag true to signal to build_building()
-    // that it needs to create another new check run; and 2) clear the
-    // conclusion check run's node id to induce build_built() to create
-    // another new conclusion check run. And these two check runs' node ids
-    // will be saved to the service data.
+    // id and set the state_synced flag to true to signal to build_building()
+    // and build_built() that it needs to create a new check run; and 2) clear
+    // the conclusion check run's node id to cause build_built() to create a
+    // new conclusion check run. And these two check runs' node ids will be
+    // saved to the service data.
 
-    // Parse the check_run's details_url into a build_id.
+    // Parse the check_run's details_url to extract build id.
+    //
+    // While this is a bit hackish, there doesn't seem to be a better way
+    // (like associating custom data with a check run). Note that the GitHub
+    // UI only allows rebuilding completed check runs, so the details URL
+    // should be there.
     //
     optional<build_id> bid (parse_details_url (cr.check_run.details_url));
     if (!bid)
     {
       fail << "check run " << cr.check_run.node_id
-           << ": failed to parse details_url";
+           << ": failed to extract build id from details_url";
     }
 
     // The IAT retrieved from the service data.
@@ -771,7 +780,8 @@ namespace brep
     //
     bool cr_found (false);
 
-    // Update the service data and retrieve the IAT from it.
+    // Update the state of the check run in the service data. Return (via
+    // captured references) the IAT and whether the check run was found.
     //
     // Called by rebuild(), but only if the build is actually restarted.
     //
@@ -782,6 +792,9 @@ namespace brep
                                                   build_state)
       -> optional<string>
     {
+      // NOTE: this lambda may be called repeatedly (e.g., due to transaction
+      // being aborted) and so should not move out of its captures.
+
       service_data sd;
       try
       {
@@ -796,7 +809,7 @@ namespace brep
       if (!iat)
         iat = sd.installation_access;
 
-      // If the re-requested check run is found, update it and the service
+      // If the re-requested check run is found, update it in the service
       // data.
       //
       for (check_run& cr: sd.check_runs)
@@ -809,7 +822,7 @@ namespace brep
 
           // Clear the check run node ids and set state_synced to true to
           // cause build_building() and/or build_built() to create new check
-          // runs (see above for details).
+          // runs (see the plan above for details).
           //
           cr.node_id = nullopt;
           cr.state_synced = true;
@@ -2145,7 +2158,7 @@ namespace brep
         //
         if (conclusion)
         {
-          assert (sd.conclusion_node_id);
+          assert (sd.conclusion_node_id); // @@ TODO: no longer the case.
 
           result_status rs (*conclusion);
 
@@ -2161,6 +2174,8 @@ namespace brep
           cr.node_id = *sd.conclusion_node_id;
           cr.name = conclusion_check_run_name;
 
+          // @@ Let's create gq_create_or_update_check_run() wrapper.
+          //
           if (gq_update_check_run (error,
                                    cr,
                                    iat->token,
@@ -2213,8 +2228,6 @@ namespace brep
       // Only update the check_run state in service data if it matches the
       // state (specifically, status) on GitHub.
       //
-      // @@ TMP Shouldn't we update service data either way?
-      //
       if (cr.state_synced)
       {
         if (check_run* scr = sd.find_check_run (cr.build_id))
@@ -2236,21 +2249,16 @@ namespace brep
         else
           sd.check_runs.push_back (cr);
 
-        if (completed)
+        if (bool c = completed)
         {
           // Note that this can be racy: while we calculated the completed
           // value based on the snapshot of the service data, it could have
           // been changed (e.g., by handle_check_run_rerequest()). So we
-          // Re-calculate it based on the check run states and only update if
-          // matches.  Otherwise, we log an error.
+          // re-calculate it based on the check run states and only update if
+          // it matches. Otherwise, we log an error.
           //
-          bool u (true); // True if completeness should be updated.
-
           for (const check_run& scr: sd.check_runs)
           {
-            // Note: the CR has already been saved to the service data as
-            // built.
-            //
             if (scr.state != build_state::built)
             {
               string sid (sd.repository_node_id + ':' + sd.report_sha);
@@ -2259,12 +2267,12 @@ namespace brep
                     << ": out of order built notification service data update; "
                     << "check suite is no longer complete";
 
-              u = false;
+              c = false;
               break;
             }
           }
 
-          if (u)
+          if (c)
             sd.completed = true;
         }
       }
