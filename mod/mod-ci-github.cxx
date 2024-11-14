@@ -676,45 +676,35 @@ namespace brep
       return iat;
     };
 
-    // @@ Change to only handle conclusion, copy for cr inline.
-    //
-    // Create a new check run, replacing any existing ones with the same name.
+    // Create a new conclusion check run, replacing the existing one.
     //
     // Return the check run on success or nullopt on failure.
     //
-    auto create_cr = [&cr,
-                      &error,
-                      warning_success] (const gh_installation_access_token& iat,
-                                        string name,
-                                        build_state bs,
-                                        optional<result_status> rs = nullopt,
-                                        optional<string> msg = nullopt)
+    auto create_conclusion_cr =
+      [&rni = cr.repository.node_id,
+       &hs = cr.check_run.check_suite.head_sha,
+       &error, warning_success] (const gh_installation_access_token& iat,
+                                 build_state bs,
+                                 optional<result_status> rs = nullopt,
+                                 optional<string> msg = nullopt)
       -> optional<check_run>
     {
       optional<gq_built_result> br;
       if (rs)
       {
+        assert (msg);
+
         br = gq_built_result (gh_to_conclusion (*rs, warning_success),
                               circle (*rs) + ' ' + ucase (to_string (*rs)),
                               move (*msg));
       }
 
-      // Use the received details_url if the passed name matches that of the
-      // received check_run.
-      //
-      optional<string> du; // details_url
-      if (name == cr.check_run.name)
-        du = cr.check_run.details_url;
-
       check_run r;
-      r.name = move (name);
+      r.name = conclusion_check_run_name;
 
-      if (gq_create_check_run (error,
-                               r,
-                               iat.token,
-                               cr.repository.node_id,
-                               cr.check_run.check_suite.head_sha,
-                               du,
+      if (gq_create_check_run (error, r, iat.token,
+                               rni, hs,
+                               nullopt /* details_url */,
                                bs, move (br)))
       {
         return r;
@@ -851,9 +841,8 @@ namespace brep
       if (!iat)
         throw server_error ();
 
-      if (optional<check_run> ccr = create_cr (
+      if (optional<check_run> ccr = create_conclusion_cr (
             *iat,
-            conclusion_check_run_name,
             build_state::built,
             result_status::error,
             "Unable to rebuild: tenant has been archived or no such build"))
@@ -920,23 +909,31 @@ namespace brep
 
       // Update re-requested check run.
       //
-      if (optional<check_run> rcr = create_cr (*iat,
-                                               cr.check_run.name,
-                                               build_state::queued))
       {
-        l3 ([&]{trace << "created check_run { " << *rcr << " }";});
-      }
-      else
-      {
-        error << "check_run " << cr.check_run.node_id
-              << ": unable to create (to update) check run in queued state";
+        check_run ncr; // New check run.
+        ncr.name = cr.check_run.name;
+
+        if (gq_create_check_run (error,
+                                 ncr,
+                                 iat->token,
+                                 cr.repository.node_id,
+                                 cr.check_run.check_suite.head_sha,
+                                 cr.check_run.details_url,
+                                 build_state::queued))
+        {
+          l3 ([&]{trace << "created check_run { " << ncr << " }";});
+        }
+        else
+        {
+          error << "check_run " << cr.check_run.node_id
+                << ": unable to create (to update) check run in queued state";
+        }
       }
 
       // Update conclusion check run.
       //
-      if (optional<check_run> ccr = create_cr (*iat,
-                                               conclusion_check_run_name,
-                                               build_state::building))
+      if (optional<check_run> ccr =
+            create_conclusion_cr (*iat, build_state::building))
       {
         l3 ([&]{trace << "created conclusion check_run { " << *ccr << " }";});
       }
