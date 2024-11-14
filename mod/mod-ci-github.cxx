@@ -1982,6 +1982,10 @@ namespace brep
 
     bool completed (false);
 
+    // Absent unless we create a new conclusion check run.
+    //
+    optional<string> new_conclusion_node_id;
+
     // Note: we treat the failure to obtain the installation access token the
     // same as the failure to notify GitHub (state is updated but not marked
     // synced).
@@ -2090,13 +2094,14 @@ namespace brep
         circle (*b.status) + ' ' + ucase (to_string (*b.status)),
         move (sm));
 
-      // Update existing or create new check run if cr.node_id is absent.
+      // Update the check run or create a new one if the node id is absent.
       //
-      // Note that we don't have build hints so will be creating this check
-      // run with the full build id as name. In the unlikely event that an out
-      // of order build_queued() were to run before we've saved this check run
-      // to the service data it will create another check run with the
-      // shortened name which will never get to the built state.
+      // Note that in the creation case we don't have build hints so will be
+      // creating this check run with the full build id as name. In the
+      // unlikely event that an out of order build_queued() were to run before
+      // we've saved this check run to the service data it will create another
+      // check run with the shortened name which will never get to the built
+      // state.
       //
       bool updated (cr.node_id.has_value ());
 
@@ -2123,12 +2128,15 @@ namespace brep
         //
         cr.status = b.status;
 
-        // Update the conclusion check run if all check runs are now built.
+        // Update conclusion check run if all check runs are now built.
+        //
+        // The conclusion check run node id being absent from the service data
+        // is a signal from handle_check_run_rerequest() that we need to
+        // create a new conclusion check run instead (see that function for
+        // details).
         //
         if (conclusion)
         {
-          assert (sd.conclusion_node_id); // @@ TODO: no longer the case.
-
           result_status rs (*conclusion);
 
           optional<gq_built_result> br (
@@ -2137,33 +2145,40 @@ namespace brep
                              "All configurations are built"));
 
           check_run cr;
+          cr.name = conclusion_check_run_name; // For display purposes.
 
-          // Set some fields for display purposes.
-          //
-          cr.node_id = *sd.conclusion_node_id;
-          cr.name = conclusion_check_run_name;
+          bool updated (sd.conclusion_node_id.has_value ());
 
-          // @@ Let's create gq_create_or_update_check_run() wrapper.
-          //
-          if (gq_update_check_run (error,
-                                   cr,
-                                   iat->token,
-                                   sd.repository_node_id,
-                                   *sd.conclusion_node_id,
-                                   nullopt /* details_url */,
-                                   build_state::built,
-                                   move (br)))
+          if (gq_update_or_create_check_run (error,
+                                             cr,
+                                             iat->token,
+                                             sd.repository_node_id,
+                                             sd.conclusion_node_id,
+                                             sd.report_sha,
+                                             nullopt /* details_url */,
+                                             build_state::built,
+                                             move (br)))
           {
             assert (cr.state == build_state::built);
-            l3 ([&]{trace << "updated conclusion check_run { " << cr << " }";});
+
+            if (updated)
+              l3 ([&]{trace << "updated conclusion check_run { " << cr << " }";});
+            else
+            {
+              l3 ([&]{trace << "created conclusion check_run { " << cr << " }";});
+
+              new_conclusion_node_id = move (cr.node_id);
+            }
           }
           else
           {
             // Nothing we can do here except log the error.
             //
             error << "tenant_service id " << ts.id
-                  << ": unable to update conclusion check run "
-                  << *sd.conclusion_node_id;
+                  << ": unable to update/create conclusion check run";
+
+            if (updated)
+              error << " (node id: " << *sd.conclusion_node_id << ")";
           }
 
           completed = true;
@@ -2174,6 +2189,7 @@ namespace brep
     return [iat = move (new_iat),
             cr = move (cr),
             completed = completed,
+            ccr_ni = move (new_conclusion_node_id),
             error = move (error),
             warn = move (warn)] (const tenant_service& ts) -> optional<string>
     {
@@ -2193,6 +2209,9 @@ namespace brep
 
       if (iat)
         sd.installation_access = *iat;
+
+      if (ccr_ni)
+        sd.conclusion_node_id = *ccr_ni;
 
       // Only update the check_run state in service data if it matches the
       // state (specifically, status) on GitHub.
