@@ -988,7 +988,7 @@ namespace brep
     return s;
   }
 
-  optional<tenant_service> ci_start::
+  optional<pair<tenant_service, bool>> ci_start::
   find (odb::core::database& db,
         const string& type,
         const string& id) const
@@ -1007,10 +1007,9 @@ namespace brep
 
     tr.commit ();
 
-    optional<tenant_service> r;
-    if (t != nullptr)
-      r = move (t->service);
+    if (t == nullptr)
+      return nullopt;
 
-    return r;
+    return pair<tenant_service, bool> (move (t->service), t->archived);
   }
 }
