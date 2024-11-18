@@ -541,11 +541,14 @@ namespace brep
     {
       kind = service_data::remote;
 
-      if (optional<tenant_service> ts = find (*build_db_, "ci-github", sid))
+      if (optional<pair<tenant_service, bool>> p =
+            find (*build_db_, "ci-github", sid))
       {
+        tenant_service& ts (p->first);
+
         try
         {
-          service_data sd (*ts->data);
+          service_data sd (*ts.data);
           check_sha = move (sd.check_sha); // Test merge commit.
         }
         catch (const invalid_argument& e)

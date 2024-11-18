@@ -1007,9 +1007,9 @@ namespace brep
 
     tr.commit ();
 
-    if (t == nullptr)
+    if (t == nullptr || !t->service)
       return nullopt;
 
-    return pair<tenant_service, bool> (move (t->service), t->archived);
+    return pair<tenant_service, bool> (move (*t->service), t->archived);
   }
 }

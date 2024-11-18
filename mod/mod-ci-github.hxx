@@ -89,7 +89,7 @@ namespace brep
     // and to FAILURE otherwise.
     //
     bool
-    handle_check_run_rerequest (gh_check_run_event, bool warning_success);
+    handle_check_run_rerequest (const gh_check_run_event&, bool warning_success);
 
     // Handle the pull_request event `opened` and `synchronize` actions.
     //
