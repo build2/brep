@@ -573,23 +573,6 @@ namespace brep
     return r;
   }
 
-  bool
-  gq_update_or_create_check_run (const basic_mark& error,
-                                 check_run& cr,
-                                 const string& iat,
-                                 const string& rid,
-                                 const optional<string>& nid,
-                                 const string& hs,
-                                 const optional<string>& du,
-                                 build_state st,
-                                 optional<gq_built_result> br)
-  {
-    if (nid)
-      return gq_update_check_run (error, cr, iat, rid, *nid, du, st, br);
-    else
-      return gq_create_check_run (error, cr, iat, rid, hs, du, st, br);
-  }
-
   // Serialize a GraphQL query that fetches a pull request from GitHub.
   //
   static string

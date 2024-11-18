@@ -637,6 +637,54 @@ namespace brep
   static optional<build_id>
   parse_details_url (const string& details_url);
 
+
+  bool ci_github::
+  handle_check_run_rerequest (const gh_check_run_event& cr,
+                              bool warning_success)
+  {
+    // The overall plan is as follows:
+    //
+    // 1. Load service data.
+    //
+    // 2. If the tenant is archived, then fail (re-create) conclusion with
+    //    appropriate diagnostics.
+    //
+    // 3. If the check run is in the queued state, then do nothing.
+    //
+    // 4. Re-create the check run in the queued state.
+    //
+    // 5. Re-create the check run in the queued state and the conclusion in
+    //    the building state. Note: do in a single request to make sure we
+    //    either "win" or "loose" the potential race for both (important
+    //    for #8).
+    //
+    // 6. Call the rebuild() function to attempt to schedule a rebuild. Pass
+    //    the update function that does the following (if called):
+    //
+    //    a. Save new node ids.
+    //
+    //    b. Update the check run state (may also not exist).
+    //
+    //    c. Clear the completed flag if true.
+    //
+    //    d. "Return" the service data to be used after the call.
+    //
+    // 7. If the result of rebuild() indicates the tenant is archived, then
+    //    fail (update) the conclusion check run with appropriate diagnostics.
+    //
+    // 8. If original state is queued (no rebuild was scheduled), then fail
+    //    (update) both the check run and the conclusion.
+    //
+    // Note that while conceptually we are updating existing check runs, in
+    // practice we have to re-create as new check runs in order to replace the
+    // existing ones because GitHub does not allow transitioning out of the
+    // built state.
+    //
+  }
+
+  // @@ TMP
+  //
+#if 0
   bool ci_github::
   handle_check_run_rerequest (const gh_check_run_event& cr,
                               bool warning_success)
@@ -940,6 +988,7 @@ namespace brep
 
     return true;
   }
+#endif
 
   // Miscellaneous pull request facts
   //

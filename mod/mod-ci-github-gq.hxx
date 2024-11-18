@@ -92,24 +92,6 @@ namespace brep
                        build_state,
                        optional<gq_built_result> = nullopt);
 
-  // Update a check run on GitHub if node_id is present, otherwise create a
-  // new check run associated with head_sha. In the latter case, the new
-  // node_id is set in the passed check_run object.
-  //
-  // This is a wrapper of gq_update_check_run() and gq_create_check_run() for
-  // convenience.
-  //
-  bool
-  gq_update_or_create_check_run (const basic_mark& error,
-                                 check_run& cr,
-                                 const string& installation_access_token,
-                                 const string& repository_id,
-                                 const optional<string>& node_id,
-                                 const string& head_sha,
-                                 const optional<string>& details_url,
-                                 build_state,
-                                 optional<gq_built_result> = nullopt);
-
   // Fetch pre-check information for a pull request from GitHub. This
   // information is used to decide whether or not to CI the PR and is
   // comprised of the PR's head commit SHA, whether its head branch is behind
