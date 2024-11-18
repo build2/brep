@@ -618,9 +618,24 @@ for i in {1..11}; do
 
     check_connectivity "$control" "$git_timeout" ""
 
-    if ! run_silent git "${git_http_timeout[@]}" clone $gqo $gvo --depth 1 \
---single-branch --branch "build2-control" "$control" "$ctl_dir" >&2; then
-      exit_with_manifest 422 "failed to git-clone $control"
+    cmd=(git "${git_http_timeout[@]}" clone $gqo $gvo --depth 1 \
+--single-branch --branch "build2-control" "$control" "$ctl_dir")
+
+    trace_cmd "${cmd[@]}"
+
+    # Let's add the git-clone error message to the response, turning it into
+    # an info. This way the user may potentially see the following
+    # bdep-publish diagnostics:
+    #
+    # error: failed to git-clone build2-control branch of https://example.com/foo/bar
+    #   info: Could not find remote branch build2-control to clone.
+    #   info: Remote branch build2-control not found in upstream origin
+    #   info: reference: 8589b4484f36
+    #
+    if ! e="$("${cmd[@]}" 2>&1)"; then
+      e="$(sed -E -e 's/^(error|fatal|warning):/  info:/' <<<"$e")"
+      e="failed to git-clone build2-control branch of $control"$'\n'"$e"
+      exit_with_manifest 422 "$e"
     fi
 
     if [ ! -f "$ctl_dir/submit/${sha256sum:0:16}" ]; then
