@@ -236,11 +236,12 @@ namespace brep
                                         build_state)> = nullptr) const;
 
     // Find the tenant given the tenant service type and id and return the
-    // associated data or nullopt if there is no such tenant.
+    // associated data plus the indication of whether the tenant is archived,
+    // or nullopt if there is no such tenant.
     //
     // Note: should be called out of the database transaction.
     //
-    optional<tenant_service>
+    optional<pair<tenant_service, bool /*archived*/>>
     find (odb::core::database&,
           const string& type,
           const string& id) const;
