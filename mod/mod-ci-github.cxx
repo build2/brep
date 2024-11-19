@@ -1693,8 +1693,7 @@ namespace brep
       if (gq_create_check_runs (error,
                                 crs,
                                 iat->token,
-                                sd.repository_node_id, sd.report_sha,
-                                build_state::queued))
+                                sd.repository_node_id, sd.report_sha))
       {
         for (const check_run& cr: crs)
         {
