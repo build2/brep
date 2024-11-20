@@ -1066,7 +1066,7 @@ pkg_ctl="$prj_ctl/hello.git"
       status: 422
       message:
       \\
-      failed to git-clone http://example.com/path/rep.git
+      failed to git-clone build2-control branch of http://example.com/path/rep.git
         info: repository 'http://example.com/path/rep.git/' not found
       \\
       reference: $checksum
