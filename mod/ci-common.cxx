@@ -553,7 +553,11 @@ namespace brep
     assert (!transaction::has_current ());
 
     build_tenant t;
+
+    // Set the reference count to 1 for the `created` result.
+    //
     duplicate_tenant_result r (duplicate_tenant_result::created);
+    service.ref_count = 1;
 
     for (string request_id;;)
     {
@@ -584,13 +588,30 @@ namespace brep
                       : duplicate_tenant_mode::ignore);
             }
 
+            // Shouldn't be here otherwise.
+            //
+            assert (t->service);
+
             // Bail out in the ignore mode and cancel the tenant in the
             // replace mode.
             //
             if (mode == duplicate_tenant_mode::ignore)
+            {
+              // Increment the reference count for the `ignored` result.
+              //
+              ++(t->service->ref_count);
+
+              db.update (t);
+              tr.commit ();
+
               return make_pair (move (t->id), duplicate_tenant_result::ignored);
+            }
 
             assert (mode == duplicate_tenant_mode::replace);
+
+            // Preserve the current reference count for the `replaced` result.
+            //
+            service.ref_count = t->service->ref_count;
 
             if (t->unloaded_timestamp)
             {
@@ -678,6 +699,7 @@ namespace brep
         //
         request_id = move (t.id);
         service = move (*t.service);
+        service.ref_count = 1;
         r = duplicate_tenant_result::created;
       }
     }
@@ -788,7 +810,8 @@ namespace brep
           odb::core::database& db,
           size_t retry,
           const string& type,
-          const string& id) const
+          const string& id,
+          bool ref_count) const
   {
     using namespace odb::core;
 
@@ -810,24 +833,43 @@ namespace brep
         if (t == nullptr)
           return nullopt;
 
-        r = move (t->service);
+        // Shouldn't be here otherwise.
+        //
+        assert (t->service && t->service->ref_count != 0);
 
-        if (t->unloaded_timestamp)
+        bool cancel (!ref_count || --(t->service->ref_count) == 0);
+
+        if (cancel)
         {
-          db.erase (t);
+          // Move out the service state before it is dropped from the tenant.
+          //
+          r = move (t->service);
+
+          if (t->unloaded_timestamp)
+          {
+            db.erase (t);
+          }
+          else
+          {
+            t->service = nullopt;
+            t->archived = true;
+            db.update (t);
+          }
+
+          if (trace != nullptr)
+            *trace << "CI request " << t->id << " for service " << id << ' '
+                   << type << " is canceled";
         }
         else
         {
-          t->service = nullopt;
-          t->archived = true;
-          db.update (t);
+          db.update (t); // Update the service reference count.
+
+          // Move out the service state after the tenant is updated.
+          //
+          r = move (t->service);
         }
 
         tr.commit ();
-
-        if (trace != nullptr)
-          *trace << "CI request " << t->id << " for service " << id << ' '
-                 << type << " is canceled";
 
         // Bail out if we have successfully updated or erased the tenant
         // object.

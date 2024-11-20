@@ -543,17 +543,22 @@ namespace brep
   //
   // Note that the {id, type} pair must be unique.
   //
+  // The reference count is used to keep track of the number of attempts to
+  // create a duplicate tenant with this {id, type} (see ci_start::create()
+  // for details).
+  //
   #pragma db value
   struct tenant_service
   {
     string id;
     string type;
+    uint64_t ref_count;
     optional<string> data;
 
     tenant_service () = default;
 
     tenant_service (string i, string t, optional<string> d = nullopt)
-        : id (move (i)), type (move (t)), data (move (d)) {}
+        : id (move (i)), type (move (t)), ref_count (1), data (move (d)) {}
   };
 
   // Version comparison operators.

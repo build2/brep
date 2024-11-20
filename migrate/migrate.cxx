@@ -208,7 +208,6 @@ create (database& db, bool extra_only) const
 
 // Register the data migration functions for the package database schema.
 //
-#if 0
 template <schema_version v>
 using package_migration_entry_base =
   data_migration_entry<v, LIBBREP_PACKAGE_SCHEMA_VERSION_BASE>;
@@ -220,11 +219,14 @@ struct package_migration_entry: package_migration_entry_base<v>
       : package_migration_entry_base<v> (f, "package") {}
 };
 
-static const package_migration_entry<26>
-package_migrate_v26 ([] (database& db)
+static const package_migration_entry<36>
+package_migrate_v36 ([] (database& db)
 {
+  // Set the reference count to 1 for tenant associated services.
+  //
+  db.execute ("UPDATE tenant SET service_ref_count = 1 "
+              "WHERE service_id IS NOT NULL");
 });
-#endif
 
 // Register the data migration functions for the build database schema.
 //
