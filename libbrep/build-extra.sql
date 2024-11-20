@@ -50,6 +50,7 @@ CREATE FOREIGN TABLE build_tenant (
   archived BOOLEAN NOT NULL,
   service_id TEXT NULL,
   service_type TEXT NULL,
+  service_ref_count BIGINT NULL,
   service_data TEXT NULL,
   unloaded_timestamp BIGINT NULL,
   unloaded_notify_interval BIGINT NULL,
