@@ -839,7 +839,7 @@ namespace brep
 
     if (system_clock::now () > sd.installation_access.expires_at)
     {
-      if (new_iat = get_iat ())
+      if ((new_iat = get_iat ()))
         iat = &*new_iat;
       else
         throw server_error ();

@@ -103,6 +103,10 @@ namespace brep
     // Finally note that only duplicate_tenant_mode::fail can be used if the
     // service id is empty.
     //
+    // The tenant reference count is set to 1 if the result is `created`,
+    // incremented if the result is `ignored`, and preserved if the result is
+    // `replaced`.
+    //
     // Repeat the attempts on the recoverable database failures (deadlocks,
     // etc) and throw runtime_error if no more retries left.
     //
@@ -150,6 +154,11 @@ namespace brep
     // dropped. Note that the latter allow using unloaded tenants as a
     // relatively cheap asynchronous execution mechanism.
     //
+    // If ref_count is true, then decrement the tenant reference count and
+    // only cancel the CI request if it becomes 0. In this mode the caller can
+    // determine if the request was actually canceled by checking if the
+    // reference count in the returned service state is 0.
+    //
     // Repeat the attempts on the recoverable database failures (deadlocks,
     // etc) and throw runtime_error if no more retries left.
     //
@@ -162,7 +171,8 @@ namespace brep
             odb::core::database&,
             size_t retry,
             const string& type,
-            const string& id) const;
+            const string& id,
+            bool ref_count = false) const;
 
     // Cancel previously created or started CI request. Return false if there
     // is no tenant for the specified tenant id. Note that the reason argument
