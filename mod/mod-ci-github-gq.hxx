@@ -66,11 +66,8 @@ namespace brep
                        build_state,
                        optional<gq_built_result> = nullopt);
 
-  // Update a check run on GitHub.
-  //
-  // Send a GraphQL request that updates an existing check run. Update `cr`
-  // with the new data (state and state_synced). Return false and issue
-  // diagnostics if the request failed.
+  // Update a check run on GitHub. Update `cr` with the new data (state and
+  // state_synced). Return false and issue diagnostics if the request failed.
   //
   // Note that GitHub allows any state transitions except from built (but
   // built to built is allowed). The latter case is signalled by setting the

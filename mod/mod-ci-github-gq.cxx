@@ -219,9 +219,11 @@ namespace brep
     return r;
   }
 
-  // Send a GraphQL mutation request `rq` that operates on one or more check
-  // runs. Update the check runs in `crs` with the new state and the node ID
-  // if unset. Return false and issue diagnostics if the request failed.
+  // Send a GraphQL mutation request `rq` that creates or updates one or more
+  // check runs. The requested build state is taken from each check_run
+  // object. Update the check runs in `crs` with the new data (state, node ID
+  // if unset, and state_synced). Return false and issue diagnostics if the
+  // request failed.
   //
   static bool
   gq_mutate_check_runs (const basic_mark& error,
@@ -297,7 +299,7 @@ namespace brep
           error << "unexpected number of check_run objects in response";
       }
       else
-        error << "failed to update check run: error HTTP response status "
+        error << "failed to mutate check runs: error HTTP response status "
               << sc;
     }
     catch (const json::invalid_json_input& e)
@@ -350,7 +352,7 @@ namespace brep
 
   // Serialize `createCheckRun` mutations for one or more builds to GraphQL.
   //
-  // The conclusion argument (`co`) is required if the build_state is built
+  // The build result argument (`br`) is required if the build_state is built
   // because GitHub does not allow a check run status of completed without a
   // conclusion.
   //
