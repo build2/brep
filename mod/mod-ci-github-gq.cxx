@@ -352,7 +352,8 @@ namespace brep
 
   // Serialize `createCheckRun` mutations for one or more builds to GraphQL.
   //
-  // The check run build states are taken from each object in `crs`.
+  // The check run parameters (names, build states, details_urls, etc.) are
+  // taken from each object in `crs`.
   //
   // Note that build results are not supported because we never create
   // multiple check runs in the built state.
@@ -363,13 +364,8 @@ namespace brep
   static string
   gq_mutation_create_check_runs (const string& ri,           // Repository ID
                                  const string& hs,           // Head SHA
-                                 const optional<string>& du, // Details URL.
                                  const vector<check_run>& crs)
   {
-    // Ensure details URL is non-empty if present.
-    //
-    assert (!du || !du->empty ());
-
     ostringstream os;
 
     os << "mutation {"                                              << '\n';
@@ -378,19 +374,25 @@ namespace brep
     //
     for (size_t i (0); i != crs.size (); ++i)
     {
-      assert (crs[i].state != build_state::built); // Not supported.
+      const check_run& cr (crs[i]);
+
+      assert (cr.state != build_state::built); // Not supported.
+
+      // Ensure details URL is non-empty if present.
+      //
+      assert (!cr.details_url || !cr.details_url->empty ());
 
       string al ("cr" + to_string (i)); // Field alias.
 
       os << gq_name (al) << ":createCheckRun(input: {"              << '\n'
-         << "  name: "         << gq_str (crs[i].name)              << '\n'
+         << "  name: "         << gq_str (cr.name)                  << '\n'
          << "  repositoryId: " << gq_str (ri)                       << '\n'
          << "  headSha: "      << gq_str (hs)                       << '\n'
-         << "  status: "       << gq_enum (gh_to_status (crs[i].state));
-      if (du)
+         << "  status: "       << gq_enum (gh_to_status (cr.state));
+      if (cr.details_url)
       {
         os                                                          << '\n';
-        os << "  detailsUrl: " << gq_str (*du);
+        os << "  detailsUrl: " << gq_str (*cr.details_url);
       }
       os << "})"                                                    << '\n'
         // Specify the selection set (fields to be returned). Note that we
@@ -553,8 +555,8 @@ namespace brep
 
     // Empty details URL because it's not available until building.
     //
-    string rq (gq_serialize_request (
-      gq_mutation_create_check_runs (rid, hs, nullopt, crs)));
+    string rq (
+      gq_serialize_request (gq_mutation_create_check_runs (rid, hs, crs)));
 
     return gq_mutate_check_runs (error, crs, iat, move (rq));
   }
