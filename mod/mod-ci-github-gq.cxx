@@ -553,8 +553,6 @@ namespace brep
       assert (cr.state != build_state::built);
 #endif
 
-    // Empty details URL because it's not available until building.
-    //
     string rq (
       gq_serialize_request (gq_mutation_create_check_runs (rid, hs, crs)));
 

@@ -19,13 +19,10 @@ namespace brep
   // GraphQL functions (all start with gq_).
   //
 
-  // Create a new check run on GitHub for each build with the build state
-  // taken from each check_run object. Update `check_runs` with the new data
-  // (node id and state_synced). Return false and issue diagnostics if the
-  // request failed.
-  //
-  // Note: no details_url yet since there will be no entry in the build result
-  // search page until the task starts building.
+  // Create a new check run on GitHub for each build with the build state,
+  // name, and details_url taken from each check_run object. Update
+  // `check_runs` with the new data (node id and state_synced). Return false
+  // and issue diagnostics if the request failed.
   //
   // Note that creating a check_run named `foo` will effectively replace any
   // existing check_runs with that name. They will still exist on the GitHub
