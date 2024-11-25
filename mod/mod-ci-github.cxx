@@ -635,8 +635,6 @@ namespace brep
 
   // Create a gq_built_result.
   //
-  // @@ TODO Use everywhere.
-  //
   static gq_built_result
   make_built_result (result_status rs, bool warning_success, string message)
   {
@@ -1148,9 +1146,7 @@ namespace brep
       {
         assert (msg);
 
-        br = gq_built_result (gh_to_conclusion (*rs, warning_success),
-                              circle (*rs) + ' ' + ucase (to_string (*rs)),
-                              move (*msg));
+        br = make_built_result (*rs, warning_success, move (*msg));
       }
 
       check_run r;
@@ -1776,10 +1772,8 @@ namespace brep
     {
       assert (!node_id.empty ());
 
-      optional<gq_built_result> br (
-        gq_built_result (gh_to_conclusion (rs, sd.warning_success),
-                         circle (rs) + ' ' + ucase (to_string (rs)),
-                         move (summary)));
+      gq_built_result br (
+        make_built_result (rs, sd.warning_success, move (summary)));
 
       check_run cr;
       cr.name = name; // For display purposes only.
@@ -2521,9 +2515,7 @@ namespace brep
       }
 
       gq_built_result br (
-        gh_to_conclusion (*b.status, sd.warning_success),
-        circle (*b.status) + ' ' + ucase (to_string (*b.status)),
-        move (sm));
+        make_built_result (*b.status, sd.warning_success, move (sm)));
 
       if (cr.node_id)
       {
@@ -2581,10 +2573,9 @@ namespace brep
 
           result_status rs (*conclusion);
 
-          optional<gq_built_result> br (
-            gq_built_result (gh_to_conclusion (rs, sd.warning_success),
-                             circle (rs) + ' ' + ucase (to_string (rs)),
-                             "All configurations are built"));
+          gq_built_result br (
+            make_built_result (rs, sd.warning_success,
+                               "All configurations are built"));
 
           check_run cr;
 
