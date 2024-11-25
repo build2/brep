@@ -436,7 +436,7 @@ namespace brep
 
     ostringstream os;
 
-    os << "mutation {"                                              << '\n';
+    os << "mutation {"                                             << '\n';
 
     // Serialize a `createCheckRun` for the build.
     //
@@ -472,7 +472,7 @@ namespace brep
        << "  }"                                                   << '\n'
        << "}"                                                     << '\n';
 
-    os << "}"                                                       << '\n';
+    os << "}"                                                      << '\n';
 
     return os.str ();
   }

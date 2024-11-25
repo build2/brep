@@ -35,8 +35,8 @@ namespace brep
 
     optional<result_status> status; // Only if state is built & synced.
 
-    // Never serialized. Only used by some of the GraphQL functions in
-    // mod-ci-github-gq.hxx.
+    // Note: never serialized (only used to pass information to the GraphQL
+    // functions).
     //
     optional<string>        details_url;
 
