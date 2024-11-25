@@ -100,6 +100,8 @@ namespace brep
       p.next_expect (event::end_object);
     }
 
+    completed = p.next_expect_member_boolean<bool> ("completed");
+
     {
       string* s (p.next_expect_member_string_null ("conclusion_node_id"));
       if (s != nullptr)
@@ -241,6 +243,8 @@ namespace brep
       s.end_object ();
     }
     s.end_array ();
+
+    s.member ("completed", completed);
 
     s.member_name ("conclusion_node_id");
     if (conclusion_node_id)
