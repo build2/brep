@@ -183,6 +183,12 @@ namespace brep
     string action;
 
     gh_pull_request pull_request;
+
+    // The SHA of the most recent commit on the head branch before the pull
+    // request. Only present if action is "synchronize".
+    //
+    optional<string> before;
+
     gh_repository repository;
     gh_installation installation;
 
