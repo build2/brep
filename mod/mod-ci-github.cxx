@@ -406,8 +406,7 @@ namespace brep
         // synchronize
         //   A pull request's head branch was updated from the base branch or
         //   new commits were pushed to the head branch. (Note that there is
-        //   no equivalent event for the base branch. That case gets handled
-        //   in handle_check_suite_request() instead. @@ Not anymore.)
+        //   no equivalent event for the base branch.)
         //
         // Note that both cases are handled the same: we start a new CI
         // request which will be reported on the new commit id.
@@ -507,11 +506,13 @@ namespace brep
     //
 
     // While it would have been nice to cancel CIs of PRs with this branch as
-    // base not to waste resources, there are complications: Firsty, we can
-    // only do this for remote PRs (since local PRs may share the result with
-    // branch push). Secondly, we try to do our best even if the branch
-    // protection rule for head behind is not enabled. In this case, it would
-    // be good to complete the CI. So maybe/later.
+    // base not to waste resources, there are complications: Firstly, we can
+    // only do this for remote PRs (since local PRs will most likely share the
+    // result with branch push). Secondly, we try to do our best even if the
+    // branch protection rule for head behind is not enabled. In this case, it
+    // would be good to complete the CI. So maybe/later. See also the head
+    // case in handle_pull_request(), where we do cancel remote PRs that are
+    // not shared.
 
     // Service id that uniquely identifies the CI tenant.
     //
@@ -1480,12 +1481,6 @@ namespace brep
 
     l3 ([&]{trace << "installation_access_token { " << *iat << " }";});
 
-    // Note that similar to the branch push case above, while it would have
-    // been nice to cancel the previous CI job once the PR head moves (the
-    // "synchronize" event), due to the head sharing problem the previous CI
-    // job might actually still be relevant (in both local and remote PR
-    // cases).
-
     // Distinguish between local and remote PRs by comparing the head and base
     // repositories' paths.
     //
@@ -1493,6 +1488,18 @@ namespace brep
       pr.pull_request.head_path == pr.pull_request.base_path
       ? service_data::local
       : service_data::remote);
+
+    // Note that similar to the branch push case above, while it would have
+    // been nice to cancel the previous CI job once the PR head moves (the
+    // "synchronize" event), due to the head sharing problem the previous CI
+    // job might actually still be relevant (in both local and remote PR
+    // cases). So we only do it for the remote PRs and only if the head is not
+    // shared (via tenant reference counting).
+    //
+    if (kind == service_data::remote && pr.action == "synchronize")
+    {
+      // @@ TODO: call cancel on old SHA with refcount=true.
+    }
 
     // Note: for remote PRs the check_sha will be set later, in
     // build_unloaded_pre_check(), to test merge commit id.
