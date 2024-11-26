@@ -516,7 +516,7 @@ namespace brep
 
     // Service id that uniquely identifies the CI tenant.
     //
-    string sid (cs.repository.node_id + ":" + cs.check_suite.head_sha);
+    string sid (cs.repository.node_id + ':' + cs.check_suite.head_sha);
 
     // If the user requests a rebuild of the (entire) PR, then this manifests
     // as the check_suite rather than pull_request event. Specifically:
@@ -1657,7 +1657,7 @@ namespace brep
 
       // Service id that will uniquely identify the CI tenant.
       //
-      string sid (sd.repository_node_id + ":" + sd.report_sha);
+      string sid (sd.repository_node_id + ':' + sd.report_sha);
 
       // Create an unloaded CI tenant, doing nothing if one already exists
       // (which could've been created by a head branch push or another PR
