@@ -671,17 +671,6 @@ namespace brep
     // 2. If the tenant is archived, then fail (re-create) both the check run
     //    and the conclusion with appropriate diagnostics.
     //
-    //    @@ TMP A PR might get blocked indefinitely by this. If the user
-    //       re-runs a single CR the "re-run all check runs" option disappears
-    //       from the UI. So the single re-run will keep failing but there
-    //       will be no way to start a new CI from scratch.
-    //
-    //       @@ Can we confirm that if we also fail the check run, then the
-    //       re-run check suite becomes possible again?
-    //
-    //          @@ Can confirm: failing the CR makes re-run check suite option
-    //          re-appear.
-    //
     // 3. If the check run is in the queued state, then do nothing.
     //
     // 4. Re-create the check run in the queued state and the conclusion in
@@ -961,16 +950,20 @@ namespace brep
     }
 
     // Request the rebuild and update service data.
+    //
+    bool race (false);
 
     // Callback function called by rebuild() to update the service data (but
     // only if the build is actually restarted).
     //
-    auto update_sd = [&error, &new_iat,
+    auto update_sd = [&error, &new_iat, &race,
                       &cr, &bcr, &ccr] (const tenant_service& ts,
                                         build_state) -> optional<string>
     {
       // NOTE: this lambda may be called repeatedly (e.g., due to transaction
       // being aborted) and so should not move out of its captures.
+
+      race = false; // Reset.
 
       service_data sd;
       try
@@ -985,11 +978,8 @@ namespace brep
 
       // Note that we again look by name in case node id got replaced by a
       // racing re-request. In this case, however, it's impossible to decide
-      // who won that race, so let's assume it's us since we are called last.
-      //
-      // @@ TMP Isn't the replaced node id situation basically the same as the
-      //    one where rebuild() returns queued? In which case we could handle
-      //    it the same way.
+      // who won that race, so let's fail the check suite to be on the safe
+      // side (in a sense, similar to the rebuild() returning queued below).
       //
       auto i (find_if (
                 sd.check_runs.begin (), sd.check_runs.end (),
@@ -1003,6 +993,15 @@ namespace brep
         error << "check_run " << cr.check_run.node_id
               << " (" << cr.check_run.name << "): "
               << "re-requested but does not exist in service data";
+        return nullopt;
+      }
+
+      if (i->node_id && *i->node_id != cr.check_run.node_id)
+      {
+        // Keep the old conclusion node id to make sure any further state
+        // transitions are ignored. A bit of a hack.
+        //
+        race = true;
         return nullopt;
       }
 
@@ -1026,25 +1025,16 @@ namespace brep
     // conclusion check run. Otherwise the build has been successfully
     // re-enqueued so do nothing further.
     //
-    if (bs && *bs != build_state::queued)
+    if (!race && bs && *bs != build_state::queued)
       return true;
 
     gq_built_result br; // Built result for both check runs.
 
-    if (!bs) // Archived
+    if (race || bs) // Race or re-enqueued.
     {
-      // The build has expired since we loaded the service data. Most likely
-      // the tenant has been archived.
-      //
-      br = make_built_result (
-        result_status::error, warning_success,
-        "Unable to rebuild individual configuration: build has been archived");
-    }
-    else // Re-enqueued.
-    {
-      // This build has been re-enqueued since we first loaded the service
-      // data. This could happen if the user clicked "re-run" multiple times
-      // and another handler won the rebuild() race.
+      // The re-enqueued case: this build has been re-enqueued since we first
+      // loaded the service data. This could happen if the user clicked
+      // "re-run" multiple times and another handler won the rebuild() race.
       //
       // However the winner of the check runs race cannot be determined.
       //
@@ -1062,6 +1052,15 @@ namespace brep
       //
       br = make_built_result (result_status::error, warning_success,
                               "Unable to rebuild, try again");
+    }
+    else // Archived.
+    {
+      // The build has expired since we loaded the service data. Most likely
+      // the tenant has been archived.
+      //
+      br = make_built_result (
+        result_status::error, warning_success,
+        "Unable to rebuild individual configuration: build has been archived");
     }
 
     // Try to update the conclusion check run even if the first update fails.
