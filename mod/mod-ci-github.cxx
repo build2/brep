@@ -1498,7 +1498,35 @@ namespace brep
     //
     if (kind == service_data::remote && pr.action == "synchronize")
     {
-      // @@ TODO: call cancel on old SHA with refcount=true.
+      if (pr.before)
+      {
+        // Service id that will uniquely identify the CI tenant.
+        //
+        string sid (pr.repository.node_id + ':' + *pr.before);
+
+        if (optional<tenant_service> ts = cancel (error, warn,
+                                                  verb_ ? &trace : nullptr,
+                                                  *build_db_, retry_,
+                                                  "ci-github", sid,
+                                                  true /* ref_count */))
+        {
+          l3 ([&]{trace << "pull request " << pr.pull_request.node_id
+                        << ": canceled CI of previous head commit"
+                        << " (ref_count: " << ts->ref_count << ')';});
+        }
+        else
+        {
+          error << "pull request " << pr.pull_request.node_id
+                << ": failed to cancel CI of previous head commit "
+                << "with tenant_service id " << sid;
+        }
+      }
+      else
+      {
+        error << "pull request " << pr.pull_request.node_id
+              << ": `before` member is missing"
+              << " so cannot cancel CI of previous head commit";
+      }
     }
 
     // Note: for remote PRs the check_sha will be set later, in
