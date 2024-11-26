@@ -513,7 +513,7 @@ namespace brep
   {
     p.next_expect (event::begin_object);
 
-    bool ac (false), pr (false), rp (false), in (false);
+    bool ac (false), pr (false), bf (false), rp (false), in (false);
 
     // Skip unknown/uninteresting members.
     //
@@ -526,6 +526,7 @@ namespace brep
 
       if      (c (ac, "action"))       action = p.next_expect_string ();
       else if (c (pr, "pull_request")) pull_request = gh_pull_request (p);
+      else if (c (bf, "before"))       before = p.next_expect_string ();
       else if (c (rp, "repository"))   repository = gh_repository (p);
       else if (c (in, "installation")) installation = gh_installation (p);
       else p.next_expect_value_skip ();
@@ -542,6 +543,7 @@ namespace brep
   {
     os << "action: " << pr.action;
     os << ", pull_request { " << pr.pull_request << " }";
+    os << ", before: " << (pr.before ? *pr.before : "null");
     os << ", repository { "  << pr.repository << " }";
     os << ", installation { " << pr.installation << " }";
 
