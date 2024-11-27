@@ -24,7 +24,8 @@ namespace brep
   // `check_runs` with the new data (node id and state_synced). Return false
   // and issue diagnostics if the request failed.
   //
-  // Throw invalid_argument.
+  // Throw invalid_argument if the passed data is invalid, missing, or
+  // inconsistent.
   //
   // Note that creating a check_run named `foo` will effectively replace any
   // existing check_runs with that name. They will still exist on the GitHub
@@ -42,7 +43,8 @@ namespace brep
   // data (node id, state, and state_synced). Return false and issue
   // diagnostics if the request failed.
   //
-  // Throw invalid_argument.
+  // Throw invalid_argument if the passed data is invalid, missing, or
+  // inconsistent.
   //
   // If the details_url is absent GitHub will use the app's homepage.
   //
@@ -70,7 +72,8 @@ namespace brep
   // Update a check run on GitHub. Update `cr` with the new data (state and
   // state_synced). Return false and issue diagnostics if the request failed.
   //
-  // Throw invalid_argument.
+  // Throw invalid_argument if the passed data is invalid, missing, or
+  // inconsistent.
   //
   // Note that GitHub allows any state transitions except from built (but
   // built to built is allowed). The latter case is signalled by setting the

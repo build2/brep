@@ -19,7 +19,7 @@ namespace brep
   // Return the GitHub check run status corresponding to a build_state.
   //
   string
-  gh_to_status (build_state st) noexcept
+  gh_to_status (build_state st)
   {
     // Just return by value (small string optimization).
     //
@@ -484,10 +484,6 @@ namespace brep
         return p.name () == s ? (v = true) : false;
       };
 
-      // Pass true to gh_check_run() to indicate that the we're parsing a
-      // webhook event or REST API response (in which case more fields are
-      // expected to be present than in a GraphQL response).
-      //
       if      (c (ac, "action"))       action = p.next_expect_string ();
       else if (c (cs, "check_run"))    check_run = gh_check_run_ex (p);
       else if (c (rp, "repository"))   repository = gh_repository (p);
@@ -597,6 +593,14 @@ namespace brep
                       "invalid IAT expires_at value '" + v +
                         "': " + e.what ());
         }
+        catch (const system_error& e)
+        {
+          // Translate for simplicity.
+          //
+          throw_json (p,
+                      "unable to convert IAT expires_at value '" + v +
+                      "': " + e.what ());
+        }
       }
       else p.next_expect_value_skip ();
     }
@@ -623,37 +627,17 @@ namespace brep
   string
   gh_to_iso8601 (timestamp t)
   {
-    try
-    {
-      return butl::to_string (t,
-                              "%Y-%m-%dT%TZ",
-                              false /* special */,
-                              false /* local */);
-    }
-    catch (const system_error& e)
-    {
-      throw runtime_error (
-        string ("failed to convert timestamp to ISO 8601 string: ") +
-        e.what ());
-    }
+    return butl::to_string (t,
+                            "%Y-%m-%dT%TZ",
+                            false /* special */,
+                            false /* local */);
   }
 
   timestamp
   gh_from_iso8601 (const string& s)
   {
-    try
-    {
-      // @@ TMP butl::from_string()'s comment says it also throws
-      //    invalid_argument but that seems to be false.
-      //
-      return butl::from_string (s.c_str (),
-                                "%Y-%m-%dT%TZ",
-                                false /* local */);
-    }
-    catch (const system_error& e)
-    {
-      throw invalid_argument ("invalid ISO 8601 timestamp value '" + s +
-                              "': " + e.what ());
-    }
+    return butl::from_string (s.c_str (),
+                              "%Y-%m-%dT%TZ",
+                              false /* local */);
   }
 }

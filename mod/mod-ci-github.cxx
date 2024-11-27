@@ -693,6 +693,8 @@ namespace brep
 
   // Create a gq_built_result.
   //
+  // Throw invalid_argument in case of invalid result_status.
+  //
   static gq_built_result
   make_built_result (result_status rs, bool warning_success, string message)
   {
@@ -1166,312 +1168,6 @@ namespace brep
     return true;
   }
 
-  // @@ TMP
-  //
-#if 0
-  bool ci_github::
-  handle_check_run_rerequest (const gh_check_run_event& cr,
-                              bool warning_success)
-  {
-    HANDLER_DIAG;
-
-    l3 ([&]{trace << "check_run event { " << cr << " }";});
-
-    // Fail if this is the conclusion check run.
-    //
-    if (cr.check_run.name == conclusion_check_run_name)
-    {
-      // @@ Fail conclusion check run with appropriate message and reurn
-      //    true.
-
-      l3 ([&]{trace << "ignoring conclusion check_run";});
-
-      // 422 Unprocessable Content: The request was well-formed (i.e.,
-      // syntactically correct) but could not be processed.
-      //
-      throw invalid_request (422, "Conclusion check run cannot be rebuilt");
-    }
-
-    // Get a new installation access token.
-    //
-    auto get_iat = [this, &trace, &error, &cr] ()
-      -> optional<gh_installation_access_token>
-    {
-      optional<string> jwt (generate_jwt (trace, error));
-      if (!jwt)
-        return nullopt;
-
-      optional<gh_installation_access_token> iat (
-        obtain_installation_access_token (cr.installation.id,
-                                          move (*jwt),
-                                          error));
-
-      if (iat)
-        l3 ([&]{trace << "installation_access_token { " << *iat << " }";});
-
-      return iat;
-    };
-
-    // Create a new conclusion check run, replacing the existing one.
-    //
-    // Return the check run on success or nullopt on failure.
-    //
-    auto create_conclusion_cr =
-      [&cr, &error, warning_success] (const gh_installation_access_token& iat,
-                                      build_state bs,
-                                      optional<result_status> rs = nullopt,
-                                      optional<string> msg = nullopt)
-      -> optional<check_run>
-    {
-      optional<gq_built_result> br;
-      if (rs)
-      {
-        assert (msg);
-
-        br = make_built_result (*rs, warning_success, move (*msg));
-      }
-
-      check_run r;
-      r.name = conclusion_check_run_name;
-
-      if (gq_create_check_run (error, r, iat.token,
-                               rni, hs,
-                               nullopt /* details_url */,
-                               bs, move (br)))
-      {
-        return r;
-      }
-      else
-        return nullopt;
-    };
-
-    // The overall plan is as follows:
-    //
-    // 1. Call the rebuild() function to attempt to schedule a rebuild. Pass
-    //    the update function that does the following (if called):
-    //
-    //    a. Update the check run being rebuilt (may also not exist).
-    //
-    //    b. Clear the completed flag if true.
-    //
-    //    c. "Return" the service data to be used after the call.
-    //
-    // 2. If the result of rebuild() indicates the tenant is archived, fail
-    //    the conclusion check run with appropriate diagnostics.
-    //
-    // 3. If original state is queued, then no rebuild was scheduled and we do
-    //    nothing.
-    //
-    // 4. Otherwise (the original state is building or built):
-    //
-    //    a. Change the check run state to queued.
-    //
-    //    b. Change the conclusion check run to building (do unconditionally
-    //       to mitigate races).
-    //
-    // Note that while conceptually we are updating existing check runs, in
-    // practice we have to create new check runs to replace the existing ones
-    // because GitHub does not allow transitioning out of the built state.
-    //
-    // This results in a new node id for each check run but we can't save them
-    // to the service data after the rebuild() call. As a workaround, when
-    // updating the service data we 1) clear the re-requested check run's node
-    // id and set the state_synced flag to true to signal to build_building()
-    // and build_built() that it needs to create a new check run; and 2) clear
-    // the conclusion check run's node id to cause build_built() to create a
-    // new conclusion check run. And these two check runs' node ids will be
-    // saved to the service data.
-
-    // Parse the check_run's details_url to extract build id.
-    //
-    // While this is a bit hackish, there doesn't seem to be a better way
-    // (like associating custom data with a check run). Note that the GitHub
-    // UI only allows rebuilding completed check runs, so the details URL
-    // should be there.
-    //
-    optional<build_id> bid (parse_details_url (cr.check_run.details_url));
-    if (!bid)
-    {
-      fail << "check run " << cr.check_run.node_id
-           << ": failed to extract build id from details_url";
-    }
-
-    // The IAT retrieved from the service data.
-    //
-    optional<gh_installation_access_token> iat;
-
-    // True if the check run exists in the service data.
-    //
-    bool cr_found (false);
-
-    // Update the state of the check run in the service data. Return (via
-    // captured references) the IAT and whether the check run was found.
-    //
-    // Called by rebuild(), but only if the build is actually restarted.
-    //
-    auto update_sd = [&iat,
-                      &cr_found,
-                      &error,
-                      &cr] (const tenant_service& ts, build_state)
-      -> optional<string>
-    {
-      // NOTE: this lambda may be called repeatedly (e.g., due to transaction
-      // being aborted) and so should not move out of its captures.
-
-      service_data sd;
-      try
-      {
-        sd = service_data (*ts.data);
-      }
-      catch (const invalid_argument& e)
-      {
-        error << "failed to parse service data: " << e;
-        return nullptr;
-      }
-
-      if (!iat)
-        iat = sd.installation_access;
-
-      // If the re-requested check run is found, update it in the service
-      // data.
-      //
-      const string& nid (cr.check_run.node_id);
-
-      for (check_run& cr: sd.check_runs)
-      {
-        if (cr.node_id && *cr.node_id == nid)
-        {
-          cr_found = true;
-          cr.state = build_state::queued;
-          sd.completed = false;
-
-          // Clear the check run node ids and set state_synced to true to
-          // cause build_building() and/or build_built() to create new check
-          // runs (see the plan above for details).
-          //
-          cr.node_id = nullopt;
-          cr.state_synced = true;
-          sd.conclusion_node_id = nullopt;
-
-          return sd.json ();
-        }
-      }
-
-      return nullopt;
-    };
-
-    optional<build_state> bs (rebuild (*build_db_, retry_, *bid, update_sd));
-
-    if (!bs)
-    {
-      // Build has expired (most probably the tenant has been archived).
-      //
-      // Update the conclusion check run to notify the user (but have to
-      // replace it with a new one because we don't know the existing one's
-      // node id).
-      //
-      optional<gh_installation_access_token> iat (get_iat ());
-      if (!iat)
-        throw server_error ();
-
-      if (optional<check_run> ccr = create_conclusion_cr (
-            *iat,
-            build_state::built,
-            result_status::error,
-            "Unable to rebuild: tenant has been archived or no such build"))
-      {
-        l3 ([&]{trace << "created conclusion check_run { " << *ccr << " }";});
-      }
-      else
-      {
-        // Log the error and return failure to GitHub which will presumably
-        // indicate this in its GUI.
-        //
-        fail << "check run " << cr.check_run.node_id
-             << ": unable to create conclusion check run";
-      }
-    }
-    else if (*bs == build_state::queued)
-    {
-      // The build was already queued so nothing to be done. This might happen
-      // if the user clicked "re-run" multiple times before we managed to
-      // update the check run.
-    }
-    else
-    {
-      // The build has been requeued.
-      //
-      assert (*bs == build_state::building || *bs == build_state::built);
-
-      if (!cr_found)
-      {
-        // Respond with an error otherwise GitHub will post a message in its
-        // GUI saying "you have successfully requested a rebuild of ..."
-        //
-        fail << "check_run " << cr.check_run.node_id
-             << ": build restarted but check run does not exist "
-             << "in service data";
-      }
-
-      // Get a new IAT if the one from the service data has expired.
-      //
-      assert (iat.has_value ());
-
-      if (system_clock::now () > iat->expires_at)
-      {
-        iat = get_iat ();
-        if (!iat)
-          throw server_error ();
-      }
-
-      // Update (by replacing) the re-requested and conclusion check runs to
-      // queued and building, respectively.
-      //
-      // If either fails we can only log the error but build_building() and/or
-      // build_built() should correct the situation (see above for details).
-      //
-
-      // Update re-requested check run.
-      //
-      {
-        check_run ncr; // New check run.
-        ncr.name = cr.check_run.name;
-
-        if (gq_create_check_run (error,
-                                 ncr,
-                                 iat->token,
-                                 cr.repository.node_id,
-                                 cr.check_run.check_suite.head_sha,
-                                 cr.check_run.details_url,
-                                 build_state::queued))
-        {
-          l3 ([&]{trace << "created check_run { " << ncr << " }";});
-        }
-        else
-        {
-          error << "check_run " << cr.check_run.node_id
-                << ": unable to create (to update) check run in queued state";
-        }
-      }
-
-      // Update conclusion check run.
-      //
-      if (optional<check_run> ccr =
-            create_conclusion_cr (*iat, build_state::building))
-      {
-        l3 ([&]{trace << "created conclusion check_run { " << *ccr << " }";});
-      }
-      else
-      {
-        error << "check_run " << cr.check_run.node_id
-              << ": unable to create (to update) conclusion check run";
-      }
-    }
-
-    return true;
-  }
-#endif
-
   // Miscellaneous pull request facts
   //
   // - Although some of the GitHub documentation makes it sound like they
@@ -1629,6 +1325,8 @@ namespace brep
   build_unloaded (tenant_service&& ts,
                   const diag_epilogue& log_writer) const noexcept
   {
+    // NOTE: this function is noexcept and should not throw.
+
     NOTIFICATION_DIAG (log_writer);
 
     service_data sd;
@@ -1651,7 +1349,16 @@ namespace brep
   build_unloaded_pre_check (tenant_service&& ts,
                             service_data&& sd,
                             const diag_epilogue& log_writer) const noexcept
+  try
   {
+    // NOTE: this function is noexcept and should not throw.
+    //
+    // In a few places where invalid_argument is unlikely to be thrown and/or
+    // would indicate that things are seriously broken we let it propagate to
+    // the function catch block where the pre-check tenant will be canceled
+    // (otherwise we could end up in an infinite loop, e.g., because the
+    // problematic arguments won't change).
+
     NOTIFICATION_DIAG (log_writer);
 
     // We get here for PRs only (but both local and remote). The overall
@@ -1676,6 +1383,8 @@ namespace brep
 
     // Request PR pre-check info (triggering the generation of the test merge
     // commit on the GitHub's side).
+    //
+    // Let unlikely invalid_argument propagate (see above).
     //
     optional<gq_pr_pre_check_info> pc (
       gq_fetch_pull_request_pre_check_info (error,
@@ -1736,38 +1445,50 @@ namespace brep
       // notifications until (1) we load the tenant, (2) we cancel it, or (3)
       // it gets archived after some timeout.
       //
-      if (auto pr = create (error, warn, verb_ ? &trace : nullptr,
-                            *build_db_, retry_,
-                            tenant_service (sid, "ci-github", sd.json ()),
-                            chrono::seconds (30) /* interval */,
-                            chrono::seconds (0) /* delay */,
-                            duplicate_tenant_mode::ignore))
+      try
       {
-        if (pr->second == duplicate_tenant_result::ignored)
+        if (auto pr = create (error, warn, verb_ ? &trace : nullptr,
+                              *build_db_, retry_,
+                              tenant_service (sid, "ci-github", sd.json ()),
+                              chrono::seconds (30) /* interval */,
+                              chrono::seconds (0) /* delay */,
+                              duplicate_tenant_mode::ignore))
         {
-          // This PR is sharing a head commit with something else.
-          //
-          // If this is a local PR then it's probably the branch push, which
-          // is expected, so do nothing.
-          //
-          // If this is a remote PR then it could be anything (branch push,
-          // local PR, or another remote PR) which in turn means the CI result
-          // may end up being for head, not merge commit. There is nothing we
-          // can do about it on our side (the user can enable the head-behind-
-          // base protection on their side).
-          //
-          if (sd.kind == service_data::remote)
+          if (pr->second == duplicate_tenant_result::ignored)
           {
-            l3 ([&]{trace << "remote pull request " << *sd.pr_node_id
-                          << ": CI tenant already exists for " << sid;});
+            // This PR is sharing a head commit with something else.
+            //
+            // If this is a local PR then it's probably the branch push, which
+            // is expected, so do nothing.
+            //
+            // If this is a remote PR then it could be anything (branch push,
+            // local PR, or another remote PR) which in turn means the CI
+            // result may end up being for head, not merge commit. There is
+            // nothing we can do about it on our side (the user can enable the
+            // head-behind- base protection on their side).
+            //
+            if (sd.kind == service_data::remote)
+            {
+              l3 ([&]{trace << "remote pull request " << *sd.pr_node_id
+                            << ": CI tenant already exists for " << sid;});
+            }
           }
         }
+        else
+        {
+          error << "pull request " << *sd.pr_node_id
+                << ": failed to create unloaded CI tenant "
+                << "with tenant_service id " << sid;
+
+          // Fall through to cancel.
+        }
       }
-      else
+      catch (const runtime_error& e) // Database retries exhausted.
       {
         error << "pull request " << *sd.pr_node_id
-              << ": unable to create unloaded CI tenant "
-              << "with tenant_service id " << sid;
+              << ": failed to create unloaded CI tenant "
+              << "with tenant_service id " << sid
+              << ": " << e.what ();
 
         // Fall through to cancel.
       }
@@ -1775,16 +1496,50 @@ namespace brep
 
     // Cancel the pre-check tenant.
     //
-    if (!cancel (error, warn, verb_ ? &trace : nullptr,
-                 *build_db_, retry_,
-                 ts.type,
-                 ts.id))
+    try
     {
-      // Should never happen (no such tenant).
-      //
+      if (!cancel (error, warn, verb_ ? &trace : nullptr,
+                   *build_db_, retry_,
+                   ts.type,
+                   ts.id))
+      {
+        // Should never happen (no such tenant).
+        //
+        error << "pull request " << *sd.pr_node_id
+              << ": failed to cancel pre-check tenant with tenant_service id "
+              << ts.id;
+      }
+    }
+    catch (const runtime_error& e) // Database retries exhausted.
+    {
       error << "pull request " << *sd.pr_node_id
             << ": failed to cancel pre-check tenant with tenant_service id "
-            << ts.id;
+            << ts.id << ": " << e.what ();
+    }
+
+    return nullptr;
+  }
+  catch (const std::exception& e)
+  {
+    NOTIFICATION_DIAG (log_writer);
+    error << "pull request " << *sd.pr_node_id
+          << ": unhandled exception: " << e.what ();
+
+    // Cancel the pre-check tenant otherwise we could end up in an infinite
+    // loop (see top of function).
+    //
+    try
+    {
+      if (cancel (error, warn, verb_ ? &trace : nullptr,
+                  *build_db_, retry_,
+                  ts.type,
+                  ts.id))
+        l3 ([&]{trace << "canceled pre-check tenant " << ts.id;});
+    }
+    catch (const runtime_error& e) // Database retries exhausted.
+    {
+      l3 ([&]{trace << "failed to cancel pre-check tenant " << ts.id << ": "
+                    << e.what ();});
     }
 
     return nullptr;
@@ -1794,7 +1549,16 @@ namespace brep
   build_unloaded_load (tenant_service&& ts,
                        service_data&& sd,
                        const diag_epilogue& log_writer) const noexcept
+  try
   {
+    // NOTE: this function is noexcept and should not throw.
+    //
+    // In a few places where invalid_argument is unlikely to be thrown and/or
+    // would indicate that things are seriously broken we let it propagate to
+    // the function catch block where the tenant will be canceled (otherwise
+    // we could end up in an infinite loop, e.g., because the problematic
+    // arguments won't change).
+
     NOTIFICATION_DIAG (log_writer);
 
     // Load the tenant, which is essentially the same for both branch push and
@@ -1840,6 +1604,8 @@ namespace brep
       check_run cr;
       cr.name = move (name);
 
+      // Let unlikely invalid_argument propagate (see above).
+      //
       if (gq_create_check_run (error,
                                cr,
                                iat->token,
@@ -1866,12 +1632,16 @@ namespace brep
     {
       assert (!node_id.empty ());
 
+      // Let unlikely invalid_argument propagate (see above).
+      //
       gq_built_result br (
         make_built_result (rs, sd.warning_success, move (summary)));
 
       check_run cr;
       cr.name = name; // For display purposes only.
 
+      // Let unlikely invalid_argument propagate (see above).
+      //
       if (gq_update_check_run (error,
                                cr,
                                iat->token,
@@ -1898,16 +1668,24 @@ namespace brep
     //
     string conclusion_node_id; // Conclusion check run node ID.
 
-    if (auto cr = create_synthetic_cr (conclusion_check_run_name))
+    if (!sd.conclusion_node_id)
     {
-      l3 ([&]{trace << "created check_run { " << *cr << " }";});
+      if (auto cr = create_synthetic_cr (conclusion_check_run_name))
+      {
+        l3 ([&]{trace << "created check_run { " << *cr << " }";});
 
-      conclusion_node_id = move (*cr->node_id);
+        conclusion_node_id = move (*cr->node_id);
+      }
     }
+
+    const string& effective_conclusion_node_id (
+      sd.conclusion_node_id
+      ? *sd.conclusion_node_id
+      : conclusion_node_id);
 
     // Load the CI tenant if the conclusion check run was created.
     //
-    if (!conclusion_node_id.empty ())
+    if (!effective_conclusion_node_id.empty ())
     {
       string ru; // Repository URL.
 
@@ -1924,36 +1702,50 @@ namespace brep
       else
         ru = sd.repository_clone_url + '#' + sd.check_sha;
 
+      // Let unlikely invalid_argument propagate (see above).
+      //
       repository_location rl (move (ru), repository_type::git);
 
-      optional<start_result> r (load (error, warn, verb_ ? &trace : nullptr,
-                                      *build_db_, retry_,
-                                      move (ts),
-                                      move (rl)));
-
-      if (!r || r->status != 200)
+      try
       {
-        if (auto cr = update_synthetic_cr (conclusion_node_id,
-                                           conclusion_check_run_name,
-                                           result_status::error,
-                                           to_check_run_summary (r)))
-        {
-          l3 ([&]{trace << "updated check_run { " << *cr << " }";});
-        }
-        else
-        {
-          // Nothing really we can do in this case since we will not receive
-          // any further notifications. Log the error as a last resort.
+        optional<start_result> r (load (error, warn, verb_ ? &trace : nullptr,
+                                        *build_db_, retry_,
+                                        move (ts),
+                                        move (rl)));
 
-          error << "failed to load CI tenant " << ts.id
-                << " and unable to update conclusion";
-        }
+        if (!r || r->status != 200)
+        {
+          // Let unlikely invalid_argument propagate (see above).
+          //
+          if (auto cr = update_synthetic_cr (effective_conclusion_node_id,
+                                             conclusion_check_run_name,
+                                             result_status::error,
+                                             to_check_run_summary (r)))
+          {
+            l3 ([&]{trace << "updated check_run { " << *cr << " }";});
+          }
+          else
+          {
+            // Nothing really we can do in this case since we will not receive
+            // any further notifications. Log the error as a last resort.
 
-        return nullptr; // No need to update service data in this case.
+            error << "failed to load CI tenant " << ts.id
+                  << " and unable to update conclusion";
+          }
+
+          return nullptr; // No need to update service data in this case.
+        }
+      }
+      catch (const runtime_error& e) // Database retries exhausted.
+      {
+        error << "failed to load CI tenant " << ts.id << ": " << e.what ();
+
+        // Fall through to retry on next call.
       }
     }
-    else if (!new_iat)
-      return nullptr; // Nothing to save (but retry on next call).
+
+    if (!new_iat && conclusion_node_id.empty ())
+      return nullptr; // Nothing to save (but potentially retry on next call).
 
     return [&error,
             iat = move (new_iat),
@@ -1983,6 +1775,28 @@ namespace brep
 
       return sd.json ();
     };
+  }
+  catch (const std::exception& e)
+  {
+    NOTIFICATION_DIAG (log_writer);
+    error << "CI tenant " << ts.id << ": unhandled exception: " << e.what ();
+
+    // Cancel the tenant otherwise we could end up in an infinite loop (see
+    // top of function).
+    //
+    try
+    {
+      if (cancel (error, warn, verb_ ? &trace : nullptr,
+                  *build_db_, retry_, ts.type, ts.id))
+        l3 ([&]{trace << "canceled CI tenant " << ts.id;});
+    }
+    catch (const runtime_error& e) // Database retries exhausted.
+    {
+      l3 ([&]{trace << "failed to cancel CI tenant " << ts.id
+                    << ": " << e.what ();});
+    }
+
+    return nullptr;
   }
 
   // Build state change notifications (see tenant-services.hxx for
@@ -2079,7 +1893,10 @@ namespace brep
                 optional<build_state> istate,
                 const build_queued_hints& hs,
                 const diag_epilogue& log_writer) const noexcept
+  try
   {
+    // NOTE: this function is noexcept and should not throw.
+
     NOTIFICATION_DIAG (log_writer);
 
     service_data sd;
@@ -2179,6 +1996,8 @@ namespace brep
     {
       // Create a check_run for each build as a single request.
       //
+      // Let unlikely invalid_argument propagate.
+      //
       if (gq_create_check_runs (error,
                                 crs,
                                 iat->token,
@@ -2242,12 +2061,23 @@ namespace brep
       return sd.json ();
     };
   }
+  catch (const std::exception& e)
+  {
+    NOTIFICATION_DIAG (log_writer);
+
+    error << "CI tenant " << ts.id << ": unhandled exception: " << e.what ();
+
+    return nullptr;
+  }
 
   function<optional<string> (const tenant_service&)> ci_github::
   build_building (const tenant_service& ts,
                   const build& b,
                   const diag_epilogue& log_writer) const noexcept
+  try
   {
+    // NOTE: this function is noexcept and should not throw.
+
     NOTIFICATION_DIAG (log_writer);
 
     service_data sd;
@@ -2323,6 +2153,8 @@ namespace brep
     //
     if (iat != nullptr)
     {
+      // Let unlikely invalid_argument propagate.
+      //
       if (gq_update_check_run (error,
                                *cr,
                                iat->token,
@@ -2388,17 +2220,30 @@ namespace brep
       return sd.json ();
     };
   }
+  catch (const std::exception& e)
+  {
+    NOTIFICATION_DIAG (log_writer);
+
+    string bid (gh_check_run_name (b)); // Full build id.
+
+    error << "check run " << bid << ": unhandled exception: " << e.what();
+
+    return nullptr;
+  }
 
   function<optional<string> (const tenant_service&)> ci_github::
   build_built (const tenant_service& ts,
                const build& b,
                const diag_epilogue& log_writer) const noexcept
+  try
   {
+    // NOTE: this function is noexcept and should not throw.
+
+    NOTIFICATION_DIAG (log_writer);
+
     // @@ TODO Include service_data::event_node_id and perhaps ts.id in
     //    diagnostics? E.g. when failing to update check runs we print the
     //    build ID only.
-    //
-    NOTIFICATION_DIAG (log_writer);
 
     service_data sd;
     try
@@ -2518,6 +2363,11 @@ namespace brep
       {
         using namespace web::xhtml;
 
+        // Note: let all serialization exceptions propagate. The XML
+        // serialization code can throw bad_alloc or xml::serialization in
+        // case of I/O failures, but we're serializing to a string stream so
+        // both exceptions are unlikely.
+        //
         ostringstream os;
         xml::serializer s (os, "check_run_summary");
 
@@ -2613,7 +2463,8 @@ namespace brep
 
       if (cr.node_id)
       {
-        // Update existing check run to built.
+        // Update existing check run to built. Let unlikely invalid_argument
+        // propagate.
         //
         if (gq_update_check_run (error,
                                  cr,
@@ -2630,7 +2481,7 @@ namespace brep
       }
       else
       {
-        // Create new check run.
+        // Create new check run. Let unlikely invalid_argument propagate.
         //
         // Note that we don't have build hints so will be creating this check
         // run with the full build id as name. In the unlikely event that an
@@ -2678,6 +2529,8 @@ namespace brep
           cr.node_id = *sd.conclusion_node_id;
           cr.name = conclusion_check_run_name;
 
+          // Let unlikely invalid_argument propagate.
+          //
           if (gq_update_check_run (error,
                                    cr,
                                    iat->token,
@@ -2781,6 +2634,16 @@ namespace brep
 
       return sd.json ();
     };
+  }
+  catch (const std::exception& e)
+  {
+    NOTIFICATION_DIAG (log_writer);
+
+    string bid (gh_check_run_name (b)); // Full build id.
+
+    error << "check run " << bid << ": unhandled exception: " << e.what();
+
+    return nullptr;
   }
 
   string ci_github::

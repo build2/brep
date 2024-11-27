@@ -220,9 +220,11 @@ namespace brep
       {
         v = gh_to_iso8601 (installation_access.expires_at);
       }
-      catch (const runtime_error& e)
+      catch (const system_error& e)
       {
-        throw invalid_argument ("invalid IAT expires_at value " +
+        // Translate for simplicity.
+        //
+        throw invalid_argument ("unable to convert IAT expires_at value " +
                                 to_string (system_clock::to_time_t (
                                   installation_access.expires_at)));
       }

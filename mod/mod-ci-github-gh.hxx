@@ -107,7 +107,7 @@ namespace brep
   // Return the GitHub check run status corresponding to a build_state.
   //
   string
-  gh_to_status (build_state st) noexcept;
+  gh_to_status (build_state);
 
   // Return the build_state corresponding to a GitHub check run status
   // string. Throw invalid_argument if the passed status was invalid.
@@ -214,12 +214,14 @@ namespace brep
     gh_installation_access_token () = default;
   };
 
-  // Throw runtime_error if the conversion fails.
+  // Throw system_error if the conversion fails due to underlying operating
+  // system errors.
   //
   string
   gh_to_iso8601 (timestamp);
 
-  // Throw invalid_argument if the conversion fails.
+  // Throw invalid_argument if the conversion fails due to the invalid
+  // argument and system_error if due to underlying operating system errors.
   //
   timestamp
   gh_from_iso8601 (const string&);
