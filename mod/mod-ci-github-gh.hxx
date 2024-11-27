@@ -184,8 +184,8 @@ namespace brep
 
     gh_pull_request pull_request;
 
-    // The SHA of the most recent commit on the head branch before the pull
-    // request. Only present if action is "synchronize".
+    // The SHA of the previous commit on the head branch before the current
+    // one. Only present if action is "synchronize".
     //
     optional<string> before;
 

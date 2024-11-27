@@ -1511,21 +1511,23 @@ namespace brep
                                                   true /* ref_count */))
         {
           l3 ([&]{trace << "pull request " << pr.pull_request.node_id
-                        << ": canceled CI of previous head commit"
+                        << ": attempted to cancel CI of previous head commit"
                         << " (ref_count: " << ts->ref_count << ')';});
         }
         else
         {
-          error << "pull request " << pr.pull_request.node_id
-                << ": failed to cancel CI of previous head commit "
-                << "with tenant_service id " << sid;
+          // It's possible that there was no CI for the previous commit for
+          // various reasons (e.g., CI was not enabled).
+          //
+          l3 ([&]{trace << "pull request " << pr.pull_request.node_id
+                        << ": failed to cancel CI of previous head commit "
+                        << "with tenant_service id " << sid;});
         }
       }
       else
       {
         error << "pull request " << pr.pull_request.node_id
-              << ": `before` member is missing"
-              << " so cannot cancel CI of previous head commit";
+              << ": before commit is missing in synchronize event";
       }
     }
 
