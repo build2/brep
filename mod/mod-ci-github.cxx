@@ -424,21 +424,30 @@ namespace brep
         // relying instead on the branch protection rule. So it makes sense
         // to do the same here.
         //
-        return true.
+        return true;
       }
       else if (pr.action == "closed")
       {
         // PR has been closed (as merged or not; see merged member). Also
-        // apparently received if base branch is deleted. (And presumably same
-        // for head branch.) See also the reopened event below.
+        // apparently received if base branch is deleted (and the same
+        // for head branch). See also the reopened event below.
         //
-
-        // Cancel CI?
+        // While it may seem natural to cancel the CI for the closed PR, it
+        // might actually be useful to have a completed CI record. GitHub
+        // doesn't prevent us from publishing CI results for the closed PR
+        // (even if both base and head branches were deleted). And if such a
+        // PR is reopened, the CI results remain.
+        //
+        return true;
       }
       else if (pr.action == "reopened")
       {
         // Previously closed PR has been reopened.
         //
+        // Since we don't cancel the CI for a closed PR, there is nothing
+        // to do if it is reopened.
+        //
+        return true;
       }
       else if (pr.action == "assigned"               ||
                pr.action == "auto_merge_disabled"    ||
@@ -458,6 +467,8 @@ namespace brep
                pr.action == "unlocked")
       {
         // These have no relation to CI.
+        //
+        return true;
       }
       else
       {
