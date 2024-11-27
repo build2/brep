@@ -398,7 +398,8 @@ namespace brep
         throw invalid_request (400, move (m));
       }
 
-      if (pr.action == "opened" || pr.action == "synchronize")
+      if (pr.action == "opened" ||
+          pr.action == "synchronize")
       {
         // opened
         //   A pull request was opened.
@@ -408,18 +409,63 @@ namespace brep
         //   new commits were pushed to the head branch. (Note that there is
         //   no equivalent event for the base branch.)
         //
-        // Note that both cases are handled the same: we start a new CI
+        // Note that both cases are handled similarly: we start a new CI
         // request which will be reported on the new commit id.
         //
         return handle_pull_request (move (pr), warning_success);
       }
+      else if (pr.action == "edited")
+      {
+        // PR base branch changed (to a different branch) besides other
+        // irrelevant changes (title, body, etc).
+        //
+        // This is in a sense a special case of the base branch moving. In
+        // that case we don't do anything (due to the head sharing problem)
+        // relying instead on the branch protection rule. So it makes sense
+        // to do the same here.
+        //
+        return true.
+      }
+      else if (pr.action == "closed")
+      {
+        // PR has been closed (as merged or not; see merged member). Also
+        // apparently received if base branch is deleted. (And presumably same
+        // for head branch.) See also the reopened event below.
+        //
+
+        // Cancel CI?
+      }
+      else if (pr.action == "reopened")
+      {
+        // Previously closed PR has been reopened.
+        //
+      }
+      else if (pr.action == "assigned"               ||
+               pr.action == "auto_merge_disabled"    ||
+               pr.action == "auto_merge_enabled"     ||
+               pr.action == "converted_to_draft"     ||
+               pr.action == "demilestoned"           ||
+               pr.action == "dequeued"               ||
+               pr.action == "enqueued"               ||
+               pr.action == "labeled"                ||
+               pr.action == "locked"                 ||
+               pr.action == "milestoned"             ||
+               pr.action == "ready_for_review"       ||
+               pr.action == "review_request_removed" ||
+               pr.action == "review_requested"       ||
+               pr.action == "unassigned"             ||
+               pr.action == "unlabeled"              ||
+               pr.action == "unlocked")
+      {
+        // These have no relation to CI.
+      }
       else
       {
-        // Ignore the remaining actions by sending a 200 response with empty
-        // body.
+        // Ignore unknown actions by sending a 200 response with empty body
+        // but also log as an error since we want to notice new actions.
         //
-        // @@ Ignore known but log unknown, as in check_suite above?
-        //
+        error << "unknown action '" << pr.action << "' in pull_request event";
+
         return true;
       }
     }
@@ -1432,30 +1478,6 @@ namespace brep
   // - When new commits are added to a PR head branch, pull_request.head.sha
   //   gets updated with the head commit's SHA and check_suite.pull_requests[]
   //   will contain all PRs with this branch as head.
-  //
-  // Remaining TODOs
-  //
-  // - @@ TODO? PR base branch changed (to a different branch)
-  //
-  //   => pull_request(edited)
-  //
-  // - PR closed @@ TODO
-  //
-  //   Also received if base branch is deleted. (And presumably same for head
-  //   branch.)
-  //
-  //   => pull_request(closed)
-  //
-  //   Cancel CI?
-  //
-  // - PR merged @@ TODO
-  //
-  //   => pull_request(merged)
-  //
-  //   => check_suite(PR_base)
-  //
-  //   Probably wouldn't want to CI the base again because the PR CI would've
-  //   done the equivalent already.
   //
   bool ci_github::
   handle_pull_request (gh_pull_request_event pr, bool warning_success)
