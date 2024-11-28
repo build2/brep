@@ -2099,6 +2099,7 @@ namespace brep
   build_building (const tenant_service& ts,
                   const build& b,
                   const diag_epilogue& log_writer) const noexcept
+  try
   {
     // NOTE: this function is noexcept and should not throw.
 
@@ -2177,6 +2178,8 @@ namespace brep
     //
     if (iat != nullptr)
     {
+      // Let unlikely invalid_argument propagate.
+      //
       if (gq_update_check_run (error,
                                *cr,
                                iat->token,
@@ -2241,6 +2244,16 @@ namespace brep
 
       return sd.json ();
     };
+  }
+  catch (const std::exception& e)
+  {
+    NOTIFICATION_DIAG (log_writer);
+
+    string bid (gh_check_run_name (b)); // Full build id.
+
+    error << "check run " << bid << ": unhandled exception: " << e.what();
+
+    return nullptr;
   }
 
   function<optional<string> (const tenant_service&)> ci_github::
