@@ -1918,6 +1918,7 @@ namespace brep
                 optional<build_state> istate,
                 const build_queued_hints& hs,
                 const diag_epilogue& log_writer) const noexcept
+  try
   {
     // NOTE: this function is noexcept and should not throw.
 
@@ -2020,6 +2021,8 @@ namespace brep
     {
       // Create a check_run for each build as a single request.
       //
+      // Let unlikely invalid_argument propagate.
+      //
       if (gq_create_check_runs (error,
                                 crs,
                                 iat->token,
@@ -2082,6 +2085,14 @@ namespace brep
 
       return sd.json ();
     };
+  }
+  catch (const std::exception& e)
+  {
+    NOTIFICATION_DIAG (log_writer);
+
+    error << "CI tenant " << ts.id << ": unhandled exception: " << e.what ();
+
+    return nullptr;
   }
 
   function<optional<string> (const tenant_service&)> ci_github::
