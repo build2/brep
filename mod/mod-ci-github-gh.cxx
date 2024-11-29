@@ -7,10 +7,19 @@
 
 namespace brep
 {
+  [[noreturn]] static void
+  throw_json (const json::parser& p, const string& m)
+  {
+    throw json::invalid_json_input (
+      p.input_name,
+      p.line (), p.column (), p.position (),
+      m);
+  }
+
   // Return the GitHub check run status corresponding to a build_state.
   //
   string
-  gh_to_status (build_state st)
+  gh_to_status (build_state st) noexcept
   {
     // Just return by value (small string optimization).
     //
@@ -102,10 +111,7 @@ namespace brep
   [[noreturn]] static void
   missing_member (const json::parser& p, const char* o, const char* m)
   {
-    throw json::invalid_json_input (
-      p.input_name,
-      p.line (), p.column (), p.position (),
-      o + string (" object is missing member '") + m + '\'');
+    throw_json (p, o + string (" object is missing member '") + m + '\'');
   }
 
   using event = json::event;
@@ -577,7 +583,21 @@ namespace brep
       };
 
       if      (c (tk, "token"))      token = p.next_expect_string ();
-      else if (c (ea, "expires_at")) expires_at = gh_from_iso8601 (p.next_expect_string ());
+      else if (c (ea, "expires_at"))
+      {
+        string v (p.next_expect_string ());
+
+        try
+        {
+          expires_at = gh_from_iso8601 (v);
+        }
+        catch (const invalid_argument& e)
+        {
+          throw_json (p,
+                      "invalid IAT expires_at value '" + v +
+                        "': " + e.what ());
+        }
+      }
       else p.next_expect_value_skip ();
     }
 
@@ -603,15 +623,37 @@ namespace brep
   string
   gh_to_iso8601 (timestamp t)
   {
-    return butl::to_string (t,
-                            "%Y-%m-%dT%TZ",
-                            false /* special */,
-                            false /* local */);
+    try
+    {
+      return butl::to_string (t,
+                              "%Y-%m-%dT%TZ",
+                              false /* special */,
+                              false /* local */);
+    }
+    catch (const system_error& e)
+    {
+      throw runtime_error (
+        string ("failed to convert timestamp to ISO 8601 string: ") +
+        e.what ());
+    }
   }
 
   timestamp
   gh_from_iso8601 (const string& s)
   {
-    return butl::from_string (s.c_str (), "%Y-%m-%dT%TZ", false /* local */);
+    try
+    {
+      // @@ TMP butl::from_string()'s comment says it also throws
+      //    invalid_argument but that seems to be false.
+      //
+      return butl::from_string (s.c_str (),
+                                "%Y-%m-%dT%TZ",
+                                false /* local */);
+    }
+    catch (const system_error& e)
+    {
+      throw invalid_argument ("invalid ISO 8601 timestamp value '" + s +
+                              "': " + e.what ());
+    }
   }
 }

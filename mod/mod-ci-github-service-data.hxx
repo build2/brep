@@ -139,6 +139,9 @@ namespace brep
     //
     // Throw invalid_argument if the schema version is not supported.
     //
+    // Throw invalid_argument (invalid_json_input) in case of malformed JSON
+    // or any invalid values.
+    //
     explicit
     service_data (const string& json);
 
@@ -178,6 +181,11 @@ namespace brep
     service_data () = default;
 
     // Serialize to JSON.
+    //
+    // Throw invalid_argument if any values are invalid.
+    //
+    // May also throw invalid_json_output but that would be a programming
+    // error.
     //
     string
     json () const;

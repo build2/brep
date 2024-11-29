@@ -107,7 +107,9 @@ namespace brep
     optional<string>
     generate_jwt (const basic_mark& trace, const basic_mark& error) const;
 
-    // Authenticate to GitHub as an app installation.
+    // Authenticate to GitHub as an app installation. Return the installation
+    // access token (IAT). Issue diagnostics and return nullopt if something
+    // goes wrong.
     //
     optional<gh_installation_access_token>
     obtain_installation_access_token (uint64_t install_id,
