@@ -51,27 +51,8 @@ namespace brep
 
     // Installation access token (IAT).
     //
-    p.next_expect_member_object ("installation_access");
-
-    // IAT token.
-    //
-    installation_access.token = p.next_expect_member_string ("token");
-
-    // IAT expires_at.
-    {
-      string v (p.next_expect_member_string ("expires_at"));
-
-      try
-      {
-        installation_access.expires_at = gh_from_iso8601 (v);
-      }
-      catch (const invalid_argument& e)
-      {
-        throw_json (p, string ("invalid IAT expires_at value: ") + e.what ());
-      }
-    }
-
-    p.next_expect (event::end_object); // IAT
+    p.next_expect_name ("installation_access");
+    installation_access = gh_installation_access_token (p);
 
     installation_id =
         p.next_expect_member_number<uint64_t> ("installation_id");
