@@ -1347,8 +1347,16 @@ namespace brep
   build_unloaded_pre_check (tenant_service&& ts,
                             service_data&& sd,
                             const diag_epilogue& log_writer) const noexcept
+  try
   {
     // NOTE: this function is noexcept and should not throw.
+    //
+    //       In a few places where invalid_argument is highly unlikely to be
+    //       thrown and/or would indicate that things are seriously broken we
+    //       let it propagate to the function catch block where the pre-check
+    //       tenant will be canceled otherwise we could end up in an infinite
+    //       loop (because the problematic arguments won't be changing).
+    //
 
     NOTIFICATION_DIAG (log_writer);
 
@@ -1374,6 +1382,8 @@ namespace brep
 
     // Request PR pre-check info (triggering the generation of the test merge
     // commit on the GitHub's side).
+    //
+    // Let unlikely invalid_argument propagate (see above).
     //
     optional<gq_pr_pre_check_info> pc (
       gq_fetch_pull_request_pre_check_info (error,
@@ -1434,38 +1444,50 @@ namespace brep
       // notifications until (1) we load the tenant, (2) we cancel it, or (3)
       // it gets archived after some timeout.
       //
-      if (auto pr = create (error, warn, verb_ ? &trace : nullptr,
-                            *build_db_, retry_,
-                            tenant_service (sid, "ci-github", sd.json ()),
-                            chrono::seconds (30) /* interval */,
-                            chrono::seconds (0) /* delay */,
-                            duplicate_tenant_mode::ignore))
+      try
       {
-        if (pr->second == duplicate_tenant_result::ignored)
+        if (auto pr = create (error, warn, verb_ ? &trace : nullptr,
+                              *build_db_, retry_,
+                              tenant_service (sid, "ci-github", sd.json ()),
+                              chrono::seconds (30) /* interval */,
+                              chrono::seconds (0) /* delay */,
+                              duplicate_tenant_mode::ignore))
         {
-          // This PR is sharing a head commit with something else.
-          //
-          // If this is a local PR then it's probably the branch push, which
-          // is expected, so do nothing.
-          //
-          // If this is a remote PR then it could be anything (branch push,
-          // local PR, or another remote PR) which in turn means the CI result
-          // may end up being for head, not merge commit. There is nothing we
-          // can do about it on our side (the user can enable the head-behind-
-          // base protection on their side).
-          //
-          if (sd.kind == service_data::remote)
+          if (pr->second == duplicate_tenant_result::ignored)
           {
-            l3 ([&]{trace << "remote pull request " << *sd.pr_node_id
-                          << ": CI tenant already exists for " << sid;});
+            // This PR is sharing a head commit with something else.
+            //
+            // If this is a local PR then it's probably the branch push, which
+            // is expected, so do nothing.
+            //
+            // If this is a remote PR then it could be anything (branch push,
+            // local PR, or another remote PR) which in turn means the CI
+            // result may end up being for head, not merge commit. There is
+            // nothing we can do about it on our side (the user can enable the
+            // head-behind- base protection on their side).
+            //
+            if (sd.kind == service_data::remote)
+            {
+              l3 ([&]{trace << "remote pull request " << *sd.pr_node_id
+                            << ": CI tenant already exists for " << sid;});
+            }
           }
         }
+        else
+        {
+          error << "pull request " << *sd.pr_node_id
+                << ": failed to create unloaded CI tenant "
+                << "with tenant_service id " << sid;
+
+          // Fall through to cancel.
+        }
       }
-      else
+      catch (const runtime_error& e) // Database retries exhausted.
       {
         error << "pull request " << *sd.pr_node_id
-              << ": unable to create unloaded CI tenant "
-              << "with tenant_service id " << sid;
+              << ": failed to create unloaded CI tenant "
+              << "with tenant_service id " << sid
+              << ": " << e.what ();
 
         // Fall through to cancel.
       }
@@ -1473,16 +1495,67 @@ namespace brep
 
     // Cancel the pre-check tenant.
     //
-    if (!cancel (error, warn, verb_ ? &trace : nullptr,
-                 *build_db_, retry_,
-                 ts.type,
-                 ts.id))
+    try
     {
-      // Should never happen (no such tenant).
-      //
+      if (!cancel (error, warn, verb_ ? &trace : nullptr,
+                   *build_db_, retry_,
+                   ts.type,
+                   ts.id))
+      {
+        // Should never happen (no such tenant).
+        //
+        error << "pull request " << *sd.pr_node_id
+              << ": failed to cancel pre-check tenant with tenant_service id "
+              << ts.id;
+      }
+    }
+    catch (const runtime_error& e) // Database retries exhausted.
+    {
       error << "pull request " << *sd.pr_node_id
             << ": failed to cancel pre-check tenant with tenant_service id "
-            << ts.id;
+            << ts.id << ": " << e.what ();
+    }
+
+    return nullptr;
+  }
+  catch (const std::exception& e)
+  {
+    NOTIFICATION_DIAG (log_writer);
+    error << "pull request " << *sd.pr_node_id
+          << ": unhandled exception: " << e.what ();
+
+    // Cancel the pre-check tenant otherwise we could end up in an infinite
+    // loop (see top of function).
+    //
+    try
+    {
+      if (cancel (error, warn, verb_ ? &trace : nullptr,
+                   *build_db_, retry_, ts.type, ts.id))
+        l3 ([&]{trace << "canceled pre-check tenant " << ts.id;});
+    }
+    catch (const runtime_error& e) // Database retries exhausted.
+    {
+      l3 ([&]{trace << "failed to cancel pre-check tenant " << ts.id << ": "
+                    << e.what ();});
+    }
+
+    return nullptr;
+  }
+  catch (...)
+  {
+    NOTIFICATION_DIAG (log_writer);
+    error << "pull request " << *sd.pr_node_id << ": unhandled exception";
+
+    try
+    {
+      if (cancel (error, warn, verb_ ? &trace : nullptr,
+                  *build_db_, retry_, ts.type, ts.id))
+        l3 ([&]{trace << "canceled pre-check tenant " << ts.id;});
+    }
+    catch (const runtime_error& e) // Database retries exhausted.
+    {
+      l3 ([&]{trace << "failed to cancel pre-check tenant " << ts.id << ": "
+                    << e.what ();});
     }
 
     return nullptr;
