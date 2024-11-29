@@ -10,6 +10,15 @@ namespace brep
 {
   using event = json::event;
 
+  [[noreturn]] static void
+  throw_json (json::parser& p, const string& m)
+  {
+    throw json::invalid_json_input (
+      p.input_name,
+      p.line (), p.column (), p.position (),
+      m);
+  }
+
   service_data::
   service_data (const string& json)
   {
@@ -32,11 +41,7 @@ namespace brep
       if      (v == "local")  kind = local;
       else if (v == "remote") kind = remote;
       else
-      {
-        throw json::invalid_json_input (
-          p.input_name, p.line (), p.column (), p.position (),
-          "invalid service data kind: '" + v + '\'');
-      }
+        throw_json (p, "invalid service data kind: '" + v + '\'');
     }
 
     pre_check = p.next_expect_member_boolean<bool> ("pre_check");
@@ -44,13 +49,29 @@ namespace brep
 
     warning_success = p.next_expect_member_boolean<bool> ("warning_success");
 
-    // Installation access token.
+    // Installation access token (IAT).
     //
     p.next_expect_member_object ("installation_access");
+
+    // IAT token.
+    //
     installation_access.token = p.next_expect_member_string ("token");
-    installation_access.expires_at =
-        gh_from_iso8601 (p.next_expect_member_string ("expires_at"));
-    p.next_expect (event::end_object);
+
+    // IAT expires_at.
+    {
+      string v (p.next_expect_member_string ("expires_at"));
+
+      try
+      {
+        installation_access.expires_at = gh_from_iso8601 (v);
+      }
+      catch (const invalid_argument& e)
+      {
+        throw_json (p, string ("invalid IAT expires_at value: ") + e.what ());
+      }
+    }
+
+    p.next_expect (event::end_object); // IAT
 
     installation_id =
         p.next_expect_member_number<uint64_t> ("installation_id");
@@ -82,7 +103,16 @@ namespace brep
           nid = *v;
       }
 
-      build_state s (to_build_state (p.next_expect_member_string ("state")));
+      build_state s;
+      try
+      {
+        s = to_build_state (p.next_expect_member_string ("state"));
+      }
+      catch (const invalid_argument& e)
+      {
+        throw_json (p, e.what ());
+      }
+
       bool ss (p.next_expect_member_boolean<bool> ("state_synced"));
 
       optional<result_status> rs;
@@ -90,7 +120,14 @@ namespace brep
         string* v (p.next_expect_member_string_null ("status"));
         if (v != nullptr)
         {
-          rs = bbot::to_result_status (*v);
+          try
+          {
+            rs = bbot::to_result_status (*v);
+          }
+          catch (const invalid_argument& e)
+          {
+            throw_json (p, e.what ());
+          }
           assert (s == build_state::built);
         }
       }
@@ -189,11 +226,28 @@ namespace brep
 
     s.member ("warning_success", warning_success);
 
-    // Installation access token.
+    // Installation access token (IAT).
     //
     s.member_begin_object ("installation_access");
     s.member ("token", installation_access.token);
-    s.member ("expires_at", gh_to_iso8601 (installation_access.expires_at));
+
+    // IAT expires_at timestamp.
+    //
+    {
+      string v;
+      try
+      {
+        v = gh_to_iso8601 (installation_access.expires_at);
+      }
+      catch (const runtime_error& e)
+      {
+        throw invalid_argument ("invalid IAT expires_at value " +
+                                to_string (system_clock::to_time_t (
+                                  installation_access.expires_at)));
+      }
+      s.member ("expires_at", move (v));
+    }
+
     s.end_object ();
 
     s.member ("installation_id", installation_id);
@@ -235,7 +289,7 @@ namespace brep
       if (cr.status)
       {
         assert (cr.state == build_state::built);
-        s.value (to_string (*cr.status));
+        s.value (to_string (*cr.status)); // Doesn't throw.
       }
       else
         s.value (nullptr);

@@ -163,6 +163,8 @@ namespace brep
   // Parse a response to a check_run GraphQL mutation such as `createCheckRun`
   // or `updateCheckRun`.
   //
+  // Throw invalid_json_input.
+  //
   // Example response (only the part we need to parse here):
   //
   //  {
@@ -229,7 +231,7 @@ namespace brep
   gq_mutate_check_runs (const basic_mark& error,
                         vector<check_run>& crs,
                         const string& iat,
-                        string rq) noexcept
+                        string rq)
   {
     vector<gh_check_run> rcrs;
 
@@ -302,7 +304,7 @@ namespace brep
         error << "failed to mutate check runs: error HTTP response status "
               << sc;
     }
-    catch (const json::invalid_json_input& e)
+    catch (const json::invalid_json_input& e) // struct resp (via github_post())
     {
       // Note: e.name is the GitHub API endpoint.
       //
@@ -310,16 +312,16 @@ namespace brep
             << e.line << ", column: " << e.column << ", byte offset: "
             << e.position << ", error: " << e;
     }
-    catch (const invalid_argument& e)
+    catch (const invalid_argument& e) // github_post()
     {
       error << "malformed header(s) in response: " << e;
     }
-    catch (const system_error& e)
+    catch (const system_error& e) // github_post()
     {
       error << "unable to mutate check runs (errno=" << e.code () << "): "
             << e.what ();
     }
-    catch (const runtime_error& e) // From gq_parse_response_check_runs().
+    catch (const runtime_error& e) // gq_parse_response_check_runs()
     {
       // GitHub response contained error(s) (could be ours or theirs at this
       // point).
@@ -360,6 +362,9 @@ namespace brep
   //
   // The details URL argument (`du`) can be empty for queued but not for the
   // other states.
+  //
+  // Throw invalid_argument if any of the observed check run members are not
+  // valid GraphQL values (string, enum, etc).
   //
   static string
   gq_mutation_create_check_runs (const string& ri,           // Repository ID
@@ -421,6 +426,9 @@ namespace brep
   //
   // The details URL argument (`du`) can be empty for queued but not for the
   // other states.
+  //
+  // Throw invalid_argument if any of the arguments or observed check run
+  // members are not valid GraphQL values (string, enum, etc).
   //
   static string
   gq_mutation_create_check_run (const string& ri,           // Repository ID
@@ -484,6 +492,9 @@ namespace brep
   // because GitHub does not allow updating a check run to completed without a
   // conclusion.
   //
+  // Throw invalid_argument if any of the arguments are invalid values (of
+  // GraphQL types or otherwise).
+  //
   static string
   gq_mutation_update_check_run (const string& ri,           // Repository ID.
                                 const string& ni,           // Node ID.
@@ -505,8 +516,17 @@ namespace brep
        << "  status: "       << gq_enum (st);
     if (sa)
     {
-      os                                                          << '\n';
-      os << "  startedAt: " << gq_str (gh_to_iso8601 (*sa));
+      try
+      {
+        os                                                        << '\n';
+        os << "  startedAt: " << gq_str (gh_to_iso8601 (*sa));
+      }
+      catch (const runtime_error& e)
+      {
+        throw invalid_argument ("invalid started_at value " +
+                                to_string (system_clock::to_time_t (*sa)) +
+                                ": " + e.what ());
+      }
     }
     if (du)
     {
@@ -634,6 +654,8 @@ namespace brep
 
   // Serialize a GraphQL query that fetches a pull request from GitHub.
   //
+  // Throw invalid_argument if the node id is not a valid GraphQL string.
+  //
   static string
   gq_query_pr_mergeability (const string& nid)
   {
@@ -658,6 +680,8 @@ namespace brep
                                         const string& iat,
                                         const string& nid)
   {
+    // Let invalid_argument from gq_query_pr_mergeability() propagate.
+    //
     string rq (gq_serialize_request (gq_query_pr_mergeability (nid)));
 
     try
@@ -760,7 +784,7 @@ namespace brep
         error << "failed to fetch pull request: error HTTP response status "
               << sc;
     }
-    catch (const json::invalid_json_input& e)
+    catch (const json::invalid_json_input& e) // struct resp (via github_post())
     {
       // Note: e.name is the GitHub API endpoint.
       //
@@ -768,16 +792,16 @@ namespace brep
             << e.line << ", column: " << e.column << ", byte offset: "
             << e.position << ", error: " << e;
     }
-    catch (const invalid_argument& e)
+    catch (const invalid_argument& e) // github_post()
     {
       error << "malformed header(s) in response: " << e;
     }
-    catch (const system_error& e)
+    catch (const system_error& e) // github_post()
     {
       error << "unable to fetch pull request (errno=" << e.code () << "): "
             << e.what ();
     }
-    catch (const runtime_error& e) // From response type's parsing constructor.
+    catch (const runtime_error& e) // struct resp
     {
       // GitHub response contained error(s) (could be ours or theirs at this
       // point).
