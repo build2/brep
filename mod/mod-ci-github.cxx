@@ -2263,6 +2263,7 @@ namespace brep
   build_built (const tenant_service& ts,
                const build& b,
                const diag_epilogue& log_writer) const noexcept
+  try
   {
     // NOTE: this function is noexcept and should not throw.
 
@@ -2390,6 +2391,11 @@ namespace brep
       {
         using namespace web::xhtml;
 
+        // Note: let all serialization exceptions propagate. The XML
+        // serialization code can throw bad_alloc or xml::serialization in
+        // case of I/O failures, but we're serializing to a string stream so
+        // both exceptions are highly unlikely.
+        //
         ostringstream os;
         xml::serializer s (os, "check_run_summary");
 
@@ -2485,7 +2491,8 @@ namespace brep
 
       if (cr.node_id)
       {
-        // Update existing check run to built.
+        // Update existing check run to built. Let unlikely invalid_argument
+        // propagate.
         //
         if (gq_update_check_run (error,
                                  cr,
@@ -2502,7 +2509,7 @@ namespace brep
       }
       else
       {
-        // Create new check run.
+        // Create new check run. Let unlikely invalid_argument propagate.
         //
         // Note that we don't have build hints so will be creating this check
         // run with the full build id as name. In the unlikely event that an
@@ -2550,6 +2557,8 @@ namespace brep
           cr.node_id = *sd.conclusion_node_id;
           cr.name = conclusion_check_run_name;
 
+          // Let unlikely invalid_argument propagate.
+          //
           if (gq_update_check_run (error,
                                    cr,
                                    iat->token,
@@ -2653,6 +2662,16 @@ namespace brep
 
       return sd.json ();
     };
+  }
+  catch (const std::exception& e)
+  {
+    NOTIFICATION_DIAG (log_writer);
+
+    string bid (gh_check_run_name (b)); // Full build id.
+
+    error << "check run " << bid << ": unhandled exception: " << e.what();
+
+    return nullptr;
   }
 
   string ci_github::
