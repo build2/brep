@@ -693,6 +693,9 @@ namespace brep
 
   // Create a gq_built_result.
   //
+  // Throw invalid_argument in case of invalid result_status (highly
+  // unlikely).
+  //
   static gq_built_result
   make_built_result (result_status rs, bool warning_success, string message)
   {
