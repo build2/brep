@@ -484,10 +484,6 @@ namespace brep
         return p.name () == s ? (v = true) : false;
       };
 
-      // Pass true to gh_check_run() to indicate that the we're parsing a
-      // webhook event or REST API response (in which case more fields are
-      // expected to be present than in a GraphQL response).
-      //
       if      (c (ac, "action"))       action = p.next_expect_string ();
       else if (c (cs, "check_run"))    check_run = gh_check_run_ex (p);
       else if (c (rp, "repository"))   repository = gh_repository (p);
