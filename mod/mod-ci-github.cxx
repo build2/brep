@@ -2996,6 +2996,8 @@ namespace brep
       //
       iat.expires_at -= chrono::minutes (5);
     }
+    // gh_installation_access_token (via github_post())
+    //
     catch (const json::invalid_json_input& e)
     {
       // Note: e.name is the GitHub API endpoint.
@@ -3005,12 +3007,12 @@ namespace brep
             << e.position << ", error: " << e;
       return nullopt;
     }
-    catch (const invalid_argument& e)
+    catch (const invalid_argument& e) // github_post()
     {
       error << "malformed header(s) in response: " << e;
       return nullopt;
     }
-    catch (const system_error& e)
+    catch (const system_error& e) // github_post()
     {
       error << "unable to get installation access token (errno=" << e.code ()
             << "): " << e.what ();
