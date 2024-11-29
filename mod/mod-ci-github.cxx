@@ -1565,8 +1565,16 @@ namespace brep
   build_unloaded_load (tenant_service&& ts,
                        service_data&& sd,
                        const diag_epilogue& log_writer) const noexcept
+  try
   {
     // NOTE: this function is noexcept and should not throw.
+    //
+    //       In a few places where invalid_argument is highly unlikely to be
+    //       thrown and/or would indicate that things are seriously broken we
+    //       let it propagate to the function catch block where the tenant
+    //       will be canceled otherwise we could end up in an infinite loop
+    //       (because the problematic arguments won't be changing).
+    //
 
     NOTIFICATION_DIAG (log_writer);
 
@@ -1613,6 +1621,8 @@ namespace brep
       check_run cr;
       cr.name = move (name);
 
+      // Let unlikely invalid_argument propagate (see above).
+      //
       if (gq_create_check_run (error,
                                cr,
                                iat->token,
@@ -1639,12 +1649,16 @@ namespace brep
     {
       assert (!node_id.empty ());
 
+      // Let unlikely invalid_argument propagate (see above).
+      //
       gq_built_result br (
         make_built_result (rs, sd.warning_success, move (summary)));
 
       check_run cr;
       cr.name = name; // For display purposes only.
 
+      // Let unlikely invalid_argument propagate (see above).
+      //
       if (gq_update_check_run (error,
                                cr,
                                iat->token,
@@ -1697,32 +1711,43 @@ namespace brep
       else
         ru = sd.repository_clone_url + '#' + sd.check_sha;
 
+      // Let unlikely invalid_argument propagate (see above).
+      //
       repository_location rl (move (ru), repository_type::git);
 
-      optional<start_result> r (load (error, warn, verb_ ? &trace : nullptr,
-                                      *build_db_, retry_,
-                                      move (ts),
-                                      move (rl)));
-
-      if (!r || r->status != 200)
+      try
       {
-        if (auto cr = update_synthetic_cr (conclusion_node_id,
-                                           conclusion_check_run_name,
-                                           result_status::error,
-                                           to_check_run_summary (r)))
-        {
-          l3 ([&]{trace << "updated check_run { " << *cr << " }";});
-        }
-        else
-        {
-          // Nothing really we can do in this case since we will not receive
-          // any further notifications. Log the error as a last resort.
+        optional<start_result> r (load (error, warn, verb_ ? &trace : nullptr,
+                                        *build_db_, retry_,
+                                        move (ts),
+                                        move (rl)));
 
-          error << "failed to load CI tenant " << ts.id
-                << " and unable to update conclusion";
-        }
+        if (!r || r->status != 200)
+        {
+          // Let unlikely invalid_argument propagate (see above).
+          //
+          if (auto cr = update_synthetic_cr (conclusion_node_id,
+                                             conclusion_check_run_name,
+                                             result_status::error,
+                                             to_check_run_summary (r)))
+          {
+            l3 ([&]{trace << "updated check_run { " << *cr << " }";});
+          }
+          else
+          {
+            // Nothing really we can do in this case since we will not receive
+            // any further notifications. Log the error as a last resort.
 
-        return nullptr; // No need to update service data in this case.
+            error << "failed to load CI tenant " << ts.id
+                  << " and unable to update conclusion";
+          }
+
+          return nullptr; // No need to update service data in this case.
+        }
+      }
+      catch (const runtime_error& e) // Database retries exhausted.
+      {
+        error << "failed to load CI tenant " << ts.id << ": " << e.what ();
       }
     }
     else if (!new_iat)
@@ -1756,6 +1781,47 @@ namespace brep
 
       return sd.json ();
     };
+  }
+  catch (const std::exception& e)
+  {
+    NOTIFICATION_DIAG (log_writer);
+    error << "CI tenant " << ts.id << ": unhandled exception: " << e.what ();
+
+    // Cancel the tenant otherwise we could end up in an infinite loop (see
+    // top of function).
+    //
+    try
+    {
+      if (cancel (error, warn, verb_ ? &trace : nullptr,
+                  *build_db_, retry_, ts.type, ts.id))
+        l3 ([&]{trace << "canceled CI tenant " << ts.id;});
+    }
+    catch (const runtime_error& e) // Database retries exhausted.
+    {
+      l3 ([&]{trace << "failed to cancel CI tenant " << ts.id
+                    << ": " << e.what ();});
+    }
+
+    return nullptr;
+  }
+  catch (...)
+  {
+    NOTIFICATION_DIAG (log_writer);
+    error << "CI tenant " << ts.id << ": unhandled exception";
+
+    try
+    {
+      if (cancel (error, warn, verb_ ? &trace : nullptr,
+                  *build_db_, retry_, ts.type, ts.id))
+        l3 ([&]{trace << "canceled CI tenant " << ts.id;});
+    }
+    catch (const runtime_error& e) // Database retries exhausted.
+    {
+      l3 ([&]{trace << "failed to cancel CI tenant " << ts.id << ": "
+                    << e.what ();});
+    }
+
+    return nullptr;
   }
 
   // Build state change notifications (see tenant-services.hxx for
