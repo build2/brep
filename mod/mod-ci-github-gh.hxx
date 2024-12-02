@@ -21,8 +21,6 @@ namespace butl
 
 namespace brep
 {
-   // @@@ Check if any data members are unused (once the dust settles).
-
   using build_queued_hints = tenant_service_build_queued::build_queued_hints;
 
   // GitHub request/response types (all start with gh_).
@@ -87,15 +85,12 @@ namespace brep
     string node_id;
     unsigned int number;
 
-    // @@ TMP The unused base/head members may be useful for trace output when
-    //    we receive the pull_request webhook.
-
     string base_path; // Repository path (<org>/<repo>) under github.com.
-    string base_ref;  // @@ TODO Remove if remains unused.
-    string base_sha;  // @@ TODO Remove if remains unused.
+    string base_ref;
+    string base_sha;
 
     string head_path;
-    string head_ref; // @@ TODO Remove if remains unused.
+    string head_ref;
     string head_sha;
 
     explicit
@@ -133,7 +128,6 @@ namespace brep
   struct gh_repository
   {
     string node_id;
-    string name;
     string path; // Repository path (<org>/<repo>) under github.com.
     string clone_url;
 

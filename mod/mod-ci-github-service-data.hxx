@@ -11,8 +11,6 @@
 
 namespace brep
 {
-  // @@@ Check if any data members are unused (once the dust settles).
-
   // Service data associated with the tenant (corresponds to GH check suite).
   //
   // It is always a top-level JSON object and the first member is always the
@@ -99,7 +97,7 @@ namespace brep
 
     // The following two are only used for pull requests.
     //
-    // @@ TODO/LATER: maybe put them in a struct?
+    // @@ TODO/LATER: maybe put them in a struct, if more members?
     //
     optional<string>   pr_node_id;
     optional<uint32_t> pr_number;
