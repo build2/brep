@@ -19,26 +19,6 @@
 
 #include <stdexcept>
 
-// @@ Remaining TODOs
-//
-//    - Rerequested checks
-//
-//      - check_suite (action: rerequested): received when user re-runs all
-//        checks.
-//
-//      - check_run (action: rerequested): received when user re-runs a
-//        specific check or all failed checks.
-//
-//        @@ TMP I have confirmed that the above is accurate.
-//
-//      Will need to extract a few more fields from check_runs, but the layout
-//      is very similar to that of check_suite.
-//
-//    - Choose strong webhook secret (when deploying).
-//
-//    - Check that delivery UUID has not been received before (replay attack).
-//
-
 // Resources:
 //
 //    Creating an App:
@@ -280,9 +260,6 @@ namespace brep
     // is that we want be "notified" of new actions at which point we can
     // decide whether to ignore them or to handle.
     //
-    // @@ There is also check_run even (re-requested by user, either
-    //    individual check run or all the failed check runs).
-    //
     if (event == "check_suite")
     {
       gh_check_suite_event cs;
@@ -316,13 +293,10 @@ namespace brep
       else if (cs.action == "completed")
       {
         // GitHub thinks that "all the check runs in this check suite have
-        // completed and a conclusion is available". Looks like this one we
-        // ignore?
+        // completed and a conclusion is available". Check with our own
+        // bookkeeping and log an error if there is a mismatch.
         //
-        // What if our bookkeeping says otherwise? But then we can't even
-        // access the service data easily here. @@ TODO: maybe/later.
-        //
-        return true;
+        return handle_check_suite_completed (move (cs), warning_success);
       }
       else
       {
@@ -558,10 +532,6 @@ namespace brep
 
     l3 ([&]{trace << "installation_access_token { " << *iat << " }";});
 
-    // @@ What happens if we call this functions with an already existing
-    //    node_id (e.g., replay attack). See the UUID header above.
-    //
-
     // While it would have been nice to cancel CIs of PRs with this branch as
     // base not to waste resources, there are complications: Firstly, we can
     // only do this for remote PRs (since local PRs will most likely share the
@@ -690,6 +660,23 @@ namespace brep
     return true;
   }
 
+  bool ci_github::
+  handle_check_suite_completed (gh_check_suite_event cs, bool warning_success)
+  {
+    // The plans is as follows:
+    //
+    // 1. Load the service data.
+    //
+    // 2. Verify it is completed.
+    //
+    // 3. Verify (like in build_built()) that all the check runs are
+    //    completed.
+    //
+    // 4. Verify the result matches what GitHub thinks it is (if easy).
+
+    return true;
+  }
+
   // Create a gq_built_result.
   //
   // Throw invalid_argument in case of invalid result_status.
@@ -795,6 +782,7 @@ namespace brep
     // archived.
     //
     service_data sd;
+    string tenant_id;
     {
       // Service id that uniquely identifies the CI tenant.
       //
@@ -868,6 +856,8 @@ namespace brep
         {
           fail << "failed to parse service data: " << e;
         }
+
+        tenant_id = d->tenant_id;
       }
       else
       {
@@ -1015,7 +1005,8 @@ namespace brep
     // only if the build is actually restarted).
     //
     auto update_sd = [&error, &new_iat, &race,
-                      &cr, &bcr, &ccr] (const string& /*tenant_id*/,
+                      tenant_id = move (tenant_id),
+                      &cr, &bcr, &ccr] (const string& ti,
                                         const tenant_service& ts,
                                         build_state) -> optional<string>
     {
@@ -1023,6 +1014,16 @@ namespace brep
       // being aborted) and so should not move out of its captures.
 
       race = false; // Reset.
+
+      if (tenant_id != ti)
+      {
+        // The tenant got replaced since we loaded it but we managed to
+        // trigger a rebuild in the new tenant. Who knows whose check runs are
+        // visible, so let's fail ours similar to the cases below.
+        //
+        race = true;
+        return nullopt;
+      }
 
       service_data sd;
       try
@@ -1320,9 +1321,8 @@ namespace brep
     return true;
   }
 
-  function<optional<string> (const string& tenant_id,
-                             const tenant_service&)> ci_github::
-  build_unloaded (const string& /*tenant_id*/,
+  function<optional<string> (const string&, const tenant_service&)> ci_github::
+  build_unloaded (const string& ti,
                   tenant_service&& ts,
                   const diag_epilogue& log_writer) const noexcept
   {
@@ -1342,12 +1342,11 @@ namespace brep
     }
 
     return sd.pre_check
-             ? build_unloaded_pre_check (move (ts), move (sd), log_writer)
-             : build_unloaded_load (move (ts), move (sd), log_writer);
+      ? build_unloaded_pre_check (move (ts), move (sd), log_writer)
+      : build_unloaded_load (ti, move (ts), move (sd), log_writer);
   }
 
-  function<optional<string> (const string& tenant_id,
-                             const tenant_service&)> ci_github::
+  function<optional<string> (const string&, const tenant_service&)> ci_github::
   build_unloaded_pre_check (tenant_service&& ts,
                             service_data&& sd,
                             const diag_epilogue& log_writer) const noexcept
@@ -1547,9 +1546,9 @@ namespace brep
     return nullptr;
   }
 
-  function<optional<string> (const string& tenant_id,
-                             const tenant_service&)> ci_github::
-  build_unloaded_load (tenant_service&& ts,
+  function<optional<string> (const string&, const tenant_service&)> ci_github::
+  build_unloaded_load (const string& tenant_id,
+                       tenant_service&& ts,
                        service_data&& sd,
                        const diag_epilogue& log_writer) const noexcept
   try
@@ -1751,14 +1750,18 @@ namespace brep
       return nullptr; // Nothing to save (but potentially retry on next call).
 
     return [&error,
+            tenant_id,
             iat = move (new_iat),
             cni = move (conclusion_node_id)]
-      (const string& /*tenant_id*/,
+      (const string& ti,
        const tenant_service& ts) -> optional<string>
     {
       // NOTE: this lambda may be called repeatedly (e.g., due to
       // transaction being aborted) and so should not move out of its
       // captures.
+
+      if (tenant_id != ti)
+        return nullopt; // Do nothing if the tenant has been replaced.
 
       service_data sd;
       try
@@ -1812,9 +1815,9 @@ namespace brep
   //    them when notifying GitHub. The first is not important (we expect the
   //    state to go back to building shortly). The second should normally not
   //    happen and would mean that a completed check suite may go back on its
-  //    conclusion (which would be pretty confusing for the user). @@@ This
-  //    can/will happen on check run rebuild. Distinguish between internal
-  //    and external rebuilds?
+  //    conclusion (which would be pretty confusing for the user). Note that
+  //    the ->queued state transition of a check run rebuild triggered by
+  //    us is handled directly in handle_check_run_rerequest().
   //
   //    So, for GitHub notifications, we only have the following linear
   //    transition sequence:
@@ -1891,9 +1894,8 @@ namespace brep
   //    if we have node_id, then we update, otherwise, we create (potentially
   //    overriding the check run created previously).
   //
-  function<optional<string> (const string& tenant_id,
-                             const tenant_service&)> ci_github::
-  build_queued (const string& /*tenant_id*/,
+  function<optional<string> (const string&, const tenant_service&)> ci_github::
+  build_queued (const string& tenant_id,
                 const tenant_service& ts,
                 const vector<build>& builds,
                 optional<build_state> istate,
@@ -2019,15 +2021,19 @@ namespace brep
       }
     }
 
-    return [bs = move (bs),
+    return [tenant_id,
+            bs = move (bs),
             iat = move (new_iat),
             crs = move (crs),
             error = move (error),
-            warn = move (warn)] (const string& /*tenant_id*/,
+            warn = move (warn)] (const string& ti,
                                  const tenant_service& ts) -> optional<string>
     {
       // NOTE: this lambda may be called repeatedly (e.g., due to transaction
       // being aborted) and so should not move out of its captures.
+
+      if (tenant_id != ti)
+        return nullopt; // Do nothing if the tenant has been replaced.
 
       service_data sd;
       try
@@ -2077,9 +2083,8 @@ namespace brep
     return nullptr;
   }
 
-  function<optional<string> (const string& tenant_id,
-                             const tenant_service&)> ci_github::
-  build_building (const string& /*tenant_id*/,
+  function<optional<string> (const string&, const tenant_service&)> ci_github::
+  build_building (const string& tenant_id,
                   const tenant_service& ts,
                   const build& b,
                   const diag_epilogue& log_writer) const noexcept
@@ -2187,14 +2192,18 @@ namespace brep
       }
     }
 
-    return [iat = move (new_iat),
+    return [tenant_id,
+            iat = move (new_iat),
             cr = move (*cr),
             error = move (error),
-            warn = move (warn)] (const string& /*tenant_id*/,
+            warn = move (warn)] (const string& ti,
                                  const tenant_service& ts) -> optional<string>
     {
       // NOTE: this lambda may be called repeatedly (e.g., due to transaction
       // being aborted) and so should not move out of its captures.
+
+      if (tenant_id != ti)
+        return nullopt; // Do nothing if the tenant has been replaced.
 
       service_data sd;
       try
@@ -2241,9 +2250,8 @@ namespace brep
     return nullptr;
   }
 
-  function<optional<string> (const string& tenant_id,
-                             const tenant_service&)> ci_github::
-  build_built (const string& /*tenant_id*/,
+  function<optional<string> (const string&, const tenant_service&)> ci_github::
+  build_built (const string& tenant_id,
                const tenant_service& ts,
                const build& b,
                const diag_epilogue& log_writer) const noexcept
@@ -2253,9 +2261,8 @@ namespace brep
 
     NOTIFICATION_DIAG (log_writer);
 
-    // @@ TODO Include service_data::event_node_id and perhaps ts.id in
-    //    diagnostics? E.g. when failing to update check runs we print the
-    //    build ID only.
+    // @@ TODO Include ts.id in diagnostics? Check run build ids alone seem
+    //    kind of meaningless. Log lines get pretty long this way however.
 
     service_data sd;
     try
@@ -2569,15 +2576,19 @@ namespace brep
       }
     }
 
-    return [iat = move (new_iat),
+    return [tenant_id,
+            iat = move (new_iat),
             cr = move (cr),
             completed = completed,
             error = move (error),
-            warn = move (warn)] (const string& /*tenant_id*/,
+            warn = move (warn)] (const string& ti,
                                  const tenant_service& ts) -> optional<string>
     {
       // NOTE: this lambda may be called repeatedly (e.g., due to transaction
       // being aborted) and so should not move out of its captures.
+
+      if (tenant_id != ti)
+        return nullopt; // Do nothing if the tenant has been replaced.
 
       service_data sd;
       try
