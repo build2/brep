@@ -104,8 +104,12 @@ namespace brep
           build_db_->query_one<build_tenant> (query::service.id == id &&
                                               query::service.type == type));
 
-        if (t != nullptr && t->service)
+        if (t != nullptr)
         {
+          // Shouldn't be here otherwise.
+          //
+          assert (t->service);
+
           tenant_service& s (*t->service);
 
           if (optional<string> data = f (t->id, s))
