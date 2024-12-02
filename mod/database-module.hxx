@@ -61,16 +61,18 @@ namespace brep
     // and nullopt otherwise.
     //
     // Specifically, start the database transaction, query the service state,
-    // and call the callback-returned function on this state. If this call
-    // returns the data string (rather than nullopt), then update the service
-    // state with this data and persist the change. Repeat all the above steps
-    // on the recoverable database failures (deadlocks, etc).
+    // and, if present, call the callback-returned function on this state. If
+    // this call returns the data string (rather than nullopt), then update
+    // the service state with this data and persist the change. Repeat all the
+    // above steps on the recoverable database failures (deadlocks, etc).
     //
     optional<string>
     update_tenant_service_state (
       const odb::core::connection_ptr&,
-      const string& tid,
-      const function<optional<string> (const tenant_service&)>&);
+      const string& type,
+      const string& id,
+      const function<optional<string> (const string& tenant_id,
+                                       const tenant_service&)>&);
 
   protected:
     size_t retry_ = 0; // Max of all retries.

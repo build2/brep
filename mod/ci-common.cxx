@@ -955,7 +955,8 @@ namespace brep
   rebuild (odb::core::database& db,
            size_t retry,
            const build_id& id,
-           function<optional<string> (const tenant_service&,
+           function<optional<string> (const string& tenant_id,
+                                      const tenant_service&,
                                       build_state)> uf) const
   {
     using namespace odb::core;
@@ -1002,7 +1003,7 @@ namespace brep
 
             tenant_service& ts (*t->service);
 
-            if (optional<string> data = uf (ts, s))
+            if (optional<string> data = uf (t->id, ts, s))
             {
               ts.data = move (*data);
               db.update (t);
@@ -1030,7 +1031,7 @@ namespace brep
     return s;
   }
 
-  optional<pair<tenant_service, bool>> ci_start::
+  optional<ci_start::tenant_data> ci_start::
   find (odb::core::database& db,
         const string& type,
         const string& id) const
@@ -1052,6 +1053,6 @@ namespace brep
     if (t == nullptr || !t->service)
       return nullopt;
 
-    return pair<tenant_service, bool> (move (*t->service), t->archived);
+    return tenant_data {move (t->id), move (*t->service), t->archived};
   }
 }
