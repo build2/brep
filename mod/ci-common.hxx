@@ -242,7 +242,8 @@ namespace brep
     rebuild (odb::core::database&,
              size_t retry,
              const build_id&,
-             function<optional<string> (const tenant_service&,
+             function<optional<string> (const string& tenant_id,
+                                        const tenant_service&,
                                         build_state)> = nullptr) const;
 
     // Find the tenant given the tenant service type and id and return the
@@ -251,7 +252,14 @@ namespace brep
     //
     // Note: should be called out of the database transaction.
     //
-    optional<pair<tenant_service, bool /*archived*/>>
+    struct tenant_data
+    {
+      string tenant_id;
+      tenant_service service;
+      bool archived;
+    };
+
+    optional<tenant_data>
     find (odb::core::database&,
           const string& type,
           const string& id) const;
