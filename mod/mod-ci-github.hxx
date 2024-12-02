@@ -42,33 +42,45 @@ namespace brep
     virtual const cli::options&
     cli_options () const {return options::ci_github::description ();}
 
-    virtual function<optional<string> (const tenant_service&)>
-    build_unloaded (tenant_service&&,
+    virtual function<optional<string> (const string& tenant_id,
+                                       const tenant_service&)>
+    build_unloaded (const string& tenant_id,
+                    tenant_service&&,
                     const diag_epilogue& log_writer) const noexcept override;
 
-    function<optional<string> (const tenant_service&)>
+    function<optional<string> (const string& tenant_id,
+                               const tenant_service&)>
     build_unloaded_pre_check (tenant_service&&,
                               service_data&&,
                               const diag_epilogue&) const noexcept;
 
-    function<optional<string> (const tenant_service&)>
+    function<optional<string> (const string& tenant_id,
+                               const tenant_service&)>
     build_unloaded_load (tenant_service&&,
                          service_data&&,
                          const diag_epilogue&) const noexcept;
 
-    virtual function<optional<string> (const tenant_service&)>
-    build_queued (const tenant_service&,
+    virtual function<optional<string> (const string& tenant_id,
+                                       const tenant_service&)>
+    build_queued (const string& tenant_id,
+                  const tenant_service&,
                   const vector<build>&,
                   optional<build_state> initial_state,
                   const build_queued_hints&,
                   const diag_epilogue& log_writer) const noexcept override;
 
-    virtual function<optional<string> (const tenant_service&)>
-    build_building (const tenant_service&, const build&,
+    virtual function<optional<string> (const string& tenant_id,
+                                       const tenant_service&)>
+    build_building (const string& tenant_id,
+                    const tenant_service&,
+                    const build&,
                     const diag_epilogue& log_writer) const noexcept override;
 
-    virtual function<optional<string> (const tenant_service&)>
-    build_built (const tenant_service&, const build&,
+    virtual function<optional<string> (const string& tenant_id,
+                                       const tenant_service&)>
+    build_built (const string& tenant_id,
+                 const tenant_service&,
+                 const build&,
                  const diag_epilogue& log_writer) const noexcept override;
 
   private:

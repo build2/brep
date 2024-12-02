@@ -545,14 +545,15 @@ handle (request& rq, response&)
     //
     conn.reset ();
 
-    if (auto f = tsq->build_queued (ss,
+    if (auto f = tsq->build_queued (qbs.back ().tenant,
+                                    ss,
                                     qbs,
                                     build_state::building,
                                     qhs,
                                     log_writer_))
     {
       conn = build_db_->connection ();
-      update_tenant_service_state (conn, qbs.back ().tenant, f);
+      update_tenant_service_state (conn, ss.type, ss.id, f);
     }
   }
 
@@ -572,10 +573,10 @@ handle (request& rq, response&)
     //
     conn.reset ();
 
-    if (auto f = tsb->build_built (ss, b, log_writer_))
+    if (auto f = tsb->build_built (b.tenant, ss, b, log_writer_))
     {
       conn = build_db_->connection ();
-      update_tenant_service_state (conn, b.tenant, f);
+      update_tenant_service_state (conn, ss.type, ss.id, f);
     }
   }
 
