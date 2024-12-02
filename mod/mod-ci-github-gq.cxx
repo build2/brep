@@ -521,9 +521,11 @@ namespace brep
         os                                                        << '\n';
         os << "  startedAt: " << gq_str (gh_to_iso8601 (*sa));
       }
-      catch (const runtime_error& e)
+      catch (const system_error& e)
       {
-        throw invalid_argument ("invalid started_at value " +
+        // Translate for simplicity.
+        //
+        throw invalid_argument ("unable to convert started_at value " +
                                 to_string (system_clock::to_time_t (*sa)) +
                                 ": " + e.what ());
       }

@@ -693,8 +693,7 @@ namespace brep
 
   // Create a gq_built_result.
   //
-  // Throw invalid_argument in case of invalid result_status (highly
-  // unlikely).
+  // Throw invalid_argument in case of invalid result_status.
   //
   static gq_built_result
   make_built_result (result_status rs, bool warning_success, string message)
@@ -1354,12 +1353,11 @@ namespace brep
   {
     // NOTE: this function is noexcept and should not throw.
     //
-    //       In a few places where invalid_argument is highly unlikely to be
-    //       thrown and/or would indicate that things are seriously broken we
-    //       let it propagate to the function catch block where the pre-check
-    //       tenant will be canceled otherwise we could end up in an infinite
-    //       loop (because the problematic arguments won't be changing).
-    //
+    // In a few places where invalid_argument is unlikely to be thrown and/or
+    // would indicate that things are seriously broken we let it propagate to
+    // the function catch block where the pre-check tenant will be canceled
+    // (otherwise we could end up in an infinite loop, e.g., because the
+    // problematic arguments won't change).
 
     NOTIFICATION_DIAG (log_writer);
 
@@ -1533,26 +1531,9 @@ namespace brep
     try
     {
       if (cancel (error, warn, verb_ ? &trace : nullptr,
-                   *build_db_, retry_, ts.type, ts.id))
-        l3 ([&]{trace << "canceled pre-check tenant " << ts.id;});
-    }
-    catch (const runtime_error& e) // Database retries exhausted.
-    {
-      l3 ([&]{trace << "failed to cancel pre-check tenant " << ts.id << ": "
-                    << e.what ();});
-    }
-
-    return nullptr;
-  }
-  catch (...)
-  {
-    NOTIFICATION_DIAG (log_writer);
-    error << "pull request " << *sd.pr_node_id << ": unhandled exception";
-
-    try
-    {
-      if (cancel (error, warn, verb_ ? &trace : nullptr,
-                  *build_db_, retry_, ts.type, ts.id))
+                  *build_db_, retry_,
+                  ts.type,
+                  ts.id))
         l3 ([&]{trace << "canceled pre-check tenant " << ts.id;});
     }
     catch (const runtime_error& e) // Database retries exhausted.
@@ -1572,12 +1553,11 @@ namespace brep
   {
     // NOTE: this function is noexcept and should not throw.
     //
-    //       In a few places where invalid_argument is highly unlikely to be
-    //       thrown and/or would indicate that things are seriously broken we
-    //       let it propagate to the function catch block where the tenant
-    //       will be canceled otherwise we could end up in an infinite loop
-    //       (because the problematic arguments won't be changing).
-    //
+    // In a few places where invalid_argument is unlikely to be thrown and/or
+    // would indicate that things are seriously broken we let it propagate to
+    // the function catch block where the tenant will be canceled (otherwise
+    // we could end up in an infinite loop, e.g., because the problematic
+    // arguments won't change).
 
     NOTIFICATION_DIAG (log_writer);
 
@@ -1688,16 +1668,24 @@ namespace brep
     //
     string conclusion_node_id; // Conclusion check run node ID.
 
-    if (auto cr = create_synthetic_cr (conclusion_check_run_name))
+    if (!sd.conclusion_node_id)
     {
-      l3 ([&]{trace << "created check_run { " << *cr << " }";});
+      if (auto cr = create_synthetic_cr (conclusion_check_run_name))
+      {
+        l3 ([&]{trace << "created check_run { " << *cr << " }";});
 
-      conclusion_node_id = move (*cr->node_id);
+        conclusion_node_id = move (*cr->node_id);
+      }
     }
+
+    const string& effective_conclusion_node_id (
+      sd.conclusion_node_id
+      ? *sd.conclusion_node_id
+      : conclusion_node_id);
 
     // Load the CI tenant if the conclusion check run was created.
     //
-    if (!conclusion_node_id.empty ())
+    if (!effective_conclusion_node_id.empty ())
     {
       string ru; // Repository URL.
 
@@ -1723,13 +1711,13 @@ namespace brep
         optional<start_result> r (load (error, warn, verb_ ? &trace : nullptr,
                                         *build_db_, retry_,
                                         move (ts),
-                                        move (rl)));
+                                        move (rl));
 
         if (!r || r->status != 200)
         {
           // Let unlikely invalid_argument propagate (see above).
           //
-          if (auto cr = update_synthetic_cr (conclusion_node_id,
+          if (auto cr = update_synthetic_cr (effective_conclusion_node_id,
                                              conclusion_check_run_name,
                                              result_status::error,
                                              to_check_run_summary (r)))
@@ -1751,10 +1739,13 @@ namespace brep
       catch (const runtime_error& e) // Database retries exhausted.
       {
         error << "failed to load CI tenant " << ts.id << ": " << e.what ();
+
+        // Fall through to retry on next call.
       }
     }
-    else if (!new_iat)
-      return nullptr; // Nothing to save (but retry on next call).
+
+    if (!new_iat && conclusion_node_id.empty ())
+      return nullptr; // Nothing to save (but potentially retry on next call).
 
     return [&error,
             iat = move (new_iat),
@@ -1803,25 +1794,6 @@ namespace brep
     {
       l3 ([&]{trace << "failed to cancel CI tenant " << ts.id
                     << ": " << e.what ();});
-    }
-
-    return nullptr;
-  }
-  catch (...)
-  {
-    NOTIFICATION_DIAG (log_writer);
-    error << "CI tenant " << ts.id << ": unhandled exception";
-
-    try
-    {
-      if (cancel (error, warn, verb_ ? &trace : nullptr,
-                  *build_db_, retry_, ts.type, ts.id))
-        l3 ([&]{trace << "canceled CI tenant " << ts.id;});
-    }
-    catch (const runtime_error& e) // Database retries exhausted.
-    {
-      l3 ([&]{trace << "failed to cancel CI tenant " << ts.id << ": "
-                    << e.what ();});
     }
 
     return nullptr;
@@ -2394,7 +2366,7 @@ namespace brep
         // Note: let all serialization exceptions propagate. The XML
         // serialization code can throw bad_alloc or xml::serialization in
         // case of I/O failures, but we're serializing to a string stream so
-        // both exceptions are highly unlikely.
+        // both exceptions are unlikely.
         //
         ostringstream os;
         xml::serializer s (os, "check_run_summary");

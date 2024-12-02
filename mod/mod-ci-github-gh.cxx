@@ -19,7 +19,7 @@ namespace brep
   // Return the GitHub check run status corresponding to a build_state.
   //
   string
-  gh_to_status (build_state st) noexcept
+  gh_to_status (build_state st)
   {
     // Just return by value (small string optimization).
     //
@@ -593,6 +593,14 @@ namespace brep
                       "invalid IAT expires_at value '" + v +
                         "': " + e.what ());
         }
+        catch (const system_error& e)
+        {
+          // Translate for simplicity.
+          //
+          throw_json (p,
+                      "unable to convert IAT expires_at value '" + v +
+                      "': " + e.what ());
+        }
       }
       else p.next_expect_value_skip ();
     }
@@ -619,37 +627,17 @@ namespace brep
   string
   gh_to_iso8601 (timestamp t)
   {
-    try
-    {
-      return butl::to_string (t,
-                              "%Y-%m-%dT%TZ",
-                              false /* special */,
-                              false /* local */);
-    }
-    catch (const system_error& e)
-    {
-      throw runtime_error (
-        string ("failed to convert timestamp to ISO 8601 string: ") +
-        e.what ());
-    }
+    return butl::to_string (t,
+                            "%Y-%m-%dT%TZ",
+                            false /* special */,
+                            false /* local */);
   }
 
   timestamp
   gh_from_iso8601 (const string& s)
   {
-    try
-    {
-      // @@ TMP butl::from_string()'s comment says it also throws
-      //    invalid_argument but that seems to be false.
-      //
-      return butl::from_string (s.c_str (),
-                                "%Y-%m-%dT%TZ",
-                                false /* local */);
-    }
-    catch (const system_error& e)
-    {
-      throw invalid_argument ("invalid ISO 8601 timestamp value '" + s +
-                              "': " + e.what ());
-    }
+    return butl::from_string (s.c_str (),
+                              "%Y-%m-%dT%TZ",
+                              false /* local */);
   }
 }
