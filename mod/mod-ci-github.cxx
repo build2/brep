@@ -1302,7 +1302,7 @@ namespace brep
 
   function<optional<string> (const string& tenant_id,
                              const tenant_service&)> ci_github::
-  build_unloaded (const string& /*tenant_id*/,
+  build_unloaded (const string& ti,
                   tenant_service&& ts,
                   const diag_epilogue& log_writer) const noexcept
   {
@@ -1322,8 +1322,8 @@ namespace brep
     }
 
     return sd.pre_check
-             ? build_unloaded_pre_check (move (ts), move (sd), log_writer)
-             : build_unloaded_load (move (ts), move (sd), log_writer);
+      ? build_unloaded_pre_check (move (ts), move (sd), log_writer)
+      : build_unloaded_load (ti, move (ts), move (sd), log_writer);
   }
 
   function<optional<string> (const string& tenant_id,
@@ -1529,7 +1529,8 @@ namespace brep
 
   function<optional<string> (const string& tenant_id,
                              const tenant_service&)> ci_github::
-  build_unloaded_load (tenant_service&& ts,
+  build_unloaded_load (const string& ti,
+                       tenant_service&& ts,
                        service_data&& sd,
                        const diag_epilogue& log_writer) const noexcept
   try
@@ -1731,14 +1732,18 @@ namespace brep
       return nullptr; // Nothing to save (but potentially retry on next call).
 
     return [&error,
+            ti,
             iat = move (new_iat),
             cni = move (conclusion_node_id)]
-      (const string& /*tenant_id*/,
+      (const string& tenant_id,
        const tenant_service& ts) -> optional<string>
     {
       // NOTE: this lambda may be called repeatedly (e.g., due to
       // transaction being aborted) and so should not move out of its
       // captures.
+
+      if (tenant_id != ti)
+        return nullopt; // Do nothing if the tenant has been replaced.
 
       service_data sd;
       try
@@ -1873,7 +1878,7 @@ namespace brep
   //
   function<optional<string> (const string& tenant_id,
                              const tenant_service&)> ci_github::
-  build_queued (const string& /*tenant_id*/,
+  build_queued (const string& ti,
                 const tenant_service& ts,
                 const vector<build>& builds,
                 optional<build_state> istate,
@@ -1999,15 +2004,19 @@ namespace brep
       }
     }
 
-    return [bs = move (bs),
+    return [ti,
+            bs = move (bs),
             iat = move (new_iat),
             crs = move (crs),
             error = move (error),
-            warn = move (warn)] (const string& /*tenant_id*/,
+            warn = move (warn)] (const string& tenant_id,
                                  const tenant_service& ts) -> optional<string>
     {
       // NOTE: this lambda may be called repeatedly (e.g., due to transaction
       // being aborted) and so should not move out of its captures.
+
+      if (tenant_id != ti)
+        return nullopt; // Do nothing if the tenant has been replaced.
 
       service_data sd;
       try
@@ -2059,7 +2068,7 @@ namespace brep
 
   function<optional<string> (const string& tenant_id,
                              const tenant_service&)> ci_github::
-  build_building (const string& /*tenant_id*/,
+  build_building (const string& ti,
                   const tenant_service& ts,
                   const build& b,
                   const diag_epilogue& log_writer) const noexcept
@@ -2167,14 +2176,18 @@ namespace brep
       }
     }
 
-    return [iat = move (new_iat),
+    return [ti,
+            iat = move (new_iat),
             cr = move (*cr),
             error = move (error),
-            warn = move (warn)] (const string& /*tenant_id*/,
+            warn = move (warn)] (const string& tenant_id,
                                  const tenant_service& ts) -> optional<string>
     {
       // NOTE: this lambda may be called repeatedly (e.g., due to transaction
       // being aborted) and so should not move out of its captures.
+
+      if (tenant_id != ti)
+        return nullopt; // Do nothing if the tenant has been replaced.
 
       service_data sd;
       try
@@ -2223,7 +2236,7 @@ namespace brep
 
   function<optional<string> (const string& tenant_id,
                              const tenant_service&)> ci_github::
-  build_built (const string& /*tenant_id*/,
+  build_built (const string& ti,
                const tenant_service& ts,
                const build& b,
                const diag_epilogue& log_writer) const noexcept
@@ -2548,15 +2561,19 @@ namespace brep
       }
     }
 
-    return [iat = move (new_iat),
+    return [ti,
+            iat = move (new_iat),
             cr = move (cr),
             completed = completed,
             error = move (error),
-            warn = move (warn)] (const string& /*tenant_id*/,
+            warn = move (warn)] (const string& tenant_id,
                                  const tenant_service& ts) -> optional<string>
     {
       // NOTE: this lambda may be called repeatedly (e.g., due to transaction
       // being aborted) and so should not move out of its captures.
+
+      if (tenant_id != ti)
+        return nullopt; // Do nothing if the tenant has been replaced.
 
       service_data sd;
       try

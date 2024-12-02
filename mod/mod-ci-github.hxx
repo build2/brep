@@ -56,7 +56,8 @@ namespace brep
 
     function<optional<string> (const string& tenant_id,
                                const tenant_service&)>
-    build_unloaded_load (tenant_service&&,
+    build_unloaded_load (const string& tenant_id,
+                         tenant_service&&,
                          service_data&&,
                          const diag_epilogue&) const noexcept;
 
