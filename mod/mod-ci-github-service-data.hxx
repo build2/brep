@@ -11,8 +11,6 @@
 
 namespace brep
 {
-  // @@@ Check if any data members are unused (once the dust settles).
-
   // Service data associated with the tenant (corresponds to GH check suite).
   //
   // It is always a top-level JSON object and the first member is always the

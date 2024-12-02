@@ -273,11 +273,6 @@ namespace brep
             // Note that GitHub won't allow us to change a built check run to
             // any other state (but all other transitions are allowed).
             //
-            // @@ Are we handling the case where the resulting state (built)
-            //    differs from what we expect?
-            //
-            // @@@ Does built-to-built transition updates status?
-            //
             if (rst != st && rst != build_state::built)
             {
               error << "unexpected check_run status: received '" << rcr.status

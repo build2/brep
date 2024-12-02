@@ -368,14 +368,12 @@ namespace brep
       };
 
       if      (c (ni, "node_id"))        node_id = p.next_expect_string ();
-      else if (c (nm, "name"))           name = p.next_expect_string ();
       else if (c (fn, "full_name"))      path = p.next_expect_string ();
       else if (c (cu, "clone_url"))      clone_url = p.next_expect_string ();
       else p.next_expect_value_skip ();
     }
 
     if (!ni) missing_member (p, "gh_repository", "node_id");
-    if (!nm) missing_member (p, "gh_repository", "name");
     if (!fn) missing_member (p, "gh_repository", "full_name");
     if (!cu) missing_member (p, "gh_repository", "clone_url");
   }
@@ -384,7 +382,6 @@ namespace brep
   operator<< (ostream& os, const gh_repository& rep)
   {
     os << "node_id: " << rep.node_id
-       << ", name: " << rep.name
        << ", path: " << rep.path
        << ", clone_url: " << rep.clone_url;
 

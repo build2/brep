@@ -21,19 +21,6 @@
 
 // @@ Remaining TODOs
 //
-//    - Rerequested checks
-//
-//      - check_suite (action: rerequested): received when user re-runs all
-//        checks.
-//
-//      - check_run (action: rerequested): received when user re-runs a
-//        specific check or all failed checks.
-//
-//        @@ TMP I have confirmed that the above is accurate.
-//
-//      Will need to extract a few more fields from check_runs, but the layout
-//      is very similar to that of check_suite.
-//
 //    - Choose strong webhook secret (when deploying).
 //
 //    - Check that delivery UUID has not been received before (replay attack).
@@ -279,9 +266,6 @@ namespace brep
     // not interested in and log and ignore unknown actions. The thinking here
     // is that we want be "notified" of new actions at which point we can
     // decide whether to ignore them or to handle.
-    //
-    // @@ There is also check_run even (re-requested by user, either
-    //    individual check run or all the failed check runs).
     //
     if (event == "check_suite")
     {
@@ -557,10 +541,6 @@ namespace brep
       throw server_error ();
 
     l3 ([&]{trace << "installation_access_token { " << *iat << " }";});
-
-    // @@ What happens if we call this functions with an already existing
-    //    node_id (e.g., replay attack). See the UUID header above.
-    //
 
     // While it would have been nice to cancel CIs of PRs with this branch as
     // base not to waste resources, there are complications: Firstly, we can
@@ -2253,9 +2233,8 @@ namespace brep
 
     NOTIFICATION_DIAG (log_writer);
 
-    // @@ TODO Include service_data::event_node_id and perhaps ts.id in
-    //    diagnostics? E.g. when failing to update check runs we print the
-    //    build ID only.
+    // @@ TODO Include ts.id in diagnostics? Check run build ids alone seem
+    //    kind of meaningless. Log lines get pretty long this way however.
 
     service_data sd;
     try
