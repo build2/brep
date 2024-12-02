@@ -599,7 +599,7 @@ namespace brep
     {
       kind = service_data::remote;
 
-        if (optional<tenant_data> d = find (*build_db_, "ci-github", sid))
+      if (optional<tenant_data> d = find (*build_db_, "ci-github", sid))
       {
         tenant_service& ts (d->service);
 
