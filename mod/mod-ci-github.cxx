@@ -1711,7 +1711,7 @@ namespace brep
         optional<start_result> r (load (error, warn, verb_ ? &trace : nullptr,
                                         *build_db_, retry_,
                                         move (ts),
-                                        move (rl));
+                                        move (rl)));
 
         if (!r || r->status != 200)
         {
