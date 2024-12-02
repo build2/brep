@@ -74,9 +74,11 @@ namespace brep
     // If the returned function is not NULL, it is called to update the
     // service data. It should return the new data or nullopt if no update is
     // necessary. Note: tenant_service::data passed to the callback and to the
-    // returned function may not be the same. Also, the returned function may
-    // be called multiple times (on transaction retries). Note that the passed
-    // log_writer is valid during the calls to the returned function.
+    // returned function may not be the same. Furthermore, tenant_ids may not
+    // be the same either, in case the tenant was replaced. Also, the returned
+    // function may be called multiple times (on transaction retries). Note
+    // that the passed log_writer is valid during the calls to the returned
+    // function.
     //
     // The passed initial_state indicates the logical initial state and is
     // either absent, `building` (interrupted), or `built` (rebuild). Note
@@ -101,8 +103,10 @@ namespace brep
       bool single_package_config;
     };
 
-    virtual function<optional<string> (const tenant_service&)>
-    build_queued (const tenant_service&,
+    virtual function<optional<string> (const string& tenant_id,
+                                       const tenant_service&)>
+    build_queued (const string& tenant_id,
+                  const tenant_service&,
                   const vector<build>&,
                   optional<build_state> initial_state,
                   const build_queued_hints&,
@@ -112,8 +116,10 @@ namespace brep
   class tenant_service_build_building: public virtual tenant_service_base
   {
   public:
-    virtual function<optional<string> (const tenant_service&)>
-    build_building (const tenant_service&,
+    virtual function<optional<string> (const string& tenant_id,
+                                       const tenant_service&)>
+    build_building (const string& tenant_id,
+                    const tenant_service&,
                     const build&,
                     const diag_epilogue& log_writer) const noexcept = 0;
   };
@@ -121,8 +127,10 @@ namespace brep
   class tenant_service_build_built: public virtual tenant_service_base
   {
   public:
-    virtual function<optional<string> (const tenant_service&)>
-    build_built (const tenant_service&,
+    virtual function<optional<string> (const string& tenant_id,
+                                       const tenant_service&)>
+    build_built (const string& tenant_id,
+                 const tenant_service&,
                  const build&,
                  const diag_epilogue& log_writer) const noexcept = 0;
   };
@@ -140,8 +148,10 @@ namespace brep
   class tenant_service_build_unloaded: public virtual tenant_service_base
   {
   public:
-    virtual function<optional<string> (const tenant_service&)>
-    build_unloaded (tenant_service&&,
+    virtual function<optional<string> (const string& tenant_id,
+                                       const tenant_service&)>
+    build_unloaded (const string& tenant_id,
+                    tenant_service&&,
                     const diag_epilogue& log_writer) const noexcept = 0;
   };
 

@@ -599,10 +599,9 @@ namespace brep
     {
       kind = service_data::remote;
 
-      if (optional<pair<tenant_service, bool>> p =
-            find (*build_db_, "ci-github", sid))
+      if (optional<tenant_data> d = find (*build_db_, "ci-github", sid))
       {
-        tenant_service& ts (p->first);
+        tenant_service& ts (d->service);
 
         try
         {
@@ -801,10 +800,9 @@ namespace brep
       //
       string sid (repo_node_id + ':' + head_sha);
 
-      if (optional<pair<tenant_service, bool>> p =
-            find (*build_db_, "ci-github", sid))
+      if (optional<tenant_data> d = find (*build_db_, "ci-github", sid))
       {
-        if (p->second) // Tenant is archived
+        if (d->archived) // Tenant is archived
         {
           // Fail (re-create) the check runs.
           //
@@ -860,7 +858,7 @@ namespace brep
           return true;
         }
 
-        tenant_service& ts (p->first);
+        tenant_service& ts (d->service);
 
         try
         {
@@ -1017,7 +1015,8 @@ namespace brep
     // only if the build is actually restarted).
     //
     auto update_sd = [&error, &new_iat, &race,
-                      &cr, &bcr, &ccr] (const tenant_service& ts,
+                      &cr, &bcr, &ccr] (const string& /*tenant_id*/,
+                                        const tenant_service& ts,
                                         build_state) -> optional<string>
     {
       // NOTE: this lambda may be called repeatedly (e.g., due to transaction
@@ -1321,8 +1320,10 @@ namespace brep
     return true;
   }
 
-  function<optional<string> (const tenant_service&)> ci_github::
-  build_unloaded (tenant_service&& ts,
+  function<optional<string> (const string& tenant_id,
+                             const tenant_service&)> ci_github::
+  build_unloaded (const string& /*tenant_id*/,
+                  tenant_service&& ts,
                   const diag_epilogue& log_writer) const noexcept
   {
     // NOTE: this function is noexcept and should not throw.
@@ -1345,7 +1346,8 @@ namespace brep
              : build_unloaded_load (move (ts), move (sd), log_writer);
   }
 
-  function<optional<string> (const tenant_service&)> ci_github::
+  function<optional<string> (const string& tenant_id,
+                             const tenant_service&)> ci_github::
   build_unloaded_pre_check (tenant_service&& ts,
                             service_data&& sd,
                             const diag_epilogue& log_writer) const noexcept
@@ -1545,7 +1547,8 @@ namespace brep
     return nullptr;
   }
 
-  function<optional<string> (const tenant_service&)> ci_github::
+  function<optional<string> (const string& tenant_id,
+                             const tenant_service&)> ci_github::
   build_unloaded_load (tenant_service&& ts,
                        service_data&& sd,
                        const diag_epilogue& log_writer) const noexcept
@@ -1750,7 +1753,8 @@ namespace brep
     return [&error,
             iat = move (new_iat),
             cni = move (conclusion_node_id)]
-      (const tenant_service& ts) -> optional<string>
+      (const string& /*tenant_id*/,
+       const tenant_service& ts) -> optional<string>
     {
       // NOTE: this lambda may be called repeatedly (e.g., due to
       // transaction being aborted) and so should not move out of its
@@ -1887,8 +1891,10 @@ namespace brep
   //    if we have node_id, then we update, otherwise, we create (potentially
   //    overriding the check run created previously).
   //
-  function<optional<string> (const tenant_service&)> ci_github::
-  build_queued (const tenant_service& ts,
+  function<optional<string> (const string& tenant_id,
+                             const tenant_service&)> ci_github::
+  build_queued (const string& /*tenant_id*/,
+                const tenant_service& ts,
                 const vector<build>& builds,
                 optional<build_state> istate,
                 const build_queued_hints& hs,
@@ -2017,7 +2023,8 @@ namespace brep
             iat = move (new_iat),
             crs = move (crs),
             error = move (error),
-            warn = move (warn)] (const tenant_service& ts) -> optional<string>
+            warn = move (warn)] (const string& /*tenant_id*/,
+                                 const tenant_service& ts) -> optional<string>
     {
       // NOTE: this lambda may be called repeatedly (e.g., due to transaction
       // being aborted) and so should not move out of its captures.
@@ -2070,8 +2077,10 @@ namespace brep
     return nullptr;
   }
 
-  function<optional<string> (const tenant_service&)> ci_github::
-  build_building (const tenant_service& ts,
+  function<optional<string> (const string& tenant_id,
+                             const tenant_service&)> ci_github::
+  build_building (const string& /*tenant_id*/,
+                  const tenant_service& ts,
                   const build& b,
                   const diag_epilogue& log_writer) const noexcept
   try
@@ -2181,7 +2190,8 @@ namespace brep
     return [iat = move (new_iat),
             cr = move (*cr),
             error = move (error),
-            warn = move (warn)] (const tenant_service& ts) -> optional<string>
+            warn = move (warn)] (const string& /*tenant_id*/,
+                                 const tenant_service& ts) -> optional<string>
     {
       // NOTE: this lambda may be called repeatedly (e.g., due to transaction
       // being aborted) and so should not move out of its captures.
@@ -2231,8 +2241,10 @@ namespace brep
     return nullptr;
   }
 
-  function<optional<string> (const tenant_service&)> ci_github::
-  build_built (const tenant_service& ts,
+  function<optional<string> (const string& tenant_id,
+                             const tenant_service&)> ci_github::
+  build_built (const string& /*tenant_id*/,
+               const tenant_service& ts,
                const build& b,
                const diag_epilogue& log_writer) const noexcept
   try
@@ -2561,7 +2573,8 @@ namespace brep
             cr = move (cr),
             completed = completed,
             error = move (error),
-            warn = move (warn)] (const tenant_service& ts) -> optional<string>
+            warn = move (warn)] (const string& /*tenant_id*/,
+                                 const tenant_service& ts) -> optional<string>
     {
       // NOTE: this lambda may be called repeatedly (e.g., due to transaction
       // being aborted) and so should not move out of its captures.

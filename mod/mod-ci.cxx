@@ -422,8 +422,10 @@ handle (request& rq, response& rs)
 }
 
 #ifdef BREP_CI_TENANT_SERVICE
-function<optional<string> (const brep::tenant_service&)> brep::ci::
-build_queued (const tenant_service&,
+function<optional<string> (const string& tenant_id,
+                           const brep::tenant_service&)> brep::ci::
+build_queued (const string& /*tenant_id*/,
+              const tenant_service&,
               const vector<build>& bs,
               optional<build_state> initial_state,
               const build_queued_hints& hints,
@@ -437,7 +439,8 @@ build_queued (const tenant_service&,
                 << hints.single_package_version << ' '
                 << hints.single_package_config;});
 
-  return [&bs, initial_state] (const tenant_service& ts)
+  return [&bs, initial_state] (const string& tenant_id,
+                               const tenant_service& ts)
          {
            optional<string> r (ts.data);
 
@@ -446,6 +449,7 @@ build_queued (const tenant_service&,
              string s ((!initial_state
                         ? "queued "
                         : "queued " + to_string (*initial_state) + ' ') +
+                       tenant_id + '/'                                  +
                        b.package_name.string () + '/'                   +
                        b.package_version.string () + '/'                +
                        b.target.string () + '/'                         +
@@ -467,14 +471,18 @@ build_queued (const tenant_service&,
          };
 }
 
-function<optional<string> (const brep::tenant_service&)> brep::ci::
-build_building (const tenant_service&,
+function<optional<string> (const string& tenant_id,
+                           const brep::tenant_service&)> brep::ci::
+build_building (const string& /*tenant_id*/,
+                const tenant_service&,
                 const build& b,
                 const diag_epilogue&) const noexcept
 {
-  return [&b] (const tenant_service& ts)
+  return [&b] (const string& tenant_id,
+               const tenant_service& ts)
          {
            string s ("building "                       +
+                     tenant_id + '/'                   +
                      b.package_name.string () + '/'    +
                      b.package_version.string () + '/' +
                      b.target.string () + '/'          +
@@ -487,14 +495,17 @@ build_building (const tenant_service&,
          };
 }
 
-function<optional<string> (const brep::tenant_service&)> brep::ci::
-build_built (const tenant_service&,
+function<optional<string> (const string& tenant_id,
+                           const brep::tenant_service&)> brep::ci::
+build_built (const string& /*tenant_id*/,
+             const tenant_service&,
              const build& b,
              const diag_epilogue&) const noexcept
 {
-  return [&b] (const tenant_service& ts)
+  return [&b] (const string& tenant_id, const tenant_service& ts)
          {
            string s ("built "                          +
+                     tenant_id + '/'                   +
                      b.package_name.string () + '/'    +
                      b.package_version.string () + '/' +
                      b.target.string () + '/'          +

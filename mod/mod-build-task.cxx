@@ -499,10 +499,14 @@ handle (request& rq, response& rs)
       //
       conn.reset ();
 
-      if (auto f = tsu->build_unloaded (move (*t->service), log_writer_))
+      tenant_service& ts (*t->service);
+      string type (ts.type);
+      string id (ts.id);
+
+      if (auto f = tsu->build_unloaded (t->id, move (ts), log_writer_))
       {
         conn = build_db_->connection ();
-        update_tenant_service_state (conn, t->id, f);
+        update_tenant_service_state (conn, type, id, f);
       }
     }
   }
@@ -2350,7 +2354,8 @@ handle (request& rq, response& rs)
           //
           conn.reset ();
 
-          if (auto f = tsq->build_queued (ss,
+          if (auto f = tsq->build_queued (qbs.back ().tenant,
+                                          ss,
                                           qbs,
                                           nullopt /* initial_state */,
                                           qhs,
@@ -2359,7 +2364,7 @@ handle (request& rq, response& rs)
             conn = build_db_->connection ();
 
             if (optional<string> data =
-                update_tenant_service_state (conn, qbs.back ().tenant, f))
+                update_tenant_service_state (conn, ss.type, ss.id, f))
               ss.data = move (data);
           }
         }
@@ -2382,7 +2387,8 @@ handle (request& rq, response& rs)
           //
           conn.reset ();
 
-          if (auto f = tsq->build_queued (ss,
+          if (auto f = tsq->build_queued (qbs.back ().tenant,
+                                          ss,
                                           qbs,
                                           initial_state,
                                           qhs,
@@ -2391,7 +2397,7 @@ handle (request& rq, response& rs)
             conn = build_db_->connection ();
 
             if (optional<string> data =
-                update_tenant_service_state (conn, qbs.back ().tenant, f))
+                update_tenant_service_state (conn, ss.type, ss.id, f))
               ss.data = move (data);
           }
         }
@@ -2418,12 +2424,12 @@ handle (request& rq, response& rs)
         //
         conn.reset ();
 
-        if (auto f = tsb->build_building (ss, b, log_writer_))
+        if (auto f = tsb->build_building (b.tenant, ss, b, log_writer_))
         {
           conn = build_db_->connection ();
 
           if (optional<string> data =
-              update_tenant_service_state (conn, b.tenant, f))
+              update_tenant_service_state (conn, ss.type, ss.id, f))
             ss.data = move (data);
         }
       }
@@ -2546,12 +2552,12 @@ handle (request& rq, response& rs)
           //
           conn.reset ();
 
-          if (auto f = tsb->build_built (ss, b, log_writer_))
+          if (auto f = tsb->build_built (b.tenant, ss, b, log_writer_))
           {
             conn = build_db_->connection ();
 
             if (optional<string> data =
-                update_tenant_service_state (conn, b.tenant, f))
+                update_tenant_service_state (conn, ss.type, ss.id, f))
               ss.data = move (data);
           }
         }

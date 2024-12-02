@@ -79,8 +79,10 @@ namespace brep
   optional<string> database_module::
   update_tenant_service_state (
     const connection_ptr& conn,
-    const string& tid,
-    const function<optional<string> (const tenant_service&)>& f)
+    const string& type,
+    const string& id,
+    const function<optional<string> (const string& tenant_id,
+                                     const tenant_service&)>& f)
   {
     assert (f != nullptr); // Shouldn't be called otherwise.
 
@@ -96,13 +98,21 @@ namespace brep
       {
         transaction tr (conn->begin ());
 
-        shared_ptr<build_tenant> t (build_db_->find<build_tenant> (tid));
+        using query = query<build_tenant>;
 
-        if (t != nullptr && t->service)
+        shared_ptr<build_tenant> t (
+          build_db_->query_one<build_tenant> (query::service.id == id &&
+                                              query::service.type == type));
+
+        if (t != nullptr)
         {
+          // Shouldn't be here otherwise.
+          //
+          assert (t->service);
+
           tenant_service& s (*t->service);
 
-          if (optional<string> data = f (s))
+          if (optional<string> data = f (t->id, s))
           {
             s.data = move (*data);
             build_db_->update (t);

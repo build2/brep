@@ -314,14 +314,15 @@ handle (request& rq, response& rs)
     //
     conn.reset ();
 
-    if (auto f = tsq->build_queued (ss,
+    if (auto f = tsq->build_queued (qbs.back ().tenant,
+                                    ss,
                                     qbs,
                                     build_state::building,
                                     qhs,
                                     log_writer_))
     {
       conn = build_db_->connection ();
-      update_tenant_service_state (conn, qbs.back ().tenant, f);
+      update_tenant_service_state (conn, ss.type, ss.id, f);
     }
   }
 
