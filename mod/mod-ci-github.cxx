@@ -19,13 +19,6 @@
 
 #include <stdexcept>
 
-// @@ Remaining TODOs
-//
-//    - Choose strong webhook secret (when deploying).
-//
-//    - Check that delivery UUID has not been received before (replay attack).
-//
-
 // Resources:
 //
 //    Creating an App:
@@ -300,13 +293,10 @@ namespace brep
       else if (cs.action == "completed")
       {
         // GitHub thinks that "all the check runs in this check suite have
-        // completed and a conclusion is available". Looks like this one we
-        // ignore?
+        // completed and a conclusion is available". Check with our own
+        // bookkeeping and log an error if there is a mismatch.
         //
-        // What if our bookkeeping says otherwise? But then we can't even
-        // access the service data easily here. @@ TODO: maybe/later.
-        //
-        return true;
+        return handle_check_suite_completed (move (cs), warning_success);
       }
       else
       {
@@ -666,6 +656,23 @@ namespace brep
             << " did not exist";
       return true;
     }
+
+    return true;
+  }
+
+  bool ci_github::
+  handle_check_suite_completed (gh_check_suite_event cs, bool warning_success)
+  {
+    // The plans is as follows:
+    //
+    // 1. Load the service data.
+    //
+    // 2. Verify it is completed.
+    //
+    // 3. Verify (like in build_built()) that all the check runs are
+    //    completed.
+    //
+    // 4. Verify the result matches what GitHub thinks it is (if easy).
 
     return true;
   }
@@ -1808,9 +1815,9 @@ namespace brep
   //    them when notifying GitHub. The first is not important (we expect the
   //    state to go back to building shortly). The second should normally not
   //    happen and would mean that a completed check suite may go back on its
-  //    conclusion (which would be pretty confusing for the user). @@@ This
-  //    can/will happen on check run rebuild. Distinguish between internal
-  //    and external rebuilds?
+  //    conclusion (which would be pretty confusing for the user). Note that
+  //    the ->queued state transition of a check run rebuild triggered by
+  //    us is handled directly in handle_check_run_rerequest().
   //
   //    So, for GitHub notifications, we only have the following linear
   //    transition sequence:

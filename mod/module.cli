@@ -860,7 +860,8 @@ namespace brep
       {
         "<secret>",
         "The GitHub App's configured webhook secret. If not set, then the
-         GitHub CI service is disabled."
+         GitHub CI service is disabled. Note: make sure to choose a strong
+         (random) secret."
       }
 
       path ci-github-app-private-key

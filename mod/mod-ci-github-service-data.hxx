@@ -97,7 +97,7 @@ namespace brep
 
     // The following two are only used for pull requests.
     //
-    // @@ TODO/LATER: maybe put them in a struct?
+    // @@ TODO/LATER: maybe put them in a struct, if more members?
     //
     optional<string>   pr_node_id;
     optional<uint32_t> pr_number;

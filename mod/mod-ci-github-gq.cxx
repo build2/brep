@@ -17,9 +17,11 @@ namespace brep
   // bottom).
   //
   static const string& gq_name (const string&);
+  static string        gq_name (string&&);
   static string        gq_str (const string&);
   static string        gq_bool (bool);
   static const string& gq_enum (const string&);
+  static string        gq_enum (string&&);
 
   [[noreturn]] static void
   throw_json (json::parser& p, const string& m)
@@ -825,8 +827,6 @@ namespace brep
   //
   // Return the name or throw invalid_argument if it is invalid.
   //
-  // @@ TODO: dangerous API.
-  //
   static const string&
   gq_name (const string& v)
   {
@@ -843,6 +843,13 @@ namespace brep
     }
 
     return v;
+  }
+
+  static string
+  gq_name (string&& v)
+  {
+    gq_name (v);
+    return move (v);
   }
 
   // Serialize a string to GraphQL.
@@ -899,8 +906,6 @@ namespace brep
   //
   // Return the enum value or throw invalid_argument if it is invalid.
   //
-  // @@ TODO: dangerous API.
-  //
   static const string&
   gq_enum (const string& v)
   {
@@ -909,4 +914,12 @@ namespace brep
 
     return gq_name (v);
   }
+
+  static string
+  gq_enum (string&& v)
+  {
+    gq_enum (v);
+    return move (v);
+  }
+
 }

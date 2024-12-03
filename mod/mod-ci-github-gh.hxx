@@ -85,16 +85,6 @@ namespace brep
     string node_id;
     unsigned int number;
 
-    // Note that some of these base/head members are only used for logging.
-    //
-    // @@ TMP The unused base/head members may be useful for trace output when
-    //    we receive the pull_request webhook.
-    //
-    //    @@ Seems worth keeping. Example from logs:
-    //
-    //    base: { path: francoisk/libb2, ref: master, sha: 78b61bd3ce7b2b46bf7277446571d1ddd5b36a82 }
-    //    head: { path: francoisk/libb2, ref: dev,    sha: 32561c28ef039545d17d10bf10fad7babcf9c33a }
-
     string base_path; // Repository path (<org>/<repo>) under github.com.
     string base_ref;
     string base_sha;
