@@ -674,6 +674,90 @@ namespace brep
     //
     // 4. Verify the result matches what GitHub thinks it is (if easy).
 
+    HANDLER_DIAG;
+
+    l3 ([&]{trace << "check_suite event { " << cs << " }";});
+
+    // Service id that uniquely identifies the CI tenant.
+    //
+    string sid (cs.repository.node_id + ':' + cs.check_suite.head_sha);
+
+    // The log subject.
+    //
+    string sub ("check suite " + cs.check_suite.node_id + '/' + sid);
+
+    // Load the service data.
+    //
+    service_data sd;
+
+    if (optional<tenant_data> d = find (*build_db_, "ci-github", sid))
+    {
+      try
+      {
+        sd = service_data (*d->service.data);
+      }
+      catch (const invalid_argument& e)
+      {
+        fail << "failed to parse service data: " << e;
+      }
+    }
+    else
+    {
+      error << sub << ": tenant_service does not exist";
+      return true;
+    }
+
+    // Verify the completed flag and the number of check runs.
+    //
+    if (!sd.completed)
+      error << sub << " service data complete flag is false";
+
+    // Received count will be one higher because we don't store the conclusion
+    // check run.
+    //
+    if (cs.check_suite.check_runs_count != sd.check_runs.size () + 1)
+    {
+      error << sub << ": check runs count " << cs.check_suite.check_runs_count
+            << " does not match service data";
+    }
+
+    // Verify that all check runs are built and compute the summary
+    // conclusion.
+    //
+    optional<result_status> conclusion (result_status::success);
+
+    for (const check_run& cr: sd.check_runs)
+    {
+      if (cr.state == build_state::built)
+      {
+        assert (cr.status.has_value ());
+        *conclusion |= *cr.status;
+      }
+      else
+      {
+        error << sub << ": unbuilt check run(s) in service data";
+        conclusion = nullopt;
+        break;
+      }
+    }
+
+    // Verify the conclusion.
+    //
+    if (conclusion)
+    {
+      if (cs.check_suite.conclusion)
+      {
+        if (gh_to_conclusion (*conclusion, warning_success) !=
+            ucase (*cs.check_suite.conclusion))
+        {
+          error << sub << ": conclusion " << *cs.check_suite.conclusion
+                << " does not match service data";
+        }
+      }
+      else
+        error << sub << ": conclusion is null or absent";
+    }
+
     return true;
   }
 

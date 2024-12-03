@@ -51,6 +51,9 @@ namespace brep
     optional<string> head_branch;
     string head_sha;
 
+    size_t check_runs_count;
+    optional<string> conclusion;
+
     explicit
     gh_check_suite (json::parser&);
 
