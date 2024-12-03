@@ -51,6 +51,9 @@ namespace brep
     optional<string> head_branch;
     string head_sha;
 
+    size_t check_runs_count;
+    optional<string> conclusion;
+
     explicit
     gh_check_suite (json::parser&);
 
@@ -110,8 +113,8 @@ namespace brep
   build_state
   gh_from_status (const string&);
 
-  // If warning_success is true, then map result_status::warning to SUCCESS
-  // and to FAILURE otherwise.
+  // If warning_success is true, then map result_status::warning to `SUCCESS`
+  // and to `FAILURE` otherwise.
   //
   // Throw invalid_argument in case of unsupported result_status value
   // (currently skip, interrupt).

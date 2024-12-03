@@ -90,6 +90,14 @@ namespace brep
     bool
     handle_check_suite_request (gh_check_suite_event, bool warning_success);
 
+    // Handle the check_suite event `completed` action.
+    //
+    // If warning_success is true, then map result_status::warning to SUCCESS
+    // and to FAILURE otherwise.
+    //
+    bool
+    handle_check_suite_completed (gh_check_suite_event, bool warning_success);
+
     // Handle the check_run event `rerequested` action.
     //
     // If warning_success is true, then map result_status::warning to SUCCESS

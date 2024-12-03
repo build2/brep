@@ -123,7 +123,7 @@ namespace brep
   {
     p.next_expect (event::begin_object);
 
-    bool ni (false), hb (false), hs (false);
+    bool ni (false), hb (false), hs (false), cc (false), co (false);
 
     // Skip unknown/uninteresting members.
     //
@@ -142,12 +142,22 @@ namespace brep
           head_branch = *v;
       }
       else if (c (hs, "head_sha")) head_sha = p.next_expect_string ();
+      else if (c (cc, "latest_check_runs_count"))
+        check_runs_count = p.next_expect_number <size_t> ();
+      else if (c (co, "conclusion"))
+      {
+        string* v (p.next_expect_string_null ());
+        if (v != nullptr)
+          conclusion = *v;
+      }
       else p.next_expect_value_skip ();
     }
 
     if (!ni) missing_member (p, "gh_check_suite", "node_id");
     if (!hb) missing_member (p, "gh_check_suite", "head_branch");
     if (!hs) missing_member (p, "gh_check_suite", "head_sha");
+    if (!cc) missing_member (p, "gh_check_suite", "latest_check_runs_count");
+    if (!co) missing_member (p, "gh_check_suite", "conclusion");
   }
 
   ostream&
@@ -155,7 +165,9 @@ namespace brep
   {
     os << "node_id: " << cs.node_id
        << ", head_branch: " << (cs.head_branch ? *cs.head_branch : "null")
-       << ", head_sha: " << cs.head_sha;
+       << ", head_sha: " << cs.head_sha
+       << ", latest_check_runs_count: " << cs.check_runs_count
+       << ", conclusion: " << (cs.conclusion ? *cs.conclusion : "null");
 
     return os;
   }
