@@ -61,6 +61,8 @@ namespace brep
   void ci_github::
   init (scanner& s)
   {
+    HANDLER_DIAG;
+
     {
       shared_ptr<tenant_service_base> ts (
         dynamic_pointer_cast<tenant_service_base> (shared_from_this ()));
@@ -78,6 +80,9 @@ namespace brep
     if (options_->build_config_specified () &&
         options_->ci_github_app_webhook_secret_specified ())
     {
+      if (!options_->ci_github_app_id_private_key_specified ())
+        fail << "no app id/private key mappings configured";
+
       ci_start::init (make_shared<options::ci_start> (*options_));
 
       database_module::init (*options_, options_->build_db_retry ());
@@ -221,33 +226,48 @@ namespace brep
       fail << "unable to compute request HMAC: " << e;
     }
 
-    // Process the `warning` webhook request query parameter.
+    // Process the `app-id` and `warning` webhook request query parameters.
     //
+    string app_id;
     bool warning_success;
     {
       const name_values& rps (rq.parameters (1024, true /* url_only */));
 
-      auto i (find_if (rps.begin (), rps.end (),
-                       [] (auto&& rp) {return rp.name == "warning";}));
+      bool ai (false), wa (false);
 
-      if (i == rps.end ())
-        throw invalid_request (400,
-                               "missing 'warning' webhook query parameter");
-
-      if (!i->value)
-        throw invalid_request (
-          400, "missing 'warning' webhook query parameter value");
-
-      const string& v (*i->value);
-
-      if      (v == "success") warning_success = true;
-      else if (v == "failure") warning_success = false;
-      else
+      auto badreq = [] (const string& m)
       {
-        throw invalid_request (
-            400,
-            "invalid 'warning' webhook query parameter value: '" + v + '\'');
+        throw invalid_request (400, m);
+      };
+
+      for (const name_value& rp: rps)
+      {
+        if (rp.name == "app-id")
+        {
+          if (!rp.value)
+            badreq ("missing 'app-id' webhook query parameter value");
+
+          ai = true;
+          app_id = *rp.value;
+        }
+        else if (rp.name == "warning")
+        {
+          if (!rp.value)
+            badreq ("missing 'warning' webhook query parameter value");
+
+          wa = true;
+          const string& v (*rp.value);
+
+          if      (v == "success") warning_success = true;
+          else if (v == "failure") warning_success = false;
+          else
+            badreq ("invalid 'warning' webhook query parameter value: '" + v +
+                    '\'');
+        }
       }
+
+      if (!ai) badreq ("missing 'app-id' webhook query parameter");
+      if (!wa) badreq ("missing 'warning' webhook query parameter");
     }
 
     // There is a webhook event (specified in the x-github-event header) and
@@ -277,6 +297,12 @@ namespace brep
               << ", byte offset: " << e.position << ", error: " << e;
 
         throw invalid_request (400, move (m));
+      }
+
+      if (cs.check_suite.app_id != app_id)
+      {
+        fail << "webhook check_suite app.id " << cs.check_suite.app_id
+             << " does not match app-id query parameter " << app_id;
       }
 
       if (cs.action == "requested")
@@ -327,6 +353,12 @@ namespace brep
         throw invalid_request (400, move (m));
       }
 
+      if (cr.check_run.app_id != app_id)
+      {
+        fail << "webhook check_run app.id " << cr.check_run.app_id
+             << " does not match app-id query parameter " << app_id;
+      }
+
       if (cr.action == "rerequested")
       {
         // Someone manually requested to re-run a specific check run.
@@ -371,6 +403,14 @@ namespace brep
 
         throw invalid_request (400, move (m));
       }
+
+      // Store the app-id webhook query parameter in the gh_pull_request
+      // object (see gh_pull_request for an explanation).
+      //
+      // When we receive the other webhooks we do check that the app ids in
+      // the payload and query match but here we have to assume it is valid.
+      //
+      pr.pull_request.app_id = app_id;
 
       if (pr.action == "opened" ||
           pr.action == "synchronize")
@@ -519,7 +559,7 @@ namespace brep
     // let's obtain it to flush out any permission issues early. Also, it is
     // valid for an hour so we will most likely make use of it.
     //
-    optional<string> jwt (generate_jwt (trace, error));
+    optional<string> jwt (generate_jwt (cs.check_suite.app_id, trace, error));
     if (!jwt)
       throw server_error ();
 
@@ -603,6 +643,7 @@ namespace brep
     service_data sd (warning_success,
                      iat->token,
                      iat->expires_at,
+                     cs.check_suite.app_id,
                      cs.installation.id,
                      move (cs.repository.node_id),
                      move (cs.repository.clone_url),
@@ -851,7 +892,7 @@ namespace brep
     auto get_iat = [this, &trace, &error, &cr] ()
       -> optional<gh_installation_access_token>
     {
-      optional<string> jwt (generate_jwt (trace, error));
+      optional<string> jwt (generate_jwt (cr.check_run.app_id, trace, error));
       if (!jwt)
         return nullopt;
 
@@ -1298,7 +1339,7 @@ namespace brep
     // let's obtain it to flush out any permission issues early. Also, it is
     // valid for an hour so we will most likely make use of it.
     //
-    optional<string> jwt (generate_jwt (trace, error));
+    optional<string> jwt (generate_jwt (pr.pull_request.app_id, trace, error));
     if (!jwt)
       throw server_error ();
 
@@ -1379,6 +1420,7 @@ namespace brep
     service_data sd (warning_success,
                      move (iat->token),
                      iat->expires_at,
+                     pr.pull_request.app_id,
                      pr.installation.id,
                      move (pr.repository.node_id),
                      move (pr.repository.clone_url),
@@ -1682,7 +1724,7 @@ namespace brep
 
     if (system_clock::now () > sd.installation_access.expires_at)
     {
-      if (optional<string> jwt = generate_jwt (trace, error))
+      if (optional<string> jwt = generate_jwt (sd.app_id, trace, error))
       {
         new_iat = obtain_installation_access_token (sd.installation_id,
                                                     move (*jwt),
@@ -2085,7 +2127,7 @@ namespace brep
 
     if (system_clock::now () > sd.installation_access.expires_at)
     {
-      if (optional<string> jwt = generate_jwt (trace, error))
+      if (optional<string> jwt = generate_jwt (sd.app_id, trace, error))
       {
         new_iat = obtain_installation_access_token (sd.installation_id,
                                                     move (*jwt),
@@ -2250,7 +2292,7 @@ namespace brep
 
     if (system_clock::now () > sd.installation_access.expires_at)
     {
-      if (optional<string> jwt = generate_jwt (trace, error))
+      if (optional<string> jwt = generate_jwt (sd.app_id, trace, error))
       {
         new_iat = obtain_installation_access_token (sd.installation_id,
                                                     move (*jwt),
@@ -2456,7 +2498,7 @@ namespace brep
 
     if (system_clock::now () > sd.installation_access.expires_at)
     {
-      if (optional<string> jwt = generate_jwt (trace, error))
+      if (optional<string> jwt = generate_jwt (sd.app_id, trace, error))
       {
         new_iat = obtain_installation_access_token (sd.installation_id,
                                                     move (*jwt),
@@ -2881,19 +2923,32 @@ namespace brep
   }
 
   optional<string> ci_github::
-  generate_jwt (const basic_mark& trace,
+  generate_jwt (const string& app_id,
+                const basic_mark& trace,
                 const basic_mark& error) const
   {
     string jwt;
     try
     {
+      // Look up the private key path for the app id and fail if not found.
+      //
+      const map<string, dir_path>& pks (
+        options_->ci_github_app_id_private_key ());
+
+      auto pk (pks.find (app_id));
+      if (pk == pks.end ())
+      {
+        error << "unable to generate JWT: "
+              << "no private key configured for app id " << app_id;
+        return nullopt;
+      }
+
       // Set token's "issued at" time 60 seconds in the past to combat clock
       // drift (as recommended by GitHub).
       //
       jwt = brep::generate_jwt (
           *options_,
-          options_->ci_github_app_private_key (),
-          to_string (options_->ci_github_app_id ()),
+          pk->second, app_id,
           chrono::seconds (options_->ci_github_jwt_validity_period ()),
           chrono::seconds (60));
 
@@ -2949,7 +3004,7 @@ namespace brep
   //   example.
   //
   optional<gh_installation_access_token> ci_github::
-  obtain_installation_access_token (uint64_t iid,
+  obtain_installation_access_token (const string& iid,
                                     string jwt,
                                     const basic_mark& error) const
   {
@@ -2958,7 +3013,7 @@ namespace brep
     {
       // API endpoint.
       //
-      string ep ("app/installations/" + to_string (iid) + "/access_tokens");
+      string ep ("app/installations/" + iid + "/access_tokens");
 
       uint16_t sc (
           github_post (iat, ep, strings {"Authorization: Bearer " + jwt}));

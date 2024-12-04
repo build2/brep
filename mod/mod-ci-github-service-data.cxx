@@ -54,8 +54,8 @@ namespace brep
     p.next_expect_name ("installation_access");
     installation_access = gh_installation_access_token (p);
 
-    installation_id =
-        p.next_expect_member_number<uint64_t> ("installation_id");
+    app_id = p.next_expect_member_string ("app_id");
+    installation_id = p.next_expect_member_string ("installation_id");
 
     repository_node_id = p.next_expect_member_string ("repository_node_id");
     repository_clone_url = p.next_expect_member_string ("repository_clone_url");
@@ -135,7 +135,8 @@ namespace brep
   service_data (bool ws,
                 string iat_tok,
                 timestamp iat_ea,
-                uint64_t iid,
+                string aid,
+                string iid,
                 string rid,
                 string rcu,
                 kind_type k,
@@ -146,7 +147,8 @@ namespace brep
       : kind (k), pre_check (pc), re_request (rr),
         warning_success (ws),
         installation_access (move (iat_tok), iat_ea),
-        installation_id (iid),
+        app_id (move (aid)),
+        installation_id (move (iid)),
         repository_node_id (move (rid)),
         repository_clone_url (move (rcu)),
         check_sha (move (cs)),
@@ -161,7 +163,8 @@ namespace brep
   service_data (bool ws,
                 string iat_tok,
                 timestamp iat_ea,
-                uint64_t iid,
+                string aid,
+                string iid,
                 string rid,
                 string rcu,
                 kind_type k,
@@ -174,7 +177,8 @@ namespace brep
       : kind (k), pre_check (pc), re_request (rr),
         warning_success (ws),
         installation_access (move (iat_tok), iat_ea),
-        installation_id (iid),
+        app_id (move (aid)),
+        installation_id (move (iid)),
         repository_node_id (move (rid)),
         repository_clone_url (move (rcu)),
         pr_node_id (move (pid)),
@@ -233,6 +237,7 @@ namespace brep
 
     s.end_object ();
 
+    s.member ("app_id", app_id);
     s.member ("installation_id", installation_id);
     s.member ("repository_node_id", repository_node_id);
     s.member ("repository_clone_url", repository_clone_url);
