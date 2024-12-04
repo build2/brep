@@ -669,10 +669,12 @@ namespace brep
     //
     // 2. Verify it is completed.
     //
-    // 3. Verify (like in build_built()) that all the check runs are
+    // 3. Verify the check run counts match.
+    //
+    // 4. Verify (like in build_built()) that all the check runs are
     //    completed.
     //
-    // 4. Verify the result matches what GitHub thinks it is (if easy).
+    // 5. Verify the result matches what GitHub thinks it is.
 
     HANDLER_DIAG;
 
@@ -682,7 +684,7 @@ namespace brep
     //
     string sid (cs.repository.node_id + ':' + cs.check_suite.head_sha);
 
-    // The log subject.
+    // The common log entry subject.
     //
     string sub ("check suite " + cs.check_suite.node_id + '/' + sid);
 
@@ -710,52 +712,63 @@ namespace brep
     // Verify the completed flag and the number of check runs.
     //
     if (!sd.completed)
+    {
       error << sub << " service data complete flag is false";
+      return true;
+    }
 
     // Received count will be one higher because we don't store the conclusion
     // check run.
     //
-    if (cs.check_suite.check_runs_count != sd.check_runs.size () + 1)
+    size_t check_runs_count (sd.check_runs.size () + 1);
+
+    if (check_runs_count == 1)
     {
-      error << sub << ": check runs count " << cs.check_suite.check_runs_count
-            << " does not match service data";
+      error << sub << ": no check runs in service data";
+      return true;
     }
 
-    // Verify that all check runs are built and compute the summary
+    if (cs.check_suite.check_runs_count != check_runs_count)
+    {
+      error << sub << ": check runs count " << cs.check_suite.check_runs_count
+            << " does not match service data count " << check_runs_count;
+      return true;
+    }
+
+    // Verify that all the check runs are built and compute the summary
     // conclusion.
     //
-    optional<result_status> conclusion (result_status::success);
+    result_status conclusion (result_status::success);
 
     for (const check_run& cr: sd.check_runs)
     {
       if (cr.state == build_state::built)
       {
         assert (cr.status.has_value ());
-        *conclusion |= *cr.status;
+        conclusion |= *cr.status;
       }
       else
       {
-        error << sub << ": unbuilt check run(s) in service data";
-        conclusion = nullopt;
-        break;
+        error << sub << ": unbuilt check run in service data";
+        return true;
       }
     }
 
     // Verify the conclusion.
     //
-    if (conclusion)
+    if (!cs.check_suite.conclusion)
     {
-      if (cs.check_suite.conclusion)
-      {
-        if (gh_to_conclusion (*conclusion, warning_success) !=
-            ucase (*cs.check_suite.conclusion))
-        {
-          error << sub << ": conclusion " << *cs.check_suite.conclusion
-                << " does not match service data";
-        }
-      }
-      else
-        error << sub << ": conclusion is null or absent";
+      error << sub << ": absent conclusion in completed check suite";
+      return true;
+    }
+
+    string gh_conclusion (gh_to_conclusion (*conclusion, warning_success));
+
+    if (*cs.check_suite.conclusion != gh_conclusion)
+    {
+      error << sub << ": conclusion " << *cs.check_suite.conclusion
+            << " does not match service data conclusion " << gh_conclusion;
+      return true;
     }
 
     return true;

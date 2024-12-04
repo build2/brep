@@ -113,8 +113,8 @@ namespace brep
   build_state
   gh_from_status (const string&);
 
-  // If warning_success is true, then map result_status::warning to SUCCESS
-  // and to FAILURE otherwise.
+  // If warning_success is true, then map result_status::warning to `success`
+  // and to `failure` otherwise.
   //
   // Throw invalid_argument in case of unsupported result_status value
   // (currently skip, interrupt).
