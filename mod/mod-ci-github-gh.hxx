@@ -26,9 +26,10 @@ namespace brep
   // GitHub request/response types (all start with gh_).
   //
   // Note that the GitHub REST and GraphQL APIs use different id types and
-  // values. In the REST API they are usually integers (but sometimes
-  // strings!) whereas in GraphQL they are always strings (note:
-  // base64-encoded and opaque, not just the REST id value as a string).
+  // values. In the REST API they are usually integers (but check the API
+  // reference for the object in question) whereas in GraphQL they are always
+  // strings (note: base64-encoded and opaque, not just the REST id value as a
+  // string).
   //
   // In both APIs the id field is called `id`, but REST responses and webhook
   // events also contain the corresponding GraphQL object's id in the
@@ -43,7 +44,7 @@ namespace brep
   //
   namespace json = butl::json;
 
-  // The "check_suite" object within a check_suite webhook event request.
+  // The check_suite member of a check_run webhook event (gh_check_run_event).
   //
   struct gh_check_suite
   {
@@ -51,15 +52,32 @@ namespace brep
     optional<string> head_branch;
     string head_sha;
 
-    size_t check_runs_count;
-    optional<string> conclusion;
-
     explicit
     gh_check_suite (json::parser&);
 
     gh_check_suite () = default;
   };
 
+  // The check_suite member of a check_suite webhook event
+  // (gh_check_suite_event).
+  //
+  struct gh_check_suite_ex: gh_check_suite
+  {
+    size_t check_runs_count;
+    optional<string> conclusion;
+
+    string app_id;
+
+    explicit
+    gh_check_suite_ex (json::parser&);
+
+    gh_check_suite_ex () = default;
+  };
+
+  // The check_run object returned in response to GraphQL requests
+  // (e.g. create or update check run). Note that we specifiy the set of
+  // members to return in the GraphQL request.
+  //
   struct gh_check_run
   {
     string node_id;
@@ -72,10 +90,14 @@ namespace brep
     gh_check_run () = default;
   };
 
+  // The check_run member of a check_run webhook event (gh_check_run_event).
+  //
   struct gh_check_run_ex: gh_check_run
   {
     string details_url;
     gh_check_suite check_suite;
+
+    string app_id;
 
     explicit
     gh_check_run_ex (json::parser&);
@@ -83,6 +105,9 @@ namespace brep
     gh_check_run_ex () = default;
   };
 
+  // The pull_request member of a pull_request webhook event
+  // (gh_pull_request_event).
+  //
   struct gh_pull_request
   {
     string node_id;
@@ -96,10 +121,114 @@ namespace brep
     string head_ref;
     string head_sha;
 
+    // Note: not received from GitHub but set from the app-id webhook query
+    // parameter instead.
+    //
+    // For some reason, unlike the check_suite and check_run webhooks, the
+    // pull_request webhook does not contain the app id. For the sake of
+    // simplicity we emulate check_suite and check_run by storing the app-id
+    // webhook query parameter here.
+    //
+    string app_id;
+
     explicit
     gh_pull_request (json::parser&);
 
     gh_pull_request () = default;
+  };
+
+  // The repository member of various webhook events.
+  //
+  struct gh_repository
+  {
+    string node_id;
+    string path; // Repository path (<org>/<repo>) under github.com.
+    string clone_url;
+
+    explicit
+    gh_repository (json::parser&);
+
+    gh_repository () = default;
+  };
+
+  // The installation member of various webhook events.
+  //
+  struct gh_installation
+  {
+    string id; // Note: used for installation access token (REST API).
+
+    explicit
+    gh_installation (json::parser&);
+
+    gh_installation () = default;
+  };
+
+  // The check_suite webhook event.
+  //
+  struct gh_check_suite_event
+  {
+    string action;
+    gh_check_suite_ex check_suite;
+    gh_repository repository;
+    gh_installation installation;
+
+    explicit
+    gh_check_suite_event (json::parser&);
+
+    gh_check_suite_event () = default;
+  };
+
+  // The check_run webhook event.
+  //
+  struct gh_check_run_event
+  {
+    string action;
+    gh_check_run_ex check_run;
+    gh_repository repository;
+    gh_installation installation;
+
+    explicit
+    gh_check_run_event (json::parser&);
+
+    gh_check_run_event () = default;
+  };
+
+  // The pull_request webhook event.
+  //
+  struct gh_pull_request_event
+  {
+    string action;
+
+    gh_pull_request pull_request;
+
+    // The SHA of the previous commit on the head branch before the current
+    // one. Only present if action is "synchronize".
+    //
+    optional<string> before;
+
+    gh_repository repository;
+    gh_installation installation;
+
+    explicit
+    gh_pull_request_event (json::parser&);
+
+    gh_pull_request_event () = default;
+  };
+
+  // Installation access token (IAT) returned when we authenticate as a GitHub
+  // app installation.
+  //
+  struct gh_installation_access_token
+  {
+    string token;
+    timestamp expires_at;
+
+    explicit
+    gh_installation_access_token (json::parser&);
+
+    gh_installation_access_token (string token, timestamp expires_at);
+
+    gh_installation_access_token () = default;
   };
 
   // Return the GitHub check run status corresponding to a build_state.
@@ -128,89 +257,6 @@ namespace brep
   string
   gh_check_run_name (const build&, const build_queued_hints* = nullptr);
 
-  struct gh_repository
-  {
-    string node_id;
-    string path; // Repository path (<org>/<repo>) under github.com.
-    string clone_url;
-
-    explicit
-    gh_repository (json::parser&);
-
-    gh_repository () = default;
-  };
-
-  struct gh_installation
-  {
-    uint64_t id; // Note: used for installation access token (REST API).
-
-    explicit
-    gh_installation (json::parser&);
-
-    gh_installation () = default;
-  };
-
-  // The check_suite webhook event request.
-  //
-  struct gh_check_suite_event
-  {
-    string action;
-    gh_check_suite check_suite;
-    gh_repository repository;
-    gh_installation installation;
-
-    explicit
-    gh_check_suite_event (json::parser&);
-
-    gh_check_suite_event () = default;
-  };
-
-  struct gh_check_run_event
-  {
-    string action;
-    gh_check_run_ex check_run;
-    gh_repository repository;
-    gh_installation installation;
-
-    explicit
-    gh_check_run_event (json::parser&);
-
-    gh_check_run_event () = default;
-  };
-
-  struct gh_pull_request_event
-  {
-    string action;
-
-    gh_pull_request pull_request;
-
-    // The SHA of the previous commit on the head branch before the current
-    // one. Only present if action is "synchronize".
-    //
-    optional<string> before;
-
-    gh_repository repository;
-    gh_installation installation;
-
-    explicit
-    gh_pull_request_event (json::parser&);
-
-    gh_pull_request_event () = default;
-  };
-
-  struct gh_installation_access_token
-  {
-    string token;
-    timestamp expires_at;
-
-    explicit
-    gh_installation_access_token (json::parser&);
-
-    gh_installation_access_token (string token, timestamp expires_at);
-
-    gh_installation_access_token () = default;
-  };
-
   // Throw system_error if the conversion fails due to underlying operating
   // system errors.
   //
@@ -225,6 +271,9 @@ namespace brep
 
   ostream&
   operator<< (ostream&, const gh_check_suite&);
+
+  ostream&
+  operator<< (ostream&, const gh_check_suite_ex&);
 
   ostream&
   operator<< (ostream&, const gh_check_run&);
