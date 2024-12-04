@@ -356,7 +356,7 @@ namespace brep
   {
     p.next_expect (event::begin_object);
 
-    bool ni (false), nm (false), fn (false), cu (false);
+    bool ni (false), fn (false), cu (false);
 
     // Skip unknown/uninteresting members.
     //
