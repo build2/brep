@@ -223,6 +223,8 @@ namespace brep
 
     // Process the `warning` webhook request query parameter.
     //
+    // @@ Add app-id parameter (required).
+    //
     bool warning_success;
     {
       const name_values& rps (rq.parameters (1024, true /* url_only */));
