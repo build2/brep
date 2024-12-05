@@ -864,6 +864,7 @@ namespace brep
         "The private key used during GitHub API authentication for the
          specified GitHub App ID. Both vales are found in the GitHub App's
          settings."
+      }
 
       uint16_t ci-github-jwt-validity-period = 600
       {

@@ -53,15 +53,15 @@ namespace brep
     switch (rs)
     {
     case result_status::success:
-      return "success";
+      return "SUCCESS";
 
     case result_status::warning:
-      return warning_success ? "success" : "failure";
+      return warning_success ? "SUCCESS" : "FAILURE";
 
     case result_status::error:
     case result_status::abort:
     case result_status::abnormal:
-      return "failure";
+      return "FAILURE";
 
       // Valid values we should never encounter.
       //

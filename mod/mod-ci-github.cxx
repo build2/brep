@@ -764,9 +764,13 @@ namespace brep
       return true;
     }
 
-    string gh_conclusion (gh_to_conclusion (*conclusion, warning_success));
+    // Note that the case mismatch is due to GraphQL (gh_conclusion())
+    // requiring uppercase conclusion values while the received webhook values
+    // are lower case.
+    //
+    string gh_conclusion (gh_to_conclusion (conclusion, warning_success));
 
-    if (*cs.check_suite.conclusion != gh_conclusion)
+    if (icasecmp (*cs.check_suite.conclusion, gh_conclusion) != 0)
     {
       error << sub << ": conclusion " << *cs.check_suite.conclusion
             << " does not match service data conclusion " << gh_conclusion;
