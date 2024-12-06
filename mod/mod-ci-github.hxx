@@ -120,7 +120,7 @@ namespace brep
     details_url (const build&) const;
 
     optional<string>
-    generate_jwt (uint64_t app_id,
+    generate_jwt (const string& app_id,
                   const basic_mark& trace,
                   const basic_mark& error) const;
 
@@ -129,7 +129,7 @@ namespace brep
     // goes wrong.
     //
     optional<gh_installation_access_token>
-    obtain_installation_access_token (uint64_t install_id,
+    obtain_installation_access_token (const string& install_id,
                                       string jwt,
                                       const basic_mark& error) const;
 

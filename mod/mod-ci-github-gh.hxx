@@ -26,9 +26,10 @@ namespace brep
   // GitHub request/response types (all start with gh_).
   //
   // Note that the GitHub REST and GraphQL APIs use different id types and
-  // values. In the REST API they are usually integers (but sometimes
-  // strings!) whereas in GraphQL they are always strings (note:
-  // base64-encoded and opaque, not just the REST id value as a string).
+  // values. In the REST API they are usually integers (but check the API
+  // reference for the object in question) whereas in GraphQL they are always
+  // strings (note: base64-encoded and opaque, not just the REST id value as a
+  // string).
   //
   // In both APIs the id field is called `id`, but REST responses and webhook
   // events also contain the corresponding GraphQL object's id in the
@@ -65,9 +66,7 @@ namespace brep
     size_t check_runs_count;
     optional<string> conclusion;
 
-    // Note: unlike the check_run webhook's app_id this can be null.
-    //
-    optional<uint64_t> app_id;
+    string app_id;
 
     explicit
     gh_check_suite_ex (json::parser&);
@@ -98,7 +97,7 @@ namespace brep
     string details_url;
     gh_check_suite check_suite;
 
-    uint64_t app_id;
+    string app_id;
 
     explicit
     gh_check_run_ex (json::parser&);
@@ -130,7 +129,7 @@ namespace brep
     // simplicity we emulate check_suite and check_run by storing the app-id
     // webhook query parameter here.
     //
-    uint64_t app_id;
+    string app_id;
 
     explicit
     gh_pull_request (json::parser&);
@@ -156,7 +155,7 @@ namespace brep
   //
   struct gh_installation
   {
-    uint64_t id; // Note: used for installation access token (REST API).
+    string id; // Note: used for installation access token (REST API).
 
     explicit
     gh_installation (json::parser&);

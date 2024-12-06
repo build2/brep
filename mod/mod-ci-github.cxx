@@ -228,7 +228,7 @@ namespace brep
 
     // Process the `app-id` and `warning` webhook request query parameters.
     //
-    uint64_t app_id; // @@ string
+    string app_id;
     bool warning_success;
     {
       const name_values& rps (rq.parameters (1024, true /* url_only */));
@@ -248,16 +248,7 @@ namespace brep
             badreq ("missing 'app-id' webhook query parameter value");
 
           ai = true;
-
-          // Parse the value.
-          //
-          char* e (nullptr);
-          app_id = strtoull (rp.value->c_str (), &e, 10);
-          if (*e != '\0' || app_id == 0 || app_id == ULLONG_MAX)
-          {
-            badreq ("invalid 'app-id' webhook query parameter value: '" +
-                    *rp.value + '\'');
-          }
+          app_id = *rp.value;
         }
         else if (rp.name == "warning")
         {
@@ -308,17 +299,9 @@ namespace brep
         throw invalid_request (400, move (m));
       }
 
-      // It's unclear under what circumstances the app_id can be null but it
-      // shouldn't happen unless something is broken.
-      //
-      // @@ Move to parsing, make non-optional.
-      //
-      if (!cs.check_suite.app_id)
-        throw invalid_request (400, "absent app.id in check_suite webhook");
-
-      if (*cs.check_suite.app_id != app_id)
+      if (cs.check_suite.app_id != app_id)
       {
-        fail << "webhook check_suite app.id " << *cs.check_suite.app_id
+        fail << "webhook check_suite app.id " << cs.check_suite.app_id
              << " does not match app-id query parameter " << app_id;
       }
 
@@ -576,7 +559,7 @@ namespace brep
     // let's obtain it to flush out any permission issues early. Also, it is
     // valid for an hour so we will most likely make use of it.
     //
-    optional<string> jwt (generate_jwt (*cs.check_suite.app_id, trace, error));
+    optional<string> jwt (generate_jwt (cs.check_suite.app_id, trace, error));
     if (!jwt)
       throw server_error ();
 
@@ -660,7 +643,7 @@ namespace brep
     service_data sd (warning_success,
                      iat->token,
                      iat->expires_at,
-                     *cs.check_suite.app_id,
+                     cs.check_suite.app_id,
                      cs.installation.id,
                      move (cs.repository.node_id),
                      move (cs.repository.clone_url),
@@ -2940,22 +2923,32 @@ namespace brep
   }
 
   optional<string> ci_github::
-  generate_jwt (uint64_t app_id,
+  generate_jwt (const string& app_id,
                 const basic_mark& trace,
                 const basic_mark& error) const
   {
     string jwt;
     try
     {
-      string ai (to_string (app_id));
+      // Look up the private key path for the app id and fail if not found.
+      //
+      const map<string, dir_path>& pks (
+        options_->ci_github_app_id_private_key ());
+
+      auto pk (pks.find (app_id));
+      if (pk == pks.end ())
+      {
+        error << "unable to generate JWT: "
+              << "no private key configured for app id " << app_id;
+        return nullopt;
+      }
 
       // Set token's "issued at" time 60 seconds in the past to combat clock
       // drift (as recommended by GitHub).
       //
       jwt = brep::generate_jwt (
           *options_,
-          options_->ci_github_app_id_private_key ()[ai], // @@ Lookup and fail.
-          ai,
+          pk->second, app_id,
           chrono::seconds (options_->ci_github_jwt_validity_period ()),
           chrono::seconds (60));
 
@@ -3011,7 +3004,7 @@ namespace brep
   //   example.
   //
   optional<gh_installation_access_token> ci_github::
-  obtain_installation_access_token (uint64_t iid,
+  obtain_installation_access_token (const string& iid,
                                     string jwt,
                                     const basic_mark& error) const
   {
@@ -3020,7 +3013,7 @@ namespace brep
     {
       // API endpoint.
       //
-      string ep ("app/installations/" + to_string (iid) + "/access_tokens");
+      string ep ("app/installations/" + iid + "/access_tokens");
 
       uint16_t sc (
           github_post (iat, ep, strings {"Authorization: Bearer " + jwt}));

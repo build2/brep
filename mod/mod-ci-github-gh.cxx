@@ -205,7 +205,19 @@ namespace brep
         //
         while (p.next_expect (event::name, event::end_object))
         {
-          if (c (ai, "id")) app_id = p.next_expect_number<uint64_t> ();
+          if (c (ai, "id"))
+          {
+            // Note: unlike the check_run webhook's app.id, the check_suite
+            // one can be null. It's unclear under what circumstances, but it
+            // shouldn't happen unless something is broken.
+            //
+            string* v (p.next_expect_number_null ());
+
+            if (v == nullptr)
+              throw_json (p, "check_suite.app.id is null");
+
+            app_id = *v;
+          }
           else p.next_expect_value_skip ();
         }
 
@@ -230,7 +242,7 @@ namespace brep
        << ", head_sha: " << cs.head_sha
        << ", latest_check_runs_count: " << cs.check_runs_count
        << ", conclusion: " << (cs.conclusion ? *cs.conclusion : "null")
-       << ", app_id: " << (cs.app_id ? to_string (*cs.app_id) : "null");
+       << ", app_id: " << cs.app_id;
 
     return os;
   }
@@ -298,7 +310,7 @@ namespace brep
         //
         while (p.next_expect (event::name, event::end_object))
         {
-          if (c (ai, "id")) app_id = p.next_expect_number<uint64_t> ();
+          if (c (ai, "id")) app_id = p.next_expect_number ();
           else p.next_expect_value_skip ();
         }
 
@@ -501,7 +513,7 @@ namespace brep
         return p.name () == s ? (v = true) : false;
       };
 
-      if (c (i, "id")) id = p.next_expect_number<uint64_t> ();
+      if (c (i, "id")) id = p.next_expect_number ();
       else p.next_expect_value_skip ();
     }
 
