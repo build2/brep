@@ -123,7 +123,52 @@ namespace brep
   {
     p.next_expect (event::begin_object);
 
-    bool ni (false), hb (false), hs (false), cc (false), co (false);
+    bool ni (false), hb (false), hs (false);
+
+    // Skip unknown/uninteresting members.
+    //
+    while (p.next_expect (event::name, event::end_object))
+    {
+      auto c = [&p] (bool& v, const char* s)
+      {
+        return p.name () == s ? (v = true) : false;
+      };
+
+      if      (c (ni, "node_id")) node_id = p.next_expect_string ();
+      else if (c (hb, "head_branch"))
+      {
+        string* v (p.next_expect_string_null ());
+        if (v != nullptr)
+          head_branch = *v;
+      }
+      else if (c (hs, "head_sha")) head_sha = p.next_expect_string ();
+      else p.next_expect_value_skip ();
+    }
+
+    if (!ni) missing_member (p, "gh_check_suite", "node_id");
+    if (!hb) missing_member (p, "gh_check_suite", "head_branch");
+    if (!hs) missing_member (p, "gh_check_suite", "head_sha");
+  }
+
+  ostream&
+  operator<< (ostream& os, const gh_check_suite& cs)
+  {
+    os << "node_id: " << cs.node_id
+       << ", head_branch: " << (cs.head_branch ? *cs.head_branch : "null")
+       << ", head_sha: " << cs.head_sha;
+
+    return os;
+  }
+
+  // gh_check_suite_ex
+  //
+  gh_check_suite_ex::
+  gh_check_suite_ex (json::parser& p)
+  {
+    p.next_expect (event::begin_object);
+
+    bool ni (false), hb (false), hs (false), cc (false), co (false),
+      ap (false);
 
     // Skip unknown/uninteresting members.
     //
@@ -150,24 +195,42 @@ namespace brep
         if (v != nullptr)
           conclusion = *v;
       }
+      else if (c (ap, "app"))
+      {
+        p.next_expect (event::begin_object);
+
+        bool ai (false);
+
+        // Skip unknown/uninteresting members.
+        //
+        while (p.next_expect (event::name, event::end_object))
+        {
+          if (c (ai, "id")) app_id = p.next_expect_number<uint64_t> ();
+          else p.next_expect_value_skip ();
+        }
+
+        if (!ai) missing_member (p, "gh_check_suite.app", "id");
+      }
       else p.next_expect_value_skip ();
     }
 
-    if (!ni) missing_member (p, "gh_check_suite", "node_id");
-    if (!hb) missing_member (p, "gh_check_suite", "head_branch");
-    if (!hs) missing_member (p, "gh_check_suite", "head_sha");
-    if (!cc) missing_member (p, "gh_check_suite", "latest_check_runs_count");
-    if (!co) missing_member (p, "gh_check_suite", "conclusion");
+    if (!ni) missing_member (p, "gh_check_suite_ex", "node_id");
+    if (!hb) missing_member (p, "gh_check_suite_ex", "head_branch");
+    if (!hs) missing_member (p, "gh_check_suite_ex", "head_sha");
+    if (!cc) missing_member (p, "gh_check_suite_ex", "latest_check_runs_count");
+    if (!co) missing_member (p, "gh_check_suite_ex", "conclusion");
+    if (!ap) missing_member (p, "gh_check_suite_ex", "app");
   }
 
   ostream&
-  operator<< (ostream& os, const gh_check_suite& cs)
+  operator<< (ostream& os, const gh_check_suite_ex& cs)
   {
     os << "node_id: " << cs.node_id
        << ", head_branch: " << (cs.head_branch ? *cs.head_branch : "null")
        << ", head_sha: " << cs.head_sha
        << ", latest_check_runs_count: " << cs.check_runs_count
-       << ", conclusion: " << (cs.conclusion ? *cs.conclusion : "null");
+       << ", conclusion: " << (cs.conclusion ? *cs.conclusion : "null")
+       << ", app_id: " << (cs.app_id ? to_string (*cs.app_id) : "null");
 
     return os;
   }
@@ -208,7 +271,8 @@ namespace brep
   {
     p.next_expect (event::begin_object);
 
-    bool ni (false), nm (false), st (false), du (false), cs (false);
+    bool ni (false), nm (false), st (false), du (false), cs (false),
+      ap (false);
 
     // Skip unknown/uninteresting members.
     //
@@ -224,14 +288,31 @@ namespace brep
       else if (c (st, "status"))      status = p.next_expect_string ();
       else if (c (du, "details_url")) details_url = p.next_expect_string ();
       else if (c (cs, "check_suite")) check_suite = gh_check_suite (p);
+      else if (c (ap, "app"))
+      {
+        p.next_expect (event::begin_object);
+
+        bool ai (false);
+
+        // Skip unknown/uninteresting members.
+        //
+        while (p.next_expect (event::name, event::end_object))
+        {
+          if (c (ai, "id")) app_id = p.next_expect_number<uint64_t> ();
+          else p.next_expect_value_skip ();
+        }
+
+        if (!ai) missing_member (p, "gh_check_run_ex.app", "id");
+      }
       else p.next_expect_value_skip ();
     }
 
-    if (!ni) missing_member (p, "gh_check_run", "node_id");
-    if (!nm) missing_member (p, "gh_check_run", "name");
-    if (!st) missing_member (p, "gh_check_run", "status");
-    if (!du) missing_member (p, "gh_check_run", "details_url");
-    if (!cs) missing_member (p, "gh_check_run", "check_suite");
+    if (!ni) missing_member (p, "gh_check_run_ex", "node_id");
+    if (!nm) missing_member (p, "gh_check_run_ex", "name");
+    if (!st) missing_member (p, "gh_check_run_ex", "status");
+    if (!du) missing_member (p, "gh_check_run_ex", "details_url");
+    if (!cs) missing_member (p, "gh_check_run_ex", "check_suite");
+    if (!ap) missing_member (p, "gh_check_run_ex", "app");
   }
 
 
@@ -250,7 +331,8 @@ namespace brep
   {
     os << static_cast<const gh_check_run&> (cr)
        << ", details_url: " << cr.details_url
-       << ", check_suite: { " << cr.check_suite << " }";
+       << ", check_suite: { " << cr.check_suite << " }"
+       << ", app_id: " << cr.app_id;
 
     return os;
   }
@@ -356,7 +438,8 @@ namespace brep
        << "path: " << pr.head_path
        << ", ref: " << pr.head_ref
        << ", sha: " << pr.head_sha
-       << " }";
+       << " }"
+       << ", app_id: " << pr.app_id;
 
     return os;
   }
@@ -452,7 +535,7 @@ namespace brep
       };
 
       if      (c (ac, "action"))       action = p.next_expect_string ();
-      else if (c (cs, "check_suite"))  check_suite = gh_check_suite (p);
+      else if (c (cs, "check_suite"))  check_suite = gh_check_suite_ex (p);
       else if (c (rp, "repository"))   repository = gh_repository (p);
       else if (c (in, "installation")) installation = gh_installation (p);
       else p.next_expect_value_skip ();

@@ -54,6 +54,7 @@ namespace brep
     p.next_expect_name ("installation_access");
     installation_access = gh_installation_access_token (p);
 
+    app_id = p.next_expect_member_number<uint64_t> ("app_id");
     installation_id =
         p.next_expect_member_number<uint64_t> ("installation_id");
 
@@ -135,6 +136,7 @@ namespace brep
   service_data (bool ws,
                 string iat_tok,
                 timestamp iat_ea,
+                uint64_t aid,
                 uint64_t iid,
                 string rid,
                 string rcu,
@@ -146,6 +148,7 @@ namespace brep
       : kind (k), pre_check (pc), re_request (rr),
         warning_success (ws),
         installation_access (move (iat_tok), iat_ea),
+        app_id (aid),
         installation_id (iid),
         repository_node_id (move (rid)),
         repository_clone_url (move (rcu)),
@@ -161,6 +164,7 @@ namespace brep
   service_data (bool ws,
                 string iat_tok,
                 timestamp iat_ea,
+                uint64_t aid,
                 uint64_t iid,
                 string rid,
                 string rcu,
@@ -174,6 +178,7 @@ namespace brep
       : kind (k), pre_check (pc), re_request (rr),
         warning_success (ws),
         installation_access (move (iat_tok), iat_ea),
+        app_id (aid),
         installation_id (iid),
         repository_node_id (move (rid)),
         repository_clone_url (move (rcu)),
@@ -233,6 +238,7 @@ namespace brep
 
     s.end_object ();
 
+    s.member ("app_id", app_id);
     s.member ("installation_id", installation_id);
     s.member ("repository_node_id", repository_node_id);
     s.member ("repository_clone_url", repository_clone_url);

@@ -43,7 +43,11 @@ namespace brep
   //
   namespace json = butl::json;
 
-  // The "check_suite" object within a check_suite webhook event request.
+  // The check_suite member of a check_run webhook event (gh_check_run_event).
+  //
+  // @@ TMP In the check_run context only the head_sha is used so perhaps it
+  //    would be better to move the other members directly into the _ex
+  //    version?
   //
   struct gh_check_suite
   {
@@ -51,15 +55,34 @@ namespace brep
     optional<string> head_branch;
     string head_sha;
 
-    size_t check_runs_count;
-    optional<string> conclusion;
-
     explicit
     gh_check_suite (json::parser&);
 
     gh_check_suite () = default;
   };
 
+  // The check_suite member of a check_suite webhook event
+  // (gh_check_suite_event).
+  //
+  struct gh_check_suite_ex: gh_check_suite
+  {
+    size_t check_runs_count;
+    optional<string> conclusion;
+
+    // Note: unlike the check_run webhook's app_id this can be null.
+    //
+    optional<uint64_t> app_id;
+
+    explicit
+    gh_check_suite_ex (json::parser&);
+
+    gh_check_suite_ex () = default;
+  };
+
+  // The check_run object returned in response to GraphQL requests
+  // (e.g. create or update check run). Note that we specifiy the set of
+  // members to return in the GraphQL request.
+  //
   struct gh_check_run
   {
     string node_id;
@@ -72,10 +95,14 @@ namespace brep
     gh_check_run () = default;
   };
 
+  // The check_run member of a check_run webhook event (gh_check_run_event).
+  //
   struct gh_check_run_ex: gh_check_run
   {
     string details_url;
     gh_check_suite check_suite;
+
+    uint64_t app_id;
 
     explicit
     gh_check_run_ex (json::parser&);
@@ -83,6 +110,9 @@ namespace brep
     gh_check_run_ex () = default;
   };
 
+  // The pull_request member of a pull_request webhook event
+  // (gh_pull_request_event).
+  //
   struct gh_pull_request
   {
     string node_id;
@@ -96,11 +126,25 @@ namespace brep
     string head_ref;
     string head_sha;
 
+    // Note: not received from GitHub but set from the app-id webhook query
+    // parameter instead.
+    //
+    // For some reason, unlike the check_suite and check_run webhooks, the
+    // pull_request webhook does not contain the app id. For the sake of
+    // simplicity we emulate check_suite and check_run by storing the app-id
+    // webhook query parameter here.
+    //
+    // @@ TODO Explain multiple apps in INSTALL-GITHUB-DEV.
+    //
+    uint64_t app_id;
+
     explicit
     gh_pull_request (json::parser&);
 
     gh_pull_request () = default;
   };
+
+  // @@ TODO Move these functions below the remaining structs?
 
   // Return the GitHub check run status corresponding to a build_state.
   //
@@ -128,6 +172,8 @@ namespace brep
   string
   gh_check_run_name (const build&, const build_queued_hints* = nullptr);
 
+  // The repository member of various webhook events.
+  //
   struct gh_repository
   {
     string node_id;
@@ -140,6 +186,8 @@ namespace brep
     gh_repository () = default;
   };
 
+  // The installation member of various webhook events.
+  //
   struct gh_installation
   {
     uint64_t id; // Note: used for installation access token (REST API).
@@ -150,12 +198,12 @@ namespace brep
     gh_installation () = default;
   };
 
-  // The check_suite webhook event request.
+  // The check_suite webhook event.
   //
   struct gh_check_suite_event
   {
     string action;
-    gh_check_suite check_suite;
+    gh_check_suite_ex check_suite;
     gh_repository repository;
     gh_installation installation;
 
@@ -165,6 +213,8 @@ namespace brep
     gh_check_suite_event () = default;
   };
 
+  // The check_run webhook event.
+  //
   struct gh_check_run_event
   {
     string action;
@@ -178,6 +228,8 @@ namespace brep
     gh_check_run_event () = default;
   };
 
+  // The pull_request webhook event.
+  //
   struct gh_pull_request_event
   {
     string action;
@@ -198,6 +250,9 @@ namespace brep
     gh_pull_request_event () = default;
   };
 
+  // Installation access token (IAT) returned when we authenticate as a GitHub
+  // app installation.
+  //
   struct gh_installation_access_token
   {
     string token;
@@ -225,6 +280,9 @@ namespace brep
 
   ostream&
   operator<< (ostream&, const gh_check_suite&);
+
+  ostream&
+  operator<< (ostream&, const gh_check_suite_ex&);
 
   ostream&
   operator<< (ostream&, const gh_check_run&);
