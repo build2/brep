@@ -45,10 +45,6 @@ namespace brep
 
   // The check_suite member of a check_run webhook event (gh_check_run_event).
   //
-  // @@ TMP In the check_run context only the head_sha is used so perhaps it
-  //    would be better to move the other members directly into the _ex
-  //    version?
-  //
   struct gh_check_suite
   {
     string node_id;
@@ -134,8 +130,6 @@ namespace brep
     // simplicity we emulate check_suite and check_run by storing the app-id
     // webhook query parameter here.
     //
-    // @@ TODO Explain multiple apps in INSTALL-GITHUB-DEV.
-    //
     uint64_t app_id;
 
     explicit
@@ -143,34 +137,6 @@ namespace brep
 
     gh_pull_request () = default;
   };
-
-  // @@ TODO Move these functions below the remaining structs?
-
-  // Return the GitHub check run status corresponding to a build_state.
-  //
-  string
-  gh_to_status (build_state);
-
-  // Return the build_state corresponding to a GitHub check run status
-  // string. Throw invalid_argument if the passed status was invalid.
-  //
-  build_state
-  gh_from_status (const string&);
-
-  // If warning_success is true, then map result_status::warning to `SUCCESS`
-  // and to `FAILURE` otherwise.
-  //
-  // Throw invalid_argument in case of unsupported result_status value
-  // (currently skip, interrupt).
-  //
-  string
-  gh_to_conclusion (result_status, bool warning_success);
-
-  // Create a check_run name from a build. If the second argument is not
-  // NULL, return an abbreviated id if possible.
-  //
-  string
-  gh_check_run_name (const build&, const build_queued_hints* = nullptr);
 
   // The repository member of various webhook events.
   //
@@ -265,6 +231,32 @@ namespace brep
 
     gh_installation_access_token () = default;
   };
+
+  // Return the GitHub check run status corresponding to a build_state.
+  //
+  string
+  gh_to_status (build_state);
+
+  // Return the build_state corresponding to a GitHub check run status
+  // string. Throw invalid_argument if the passed status was invalid.
+  //
+  build_state
+  gh_from_status (const string&);
+
+  // If warning_success is true, then map result_status::warning to `SUCCESS`
+  // and to `FAILURE` otherwise.
+  //
+  // Throw invalid_argument in case of unsupported result_status value
+  // (currently skip, interrupt).
+  //
+  string
+  gh_to_conclusion (result_status, bool warning_success);
+
+  // Create a check_run name from a build. If the second argument is not
+  // NULL, return an abbreviated id if possible.
+  //
+  string
+  gh_check_run_name (const build&, const build_queued_hints* = nullptr);
 
   // Throw system_error if the conversion fails due to underlying operating
   // system errors.

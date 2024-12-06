@@ -228,7 +228,7 @@ namespace brep
 
     // Process the `app-id` and `warning` webhook request query parameters.
     //
-    uint64_t app_id;
+    uint64_t app_id; // @@ string
     bool warning_success;
     {
       const name_values& rps (rq.parameters (1024, true /* url_only */));
@@ -310,6 +310,8 @@ namespace brep
 
       // It's unclear under what circumstances the app_id can be null but it
       // shouldn't happen unless something is broken.
+      //
+      // @@ Move to parsing, make non-optional.
       //
       if (!cs.check_suite.app_id)
         throw invalid_request (400, "absent app.id in check_suite webhook");
@@ -2952,7 +2954,7 @@ namespace brep
       //
       jwt = brep::generate_jwt (
           *options_,
-          options_->ci_github_app_id_private_key ()[ai],
+          options_->ci_github_app_id_private_key ()[ai], // @@ Lookup and fail.
           ai,
           chrono::seconds (options_->ci_github_jwt_validity_period ()),
           chrono::seconds (60));

@@ -209,7 +209,7 @@ namespace brep
           else p.next_expect_value_skip ();
         }
 
-        if (!ai) missing_member (p, "gh_check_suite.app", "id");
+        if (!ai) missing_member (p, "gh_check_suite_ex.app", "id");
       }
       else p.next_expect_value_skip ();
     }
