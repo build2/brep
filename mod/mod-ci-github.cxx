@@ -32,8 +32,6 @@
 //      Will need to extract a few more fields from check_runs, but the layout
 //      is very similar to that of check_suite.
 //
-//    - Pull requests. Handle
-//
 //    - Choose strong webhook secret (when deploying).
 //
 //    - Check that delivery UUID has not been received before (replay attack).
@@ -283,8 +281,6 @@ namespace brep
     // @@ There is also check_run even (re-requested by user, either
     //    individual check run or all the failed check runs).
     //
-    // @@ There is also the pull_request event. Probably need to handle.
-    //
     if (event == "check_suite")
     {
       gh_check_suite_event cs;
@@ -310,10 +306,8 @@ namespace brep
       }
       else if (cs.action == "rerequested")
       {
-        // Someone manually requested to re-run the check runs in this check
-        // suite. Treat as a new request.
-        //
-        // @@ This is probably broken.
+        // Someone manually requested to re-run all the check runs in this
+        // check suite. Treat as a new request.
         //
         return handle_check_suite_request (move (cs), warning_success);
       }
@@ -517,6 +511,7 @@ namespace brep
     // want to run this code as early as possible to minimize the window of
     // the user seeing misleading CI results.
     //
+    if (cs.action == "requested")
     {
       // Fetch open pull requests with the check suite's head branch as base
       // branch.
@@ -561,6 +556,15 @@ namespace brep
         error << "unable to fetch open pull requests with base branch "
               << cs.check_suite.head_branch;
       }
+    }
+    // Cancel existing CI request if this check suite is being re-run.
+    //
+    else if (cs.action == "rerequested")
+    {
+      const string& nid (cs.check_suite.node_id);
+
+      if (!cancel (error, warn, &trace, *build_db_, "ci-github", nid))
+        error << "check suite " << nid << " (re-requested): unable to cancel";
     }
 
     // Start CI for the check suite.
@@ -678,6 +682,10 @@ namespace brep
   //      development models it represents something that is more likely to
   //      end up in an important branch (as opposed to the head of a feature
   //      branch).
+  //
+  //      Note that in these two cases we are building different commit (the
+  //      head commit vs merge commit). So it's not clear how we can have
+  //      a single check_suite result represent both?
   //
   //   Possible solution: ignore all check_suites with non-empty
   //   pull_requests[].
