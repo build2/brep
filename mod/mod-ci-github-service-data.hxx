@@ -25,6 +25,7 @@ namespace brep
   struct check_run
   {
     string                build_id; // Full build id.
+    string                name;     // Potentially shortened build id.
     optional<string>      node_id;  // GitHub id.
 
     build_state           state;
@@ -45,6 +46,10 @@ namespace brep
     // The data schema version. Note: must be first member in the object.
     //
     uint64_t version = 1;
+
+    // Check suite settings.
+    //
+    bool warning_success; // See gh_to_conclusion().
 
     // Check suite-global data.
     //
@@ -71,7 +76,8 @@ namespace brep
     explicit
     service_data (const string& json);
 
-    service_data (string iat_token,
+    service_data (bool warning_success,
+                  string iat_token,
                   timestamp iat_expires_at,
                   uint64_t installation_id,
                   string repository_node_id,

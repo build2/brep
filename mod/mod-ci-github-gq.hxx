@@ -23,29 +23,41 @@ namespace brep
   // the new states and node IDs. Return false and issue diagnostics if the
   // request failed.
   //
+  // Note: no details_url yet since there will be no entry in the build result
+  // search page until the task starts building.
+  //
   bool
-  gq_create_check_runs (vector<check_run>& check_runs,
+  gq_create_check_runs (const basic_mark& error,
+                        vector<check_run>& check_runs,
                         const string& installation_access_token,
                         const string& repository_id,
                         const string& head_sha,
-                        const vector<reference_wrapper<const build>>&,
-                        build_state,
-                        const build_queued_hints&,
-                        const basic_mark& error);
+                        build_state);
 
   // Create a new check run on GitHub for a build. Update `cr` with the new
   // state and the node ID. Return false and issue diagnostics if the request
   // failed.
   //
+  // The gq_built_result is required if the build_state is built because
+  // GitHub does not allow a check run status of `completed` without at least
+  // a conclusion.
+  //
+  struct gq_built_result
+  {
+    string conclusion;
+    string title;
+    string summary;
+  };
+
   bool
-  gq_create_check_run (check_run& cr,
+  gq_create_check_run (const basic_mark& error,
+                       check_run& cr,
                        const string& installation_access_token,
                        const string& repository_id,
                        const string& head_sha,
-                       const build&,
+                       const string& details_url,
                        build_state,
-                       const build_queued_hints&,
-                       const basic_mark& error);
+                       optional<gq_built_result> = nullopt);
 
   // Update a check run on GitHub.
   //
@@ -53,15 +65,19 @@ namespace brep
   // with the new state. Return false and issue diagnostics if the request
   // failed.
   //
-  // @@ TODO Support conclusion, output, etc.
+  // The gq_built_result is required if the build_state is built because
+  // GitHub does not allow a check run status of `completed` without at least
+  // a conclusion.
   //
   bool
-  gq_update_check_run (check_run& cr,
+  gq_update_check_run (const basic_mark& error,
+                       check_run& cr,
                        const string& installation_access_token,
                        const string& repository_id,
                        const string& node_id,
+                       const string& details_url,
                        build_state,
-                       const basic_mark& error);
+                       optional<gq_built_result> = nullopt);
 }
 
 #endif // MOD_MOD_CI_GITHUB_GQ_HXX

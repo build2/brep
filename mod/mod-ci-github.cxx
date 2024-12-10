@@ -5,8 +5,12 @@
 
 #include <libbutl/json/parser.hxx>
 
+#include <web/xhtml/serialization.hxx>
+#include <web/server/mime-url-encoding.hxx> // mime_url_encode()
+
 #include <mod/jwt.hxx>
 #include <mod/hmac.hxx>
+#include <mod/build.hxx> // build_log_url()
 #include <mod/module-options.hxx>
 
 #include <mod/mod-ci-github-gq.hxx>
@@ -226,6 +230,35 @@ namespace brep
       fail << "unable to compute request HMAC: " << e;
     }
 
+    // Process the `warning` webhook request query parameter.
+    //
+    bool warning_success;
+    {
+      const name_values& rps (rq.parameters (1024, true /* url_only */));
+
+      auto i (find_if (rps.begin (), rps.end (),
+                       [] (auto&& rp) {return rp.name == "warning";}));
+
+      if (i == rps.end ())
+        throw invalid_request (400,
+                               "missing 'warning' webhook query parameter");
+
+      if (!i->value)
+        throw invalid_request (
+          400, "missing 'warning' webhook query parameter value");
+
+      const string& v (*i->value);
+
+      if      (v == "success") warning_success = true;
+      else if (v == "failure") warning_success = false;
+      else
+      {
+        throw invalid_request (
+            400,
+            "invalid 'warning' webhook query parameter value: '" + v + '\'');
+      }
+    }
+
     // There is a webhook event (specified in the x-github-event header) and
     // each event contains a bunch of actions (specified in the JSON request
     // body).
@@ -235,6 +268,11 @@ namespace brep
     // not interested in and log and ignore unknown actions. The thinking here
     // is that we want be "notified" of new actions at which point we can decide
     // whether to ignore them or to handle.
+    //
+    // @@ There is also check_run even (re-requested by user, either
+    //    individual check run or all the failed check runs).
+    //
+    // @@ There is also the pull_request event. Probably need to handle.
     //
     if (event == "check_suite")
     {
@@ -257,14 +295,16 @@ namespace brep
 
       if (cs.action == "requested")
       {
-        return handle_check_suite_request (move (cs));
+        return handle_check_suite_request (move (cs), warning_success);
       }
       else if (cs.action == "rerequested")
       {
         // Someone manually requested to re-run the check runs in this check
         // suite. Treat as a new request.
         //
-        return handle_check_suite_request (move (cs));
+        // @@ This is probably broken.
+        //
+        return handle_check_suite_request (move (cs), warning_success);
       }
       else if (cs.action == "completed")
       {
@@ -272,9 +312,8 @@ namespace brep
         // completed and a conclusion is available". Looks like this one we
         // ignore?
         //
-        // @@ TODO What if our bookkeeping says otherwise? See conclusion
-        //    field which includes timedout. Need to come back to this once
-        //    have the "happy path" implemented.
+        // What if our bookkeeping says otherwise? But then we can't even
+        // access the service data easily here. @@ TODO: maybe/later.
         //
         return true;
       }
@@ -305,7 +344,7 @@ namespace brep
   }
 
   bool ci_github::
-  handle_check_suite_request (gh_check_suite_event cs)
+  handle_check_suite_request (gh_check_suite_event cs, bool warning_success)
   {
     HANDLER_DIAG;
 
@@ -331,25 +370,28 @@ namespace brep
                                 cs.check_suite.head_branch,
                             repository_type::git);
 
-    string sd (service_data (move (iat->token),
+    string sd (service_data (warning_success,
+                             move (iat->token),
                              iat->expires_at,
                              cs.installation.id,
                              move (cs.repository.node_id),
                              move (cs.check_suite.head_sha))
                    .json ());
 
+    // @@ What happens if we call this functions with an already existing
+    //    node_id (e.g., replay attack).
+    //
     optional<start_result> r (
-        start (error,
-               warn,
-               verb_ ? &trace : nullptr,
-               tenant_service (move (cs.check_suite.node_id),
-                               "ci-github",
-                               move (sd)),
-               move (rl),
-               vector<package> {},
-               nullopt, // client_ip
-               nullopt  // user_agent
-               ));
+      start (error,
+             warn,
+             verb_ ? &trace : nullptr,
+             tenant_service (move (cs.check_suite.node_id),
+                             "ci-github",
+                             move (sd)),
+             move (rl),
+             vector<package> {},
+             nullopt, /* client_ip */
+             nullopt  /* user_agent */));
 
     if (!r)
       fail << "unable to submit CI request";
@@ -411,8 +453,8 @@ namespace brep
   //    building  Skip if there is no check run in service data or it's
   //              not in the queued state, otherwise update.
   //
-  //    built     Update if there is check run in service data and its
-  //              state is not built, otherwise create new.
+  //    built     Update if there is check run in service data unless its
+  //              state is built, otherwise create new.
   //
   //    The rationale for this semantics is as follows: the building
   //    notification is a "nice to have" and can be skipped if things are not
@@ -747,10 +789,304 @@ namespace brep
   }
 
   function<optional<string> (const tenant_service&)> ci_github::
-  build_built (const tenant_service&, const build&,
-               const diag_epilogue& /* log_writer */) const noexcept
+  build_built (const tenant_service& ts,
+               const build& b,
+               const diag_epilogue& log_writer) const noexcept
   {
-    return nullptr;
+    NOTIFICATION_DIAG (log_writer);
+
+    service_data sd;
+    try
+    {
+      sd = service_data (*ts.data);
+    }
+    catch (const invalid_argument& e)
+    {
+      error << "failed to parse service data: " << e;
+      return nullptr;
+    }
+
+    check_run cr; // Updated check run.
+    {
+      string bid (gh_check_run_name (b)); // Full Build ID.
+
+      if (check_run* scr = sd.find_check_run (bid))
+      {
+        if (scr->state != build_state::building)
+        {
+          warn << "check run " << bid << ": out of order built notification; "
+               << "existing state: " << scr->state_string ();
+        }
+
+        // Do nothing if already built (e.g., rebuild).
+        //
+        if (scr->state == build_state::built)
+          return nullptr;
+
+        cr = move (*scr);
+      }
+      else
+      {
+        warn << "check run " << bid << ": out of order built notification; "
+             << "no check run state in service data";
+
+        cr.build_id = move (bid);
+        cr.name = cr.build_id;
+      }
+
+      cr.state_synced = false;
+    }
+
+    // Get a new installation access token if the current one has expired.
+    //
+    const gh_installation_access_token* iat (nullptr);
+    optional<gh_installation_access_token> new_iat;
+
+    if (system_clock::now () > sd.installation_access.expires_at)
+    {
+      if (optional<string> jwt = generate_jwt (trace, error))
+      {
+        new_iat = obtain_installation_access_token (sd.installation_id,
+                                                    move (*jwt),
+                                                    error);
+        if (new_iat)
+          iat = &*new_iat;
+      }
+    }
+    else
+      iat = &sd.installation_access;
+
+    // Note: we treat the failure to obtain the installation access token the
+    // same as the failure to notify GitHub (state is updated but not marked
+    // synced).
+    //
+    if (iat != nullptr)
+    {
+      // Return the colored circle corresponding to a result_status.
+      //
+      auto circle = [] (result_status rs) -> string
+      {
+        switch (rs)
+        {
+        case result_status::success:  return "\U0001F7E2"; // Green circle.
+        case result_status::warning:  return "\U0001F7E0"; // Orange circle.
+        case result_status::error:
+        case result_status::abort:
+        case result_status::abnormal: return "\U0001F534"; // Red circle.
+
+          // Valid values we should never encounter.
+          //
+        case result_status::skip:
+        case result_status::interrupt:
+          throw invalid_argument ("unexpected result_status value: " +
+                                  to_string (rs));
+        }
+
+        return ""; // Should never reach.
+      };
+
+      // Prepare the check run's summary field (the build information in an
+      // XHTML table).
+      //
+      string sm; // Summary.
+      {
+        using namespace web::xhtml;
+
+        ostringstream os;
+        xml::serializer s (os, "check_run_summary");
+
+        // This hack is required to disable XML element name prefixes (which
+        // GitHub does not like). Note that this adds an xmlns declaration for
+        // the XHTML namespace which for now GitHub appears to ignore. If that
+        // ever becomes a problem, then we should redo this with raw XML
+        // serializer calls.
+        //
+        struct table: element
+        {
+          table (): element ("table") {}
+
+          void
+          start (xml::serializer& s) const override
+          {
+            s.start_element (xmlns, name);
+            s.namespace_decl (xmlns, "");
+          }
+        } TABLE;
+
+        // Serialize a result row (colored circle, result text, log URL) for
+        // an operation and result_status.
+        //
+        auto tr_result = [this, circle, &b] (xml::serializer& s,
+                                             const string& op,
+                                             result_status rs)
+        {
+          // The log URL.
+          //
+          string lu (build_log_url (options_->host (),
+                                    options_->root (),
+                                    b,
+                                    op != "result" ? &op : nullptr));
+
+          s << TR
+            <<   TD << EM << op << ~EM << ~TD
+            <<   TD
+            <<     circle (rs) << ' '
+            <<     CODE << to_string (rs) << ~CODE
+            <<     " (" << A << HREF << lu << ~HREF << "log" << ~A << ')'
+            <<   ~TD
+            << ~TR;
+        };
+
+        // Serialize the summary to an XHTML table.
+        //
+        s << TABLE
+          <<   TBODY;
+
+        tr_result (s, "result", *b.status);
+
+        s <<     TR
+          <<       TD << EM   << "package"      << ~EM   << ~TD
+          <<       TD << CODE << b.package_name << ~CODE << ~TD
+          <<     ~TR
+          <<     TR
+          <<       TD << EM   << "version"         << ~EM   << ~TD
+          <<       TD << CODE << b.package_version << ~CODE << ~TD
+          <<     ~TR
+          <<     TR
+          <<       TD << EM << "toolchain" << ~EM << ~TD
+          <<       TD
+          <<         CODE
+          <<           b.toolchain_name << '-' << b.toolchain_version.string ()
+          <<         ~CODE
+          <<       ~TD
+          <<     ~TR
+          <<     TR
+          <<       TD << EM   << "target"           << ~EM   << ~TD
+          <<       TD << CODE << b.target.string () << ~CODE << ~TD
+          <<     ~TR
+          <<     TR
+          <<       TD << EM   << "target config"      << ~EM   << ~TD
+          <<       TD << CODE << b.target_config_name << ~CODE << ~TD
+          <<     ~TR
+          <<     TR
+          <<       TD << EM   << "package config"      << ~EM   << ~TD
+          <<       TD << CODE << b.package_config_name << ~CODE << ~TD
+          <<     ~TR;
+
+        for (const operation_result& r: b.results)
+          tr_result (s, r.operation, r.status);
+
+        s <<   ~TBODY
+          << ~TABLE;
+
+        sm = os.str ();
+      }
+
+      gq_built_result br (gh_to_conclusion (*b.status, sd.warning_success),
+                          circle (*b.status) + ' ' +
+                            ucase (to_string (*b.status)),
+                          move (sm));
+
+      if (cr.node_id)
+      {
+        // Update existing check run to built.
+        //
+        if (gq_update_check_run (error,
+                                 cr,
+                                 iat->token,
+                                 sd.repository_node_id,
+                                 *cr.node_id,
+                                 details_url (b),
+                                 build_state::built,
+                                 move (br)))
+        {
+          assert (cr.state == build_state::built);
+
+          l3 ([&]{trace << "updated check_run { " << cr << " }";});
+        }
+      }
+      else
+      {
+        // Create new check run.
+        //
+        // Note that we don't have build hints so will be creating this check
+        // run with the full build ID as name. In the unlikely event that an
+        // out of order build_queued() were to run before we've saved this
+        // check run to the service data it will create another check run with
+        // the shortened name which will never get to the built state.
+        //
+        if (gq_create_check_run (error,
+                                 cr,
+                                 iat->token,
+                                 sd.repository_node_id,
+                                 sd.head_sha,
+                                 details_url (b),
+                                 build_state::built,
+                                 move (br)))
+        {
+          assert (cr.state == build_state::built);
+
+          l3 ([&]{trace << "created check_run { " << cr << " }";});
+        }
+      }
+    }
+
+    return [iat = move (new_iat),
+            cr = move (cr),
+            error = move (error),
+            warn = move (warn)] (const tenant_service& ts) -> optional<string>
+    {
+      // NOTE: this lambda may be called repeatedly (e.g., due to transaction
+      // being aborted) and so should not move out of its captures.
+
+      service_data sd;
+      try
+      {
+        sd = service_data (*ts.data);
+      }
+      catch (const invalid_argument& e)
+      {
+        error << "failed to parse service data: " << e;
+        return nullopt;
+      }
+
+      if (iat)
+        sd.installation_access = *iat;
+
+      if (check_run* scr = sd.find_check_run (cr.build_id))
+      {
+        // This will most commonly generate a duplicate warning (see above).
+        // We could save the old state and only warn if it differs but let's
+        // not complicate things for now.
+        //
+#if 0
+        if (scr->state != build_state::building)
+        {
+          warn << "check run " << cr.build_id << ": out of order built "
+               << "notification service data update; existing state: "
+               << scr->state_string ();
+        }
+#endif
+        *scr = cr;
+      }
+      else
+        sd.check_runs.push_back (cr);
+
+      return sd.json ();
+    };
+  }
+
+  string ci_github::
+  details_url (const build& b) const
+  {
+    return options_->host ()                                          +
+      "/@" + b.tenant                                                 +
+      "?builds=" + mime_url_encode (b.package_name.string ())         +
+      "&pv=" + b.package_version.string ()                            +
+      "&tg=" + mime_url_encode (b.target.string ())                   +
+      "&tc=" + mime_url_encode (b.target_config_name)                 +
+      "&pc=" + mime_url_encode (b.package_config_name)                +
+      "&th=" + mime_url_encode (b.toolchain_version.string ());
   }
 
   optional<string> ci_github::
