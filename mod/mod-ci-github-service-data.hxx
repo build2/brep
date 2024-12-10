@@ -35,6 +35,11 @@ namespace brep
 
     optional<result_status> status; // Only if state is built & synced.
 
+    // Note: never serialized (only used to pass information to the GraphQL
+    // functions).
+    //
+    optional<string>        details_url;
+
     string
     state_string () const
     {
@@ -113,6 +118,11 @@ namespace brep
     string report_sha;
 
     vector<check_run> check_runs;
+
+    // Flag indicating that all the elements in check_runs are built and this
+    // check suite is completed.
+    //
+    bool completed;
 
     // The GitHub ID of the synthetic conclusion check run or absent if it
     // hasn't been created yet.

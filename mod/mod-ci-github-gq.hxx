@@ -19,12 +19,10 @@ namespace brep
   // GraphQL functions (all start with gq_).
   //
 
-  // Create a new check run on GitHub for each build. Update `check_runs` with
-  // the new data (node id, state, and state_synced). Return false and issue
-  // diagnostics if the request failed.
-  //
-  // Note: no details_url yet since there will be no entry in the build result
-  // search page until the task starts building.
+  // Create a new check run on GitHub for each build with the build state,
+  // name, and details_url taken from each check_run object. Update
+  // `check_runs` with the new data (node id and state_synced). Return false
+  // and issue diagnostics if the request failed.
   //
   // Note that creating a check_run named `foo` will effectively replace any
   // existing check_runs with that name. They will still exist on the GitHub
@@ -36,8 +34,7 @@ namespace brep
                         vector<check_run>& check_runs,
                         const string& installation_access_token,
                         const string& repository_id,
-                        const string& head_sha,
-                        build_state);
+                        const string& head_sha);
 
   // Create a new check run on GitHub for a build. Update `cr` with the new
   // data (node id, state, and state_synced). Return false and issue
@@ -66,11 +63,8 @@ namespace brep
                        build_state,
                        optional<gq_built_result> = nullopt);
 
-  // Update a check run on GitHub.
-  //
-  // Send a GraphQL request that updates an existing check run. Update `cr`
-  // with the new data (state and state_synced). Return false and issue
-  // diagnostics if the request failed.
+  // Update a check run on GitHub. Update `cr` with the new data (state and
+  // state_synced). Return false and issue diagnostics if the request failed.
   //
   // Note that GitHub allows any state transitions except from built (but
   // built to built is allowed). The latter case is signalled by setting the

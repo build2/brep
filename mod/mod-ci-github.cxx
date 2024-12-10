@@ -334,6 +334,51 @@ namespace brep
         return true;
       }
     }
+    else if (event == "check_run")
+    {
+      gh_check_run_event cr;
+      try
+      {
+        json::parser p (body.data (), body.size (), "check_run event");
+
+        cr = gh_check_run_event (p);
+      }
+      catch (const json::invalid_json_input& e)
+      {
+        string m ("malformed JSON in " + e.name + " request body");
+
+        error << m << ", line: " << e.line << ", column: " << e.column
+              << ", byte offset: " << e.position << ", error: " << e;
+
+        throw invalid_request (400, move (m));
+      }
+
+      if (cr.action == "rerequested")
+      {
+        // Someone manually requested to re-run a specific check run.
+        //
+        return handle_check_run_rerequest (move (cr), warning_success);
+      }
+#if 0
+      // It looks like we shouldn't be receiving these since we are not
+      // subscribed to them.
+      //
+      else if (cr.action == "created"   ||
+               cr.action == "completed" ||
+               cr.action == "requested_action")
+      {
+      }
+#endif
+      else
+      {
+        // Ignore unknown actions by sending a 200 response with empty body
+        // but also log as an error since we want to notice new actions.
+        //
+        error << "unknown action '" << cr.action << "' in check_run event";
+
+        return true;
+      }
+    }
     else if (event == "pull_request")
     {
       gh_pull_request_event pr;
@@ -470,7 +515,7 @@ namespace brep
 
     // Service id that uniquely identifies the CI tenant.
     //
-    string sid (cs.repository.node_id + ":" + cs.check_suite.head_sha);
+    string sid (cs.repository.node_id + ':' + cs.check_suite.head_sha);
 
     // If the user requests a rebuild of the (entire) PR, then this manifests
     // as the check_suite rather than pull_request event. Specifically:
@@ -496,11 +541,14 @@ namespace brep
     {
       kind = service_data::remote;
 
-      if (optional<tenant_service> ts = find (*build_db_, "ci-github", sid))
+      if (optional<pair<tenant_service, bool>> p =
+            find (*build_db_, "ci-github", sid))
       {
+        tenant_service& ts (p->first);
+
         try
         {
-          service_data sd (*ts->data);
+          service_data sd (*ts.data);
           check_sha = move (sd.check_sha); // Test merge commit.
         }
         catch (const invalid_argument& e)
@@ -584,6 +632,787 @@ namespace brep
 
     return true;
   }
+
+  // Create a gq_built_result.
+  //
+  static gq_built_result
+  make_built_result (result_status rs, bool warning_success, string message)
+  {
+    return {gh_to_conclusion (rs, warning_success),
+            circle (rs) + ' ' + ucase (to_string (rs)),
+            move (message)};
+  }
+
+  // Parse a check run details URL into a build_id.
+  //
+  // Return nullopt if the URL is invalid.
+  //
+  static optional<build_id>
+  parse_details_url (const string& details_url);
+
+  // Note that GitHub always posts a message to their GUI saying "You have
+  // successfully requested <check_run_name> be rerun", regardless of what
+  // HTTP status code we respond with. However we do return error status codes
+  // when there is no better option (like failing the conclusion) in case they
+  // start handling them someday.
+  //
+  bool ci_github::
+  handle_check_run_rerequest (const gh_check_run_event& cr,
+                              bool warning_success)
+  {
+    HANDLER_DIAG;
+
+    l3 ([&]{trace << "check_run event { " << cr << " }";});
+
+    // The overall plan is as follows:
+    //
+    // 1. Load service data.
+    //
+    // 2. If the tenant is archived, then fail (re-create) both the check run
+    //    and the conclusion with appropriate diagnostics.
+    //
+    // 3. If the check run is in the queued state, then do nothing.
+    //
+    // 4. Re-create the check run in the queued state and the conclusion in
+    //    the building state. Note: do in a single request to make sure we
+    //    either "win" or "loose" the potential race for both (important
+    //    for #7).
+    //
+    // 5. Call the rebuild() function to attempt to schedule a rebuild. Pass
+    //    the update function that does the following (if called):
+    //
+    //    a. Save new node ids.
+    //
+    //    b. Update the check run state (may also not exist).
+    //
+    //    c. Clear the completed flag if true.
+    //
+    // 6. If the result of rebuild() indicates the tenant is archived, then
+    //    fail (update) both the check run and conclusion with appropriate
+    //    diagnostics.
+    //
+    // 7. If original state is queued (no rebuild was scheduled), then fail
+    //    (update) both the check run and the conclusion.
+    //
+    // Note that while conceptually we are updating existing check runs, in
+    // practice we have to re-create as new check runs in order to replace the
+    // existing ones because GitHub does not allow transitioning out of the
+    // built state.
+
+    // Get a new installation access token.
+    //
+    auto get_iat = [this, &trace, &error, &cr] ()
+      -> optional<gh_installation_access_token>
+    {
+      optional<string> jwt (generate_jwt (trace, error));
+      if (!jwt)
+        return nullopt;
+
+      optional<gh_installation_access_token> iat (
+        obtain_installation_access_token (cr.installation.id,
+                                          move (*jwt),
+                                          error));
+
+      if (iat)
+        l3 ([&]{trace << "installation_access_token { " << *iat << " }";});
+
+      return iat;
+    };
+
+    const string& repo_node_id (cr.repository.node_id);
+    const string& head_sha (cr.check_run.check_suite.head_sha);
+
+    // Prepare the build and conclusion check runs. They are sent to GitHub in
+    // a single request (unless something goes wrong) so store them together
+    // from the outset.
+    //
+    vector<check_run> check_runs (2);
+    check_run& bcr (check_runs[0]); // Build check run
+    check_run& ccr (check_runs[1]); // Conclusion check run
+
+    ccr.name = conclusion_check_run_name;
+
+    // Load the service data, failing the check runs if the tenant has been
+    // archived.
+    //
+    service_data sd;
+    {
+      // Service id that uniquely identifies the CI tenant.
+      //
+      string sid (repo_node_id + ':' + head_sha);
+
+      if (optional<pair<tenant_service, bool>> p =
+            find (*build_db_, "ci-github", sid))
+      {
+        if (p->second) // Tenant is archived
+        {
+          // Fail (re-create) the check runs.
+          //
+          optional<gh_installation_access_token> iat (get_iat ());
+          if (!iat)
+            throw server_error ();
+
+          gq_built_result br (
+            make_built_result (
+              result_status::error, warning_success,
+              "Unable to rebuild individual configuration: build has "
+              "been archived"));
+
+          // Try to update the conclusion check run even if the first update
+          // fails.
+          //
+          bool f (false); // Failed.
+
+          if (gq_create_check_run (error, bcr, iat->token,
+                                   repo_node_id, head_sha,
+                                   cr.check_run.details_url,
+                                   build_state::built, br))
+          {
+            l3 ([&]{trace << "created check_run { " << bcr << " }";});
+          }
+          else
+          {
+            error << "check_run " << cr.check_run.node_id
+                  << ": unable to re-create check run";
+            f = true;
+          }
+
+          if (gq_create_check_run (error, ccr, iat->token,
+                                   repo_node_id, head_sha,
+                                   nullopt /* details_url */,
+                                   build_state::built, move (br)))
+          {
+            l3 ([&]{trace << "created conclusion check_run { " << ccr << " }";});
+          }
+          else
+          {
+            error << "check_run " << cr.check_run.node_id
+                  << ": unable to re-create conclusion check run";
+            f = true;
+          }
+
+          // Fail the handler if either of the check runs could not be
+          // updated.
+          //
+          if (f)
+            throw server_error ();
+
+          return true;
+        }
+
+        tenant_service& ts (p->first);
+
+        try
+        {
+          sd = service_data (*ts.data);
+        }
+        catch (const invalid_argument& e)
+        {
+          fail << "failed to parse service data: " << e;
+        }
+      }
+      else
+      {
+        // No such tenant.
+        //
+        fail << "check run " << cr.check_run.node_id
+             << " re-requested but tenant_service with id " << sid
+             << " does not exist";
+      }
+    }
+
+    // Get a new IAT if the one from the service data has expired.
+    //
+    const gh_installation_access_token* iat (nullptr);
+    optional<gh_installation_access_token> new_iat;
+
+    if (system_clock::now () > sd.installation_access.expires_at)
+    {
+      if (new_iat = get_iat ())
+        iat = &*new_iat;
+      else
+        throw server_error ();
+    }
+    else
+      iat = &sd.installation_access;
+
+    // Fail if it's the conclusion check run that is being re-requested.
+    //
+    if (cr.check_run.name == conclusion_check_run_name)
+    {
+      l3 ([&]{trace << "re-requested conclusion check_run";});
+
+      if (!sd.conclusion_node_id)
+        fail << "no conclusion node id for check run " << cr.check_run.node_id;
+
+      gq_built_result br (
+        make_built_result (result_status::error, warning_success,
+                           "Conclusion check run cannot be rebuilt"));
+
+      // Fail (update) the conclusion check run.
+      //
+      if (gq_update_check_run (error, ccr, iat->token,
+                               repo_node_id, *sd.conclusion_node_id,
+                               nullopt /* details_url */,
+                               build_state::built, move (br)))
+      {
+        l3 ([&]{trace << "updated conclusion check_run { " << ccr << " }";});
+      }
+      else
+      {
+        fail << "check run " << cr.check_run.node_id
+             << ": unable to update conclusion check run "
+             << *sd.conclusion_node_id;
+      }
+
+      return true;
+    }
+
+    // Parse the check_run's details_url to extract build id.
+    //
+    // While this is a bit hackish, there doesn't seem to be a better way
+    // (like associating custom data with a check run). Note that the GitHub
+    // UI only allows rebuilding completed check runs, so the details URL
+    // should be there.
+    //
+    optional<build_id> bid (parse_details_url (cr.check_run.details_url));
+    if (!bid)
+    {
+      fail << "check run " << cr.check_run.node_id
+           << ": failed to extract build id from details_url";
+    }
+
+    // Initialize the check run (`bcr`) with state from the service data.
+    //
+    {
+      // Search for the check run in the service data.
+      //
+      // Note that we look by name in case node id got replaced by a racing
+      // re-request (in which case we ignore this request).
+      //
+      auto i (find_if (sd.check_runs.begin (), sd.check_runs.end (),
+                       [&cr] (const check_run& scr)
+                       {
+                         return scr.name == cr.check_run.name;
+                       }));
+
+      if (i == sd.check_runs.end ())
+        fail << "check_run " << cr.check_run.node_id
+             << " (" << cr.check_run.name << "): "
+             << "re-requested but does not exist in service data";
+
+      // Do nothing if node ids don't match.
+      //
+      if (i->node_id && *i->node_id != cr.check_run.node_id)
+      {
+        l3 ([&]{trace << "check_run " << cr.check_run.node_id
+                      << " (" << cr.check_run.name << "): "
+                      << "node id has changed in service data";});
+        return true;
+      }
+
+      // Do nothing if the build is already queued.
+      //
+      if (i->state == build_state::queued)
+      {
+        l3 ([&]{trace << "ignoring already-queued check run";});
+        return true;
+      }
+
+      bcr.name = i->name;
+      bcr.build_id = i->build_id;
+      bcr.state = i->state;
+    }
+
+    // Transition the build and conclusion check runs out of the built state
+    // (or any other state) by re-creating them.
+    //
+    bcr.state = build_state::queued;
+    bcr.state_synced = false;
+    bcr.details_url = cr.check_run.details_url;
+
+    ccr.state = build_state::building;
+    ccr.state_synced = false;
+
+    if (gq_create_check_runs (error, check_runs, iat->token,
+                              repo_node_id, head_sha))
+    {
+      assert (bcr.state == build_state::queued);
+      assert (ccr.state == build_state::building);
+
+      l3 ([&]{trace << "created check_run { " << bcr << " }";});
+      l3 ([&]{trace << "created conclusion check_run { " << ccr << " }";});
+    }
+    else
+    {
+      fail << "check run " << cr.check_run.node_id
+           << ": unable to re-create build and conclusion check runs";
+    }
+
+    // Request the rebuild and update service data.
+    //
+    bool race (false);
+
+    // Callback function called by rebuild() to update the service data (but
+    // only if the build is actually restarted).
+    //
+    auto update_sd = [&error, &new_iat, &race,
+                      &cr, &bcr, &ccr] (const tenant_service& ts,
+                                        build_state) -> optional<string>
+    {
+      // NOTE: this lambda may be called repeatedly (e.g., due to transaction
+      // being aborted) and so should not move out of its captures.
+
+      race = false; // Reset.
+
+      service_data sd;
+      try
+      {
+        sd = service_data (*ts.data);
+      }
+      catch (const invalid_argument& e)
+      {
+        error << "failed to parse service data: " << e;
+        return nullopt;
+      }
+
+      // Note that we again look by name in case node id got replaced by a
+      // racing re-request. In this case, however, it's impossible to decide
+      // who won that race, so let's fail the check suite to be on the safe
+      // side (in a sense, similar to the rebuild() returning queued below).
+      //
+      auto i (find_if (
+                sd.check_runs.begin (), sd.check_runs.end (),
+                [&cr] (const check_run& scr)
+                {
+                  return scr.name == cr.check_run.name;
+                }));
+
+      if (i == sd.check_runs.end ())
+      {
+        error << "check_run " << cr.check_run.node_id
+              << " (" << cr.check_run.name << "): "
+              << "re-requested but does not exist in service data";
+        return nullopt;
+      }
+
+      if (i->node_id && *i->node_id != cr.check_run.node_id)
+      {
+        // Keep the old conclusion node id to make sure any further state
+        // transitions are ignored. A bit of a hack.
+        //
+        race = true;
+        return nullopt;
+      }
+
+      *i = bcr; // Update with new node_id, state, state_synced.
+
+      sd.conclusion_node_id = ccr.node_id;
+      sd.completed = false;
+
+      // Save the IAT if we created a new one.
+      //
+      if (new_iat)
+        sd.installation_access = *new_iat;
+
+      return sd.json ();
+    };
+
+    optional<build_state> bs (rebuild (*build_db_, retry_, *bid, update_sd));
+
+    // If the build has been archived or re-enqueued since we loaded the
+    // service data, fail (by updating) both the build check run and the
+    // conclusion check run. Otherwise the build has been successfully
+    // re-enqueued so do nothing further.
+    //
+    if (!race && bs && *bs != build_state::queued)
+      return true;
+
+    gq_built_result br; // Built result for both check runs.
+
+    if (race || bs) // Race or re-enqueued.
+    {
+      // The re-enqueued case: this build has been re-enqueued since we first
+      // loaded the service data. This could happen if the user clicked
+      // "re-run" multiple times and another handler won the rebuild() race.
+      //
+      // However the winner of the check runs race cannot be determined.
+      //
+      // Best case the other handler won the check runs race as well and
+      // thus everything will proceed normally. Our check runs will be
+      // invisible and disregarded.
+      //
+      // Worst case we won the check runs race and the other handler's check
+      // runs -- the ones that will be updated by the build_*() notifications
+      // -- are no longer visible, leaving things quite broken.
+      //
+      // Either way, we fail our check runs. In the best case scenario it
+      // will have no effect; in the worst case scenario it lets the user
+      // know something has gone wrong.
+      //
+      br = make_built_result (result_status::error, warning_success,
+                              "Unable to rebuild, try again");
+    }
+    else // Archived.
+    {
+      // The build has expired since we loaded the service data. Most likely
+      // the tenant has been archived.
+      //
+      br = make_built_result (
+        result_status::error, warning_success,
+        "Unable to rebuild individual configuration: build has been archived");
+    }
+
+    // Try to update the conclusion check run even if the first update fails.
+    //
+    bool f (false); // Failed.
+
+    // Fail the build check run.
+    //
+    if (gq_update_check_run (error, bcr, iat->token,
+                             repo_node_id, *bcr.node_id,
+                             nullopt /* details_url */,
+                             build_state::built, br))
+    {
+      l3 ([&]{trace << "updated check_run { " << bcr << " }";});
+    }
+    else
+    {
+      error << "check run " << cr.check_run.node_id
+            << ": unable to update (replacement) check run "
+            << *bcr.node_id;
+      f = true;
+    }
+
+    // Fail the conclusion check run.
+    //
+    if (gq_update_check_run (error, ccr, iat->token,
+                             repo_node_id, *ccr.node_id,
+                             nullopt /* details_url */,
+                             build_state::built, move (br)))
+    {
+      l3 ([&]{trace << "updated conclusion check_run { " << ccr << " }";});
+    }
+    else
+    {
+      error << "check run " << cr.check_run.node_id
+            << ": unable to update conclusion check run " << *ccr.node_id;
+      f = true;
+    }
+
+    // Fail the handler if either of the check runs could not be updated.
+    //
+    if (f)
+      throw server_error ();
+
+    return true;
+  }
+
+  // @@ TMP
+  //
+#if 0
+  bool ci_github::
+  handle_check_run_rerequest (const gh_check_run_event& cr,
+                              bool warning_success)
+  {
+    HANDLER_DIAG;
+
+    l3 ([&]{trace << "check_run event { " << cr << " }";});
+
+    // Fail if this is the conclusion check run.
+    //
+    if (cr.check_run.name == conclusion_check_run_name)
+    {
+      // @@ Fail conclusion check run with appropriate message and reurn
+      //    true.
+
+      l3 ([&]{trace << "ignoring conclusion check_run";});
+
+      // 422 Unprocessable Content: The request was well-formed (i.e.,
+      // syntactically correct) but could not be processed.
+      //
+      throw invalid_request (422, "Conclusion check run cannot be rebuilt");
+    }
+
+    // Get a new installation access token.
+    //
+    auto get_iat = [this, &trace, &error, &cr] ()
+      -> optional<gh_installation_access_token>
+    {
+      optional<string> jwt (generate_jwt (trace, error));
+      if (!jwt)
+        return nullopt;
+
+      optional<gh_installation_access_token> iat (
+        obtain_installation_access_token (cr.installation.id,
+                                          move (*jwt),
+                                          error));
+
+      if (iat)
+        l3 ([&]{trace << "installation_access_token { " << *iat << " }";});
+
+      return iat;
+    };
+
+    // Create a new conclusion check run, replacing the existing one.
+    //
+    // Return the check run on success or nullopt on failure.
+    //
+    auto create_conclusion_cr =
+      [&cr, &error, warning_success] (const gh_installation_access_token& iat,
+                                      build_state bs,
+                                      optional<result_status> rs = nullopt,
+                                      optional<string> msg = nullopt)
+      -> optional<check_run>
+    {
+      optional<gq_built_result> br;
+      if (rs)
+      {
+        assert (msg);
+
+        br = make_built_result (*rs, warning_success, move (*msg));
+      }
+
+      check_run r;
+      r.name = conclusion_check_run_name;
+
+      if (gq_create_check_run (error, r, iat.token,
+                               rni, hs,
+                               nullopt /* details_url */,
+                               bs, move (br)))
+      {
+        return r;
+      }
+      else
+        return nullopt;
+    };
+
+    // The overall plan is as follows:
+    //
+    // 1. Call the rebuild() function to attempt to schedule a rebuild. Pass
+    //    the update function that does the following (if called):
+    //
+    //    a. Update the check run being rebuilt (may also not exist).
+    //
+    //    b. Clear the completed flag if true.
+    //
+    //    c. "Return" the service data to be used after the call.
+    //
+    // 2. If the result of rebuild() indicates the tenant is archived, fail
+    //    the conclusion check run with appropriate diagnostics.
+    //
+    // 3. If original state is queued, then no rebuild was scheduled and we do
+    //    nothing.
+    //
+    // 4. Otherwise (the original state is building or built):
+    //
+    //    a. Change the check run state to queued.
+    //
+    //    b. Change the conclusion check run to building (do unconditionally
+    //       to mitigate races).
+    //
+    // Note that while conceptually we are updating existing check runs, in
+    // practice we have to create new check runs to replace the existing ones
+    // because GitHub does not allow transitioning out of the built state.
+    //
+    // This results in a new node id for each check run but we can't save them
+    // to the service data after the rebuild() call. As a workaround, when
+    // updating the service data we 1) clear the re-requested check run's node
+    // id and set the state_synced flag to true to signal to build_building()
+    // and build_built() that it needs to create a new check run; and 2) clear
+    // the conclusion check run's node id to cause build_built() to create a
+    // new conclusion check run. And these two check runs' node ids will be
+    // saved to the service data.
+
+    // Parse the check_run's details_url to extract build id.
+    //
+    // While this is a bit hackish, there doesn't seem to be a better way
+    // (like associating custom data with a check run). Note that the GitHub
+    // UI only allows rebuilding completed check runs, so the details URL
+    // should be there.
+    //
+    optional<build_id> bid (parse_details_url (cr.check_run.details_url));
+    if (!bid)
+    {
+      fail << "check run " << cr.check_run.node_id
+           << ": failed to extract build id from details_url";
+    }
+
+    // The IAT retrieved from the service data.
+    //
+    optional<gh_installation_access_token> iat;
+
+    // True if the check run exists in the service data.
+    //
+    bool cr_found (false);
+
+    // Update the state of the check run in the service data. Return (via
+    // captured references) the IAT and whether the check run was found.
+    //
+    // Called by rebuild(), but only if the build is actually restarted.
+    //
+    auto update_sd = [&iat,
+                      &cr_found,
+                      &error,
+                      &cr] (const tenant_service& ts, build_state)
+      -> optional<string>
+    {
+      // NOTE: this lambda may be called repeatedly (e.g., due to transaction
+      // being aborted) and so should not move out of its captures.
+
+      service_data sd;
+      try
+      {
+        sd = service_data (*ts.data);
+      }
+      catch (const invalid_argument& e)
+      {
+        error << "failed to parse service data: " << e;
+        return nullptr;
+      }
+
+      if (!iat)
+        iat = sd.installation_access;
+
+      // If the re-requested check run is found, update it in the service
+      // data.
+      //
+      const string& nid (cr.check_run.node_id);
+
+      for (check_run& cr: sd.check_runs)
+      {
+        if (cr.node_id && *cr.node_id == nid)
+        {
+          cr_found = true;
+          cr.state = build_state::queued;
+          sd.completed = false;
+
+          // Clear the check run node ids and set state_synced to true to
+          // cause build_building() and/or build_built() to create new check
+          // runs (see the plan above for details).
+          //
+          cr.node_id = nullopt;
+          cr.state_synced = true;
+          sd.conclusion_node_id = nullopt;
+
+          return sd.json ();
+        }
+      }
+
+      return nullopt;
+    };
+
+    optional<build_state> bs (rebuild (*build_db_, retry_, *bid, update_sd));
+
+    if (!bs)
+    {
+      // Build has expired (most probably the tenant has been archived).
+      //
+      // Update the conclusion check run to notify the user (but have to
+      // replace it with a new one because we don't know the existing one's
+      // node id).
+      //
+      optional<gh_installation_access_token> iat (get_iat ());
+      if (!iat)
+        throw server_error ();
+
+      if (optional<check_run> ccr = create_conclusion_cr (
+            *iat,
+            build_state::built,
+            result_status::error,
+            "Unable to rebuild: tenant has been archived or no such build"))
+      {
+        l3 ([&]{trace << "created conclusion check_run { " << *ccr << " }";});
+      }
+      else
+      {
+        // Log the error and return failure to GitHub which will presumably
+        // indicate this in its GUI.
+        //
+        fail << "check run " << cr.check_run.node_id
+             << ": unable to create conclusion check run";
+      }
+    }
+    else if (*bs == build_state::queued)
+    {
+      // The build was already queued so nothing to be done. This might happen
+      // if the user clicked "re-run" multiple times before we managed to
+      // update the check run.
+    }
+    else
+    {
+      // The build has been requeued.
+      //
+      assert (*bs == build_state::building || *bs == build_state::built);
+
+      if (!cr_found)
+      {
+        // Respond with an error otherwise GitHub will post a message in its
+        // GUI saying "you have successfully requested a rebuild of ..."
+        //
+        fail << "check_run " << cr.check_run.node_id
+             << ": build restarted but check run does not exist "
+             << "in service data";
+      }
+
+      // Get a new IAT if the one from the service data has expired.
+      //
+      assert (iat.has_value ());
+
+      if (system_clock::now () > iat->expires_at)
+      {
+        iat = get_iat ();
+        if (!iat)
+          throw server_error ();
+      }
+
+      // Update (by replacing) the re-requested and conclusion check runs to
+      // queued and building, respectively.
+      //
+      // If either fails we can only log the error but build_building() and/or
+      // build_built() should correct the situation (see above for details).
+      //
+
+      // Update re-requested check run.
+      //
+      {
+        check_run ncr; // New check run.
+        ncr.name = cr.check_run.name;
+
+        if (gq_create_check_run (error,
+                                 ncr,
+                                 iat->token,
+                                 cr.repository.node_id,
+                                 cr.check_run.check_suite.head_sha,
+                                 cr.check_run.details_url,
+                                 build_state::queued))
+        {
+          l3 ([&]{trace << "created check_run { " << ncr << " }";});
+        }
+        else
+        {
+          error << "check_run " << cr.check_run.node_id
+                << ": unable to create (to update) check run in queued state";
+        }
+      }
+
+      // Update conclusion check run.
+      //
+      if (optional<check_run> ccr =
+            create_conclusion_cr (*iat, build_state::building))
+      {
+        l3 ([&]{trace << "created conclusion check_run { " << *ccr << " }";});
+      }
+      else
+      {
+        error << "check_run " << cr.check_run.node_id
+              << ": unable to create (to update) conclusion check run";
+      }
+    }
+
+    return true;
+  }
+#endif
 
   // Miscellaneous pull request facts
   //
@@ -821,7 +1650,7 @@ namespace brep
 
       // Service id that will uniquely identify the CI tenant.
       //
-      string sid (sd.repository_node_id + ":" + sd.report_sha);
+      string sid (sd.repository_node_id + ':' + sd.report_sha);
 
       // Create an unloaded CI tenant, doing nothing if one already exists
       // (which could've been created by a head branch push or another PR
@@ -967,10 +1796,8 @@ namespace brep
     {
       assert (!node_id.empty ());
 
-      optional<gq_built_result> br (
-        gq_built_result (gh_to_conclusion (rs, sd.warning_success),
-                         circle (rs) + ' ' + ucase (to_string (rs)),
-                         move (summary)));
+      gq_built_result br (
+        make_built_result (rs, sd.warning_success, move (summary)));
 
       check_run cr;
       cr.name = name; // For display purposes only.
@@ -1196,6 +2023,13 @@ namespace brep
       return nullptr;
     }
 
+    // Ignore attempts to add new builds to a completed check suite. This can
+    // happen, for example, if a new build configuration is added before
+    // the tenant is archived.
+    //
+    if (sd.completed)
+      return nullptr;
+
     // The builds for which we will be creating check runs.
     //
     vector<reference_wrapper<const build>> bs;
@@ -1278,8 +2112,7 @@ namespace brep
       if (gq_create_check_runs (error,
                                 crs,
                                 iat->token,
-                                sd.repository_node_id, sd.report_sha,
-                                build_state::queued))
+                                sd.repository_node_id, sd.report_sha))
       {
         for (const check_run& cr: crs)
         {
@@ -1357,6 +2190,12 @@ namespace brep
       error << "failed to parse service data: " << e;
       return nullptr;
     }
+
+    // Similar to build_queued(), ignore attempts to add new builds to a
+    // completed check suite.
+    //
+    if (sd.completed)
+      return nullptr;
 
     optional<check_run> cr; // Updated check run.
     string bid (gh_check_run_name (b)); // Full build id.
@@ -1502,8 +2341,15 @@ namespace brep
       return nullptr;
     }
 
+    // Similar to build_queued(), ignore attempts to add new builds to a
+    // completed check suite.
+    //
+    if (sd.completed)
+      return nullptr;
+
     // Here we need to update the state of this check run and, if there are no
-    // more unbuilt ones, update the synthetic conclusion check run.
+    // more unbuilt ones, update the synthetic conclusion check run and mark
+    // the check suite as completed.
     //
     // Absent means we still have unbuilt check runs.
     //
@@ -1586,6 +2432,8 @@ namespace brep
     }
     else
       iat = &sd.installation_access;
+
+    bool completed (false);
 
     // Note: we treat the failure to obtain the installation access token the
     // same as the failure to notify GitHub (state is updated but not marked
@@ -1691,9 +2539,7 @@ namespace brep
       }
 
       gq_built_result br (
-        gh_to_conclusion (*b.status, sd.warning_success),
-        circle (*b.status) + ' ' + ucase (to_string (*b.status)),
-        move (sm));
+        make_built_result (*b.status, sd.warning_success, move (sm)));
 
       if (cr.node_id)
       {
@@ -1751,10 +2597,9 @@ namespace brep
 
           result_status rs (*conclusion);
 
-          optional<gq_built_result> br (
-            gq_built_result (gh_to_conclusion (rs, sd.warning_success),
-                             circle (rs) + ' ' + ucase (to_string (rs)),
-                             "All configurations are built"));
+          gq_built_result br (
+            make_built_result (rs, sd.warning_success,
+                               "All configurations are built"));
 
           check_run cr;
 
@@ -1783,12 +2628,15 @@ namespace brep
                   << ": unable to update conclusion check run "
                   << *sd.conclusion_node_id;
           }
+
+          completed = true;
         }
       }
     }
 
     return [iat = move (new_iat),
             cr = move (cr),
+            completed = completed,
             error = move (error),
             warn = move (warn)] (const tenant_service& ts) -> optional<string>
     {
@@ -1828,10 +2676,37 @@ namespace brep
                  << scr->state_string ();
           }
 #endif
-          *scr = cr;
+          *scr = cr; // Note: also updates node id if created.
         }
         else
           sd.check_runs.push_back (cr);
+
+        if (bool c = completed)
+        {
+          // Note that this can be racy: while we calculated the completed
+          // value based on the snapshot of the service data, it could have
+          // been changed (e.g., by handle_check_run_rerequest()). So we
+          // re-calculate it based on the check run states and only update if
+          // it matches. Otherwise, we log an error.
+          //
+          for (const check_run& scr: sd.check_runs)
+          {
+            if (scr.state != build_state::built)
+            {
+              string sid (sd.repository_node_id + ':' + sd.report_sha);
+
+              error << "tenant_service id " << sid
+                    << ": out of order built notification service data update; "
+                    << "check suite is no longer complete";
+
+              c = false;
+              break;
+            }
+          }
+
+          if (c)
+            sd.completed = true;
+        }
       }
 
       return sd.json ();
@@ -1841,6 +2716,8 @@ namespace brep
   string ci_github::
   details_url (const build& b) const
   {
+    // This code is based on build_force_url() in mod/build.cxx.
+    //
     return options_->host ()                                          +
       "/@" + b.tenant                                                 +
       "?builds=" + mime_url_encode (b.package_name.string ())         +
@@ -1848,7 +2725,101 @@ namespace brep
       "&tg=" + mime_url_encode (b.target.string ())                   +
       "&tc=" + mime_url_encode (b.target_config_name)                 +
       "&pc=" + mime_url_encode (b.package_config_name)                +
-      "&th=" + mime_url_encode (b.toolchain_version.string ());
+      "&th=" + mime_url_encode (b.toolchain_name)                     + '-' +
+                                b.toolchain_version.string ();
+  }
+
+  static optional<build_id>
+  parse_details_url (const string& details_url)
+  try
+  {
+    // See details_url() above for an idea of what the URL looks like.
+
+    url u (details_url);
+
+    build_id r;
+
+    // Extract the tenant from the URL path.
+    //
+    // Example path: @d2586f57-21dc-40b7-beb2-6517ad7917dd
+    //
+    if (!u.path || u.path->size () != 37 || (*u.path)[0] != '@')
+      return nullopt;
+
+    r.package.tenant = u.path->substr (1);
+
+    // Extract the rest of the build_id members from the URL query.
+    //
+    if (!u.query)
+      return nullopt;
+
+    bool pn (false), pv (false), tg (false), tc (false), pc (false),
+      th (false);
+
+    // This URL query parsing code is based on
+    // web::apache::request::parse_url_parameters().
+    //
+    for (const char* qp (u.query->c_str ()); qp != nullptr; )
+    {
+      const char* vp (strchr (qp, '='));
+      const char* ep (strchr (qp, '&'));
+
+      if (vp == nullptr || (ep != nullptr && ep < vp))
+        return nullopt; // Missing value.
+
+      string n (mime_url_decode (qp, vp)); // Name.
+
+      ++vp; // Skip '='
+
+      const char* ve (ep != nullptr ? ep : vp + strlen (vp)); // Value end.
+
+      // Get the value as-is or URL-decode it.
+      //
+      auto rawval = [vp, ve] () { return string (vp, ve); };
+      auto decval = [vp, ve] () { return mime_url_decode (vp, ve); };
+
+      auto make_version = [] (string&& v)
+      {
+        return canonical_version (brep::version (move (v)));
+      };
+
+      auto c = [&n] (bool& b, const char* s)
+      {
+        return n == s ? (b = true) : false;
+      };
+
+      if (c (pn, "builds"))  r.package.name        = package_name (decval ());
+      else if (c (pv, "pv")) r.package.version     = make_version (rawval ());
+      else if (c (tg, "tg")) r.target              = target_triplet (decval ());
+      else if (c (tc, "tc")) r.target_config_name  = decval ();
+      else if (c (pc, "pc")) r.package_config_name = decval ();
+      else if (c (th, "th"))
+      {
+        // Toolchain name and version. E.g. "public-0.17.0"
+
+        string v (rawval ());
+
+        // Note: parsing code based on mod/mod-builds.cxx.
+        //
+        size_t p (v.find_first_of ('-'));
+        if (p >= v.size () - 1)
+          return nullopt; // Invalid format.
+
+        r.toolchain_name    = v.substr (0, p);
+        r.toolchain_version = make_version (v.substr (p + 1));
+      }
+
+      qp = ep != nullptr ? ep + 1 : nullptr;
+    }
+
+    if (!pn || !pv || !tg || !tc || !pc || !th)
+      return nullopt; // Fail if any query parameters are absent.
+
+    return r;
+  }
+  catch (const invalid_argument&) // Invalid url, brep::version, etc.
+  {
+    return nullopt;
   }
 
   optional<string> ci_github::
