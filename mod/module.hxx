@@ -41,6 +41,8 @@ namespace brep
     diag_data data;
 
     server_error (diag_data&& d): data (move (d)) {}
+
+    server_error () = default;
   };
 
   // Every handler member function that needs to produce any diagnostics
@@ -93,6 +95,7 @@ namespace brep
 
     template <class F> void l1 (const F& f) const {if (verb_ >= 1) f ();}
     template <class F> void l2 (const F& f) const {if (verb_ >= 2) f ();}
+    template <class F> void l3 (const F& f) const {if (verb_ >= 3) f ();}
 
     // Set to true when the handler is successfully initialized.
     //
