@@ -27,18 +27,21 @@ namespace brep
 
   // GitHub request/response types (all start with gh_).
   //
-  // Note that the GitHub REST and GraphQL APIs use different ID types and
+  // Note that the GitHub REST and GraphQL APIs use different id types and
   // values. In the REST API they are usually integers (but sometimes
   // strings!) whereas in GraphQL they are always strings (note:
-  // base64-encoded and opaque, not just the REST ID value as a string).
+  // base64-encoded and opaque, not just the REST id value as a string).
   //
-  // In both APIs the ID field is called `id`, but REST responses and webhook
-  // events also contain the corresponding GraphQL object's ID in the
+  // In both APIs the id field is called `id`, but REST responses and webhook
+  // events also contain the corresponding GraphQL object's id in the
   // `node_id` field.
   //
-  // In the structures below we always use the RESP API/webhook names for ID
-  // fields. I.e., `id` always refers to the REST/webhook ID, and `node_id`
-  // always refers to the GraphQL ID.
+  // The GraphQL API's ids are called "global node ids" by GitHub. We refer to
+  // them simply as node ids and we use them almost exclusively (over the
+  // REST/webhook ids).
+  //
+  // In the structures below, `id` always refers to the REST/webhook id and
+  // `node_id` always refers to the node id.
   //
   namespace json = butl::json;
 
@@ -66,6 +69,17 @@ namespace brep
     gh_check_run (json::parser&);
 
     gh_check_run () = default;
+  };
+
+  struct gh_check_run_ex: gh_check_run
+  {
+    string details_url;
+    gh_check_suite check_suite;
+
+    explicit
+    gh_check_run_ex (json::parser&);
+
+    gh_check_run_ex () = default;
   };
 
   struct gh_pull_request
@@ -151,6 +165,19 @@ namespace brep
     gh_check_suite_event () = default;
   };
 
+  struct gh_check_run_event
+  {
+    string action;
+    gh_check_run_ex check_run;
+    gh_repository repository;
+    gh_installation installation;
+
+    explicit
+    gh_check_run_event (json::parser&);
+
+    gh_check_run_event () = default;
+  };
+
   struct gh_pull_request_event
   {
     string action;
@@ -201,6 +228,9 @@ namespace brep
 
   ostream&
   operator<< (ostream&, const gh_check_suite_event&);
+
+  ostream&
+  operator<< (ostream&, const gh_check_run_event&);
 
   ostream&
   operator<< (ostream&, const gh_pull_request_event&);

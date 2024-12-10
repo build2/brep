@@ -97,6 +97,8 @@ namespace brep
       p.next_expect (event::end_object);
     }
 
+    completed = p.next_expect_member_boolean<bool> ("completed");
+
     {
       string* s (p.next_expect_member_string_null ("conclusion_node_id"));
       if (s != nullptr)
@@ -127,7 +129,8 @@ namespace brep
         repository_node_id (move (rid)),
         repository_clone_url (move (rcu)),
         check_sha (move (cs)),
-        report_sha (move (rs))
+        report_sha (move (rs)),
+        completed (false)
   {
   }
 
@@ -156,7 +159,8 @@ namespace brep
         pr_node_id (move (pid)),
         pr_number (prn),
         check_sha (move (cs)),
-        report_sha (move (rs))
+        report_sha (move (rs)),
+        completed (false)
   {
   }
 
@@ -236,6 +240,8 @@ namespace brep
       s.end_object ();
     }
     s.end_array ();
+
+    s.member ("completed", completed);
 
     s.member_name ("conclusion_node_id");
     if (conclusion_node_id)
