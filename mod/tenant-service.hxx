@@ -39,11 +39,13 @@ namespace brep
   // While the implementation tries to make sure the notifications arrive in
   // the correct order, this is currently done by imposing delays (some
   // natural, such as building->built, and some artificial, such as
-  // queued->building). As result, it is unlikely but possible to be notified
-  // about the state transitions in the wrong order, especially if the
-  // notifications take a long time. To minimize the chance of this happening,
-  // the service implementation should strive to batch the queued state
-  // notifications (or which there could be hundreds) in a single request if
+  // queued->building). As result, it is unlikely but possible to observe the
+  // state transition notifications in the wrong order, especially if
+  // processing notifications can take a long time. For example, while
+  // processing the queued notification, the building notification may arrive
+  // in a different thread. To minimize the chance of this happening, the
+  // service implementation should strive to batch the queued state
+  // notifications (of which there could be hundreds) in a single request if
   // at all possible. Also, if supported by the third-party API, it makes
   // sense for the implementation to protect against overwriting later states
   // with earlier. For example, if it's possible to place a condition on a
@@ -71,7 +73,8 @@ namespace brep
     // service data. It should return the new data or nullopt if no update is
     // necessary. Note: tenant_service::data passed to the callback and to the
     // returned function may not be the same. Also, the returned function may
-    // be called multiple times (on transaction retries).
+    // be called multiple times (on transaction retries). Note that the passed
+    // log_writer is valid during the calls to the returned function.
     //
     // The passed initial_state indicates the logical initial state and is
     // either absent, `building` (interrupted), or `built` (rebuild). Note

@@ -3,15 +3,17 @@
 
 #include <mod/mod-ci-github.hxx>
 
-#include <libbutl/curl.hxx>
 #include <libbutl/json/parser.hxx>
 
 #include <mod/jwt.hxx>
 #include <mod/hmac.hxx>
 #include <mod/module-options.hxx>
 
+#include <mod/mod-ci-github-gq.hxx>
+#include <mod/mod-ci-github-post.hxx>
+#include <mod/mod-ci-github-service-data.hxx>
+
 #include <stdexcept>
-#include <iostream> // @@ TODO Remove once debug output has been removed.
 
 // @@ TODO
 //
@@ -35,6 +37,10 @@
 //    https://en.wikipedia.org/wiki/HMAC#Definition. A suitable implementation
 //    is provided by OpenSSL.
 
+// @@ TODO Centralize exception/error handling around calls to
+//         github_post(). Currently it's mostly duplicated and there is quite
+//         a lot of it.
+//
 using namespace std;
 using namespace butl;
 using namespace web;
@@ -42,20 +48,42 @@ using namespace brep::cli;
 
 namespace brep
 {
-  using namespace gh;
+  ci_github::
+  ci_github (tenant_service_map& tsm)
+      : tenant_service_map_ (tsm)
+  {
+  }
 
   ci_github::
-  ci_github (const ci_github& r)
+  ci_github (const ci_github& r, tenant_service_map& tsm)
       : handler (r),
-        options_ (r.initialized_ ? r.options_ : nullptr)
+        ci_start (r),
+        options_ (r.initialized_ ? r.options_ : nullptr),
+        tenant_service_map_ (tsm)
   {
   }
 
   void ci_github::
   init (scanner& s)
   {
+    {
+      shared_ptr<tenant_service_base> ts (
+        dynamic_pointer_cast<tenant_service_base> (shared_from_this ()));
+
+      assert (ts != nullptr); // By definition.
+
+      tenant_service_map_["ci-github"] = move (ts);
+    }
+
     options_ = make_shared<options::ci_github> (
       s, unknown_mode::fail, unknown_mode::fail);
+
+    // Prepare for the CI requests handling, if configured.
+    //
+    if (options_->ci_github_app_webhook_secret_specified ())
+    {
+      ci_start::init (make_shared<options::ci_start> (*options_));
+    }
   }
 
   bool ci_github::
@@ -210,12 +238,12 @@ namespace brep
     //
     if (event == "check_suite")
     {
-      check_suite_event cs;
+      gh_check_suite_event cs;
       try
       {
         json::parser p (body.data (), body.size (), "check_suite event");
 
-        cs = check_suite_event (p);
+        cs = gh_check_suite_event (p);
       }
       catch (const json::invalid_json_input& e)
       {
@@ -277,154 +305,457 @@ namespace brep
   }
 
   bool ci_github::
-  handle_check_suite_request (check_suite_event cs) const
+  handle_check_suite_request (gh_check_suite_event cs)
   {
-    cout << "<check_suite event>" << endl << cs << endl;
+    HANDLER_DIAG;
 
-    installation_access_token iat (
-      obtain_installation_access_token (cs.installation.id, generate_jwt ()));
+    l3 ([&]{trace << "check_suite event { " << cs << " }";});
 
-    cout << endl << "<installation_access_token>" << endl << iat << endl;
+    optional<string> jwt (generate_jwt (trace, error));
+    if (!jwt)
+      throw server_error ();
+
+    optional<gh_installation_access_token> iat (
+        obtain_installation_access_token (cs.installation.id,
+                                          move (*jwt),
+                                          error));
+
+    if (!iat)
+      throw server_error ();
+
+    l3 ([&]{trace << "installation_access_token { " << *iat << " }";});
+
+    // Submit the CI request.
+    //
+    repository_location rl (cs.repository.clone_url + '#' +
+                                cs.check_suite.head_branch,
+                            repository_type::git);
+
+    string sd (service_data (move (iat->token),
+                             iat->expires_at,
+                             cs.installation.id,
+                             move (cs.repository.node_id),
+                             move (cs.check_suite.head_sha))
+                   .json ());
+
+    optional<start_result> r (
+        start (error,
+               warn,
+               verb_ ? &trace : nullptr,
+               tenant_service (move (cs.check_suite.node_id),
+                               "ci-github",
+                               move (sd)),
+               move (rl),
+               vector<package> {},
+               nullopt, // client_ip
+               nullopt  // user_agent
+               ));
+
+    if (!r)
+      fail << "unable to submit CI request";
 
     return true;
   }
 
-  // Send a POST request to the GitHub API endpoint `ep`, parse GitHub's JSON
-  // response into `rs` (only for 200 codes), and return the HTTP status code.
+  // Build state change notifications (see tenant-services.hxx for
+  // background). Mapping our state transitions to GitHub pose multiple
+  // problems:
   //
-  // The endpoint `ep` should not have a leading slash.
+  // 1. In our model we have the building->queued (interrupted) and
+  //    built->queued (rebuild) transitions. We are going to ignore both of
+  //    them when notifying GitHub. The first is not important (we expect the
+  //    state to go back to building shortly). The second should normally not
+  //    happen and would mean that a completed check suite may go back on its
+  //    conclusion (which would be pretty confusing for the user).
   //
-  // Pass additional HTTP headers in `hdrs`. For example:
+  //    So, for GitHub notifications, we only have the following linear
+  //    transition sequence:
   //
-  //   "HeaderName: header value"
+  //    -> queued -> building -> built
   //
-  // Throw invalid_argument if unable to parse the response headers,
-  // invalid_json_input (derived from invalid_argument) if unable to parse the
-  // response body, and system_error in other cases.
+  //    Note, however, that because we ignore certain transitions, we can now
+  //    observe "degenerate" state changes that we need to ignore:
   //
-  template<typename T>
-  static uint16_t
-  github_post (T& rs, const string& ep, const strings& hdrs)
+  //    building -> [queued] -> building
+  //    built -> [queued] -> ...
+  //
+  // 2. As mentioned in tenant-services.hxx, we may observe the notifications
+  //    as arriving in the wrong order. Unfortunately, GitHub provides no
+  //    mechanisms to help with that. In fact, GitHub does not even prevent
+  //    the creation of multiple check runs with the same name (it will always
+  //    use the last created instance, regardless of the status, timestamps,
+  //    etc). As a result, we cannot, for example, rely on the failure to
+  //    create a new check run in response to the queued notification as an
+  //    indication of a subsequent notification (e.g., building) having
+  //    already occurred.
+  //
+  //    The only aid in this area that GitHub provides is that it prevents
+  //    updating a check run in the built state to a former state (queued or
+  //    building). But one can still create a new check run with the same name
+  //    and a former state.
+  //
+  //    (Note that we should also be careful if trying to take advantage of
+  //    this "check run override" semantics: each created check run gets a new
+  //    URL and while the GitHub UI will always point to the last created when
+  //    showing the list of check runs, if the user is already on the previous
+  //    check run's URL, nothing will automatically cause them to be
+  //    redirected to the new URL. And so the user may sit on the abandoned
+  //    check run waiting forever for it to be completed.)
+  //
+  //    As a result, we will deal with the out of order problem differently
+  //    depending on the notification:
+  //
+  //    queued    Skip if there is already a check run in service data,
+  //              otherwise create new.
+  //
+  //    building  Skip if there is no check run in service data or it's
+  //              not in the queued state, otherwise update.
+  //
+  //    built     Update if there is check run in service data and its
+  //              state is not built, otherwise create new.
+  //
+  //    The rationale for this semantics is as follows: the building
+  //    notification is a "nice to have" and can be skipped if things are not
+  //    going normally. In contrast, the built notification cannot be skipped
+  //    and we must either update the existing check run or create a new one
+  //    (hopefully overriding the one created previously, if any). Note that
+  //    the likelihood of the built notification being performed at the same
+  //    time as queued/building is quite low (unlike queued and building).
+  //
+  //    Note also that with this semantics it's unlikely but possible that we
+  //    attempt to update the service data in the wrong order. Specifically, it
+  //    feels like this should not be possible in the ->building transition
+  //    since we skip the building notification unless the check run in the
+  //    service data is already in the queued state. But it is theoretically
+  //    possible in the ->built transition. For example, we may be updating
+  //    the service data for the queued notification after it has already been
+  //    updated by the built notification. In such cases we should not be
+  //    overriding the latter state (built) with the former (queued).
+  //
+  // 3. We may not be able to "conclusively" notify GitHub, for example, due
+  //    to a transient network error. The "conclusively" part means that the
+  //    notification may or may not have gone through (though it feels the
+  //    common case will be the inability to send the request rather than
+  //    receive the reply).
+  //
+  //    In such cases, we record in the service data that the notification was
+  //    not synchronized and in subsequent notifications we do the best we can:
+  //    if we have node_id, then we update, otherwise, we create (potentially
+  //    overriding the check run created previously).
+  //
+  function<optional<string> (const tenant_service&)> ci_github::
+  build_queued (const tenant_service& ts,
+                const vector<build>& builds,
+                optional<build_state> istate,
+                const build_queued_hints& hs,
+                const diag_epilogue& log_writer) const noexcept
   {
-    // Convert the header values to curl header option/value pairs.
-    //
-    strings hdr_opts;
+    NOTIFICATION_DIAG (log_writer);
 
-    for (const string& h: hdrs)
-    {
-      hdr_opts.push_back ("--header");
-      hdr_opts.push_back (h);
-    }
-
-    // Run curl.
-    //
+    service_data sd;
     try
     {
-      // Pass --include to print the HTTP status line (followed by the response
-      // headers) so that we can get the response status code.
-      //
-      // Suppress the --fail option which causes curl to exit with status 22
-      // in case of an error HTTP response status code (>= 400) otherwise we
-      // can't get the status code.
-      //
-      // Note that butl::curl also adds --location to make curl follow redirects
-      // (which is recommended by GitHub).
-      //
-      // The API version `2022-11-28` is the only one currently supported. If
-      // the X-GitHub-Api-Version header is not passed this version will be
-      // chosen by default.
-      //
-      fdpipe errp (fdopen_pipe ()); // stderr pipe.
+      sd = service_data (*ts.data);
+    }
+    catch (const invalid_argument& e)
+    {
+      error << "failed to parse service data: " << e;
+      return nullptr;
+    }
 
-      curl c (nullfd,
-              path ("-"), // Write response to curl::in.
-              process::pipe (errp.in.get (), move (errp.out)),
-              curl::post,
-              curl::flags::no_fail,
-              "https://api.github.com/" + ep,
-              "--no-fail", // Don't fail if response status code >= 400.
-              "--include", // Output response headers for status code.
-              "--header", "Accept: application/vnd.github+json",
-              "--header", "X-GitHub-Api-Version: 2022-11-28",
-              move (hdr_opts));
+    // The builds for which we will be creating check runs.
+    //
+    vector<reference_wrapper<const build>> bs;
+    vector<check_run> crs; // Parallel to bs.
 
-      ifdstream err (move (errp.in));
+    // Exclude the builds for which we won't be creating check runs.
+    //
+    for (const build& b: builds)
+    {
+      string bid (gh_check_run_name (b)); // Full build ID.
 
-      // Parse the HTTP response.
+      if (const check_run* scr = sd.find_check_run (bid))
+      {
+        // Another notification has already stored this check run.
+        //
+        if (!istate)
+        {
+          // Out of order queued notification.
+          //
+          warn << "check run " << bid << ": out of order queued "
+               << "notification; existing state: " << scr->state_string ();
+        }
+        else if (*istate == build_state::built)
+        {
+          // Unexpected built->queued transition (rebuild).
+          //
+          warn << "check run " << bid << ": unexpected rebuild";
+        }
+        else
+        {
+          // Ignore interrupted.
+        }
+      }
+      else
+      {
+        // No stored check run for this build so prepare to create one.
+        //
+        bs.push_back (b);
+
+        crs.emplace_back (move (bid),
+                          gh_check_run_name (b, &hs),
+                          nullopt, /* node_id */
+                          build_state::queued,
+                          false /* state_synced */);
+      }
+    }
+
+    if (bs.empty ()) // Nothing to do.
+      return nullptr;
+
+    // Get a new installation access token if the current one has expired.
+    //
+    const gh_installation_access_token* iat (nullptr);
+    optional<gh_installation_access_token> new_iat;
+
+    if (system_clock::now () > sd.installation_access.expires_at)
+    {
+      if (optional<string> jwt = generate_jwt (trace, error))
+      {
+        new_iat = obtain_installation_access_token (sd.installation_id,
+                                                    move (*jwt),
+                                                    error);
+        if (new_iat)
+          iat = &*new_iat;
+      }
+    }
+    else
+      iat = &sd.installation_access;
+
+    // Note: we treat the failure to obtain the installation access token the
+    // same as the failure to notify GitHub (state is updated by not marked
+    // synced).
+    //
+    if (iat != nullptr)
+    {
+      // Create a check_run for each build.
       //
-      int sc; // Status code.
+      if (gq_create_check_runs (error,
+                                crs,
+                                iat->token,
+                                sd.repository_node_id, sd.head_sha,
+                                build_state::queued))
+      {
+        for (const check_run& cr: crs)
+        {
+          assert (cr.state == build_state::queued);
+          l3 ([&]{trace << "created check_run { " << cr << " }";});
+        }
+      }
+    }
+
+    return [bs = move (bs),
+            iat = move (new_iat),
+            crs = move (crs),
+            error = move (error),
+            warn = move (warn)] (const tenant_service& ts) -> optional<string>
+    {
+      // NOTE: this lambda may be called repeatedly (e.g., due to transaction
+      // being aborted) and so should not move out of its captures.
+
+      service_data sd;
       try
       {
-        // Note: re-open in/out so that they get automatically closed on
-        // exception.
-        //
-        ifdstream in (c.in.release (), fdstream_mode::skip);
+        sd = service_data (*ts.data);
+      }
+      catch (const invalid_argument& e)
+      {
+        error << "failed to parse service data: " << e;
+        return nullopt;
+      }
 
-        sc = curl::read_http_status (in).code; // May throw invalid_argument.
+      if (iat)
+        sd.installation_access = *iat;
 
-        // Parse the response body if the status code is in the 200 range.
+      for (size_t i (0); i != bs.size (); ++i)
+      {
+        const check_run& cr (crs[i]);
+
+        // Note that this service data may not be the same as what we observed
+        // in the build_queued() function above. For example, some check runs
+        // that we have queued may have already transitioned to built. So we
+        // skip any check runs that are already present.
         //
-        if (sc >= 200 && sc < 300)
+        if (const check_run* scr = sd.find_check_run (cr.build_id))
         {
-          // Use endpoint name as input name (useful to have it propagated
-          // in exceptions).
+          // Doesn't looks like printing new/existing check run node_id will
+          // be of any help.
           //
-          json::parser p (in, ep /* name */);
-          rs = T (p);
+          warn << "check run " << cr.build_id << ": out of order queued "
+               << "notification service data update; existing state: "
+               << scr->state_string ();
         }
-
-        in.close ();
-      }
-      catch (const io_error& e)
-      {
-        // If the process exits with non-zero status, assume the IO error is due
-        // to that and fall through.
-        //
-        if (c.wait ())
-        {
-          throw_generic_error (
-            e.code ().value (),
-            (string ("unable to read curl stdout: ") + e.what ()).c_str ());
-        }
-      }
-      catch (const json::invalid_json_input&)
-      {
-        // If the process exits with non-zero status, assume the JSON error is
-        // due to that and fall through.
-        //
-        if (c.wait ())
-          throw;
+        else
+          sd.check_runs.push_back (cr);
       }
 
-      if (!c.wait ())
-      {
-        string et (err.read_text ());
-        throw_generic_error (EINVAL,
-                             ("non-zero curl exit status: " + et).c_str ());
-      }
-
-      err.close ();
-
-      return sc;
-    }
-    catch (const process_error& e)
-    {
-      throw_generic_error (
-        e.code ().value (),
-        (string ("unable to execute curl:") + e.what ()).c_str ());
-    }
-    catch (const io_error& e)
-    {
-      // Unable to read diagnostics from stderr.
-      //
-      throw_generic_error (
-        e.code ().value (),
-        (string ("unable to read curl stderr : ") + e.what ()).c_str ());
-    }
+      return sd.json ();
+    };
   }
 
-  string ci_github::
-  generate_jwt () const
+  function<optional<string> (const tenant_service&)> ci_github::
+  build_building (const tenant_service& ts,
+                  const build& b,
+                  const diag_epilogue& log_writer) const noexcept
+  {
+    NOTIFICATION_DIAG (log_writer);
+
+    service_data sd;
+    try
+    {
+      sd = service_data (*ts.data);
+    }
+    catch (const invalid_argument& e)
+    {
+      error << "failed to parse service data: " << e;
+      return nullptr;
+    }
+
+    optional<check_run> cr; // Updated check run.
+    string bid (gh_check_run_name (b)); // Full Build ID.
+
+    if (check_run* scr = sd.find_check_run (bid)) // Stored check run.
+    {
+      // Update the check run if it exists on GitHub and the queued
+      // notification succeeded and updated the service data, otherwise do
+      // nothing.
+      //
+      if (scr->state == build_state::queued)
+      {
+        if (scr->node_id)
+        {
+          cr = move (*scr);
+          cr->state_synced = false;
+        }
+        else
+        {
+          // Network error during queued notification, ignore.
+        }
+      }
+      else
+        warn << "check run " << bid << ": out of order building "
+             << "notification; existing state: " << scr->state_string ();
+    }
+    else
+      warn << "check run " << bid << ": out of order building "
+           << "notification; no check run state in service data";
+
+    if (!cr)
+      return nullptr;
+
+    // Get a new installation access token if the current one has expired.
+    //
+    const gh_installation_access_token* iat (nullptr);
+    optional<gh_installation_access_token> new_iat;
+
+    if (system_clock::now () > sd.installation_access.expires_at)
+    {
+      if (optional<string> jwt = generate_jwt (trace, error))
+      {
+        new_iat = obtain_installation_access_token (sd.installation_id,
+                                                    move (*jwt),
+                                                    error);
+        if (new_iat)
+          iat = &*new_iat;
+      }
+    }
+    else
+      iat = &sd.installation_access;
+
+    // Note: we treat the failure to obtain the installation access token the
+    // same as the failure to notify GitHub (state is updated but not marked
+    // synced).
+    //
+    if (iat != nullptr)
+    {
+      if (gq_update_check_run (error,
+                               *cr,
+                               iat->token,
+                               sd.repository_node_id,
+                               *cr->node_id,
+                               details_url (b),
+                               build_state::building))
+      {
+        // Do nothing further if the state was already built on GitHub (note
+        // that this is based on the above-mentioned special GitHub semantics
+        // of preventing changes to the built status).
+        //
+        if (cr->state == build_state::built)
+        {
+          warn << "check run " << bid << ": already in built state on GitHub";
+
+          return nullptr;
+        }
+
+        assert (cr->state == build_state::building);
+
+        l3 ([&]{trace << "updated check_run { " << *cr << " }";});
+      }
+    }
+
+    return [iat = move (new_iat),
+            cr = move (*cr),
+            error = move (error),
+            warn = move (warn)] (const tenant_service& ts) -> optional<string>
+    {
+      // NOTE: this lambda may be called repeatedly (e.g., due to transaction
+      // being aborted) and so should not move out of its captures.
+
+      service_data sd;
+      try
+      {
+        sd = service_data (*ts.data);
+      }
+      catch (const invalid_argument& e)
+      {
+        error << "failed to parse service data: " << e;
+        return nullopt;
+      }
+
+      if (iat)
+        sd.installation_access = *iat;
+
+      // Update the check run only if it is in the queued state.
+      //
+      if (check_run* scr = sd.find_check_run (cr.build_id))
+      {
+        if (scr->state == build_state::queued)
+          *scr = cr;
+        else
+        {
+          warn << "check run " << cr.build_id << ": out of order building "
+               << "notification service data update; existing state: "
+               << scr->state_string ();
+        }
+      }
+      else
+        warn << "check run " << cr.build_id << ": service data state has "
+             << "disappeared";
+
+      return sd.json ();
+    };
+  }
+
+  function<optional<string> (const tenant_service&)> ci_github::
+  build_built (const tenant_service&, const build&,
+               const diag_epilogue& /* log_writer */) const noexcept
+  {
+    return nullptr;
+  }
+
+  optional<string> ci_github::
+  generate_jwt (const basic_mark& trace,
+                const basic_mark& error) const
   {
     string jwt;
     try
@@ -439,13 +770,12 @@ namespace brep
           chrono::seconds (options_->ci_github_jwt_validity_period ()),
           chrono::seconds (60));
 
-      cout << "JWT: " << jwt << endl;
+      l3 ([&]{trace << "JWT: " << jwt;});
     }
     catch (const system_error& e)
     {
-      HANDLER_DIAG;
-
-      fail << "unable to generate JWT (errno=" << e.code () << "): " << e;
+      error << "unable to generate JWT (errno=" << e.code () << "): " << e;
+      return nullopt;
     }
 
     return jwt;
@@ -491,19 +821,20 @@ namespace brep
   //   repos covered by the installation if installed on an organisation for
   //   example.
   //
-  installation_access_token ci_github::
-  obtain_installation_access_token (uint64_t iid, string jwt) const
+  optional<gh_installation_access_token> ci_github::
+  obtain_installation_access_token (uint64_t iid,
+                                    string jwt,
+                                    const basic_mark& error) const
   {
-    HANDLER_DIAG;
-
-    installation_access_token iat;
+    gh_installation_access_token iat;
     try
     {
       // API endpoint.
       //
       string ep ("app/installations/" + to_string (iid) + "/access_tokens");
 
-      int sc (github_post (iat, ep, strings {"Authorization: Bearer " + jwt}));
+      uint16_t sc (
+          github_post (iat, ep, strings {"Authorization: Bearer " + jwt}));
 
       // Possible response status codes from the access_tokens endpoint:
       //
@@ -517,252 +848,36 @@ namespace brep
       //
       if (sc != 201)
       {
-        fail << "unable to get installation access token: "
-             << "error HTTP response status " << sc;
+        error << "unable to get installation access token: error HTTP "
+              << "response status " << sc;
+        return nullopt;
       }
+
+      // Create a clock drift safety window.
+      //
+      iat.expires_at -= chrono::minutes (5);
     }
     catch (const json::invalid_json_input& e)
     {
       // Note: e.name is the GitHub API endpoint.
       //
-      fail << "malformed JSON in response from " << e.name << ", line: "
-           << e.line << ", column: " << e.column << ", byte offset: "
-           << e.position << ", error: " << e;
+      error << "malformed JSON in response from " << e.name << ", line: "
+            << e.line << ", column: " << e.column << ", byte offset: "
+            << e.position << ", error: " << e;
+      return nullopt;
     }
     catch (const invalid_argument& e)
     {
-      fail << "malformed header(s) in response: " << e;
+      error << "malformed header(s) in response: " << e;
+      return nullopt;
     }
     catch (const system_error& e)
     {
-      fail << "unable to get installation access token (errno=" << e.code ()
-           << "): " << e.what ();
+      error << "unable to get installation access token (errno=" << e.code ()
+            << "): " << e.what ();
+      return nullopt;
     }
 
     return iat;
-  }
-
-  // The rest is GitHub request/response type parsing and printing.
-  //
-  using event = json::event;
-
-  // Throw invalid_json_input when a required member `m` is missing from a
-  // JSON object `o`.
-  //
-  [[noreturn]] static void
-  missing_member (const json::parser& p, const char* o, const char* m)
-  {
-    throw json::invalid_json_input (
-      p.input_name,
-      p.line (), p.column (), p.position (),
-      o + string (" object is missing member '") + m + '\'');
-  }
-
-  // check_suite
-  //
-  gh::check_suite::
-  check_suite (json::parser& p)
-  {
-    p.next_expect (event::begin_object);
-
-    bool i (false), hb (false), hs (false), bf (false), at (false);
-
-    // Skip unknown/uninteresting members.
-    //
-    while (p.next_expect (event::name, event::end_object))
-    {
-      auto c = [&p] (bool& v, const char* s)
-      {
-        return p.name () == s ? (v = true) : false;
-      };
-
-      if      (c (i,  "id"))          id = p.next_expect_number<uint64_t> ();
-      else if (c (hb, "head_branch")) head_branch = p.next_expect_string ();
-      else if (c (hs, "head_sha"))    head_sha = p.next_expect_string ();
-      else if (c (bf, "before"))      before = p.next_expect_string ();
-      else if (c (at, "after"))       after = p.next_expect_string ();
-      else p.next_expect_value_skip ();
-    }
-
-    if (!i)  missing_member (p, "check_suite", "id");
-    if (!hb) missing_member (p, "check_suite", "head_branch");
-    if (!hs) missing_member (p, "check_suite", "head_sha");
-    if (!bf) missing_member (p, "check_suite", "before");
-    if (!at) missing_member (p, "check_suite", "after");
-  }
-
-  ostream&
-  gh::operator<< (ostream& os, const check_suite& cs)
-  {
-    os << "id: " << cs.id << endl
-       << "head_branch: " << cs.head_branch << endl
-       << "head_sha: " << cs.head_sha << endl
-       << "before: " << cs.before << endl
-       << "after: " << cs.after << endl;
-
-    return os;
-  }
-
-  // repository
-  //
-  gh::repository::
-  repository (json::parser& p)
-  {
-    p.next_expect (event::begin_object);
-
-    bool nm (false), fn (false), db (false);
-
-    // Skip unknown/uninteresting members.
-    //
-    while (p.next_expect (event::name, event::end_object))
-    {
-      auto c = [&p] (bool& v, const char* s)
-      {
-        return p.name () == s ? (v = true) : false;
-      };
-
-      if      (c (nm, "name"))           name = p.next_expect_string ();
-      else if (c (fn, "full_name"))      full_name = p.next_expect_string ();
-      else if (c (db, "default_branch")) default_branch = p.next_expect_string ();
-      else p.next_expect_value_skip ();
-    }
-
-    if (!nm) missing_member (p, "repository", "name");
-    if (!fn) missing_member (p, "repository", "full_name");
-    if (!db) missing_member (p, "repository", "default_branch");
-  }
-
-  ostream&
-  gh::operator<< (ostream& os, const repository& rep)
-  {
-    os << "name: " << rep.name << endl
-       << "full_name: " << rep.full_name << endl
-       << "default_branch: " << rep.default_branch << endl;
-
-    return os;
-  }
-
-  // installation
-  //
-  gh::installation::
-  installation (json::parser& p)
-  {
-    p.next_expect (event::begin_object);
-
-    bool i (false);
-
-    // Skip unknown/uninteresting members.
-    //
-    while (p.next_expect (event::name, event::end_object))
-    {
-      auto c = [&p] (bool& v, const char* s)
-      {
-        return p.name () == s ? (v = true) : false;
-      };
-
-      if (c (i, "id")) id = p.next_expect_number<uint64_t> ();
-      else p.next_expect_value_skip ();
-    }
-
-    if (!i) missing_member (p, "installation", "id");
-  }
-
-  ostream&
-  gh::operator<< (ostream& os, const installation& i)
-  {
-    os << "id: " << i.id << endl;
-
-    return os;
-  }
-
-  // check_suite_event
-  //
-  gh::check_suite_event::
-  check_suite_event (json::parser& p)
-  {
-    p.next_expect (event::begin_object);
-
-    bool ac (false), cs (false), rp (false), in (false);
-
-    // Skip unknown/uninteresting members.
-    //
-    while (p.next_expect (event::name, event::end_object))
-    {
-      auto c = [&p] (bool& v, const char* s)
-      {
-        return p.name () == s ? (v = true) : false;
-      };
-
-      if      (c (ac, "action"))       action = p.next_expect_string ();
-      else if (c (cs, "check_suite"))  check_suite = gh::check_suite (p);
-      else if (c (rp, "repository"))   repository = gh::repository (p);
-      else if (c (in, "installation")) installation = gh::installation (p);
-      else p.next_expect_value_skip ();
-    }
-
-    if (!ac) missing_member (p, "check_suite_event", "action");
-    if (!cs) missing_member (p, "check_suite_event", "check_suite");
-    if (!rp) missing_member (p, "check_suite_event", "repository");
-    if (!in) missing_member (p, "check_suite_event", "installation");
-  }
-
-  ostream&
-  gh::operator<< (ostream& os, const check_suite_event& cs)
-  {
-    os << "action: " << cs.action << endl;
-    os << "<check_suite>" << endl << cs.check_suite;
-    os << "<repository>" << endl << cs.repository;
-    os << "<installation>" << endl << cs.installation;
-
-    return os;
-  }
-
-  // installation_access_token
-  //
-  // Example JSON:
-  //
-  // {
-  //   "token": "ghs_Py7TPcsmsITeVCAWeVtD8RQs8eSos71O5Nzp",
-  //   "expires_at": "2024-02-15T16:16:38Z",
-  //   ...
-  // }
-  //
-  gh::installation_access_token::
-  installation_access_token (json::parser& p)
-  {
-    p.next_expect (event::begin_object);
-
-    bool tk (false), ea (false);
-
-    // Skip unknown/uninteresting members.
-    //
-    while (p.next_expect (event::name, event::end_object))
-    {
-      auto c = [&p] (bool& v, const char* s)
-      {
-        return p.name () == s ? (v = true) : false;
-      };
-
-      if      (c (tk, "token"))      token = p.next_expect_string ();
-      else if (c (ea, "expires_at"))
-      {
-        const string& s (p.next_expect_string ());
-        expires_at = from_string (s.c_str (), "%Y-%m-%dT%TZ", false /* local */);
-      }
-      else p.next_expect_value_skip ();
-    }
-
-    if (!tk) missing_member (p, "installation_access_token", "token");
-    if (!ea) missing_member (p, "installation_access_token", "expires_at");
-  }
-
-  ostream&
-  gh::operator<< (ostream& os, const installation_access_token& t)
-  {
-    os << "token: " << t.token << endl;
-    os << "expires_at: ";
-    butl::operator<< (os, t.expires_at) << endl;
-
-    return os;
   }
 }
