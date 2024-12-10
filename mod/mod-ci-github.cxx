@@ -19,32 +19,43 @@
 
 #include <stdexcept>
 
-// @@ TODO
+// @@ Remaining TODOs
 //
-//    Building CI checks with a GitHub App
-//    https://docs.github.com/en/apps/creating-github-apps/writing-code-for-a-github-app/building-ci-checks-with-a-github-app
+//    - Rerequested checks
+//
+//      - check_suite (action: rerequested): received when user re-runs all
+//        checks.
+//
+//      - check_run (action: rerequested): received when user re-runs a
+//        specific check or all failed checks.
+//
+//      Will need to extract a few more fields from check_runs, but the layout
+//      is very similar to that of check_suite.
+//
+//    - Pull requests. Handle
+//
+//    - Choose strong webhook secret (when deploying).
+//
+//    - Check that delivery UUID has not been received before (replay attack).
 //
 
-// @@ TODO Best practices
+// Resources:
+//
+//    Creating an App:
+//    https://docs.github.com/en/apps/creating-github-apps/about-creating-github-apps/best-practices-for-creating-a-github-app
 //
 //    Webhooks:
 //    https://docs.github.com/en/webhooks/using-webhooks/best-practices-for-using-webhooks
 //    https://docs.github.com/en/webhooks/using-webhooks/validating-webhook-deliveries
 //
 //    REST API:
-//    https://docs.github.com/en/rest/using-the-rest-api/best-practices-for-using-the-rest-api?apiVersion=2022-11-28
+//    All docs:       https://docs.github.com/en/rest#all-docs
+//    Best practices: https://docs.github.com/en/rest/using-the-rest-api/best-practices-for-using-the-rest-api
 //
-//    Creating an App:
-//    https://docs.github.com/en/apps/creating-github-apps/about-creating-github-apps/best-practices-for-creating-a-github-app
+//    GraphQL API:
+//    Reference: https://docs.github.com/en/graphql/reference
 //
-//    Use a webhook secret to ensure request is coming from Github. HMAC:
-//    https://en.wikipedia.org/wiki/HMAC#Definition. A suitable implementation
-//    is provided by OpenSSL.
 
-// @@ TODO Centralize exception/error handling around calls to
-//         github_post(). Currently it's mostly duplicated and there is quite
-//         a lot of it.
-//
 using namespace std;
 using namespace butl;
 using namespace web;
@@ -60,7 +71,7 @@ namespace brep
 
   ci_github::
   ci_github (const ci_github& r, tenant_service_map& tsm)
-      : handler (r),
+      : database_module (r),
         ci_start (r),
         options_ (r.initialized_ ? r.options_ : nullptr),
         tenant_service_map_ (tsm)
@@ -84,9 +95,12 @@ namespace brep
 
     // Prepare for the CI requests handling, if configured.
     //
-    if (options_->ci_github_app_webhook_secret_specified ())
+    if (options_->build_config_specified () &&
+        options_->ci_github_app_webhook_secret_specified ())
     {
       ci_start::init (make_shared<options::ci_start> (*options_));
+
+      database_module::init (*options_, options_->build_db_retry ());
     }
   }
 
@@ -97,22 +111,14 @@ namespace brep
 
     HANDLER_DIAG;
 
-    if (!options_->ci_github_app_webhook_secret_specified ())
-      throw invalid_request (404, "GitHub CI request submission disabled");
+    if (build_db_ == nullptr)
+      throw invalid_request (501, "GitHub CI submission not implemented");
 
     // Process headers.
     //
-    // @@ TMP Shouldn't we also error<< in some of these header problem cases?
-    //
-    // @@ TMP From GitHub docs: "You can create webhooks that subscribe to the
-    //        events listed on this page."
-    //
-    //        So it seems appropriate to generally use the term "event" (which
-    //        we already do for the most part), and "webhook event" only when
-    //        more context would be useful?
-    //
     string event; // Webhook event.
     string hmac;  // Received HMAC.
+    try
     {
       bool content_type (false);
 
@@ -179,11 +185,16 @@ namespace brep
       if (hmac.empty ())
         throw invalid_request (400, "missing x-hub-signature-256 header");
     }
+    catch (const invalid_request& e)
+    {
+      error << "request header error: " << e.content;
+      throw;
+    }
 
     // Read the entire request body into a buffer because we need to compute
     // an HMAC over it and then parse it as JSON. The alternative of reading
-    // from the stream twice works out to be more complicated (see also @@
-    // TODO item in web/server/module.hxx).
+    // from the stream twice works out to be more complicated (see also a TODO
+    // item in web/server/module.hxx).
     //
     string body;
     {
@@ -379,7 +390,7 @@ namespace brep
                    .json ());
 
     // @@ What happens if we call this functions with an already existing
-    //    node_id (e.g., replay attack).
+    //    node_id (e.g., replay attack). See the UUID header above.
     //
     optional<start_result> r (
       start (error,

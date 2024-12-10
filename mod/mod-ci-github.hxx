@@ -7,8 +7,8 @@
 #include <libbrep/types.hxx>
 #include <libbrep/utility.hxx>
 
-#include <mod/module.hxx>
 #include <mod/module-options.hxx>
+#include <mod/database-module.hxx>
 
 #include <mod/ci-common.hxx>
 #include <mod/tenant-service.hxx>
@@ -17,7 +17,7 @@
 
 namespace brep
 {
-  class ci_github: public handler,
+  class ci_github: public database_module,
                    private ci_start,
                    public tenant_service_build_queued,
                    public tenant_service_build_building,
