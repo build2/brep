@@ -1,5 +1,3 @@
-@@ TODO Explain multiple apps in INSTALL-GITHUB-DEV.
-
 This document explains how to get GitHub webhooks (a notification that an
 event such as a push has occurred on a repository) delivered to a
 locally-running instance of brep (currently to initiate a CI job).
@@ -24,33 +22,59 @@ instance. This is achieved by setting the GitHub app's webhook URL to that of
 the webhook proxy smee.io (as recommended by GitHub) and connecting it to our
 local brep instance via the locally-run smee client (a Node application).
 
+0.0 User configuration
+
+This GitHub CI integration only has one user-configurable option:
+warning=<success|failure> (whether or not to fail on warnings).
+
+In order not to have to support repository configuration files the live
+deployment will consist of two registered GitHub apps with the same webhook
+URL (i.e., the same brep instance) but different query parameters: one with
+warning=success and the other with warning=failure. The app id is passed so
+that we know which private key to use (the key cannot be shared between apps).
+
+Only a single GitHub app is required during development however.
+
 1. Follow the instructions in INSTALL-DEV to get brep set up.
 
-2. Register the GitHub app
+2. Set up the webhook proxy
 
-GitHub doc: Registering a GitHub App (note that that doc is a bit out of date)
+Go to https://smee.io/ and start a new channel. Note the webhook proxy URL,
+which will look something like
+
+  https://smee.io/7stvNqVgyQRlIhbY
+
+This will be used in the GitHub app's webhook URL below.
+
+3. Register the GitHub app
+
+GitHub reference: Registering a GitHub App (note: somewhat out of date)
 https://docs.github.com/en/apps/creating-github-apps/registering-a-github-app/registering-a-github-app
 
-Skip the steps marked "optional" and leave authorization-related settings at
-their defaults.
-
-@@ TODO Update authentication-related info once better understood.
-
-At this stage the only settings important to us are:
+At this stage the only settings we need to update are:
 
 - App name
-- Webhook URL (updated later -- leave webhooks deactivated for now)
+- Homepage URL (https://build2.org)
+- Webhook
+  - URL: set to the webhook proxy URL
+  - Secret (e.g. "deadbeef")
+  - Leave SSL verification enabled
 - Repository permissions
   - Checks: RW
+  - Metadata (mandatory): RO
   - Pull requests: RO
-  - Contents: RO
-  - Metadata: RO
 - Subscribed events
   - Check suite
-  - Check run
   - Pull request
 
-3. Install the GitHub app
+Click "Create GitHub App" button. When the page reloads:
+
+- Note the app id (e.g. 12345).
+- Append "?app-id=12345&warning=failure" to the webhook URL.
+- Scroll to Private keys and generate a private key. The file will be
+  downloaded by the browser.
+
+4. Install the GitHub app
 
 GitHub doc: Installing your own GitHub App
 https://docs.github.com/en/apps/using-github-apps/installing-your-own-github-app
@@ -58,14 +82,20 @@ https://docs.github.com/en/apps/using-github-apps/installing-your-own-github-app
 It would probably make sense to install it to your own user account and
 restrict its access to a test repository.
 
-4. Forward GitHub webhooks to a local brep instance
+5. Configure brep
 
-Go to https://smee.io/ and start a new channel. Note the webhook proxy URL,
-which will look something like
+In brep-module.conf:
 
-  https://smee.io/7stvNqVgyQRlIhbY
+- Set the webhook secret from the GitHub app settings:
 
-Set the GitHub app's webhook URL to this proxy URL.
+  ci-github-app-webhook-secret "deadbeef"
+
+- Associate the GitHub app id with the path of the private key downloaded
+  above:
+
+  ci-github-app-id-private-key 12345=path/to/private-key.pem
+
+6. Forward GitHub webhooks to a local brep instance
 
 Install the smee client:
 
@@ -81,12 +111,13 @@ GitHub CI endpoint's URL with --target:
 
 Trigger a webhook delivery from GitHub by pushing a commit to a repository the
 GitHub app is installed in. You should see the webhook delivery on the smee.io
-channel page and the smee client will also print something to terminal.
+channel page.
 
-Any webhook delivery can be redelivered by clicking a button on the smee.io
-channel page (or the app's advanced settings page on GitHub) so no need to
-repeatedly push to the repository.
+A webhook can be redelivered from the smee.io channel page or the app's
+advanced settings page on GitHub so no need to repeatedly push to the
+repository.
 
-You can also see the HTTP headers and JSON payload of delivered webhooks on
-both the GitHub app's advanced settings page and the smee.io channel page, but
-smee.io's presentation is much better. (There's also wireshark of course.)
+Both the smee.io channel and the GitHub app's advanced settings show the JSON
+payloads of delivered webhooks. smee.io's presentation is better but the
+GitHub app page also shows the HTTP headers. Wireshark might be better in both
+aspects but can't redeliver webhooks.
