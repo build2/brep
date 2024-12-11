@@ -121,3 +121,32 @@ Both the smee.io channel and the GitHub app's advanced settings show the JSON
 payloads of delivered webhooks. smee.io's presentation is better but the
 GitHub app page also shows the HTTP headers. Wireshark might be better in both
 aspects but can't redeliver webhooks.
+
+7. Test scenarios
+
+- Branch push (BP).
+
+  - Success (also observe check run state transitions).
+  - Failure (also observe check run state transitions).
+  - Re-requested check suite.
+  - Re-requested check run.
+
+- Pull request (PR).
+
+  - Local PR.
+
+    - Success.
+    - Failure.
+    - Re-requested check suite.
+    - Re-requested check run.
+    - Head shared with BP.
+    - Not meargeable/head behind base.
+
+  - Remote PR.
+
+    - Success.
+    - Failure.
+    - Re-requested check suite.
+    - Re-requested check run.
+    - Head shared with another remote PR.
+    - Cancel previous check suite on head move.
