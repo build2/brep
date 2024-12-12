@@ -1409,7 +1409,8 @@ namespace brep
                       ? pr.pull_request.head_sha
                       : "");
 
-    // Note that PR rebuilds (re-requested) are handled by check_suite().
+    // Note that PR rebuilds (re-requested) are handled by
+    // handle_check_suite_request().
     //
     // Note that, in the case of a remote PR, GitHub will copy the PR head
     // commit from the head (forked) repository into the base repository. So
@@ -1609,7 +1610,7 @@ namespace brep
             // local PR, or another remote PR) which in turn means the CI
             // result may end up being for head, not merge commit. There is
             // nothing we can do about it on our side (the user can enable the
-            // head-behind- base protection on their side).
+            // head-behind-base protection on their side).
             //
             if (sd.kind == service_data::remote)
             {
@@ -1803,13 +1804,13 @@ namespace brep
         return nullopt;
     };
 
+    // (Re)create the synthetic conclusion check run first in order to convert
+    // a potentially completed check suite to building as early as possible.
+    //
     // Note that there is a window between receipt of a check_suite or
     // pull_request event and the first bot/worker asking for a task, which
     // could be substantial. We could probably (also) try to (re)create the
     // conclusion checkrun in the webhook handler. @@ Maybe/later.
-
-    // (Re)create the synthetic conclusion check run first in order to convert
-    // a potentially completed check suite to building as early as possible.
     //
     string conclusion_node_id; // Conclusion check run node ID.
 
