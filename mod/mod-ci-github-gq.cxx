@@ -740,7 +740,7 @@ namespace brep
               {
                 if (ma == "CONFLICTING")
                   r = {move (hs), false, nullopt};
-                if (ma == "UNKNOWN")
+                else if (ma == "UNKNOWN")
                   ; // Still being generated; leave r absent.
                 else
                   throw_json (p, "unexpected mergeable value '" + ma + '\'');
