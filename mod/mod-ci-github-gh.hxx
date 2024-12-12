@@ -215,6 +215,36 @@ namespace brep
     gh_pull_request_event () = default;
   };
 
+  // The push webhook event.
+  //
+  struct gh_push_event
+  {
+    // The full git ref that was pushed. Example: refs/heads/main or
+    // refs/tags/v3.14.1.
+    //
+    string ref;
+
+    // The SHA of the most recent commit on ref before the push.
+    //
+    string before;
+
+    // The SHA of the most recent commit on ref after the push.
+    //
+    string after;
+
+    // True if this was a forced push of the ref. I.e., history was
+    // overwritten.
+    //
+    bool forced;
+
+    gh_repository repository;
+
+    explicit
+    gh_push_event (json::parser&);
+
+    gh_push_event () = default;
+  };
+
   // Installation access token (IAT) returned when we authenticate as a GitHub
   // app installation.
   //
@@ -295,6 +325,9 @@ namespace brep
 
   ostream&
   operator<< (ostream&, const gh_pull_request_event&);
+
+  ostream&
+  operator<< (ostream&, const gh_push_event&);
 
   ostream&
   operator<< (ostream&, const gh_installation_access_token&);

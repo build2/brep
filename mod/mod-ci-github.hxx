@@ -114,6 +114,12 @@ namespace brep
     bool
     handle_pull_request (gh_pull_request_event, bool warning_success);
 
+    // Handle forced push events by canceling the overwritten previous head
+    // commit's CI request.
+    //
+    bool
+    handle_push_request (gh_push_event);
+
     // Build a check run details_url for a build.
     //
     string

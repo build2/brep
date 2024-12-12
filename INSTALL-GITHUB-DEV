@@ -63,9 +63,11 @@ At this stage the only settings we need to update are:
   - Checks: RW
   - Metadata (mandatory): RO
   - Pull requests: RO
+  - Contents: RO (for Push events)
 - Subscribed events
   - Check suite
   - Pull request
+  - Push
 
 Click "Create GitHub App" button. When the page reloads:
 

@@ -494,6 +494,27 @@ namespace brep
         return true;
       }
     }
+    else if (event == "push")
+    {
+      gh_push_event ps;
+      try
+      {
+        json::parser p (body.data (), body.size (), "push event");
+
+        ps = gh_push_event (p);
+      }
+      catch (const json::invalid_json_input& e)
+      {
+        string m ("malformed JSON in " + e.name + " request body");
+
+        error << m << ", line: " << e.line << ", column: " << e.column
+              << ", byte offset: " << e.position << ", error: " << e;
+
+        throw invalid_request (400, move (m));
+      }
+
+      return handle_push_request (move (ps));
+    }
     else
     {
       // Log to investigate.
@@ -1460,6 +1481,51 @@ namespace brep
     {
       fail << "pull request " << pr.pull_request.node_id
            << ": unable to create unloaded pre-check tenant";
+    }
+
+    return true;
+  }
+
+  bool ci_github::
+  handle_push_request (gh_push_event ps)
+  {
+    HANDLER_DIAG;
+
+    l3 ([&]{trace << "push event { " << ps << " }";});
+
+    // Do nothing if this is a fast-forwarding push.
+    //
+    if (!ps.forced)
+    {
+      l3 ([&]{trace << "ignoring fast-forward push "
+                    << ps.after << " to " << ps.ref;});
+      return true;
+    }
+
+    // Cancel the CI tenant associated with the overwritten previous head
+    // commit.
+
+    // Service id that will uniquely identify the CI tenant.
+    //
+    string sid (ps.repository.node_id + ':' + ps.before);
+
+    if (optional<tenant_service> ts = cancel (error, warn,
+                                              verb_ ? &trace : nullptr,
+                                              *build_db_, retry_,
+                                              "ci-github", sid))
+    {
+      l3 ([&]{trace << "forced push to " << ps.ref
+                    << ": canceled CI of previous head commit"
+                    << " with tenant_service id " << sid;});
+    }
+    else
+    {
+      // It's possible that there was no CI for the previous commit for
+      // various reasons (e.g., CI was not enabled).
+      //
+      l3 ([&]{trace << "forced push to " << ps.ref
+                    << ": failed to cancel CI of previous head commit"
+                    << " with tenant_service id " << sid;});
     }
 
     return true;
