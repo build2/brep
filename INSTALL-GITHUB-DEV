@@ -141,7 +141,6 @@ aspects but can't redeliver webhooks.
     - Re-requested check run.
     - Head shared with BP.
     - Not meargeable/head behind base.
-    - Cancel previous check suite on head move.
 
   - Remote PR.
 
@@ -150,3 +149,4 @@ aspects but can't redeliver webhooks.
     - Re-requested check suite.
     - Re-requested check run.
     - Head shared with another remote PR.
+    - Cancel previous check suite on head move.
