@@ -663,7 +663,8 @@ namespace brep
   {
     p.next_expect (event::begin_object);
 
-    bool rf (false), bf (false), af (false), fd (false), rp (false);
+    bool rf (false), bf (false), af (false), fd (false), rp (false),
+      in (false);
 
     // Skip unknown/uninteresting members.
     //
@@ -679,6 +680,7 @@ namespace brep
       else if (c (af, "after"))        after = p.next_expect_string ();
       else if (c (fd, "forced"))       forced = p.next_expect_boolean<bool> ();
       else if (c (rp, "repository"))   repository = gh_repository (p);
+      else if (c (in, "installation")) installation = gh_installation (p);
       else p.next_expect_value_skip ();
     }
 
@@ -687,6 +689,7 @@ namespace brep
     if (!af) missing_member (p, "gh_push_event", "after");
     if (!fd) missing_member (p, "gh_push_event", "forced");
     if (!rp) missing_member (p, "gh_push_event", "repository");
+    if (!in) missing_member (p, "gh_push_event", "installation");
   }
 
   ostream&
@@ -696,7 +699,8 @@ namespace brep
        << ", before: " << p.before
        << ", after: " << p.after
        << ", forced: " << p.forced
-       << ", repository { "  << p.repository << " }";
+       << ", repository { "  << p.repository << " }"
+       << ", installation { " << p.installation << " }";
 
     return os;
   }

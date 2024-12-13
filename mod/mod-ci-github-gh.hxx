@@ -242,6 +242,17 @@ namespace brep
     bool forced;
 
     gh_repository repository;
+    gh_installation installation;
+
+    // Note: not received from GitHub but set from the app-id webhook query
+    // parameter instead.
+    //
+    // For some reason, unlike the check_suite and check_run webhooks, the
+    // push webhook does not contain the app id. For the sake of simplicity we
+    // emulate check_suite and check_run by storing the app-id webhook query
+    // parameter here.
+    //
+    string app_id;
 
     explicit
     gh_push_event (json::parser&);
