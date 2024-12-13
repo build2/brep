@@ -1517,13 +1517,13 @@ namespace brep
     if (optional<tenant_service> ts = cancel (error, warn,
                                               verb_ ? &trace : nullptr,
                                               *build_db_, retry_,
-                                              "ci-github", sid)) // @@ refcount
+                                              "ci-github", sid,
+                                              true /* ref_count */))
     {
-      // @@ Refcount in diag as in other place.
-      //
       l3 ([&]{trace << "forced push to " << ps.ref
-                    << ": canceled CI of previous head commit"
-                    << " with tenant_service id " << sid;});
+                    << ": attempted to cancel CI of previous head commit"
+                    << " with tenant_service id " << sid
+                    << " (ref_count: " << ts->ref_count << ')';});
     }
     else
     {

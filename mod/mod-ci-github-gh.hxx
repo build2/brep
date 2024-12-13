@@ -226,6 +226,10 @@ namespace brep
 
     // The SHA of the most recent commit on ref before the push.
     //
+    // The GitHub API reference says this member is always present and
+    // non-null. Testing shows that an absent before commit is represented by
+    // a value of "0000000000000000000000000000000000000000".
+    //
     string before;
 
     // The SHA of the most recent commit on ref after the push.

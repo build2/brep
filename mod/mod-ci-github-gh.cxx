@@ -630,8 +630,6 @@ namespace brep
         return p.name () == s ? (v = true) : false;
       };
 
-      // @@ What is `before` on first push?
-      //
       if      (c (ac, "action"))       action = p.next_expect_string ();
       else if (c (pr, "pull_request")) pull_request = gh_pull_request (p);
       else if (c (bf, "before"))       before = p.next_expect_string ();
