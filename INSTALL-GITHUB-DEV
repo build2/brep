@@ -132,6 +132,7 @@ aspects but can't redeliver webhooks.
   - Failure (also observe check run state transitions).
   - Re-requested check suite.
   - Re-requested check run.
+  - Cancel previous check suite on forced push.
 
 - Pull request (PR).
 

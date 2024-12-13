@@ -1509,11 +1509,16 @@ namespace brep
     //
     string sid (ps.repository.node_id + ':' + ps.before);
 
+    // Note that it's possible this commit still exists in another branch so
+    // we do refcount-aware cancel.
+    //
     if (optional<tenant_service> ts = cancel (error, warn,
                                               verb_ ? &trace : nullptr,
                                               *build_db_, retry_,
-                                              "ci-github", sid))
+                                              "ci-github", sid)) // @@ refcount
     {
+      // @@ Refcount in diag as in other place.
+      //
       l3 ([&]{trace << "forced push to " << ps.ref
                     << ": canceled CI of previous head commit"
                     << " with tenant_service id " << sid;});
