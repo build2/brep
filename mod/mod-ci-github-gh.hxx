@@ -241,6 +241,10 @@ namespace brep
     //
     bool forced;
 
+    // True if this was a branch deletion.
+    //
+    bool deleted;
+
     gh_repository repository;
     gh_installation installation;
 

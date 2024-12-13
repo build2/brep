@@ -663,8 +663,8 @@ namespace brep
   {
     p.next_expect (event::begin_object);
 
-    bool rf (false), bf (false), af (false), fd (false), rp (false),
-      in (false);
+    bool rf (false), bf (false), af (false), fd (false), dl (false),
+      rp (false), in (false);
 
     // Skip unknown/uninteresting members.
     //
@@ -679,6 +679,7 @@ namespace brep
       else if (c (bf, "before"))       before = p.next_expect_string ();
       else if (c (af, "after"))        after = p.next_expect_string ();
       else if (c (fd, "forced"))       forced = p.next_expect_boolean<bool> ();
+      else if (c (dl, "deleted"))      deleted = p.next_expect_boolean<bool> ();
       else if (c (rp, "repository"))   repository = gh_repository (p);
       else if (c (in, "installation")) installation = gh_installation (p);
       else p.next_expect_value_skip ();
@@ -688,6 +689,7 @@ namespace brep
     if (!bf) missing_member (p, "gh_push_event", "before");
     if (!af) missing_member (p, "gh_push_event", "after");
     if (!fd) missing_member (p, "gh_push_event", "forced");
+    if (!dl) missing_member (p, "gh_push_event", "deleted");
     if (!rp) missing_member (p, "gh_push_event", "repository");
     if (!in) missing_member (p, "gh_push_event", "installation");
   }
@@ -699,6 +701,7 @@ namespace brep
        << ", before: " << p.before
        << ", after: " << p.after
        << ", forced: " << p.forced
+       << ", deleted: " << p.deleted
        << ", repository { "  << p.repository << " }"
        << ", installation { " << p.installation << " }";
 

@@ -529,8 +529,6 @@ namespace brep
 
       // Note that the push request event has no action.
       //
-      //   @@ TMP I said no before but there is a `deleted` member...
-      //
       return handle_push_request (move (ps), warning_success);
     }
     else
@@ -1499,16 +1497,16 @@ namespace brep
 
     l3 ([&]{trace << "push event { " << ps << " }";});
 
-    // The common log entry subject.
+    // Cancel the CI tenant associated with the overwritten/deleted previous
+    // head commit if this is a forced push or a branch deletion.
     //
-    string sub ((ps.forced ? "forced push " : "push ") + ps.after + " to " +
-                ps.ref);
-
-    // Cancel the CI tenant associated with the overwritten previous head
-    // commit if this is a forced push.
-    //
-    if (ps.forced)
+    if (ps.forced || ps.deleted)
     {
+      // The common log entry subject.
+      //
+      string sub (ps.forced ? "forced push " + ps.after + " to " + ps.ref
+                            : "deletion of " + ps.ref);
+
       // Service id that will uniquely identify the CI tenant.
       //
       string sid (ps.repository.node_id + ':' + ps.before);
@@ -1535,6 +1533,9 @@ namespace brep
                       << " with tenant_service id " << sid;});
       }
     }
+
+    if (ps.deleted)
+      return true; // Do nothing further if this was a branch deletion.
 
     // While we don't need the installation access token in this request,
     // let's obtain it to flush out any permission issues early. Also, it is
@@ -1600,7 +1601,8 @@ namespace brep
                  chrono::seconds (0) /* delay */,
                  duplicate_tenant_mode::ignore))
     {
-      fail << sub << ": unable to create unloaded CI tenant";
+      fail << "push " + ps.after + " to " + ps.ref
+           << ": unable to create unloaded CI tenant";
     }
 
     return true;
