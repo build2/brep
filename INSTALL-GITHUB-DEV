@@ -69,6 +69,12 @@ At this stage the only settings we need to update are:
   - Pull request
   - Push
 
+  Note that GitHub apps with write access to the "Checks" permission are
+  automatically subscribed to check_suite(requested|rerequested) and check_run
+  events so no need to subscribe explicitly. However in order to receive
+  check_suite(completed) events, which we do, one does have to subscribe to
+  check_suite.
+
 Click "Create GitHub App" button. When the page reloads:
 
 - Note the app id (e.g. 12345).
@@ -135,8 +141,10 @@ aspects but can't redeliver webhooks.
   - Re-requested check run (observe check run state transitions).
   - Re-requested check run but tenant archived.
   - Cancel previous check suite on forced push.
+  - Cancel previous check suite on branch delete.
   - Head commit shared with another BP.
   - Cancel previous check suite on forced push with shared previous commit.
+  - Cancel previous check suite on branch delete with shared previous commit.
 
 - Pull request (PR).
 
@@ -147,15 +155,17 @@ aspects but can't redeliver webhooks.
     - Push new commit to head.
     - Re-requested check suite.
     - Re-requested check run.
-    - Head shared with BP.
-    - Not meargeable/head behind base.
+    - Head shared with BP (pull_request is received after check_suite)
+    - Not meargeable.
+    - Head behind base.
+    - Head commit has changed while testing manageability.
 
   - Remote PR.
 
     - Success.
     - Failure.
     - Push new commit to head.
+    - Cancel previous check suite on head move.
     - Re-requested check suite.
     - Re-requested check run.
     - Head shared with another remote PR.
-    - Cancel previous check suite on head move.
