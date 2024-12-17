@@ -63,9 +63,11 @@ At this stage the only settings we need to update are:
   - Checks: RW
   - Metadata (mandatory): RO
   - Pull requests: RO
+  - Contents: RO (for Push events)
 - Subscribed events
   - Check suite
   - Pull request
+  - Push
 
 Click "Create GitHub App" button. When the page reloads:
 
@@ -126,10 +128,15 @@ aspects but can't redeliver webhooks.
 
 - Branch push (BP).
 
-  - Success (also observe check run state transitions).
-  - Failure (also observe check run state transitions).
+  - Success (observe check runs state transitions). Test with 2 build configs.
+  - Failure (observe check runs state transitions).
+  - Push new commit to branch.
   - Re-requested check suite.
-  - Re-requested check run.
+  - Re-requested check run (observe check run state transitions).
+  - Re-requested check run but tenant archived.
+  - Cancel previous check suite on forced push.
+  - Head commit shared with another BP.
+  - Cancel previous check suite on forced push with shared previous commit.
 
 - Pull request (PR).
 
@@ -137,6 +144,7 @@ aspects but can't redeliver webhooks.
 
     - Success.
     - Failure.
+    - Push new commit to head.
     - Re-requested check suite.
     - Re-requested check run.
     - Head shared with BP.
@@ -146,6 +154,7 @@ aspects but can't redeliver webhooks.
 
     - Success.
     - Failure.
+    - Push new commit to head.
     - Re-requested check suite.
     - Re-requested check run.
     - Head shared with another remote PR.
