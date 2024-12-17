@@ -277,7 +277,7 @@ namespace brep
     // Note: "GitHub continues to add new event types and new actions to
     // existing event types." As a result we ignore known actions that we are
     // not interested in and log and ignore unknown actions. The thinking here
-    // is that we want be "notified" of new actions at which point we can
+    // is that we want to be "notified" of new actions at which point we can
     // decide whether to ignore them or to handle.
     //
     if (event == "check_suite")
@@ -513,6 +513,8 @@ namespace brep
         throw invalid_request (400, move (m));
       }
 
+      // Note that the push request event has no action.
+      //
       return handle_push_request (move (ps));
     }
     else
