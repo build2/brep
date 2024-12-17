@@ -122,7 +122,7 @@ namespace brep
     // and to FAILURE otherwise.
     //
     bool
-    handle_push_request (gh_push_event, bool warning_success);
+    handle_branch_push (gh_push_event, bool warning_success);
 
     // Build a check run details_url for a build.
     //

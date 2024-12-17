@@ -1435,7 +1435,7 @@ namespace brep
                       : "");
 
     // Note that PR rebuilds (re-requested) are handled by
-    // handle_check_suite_request().
+    // handle_check_suite_rerequest().
     //
     // Note that, in the case of a remote PR, GitHub will copy the PR head
     // commit from the head (forked) repository into the base repository. So
@@ -1462,7 +1462,7 @@ namespace brep
     // Create with an empty service id so that the generated tenant id is used
     // instead during the pre-check phase (so as not to clash with a proper
     // service id for this head commit, potentially created in
-    // handle_check_suite() or as another PR).
+    // handle_branch_push() or as another PR).
     //
     tenant_service ts ("", "ci-github", sd.json ());
 
@@ -1502,7 +1502,7 @@ namespace brep
     //
     if (ps.forced || ps.deleted)
     {
-      // The common log entry subject.
+      // The common log entry subject. @@ Move inline.
       //
       string sub (ps.forced ? "forced push " + ps.after + " to " + ps.ref
                             : "deletion of " + ps.ref);
@@ -1581,8 +1581,9 @@ namespace brep
                      ps.after /* report_sha */);
 
     // Create an unloaded CI tenant, doing nothing if one already exists
-    // (which could've been created by handle_pull_request()). Note that the
-    // tenant's reference count is incremented in all cases.
+    // (which could've been created by handle_pull_request() or by us as as
+    // result of a push to another branch). Note that the tenant's reference
+    // count is incremented in all cases.
     //
     // Note: use no delay since we need to (re)create the synthetic conclusion
     // check run as soon as possible.
