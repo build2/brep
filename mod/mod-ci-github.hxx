@@ -82,13 +82,15 @@ namespace brep
     virtual void
     init (cli::scanner&);
 
-    // Handle the check_suite event `requested` and `rerequested` actions.
+    // @@ TODO Reorder handlers: push, pull_request, then check_suite.
+
+    // Handle the check_suite event `rerequested` action.
     //
     // If warning_success is true, then map result_status::warning to SUCCESS
     // and to FAILURE otherwise.
     //
     bool
-    handle_check_suite_request (gh_check_suite_event, bool warning_success);
+    handle_check_suite_rerequest (gh_check_suite_event, bool warning_success);
 
     // Handle the check_suite event `completed` action.
     //
@@ -113,6 +115,14 @@ namespace brep
     //
     bool
     handle_pull_request (gh_pull_request_event, bool warning_success);
+
+    // Handle push events (branch push).
+    //
+    // If warning_success is true, then map result_status::warning to SUCCESS
+    // and to FAILURE otherwise.
+    //
+    bool
+    handle_branch_push (gh_push_event, bool warning_success);
 
     // Build a check run details_url for a build.
     //

@@ -656,6 +656,58 @@ namespace brep
     return os;
   }
 
+  // gh_push_event
+  //
+  gh_push_event::
+  gh_push_event (json::parser& p)
+  {
+    p.next_expect (event::begin_object);
+
+    bool rf (false), bf (false), af (false), fd (false), dl (false),
+      rp (false), in (false);
+
+    // Skip unknown/uninteresting members.
+    //
+    while (p.next_expect (event::name, event::end_object))
+    {
+      auto c = [&p] (bool& v, const char* s)
+      {
+        return p.name () == s ? (v = true) : false;
+      };
+
+      if      (c (rf, "ref"))          ref = p.next_expect_string ();
+      else if (c (bf, "before"))       before = p.next_expect_string ();
+      else if (c (af, "after"))        after = p.next_expect_string ();
+      else if (c (fd, "forced"))       forced = p.next_expect_boolean<bool> ();
+      else if (c (dl, "deleted"))      deleted = p.next_expect_boolean<bool> ();
+      else if (c (rp, "repository"))   repository = gh_repository (p);
+      else if (c (in, "installation")) installation = gh_installation (p);
+      else p.next_expect_value_skip ();
+    }
+
+    if (!rf) missing_member (p, "gh_push_event", "ref");
+    if (!bf) missing_member (p, "gh_push_event", "before");
+    if (!af) missing_member (p, "gh_push_event", "after");
+    if (!fd) missing_member (p, "gh_push_event", "forced");
+    if (!dl) missing_member (p, "gh_push_event", "deleted");
+    if (!rp) missing_member (p, "gh_push_event", "repository");
+    if (!in) missing_member (p, "gh_push_event", "installation");
+  }
+
+  ostream&
+  operator<< (ostream& os, const gh_push_event& p)
+  {
+    os << "ref: " << p.ref
+       << ", before: " << p.before
+       << ", after: " << p.after
+       << ", forced: " << p.forced
+       << ", deleted: " << p.deleted
+       << ", repository { "  << p.repository << " }"
+       << ", installation { " << p.installation << " }";
+
+    return os;
+  }
+
   // gh_installation_access_token
   //
   // Example JSON:

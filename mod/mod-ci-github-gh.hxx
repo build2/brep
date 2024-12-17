@@ -215,6 +215,55 @@ namespace brep
     gh_pull_request_event () = default;
   };
 
+  // The push webhook event.
+  //
+  struct gh_push_event
+  {
+    // The full git ref that was pushed. Example: refs/heads/main or
+    // refs/tags/v3.14.1.
+    //
+    string ref;
+
+    // The SHA of the most recent commit on ref before the push.
+    //
+    // The GitHub API reference says this member is always present and
+    // non-null. Testing shows that an absent before commit is represented by
+    // a value of "0000000000000000000000000000000000000000".
+    //
+    string before;
+
+    // The SHA of the most recent commit on ref after the push.
+    //
+    string after;
+
+    // True if this was a forced push of the ref. I.e., history was
+    // overwritten.
+    //
+    bool forced;
+
+    // True if this was a branch deletion.
+    //
+    bool deleted;
+
+    gh_repository repository;
+    gh_installation installation;
+
+    // Note: not received from GitHub but set from the app-id webhook query
+    // parameter instead.
+    //
+    // For some reason, unlike the check_suite and check_run webhooks, the
+    // push webhook does not contain the app id. For the sake of simplicity we
+    // emulate check_suite and check_run by storing the app-id webhook query
+    // parameter here.
+    //
+    string app_id;
+
+    explicit
+    gh_push_event (json::parser&);
+
+    gh_push_event () = default;
+  };
+
   // Installation access token (IAT) returned when we authenticate as a GitHub
   // app installation.
   //
@@ -295,6 +344,9 @@ namespace brep
 
   ostream&
   operator<< (ostream&, const gh_pull_request_event&);
+
+  ostream&
+  operator<< (ostream&, const gh_push_event&);
 
   ostream&
   operator<< (ostream&, const gh_installation_access_token&);

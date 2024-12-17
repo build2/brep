@@ -277,7 +277,7 @@ namespace brep
     // Note: "GitHub continues to add new event types and new actions to
     // existing event types." As a result we ignore known actions that we are
     // not interested in and log and ignore unknown actions. The thinking here
-    // is that we want be "notified" of new actions at which point we can
+    // is that we want to be "notified" of new actions at which point we can
     // decide whether to ignore them or to handle.
     //
     if (event == "check_suite")
@@ -307,14 +307,17 @@ namespace brep
 
       if (cs.action == "requested")
       {
-        return handle_check_suite_request (move (cs), warning_success);
+        // Branch pushes are handled in handle_branch_push() so ignore this
+        // event.
+        //
+        return true;
       }
       else if (cs.action == "rerequested")
       {
         // Someone manually requested to re-run all the check runs in this
         // check suite. Treat as a new request.
         //
-        return handle_check_suite_request (move (cs), warning_success);
+        return handle_check_suite_rerequest (move (cs), warning_success);
       }
       else if (cs.action == "completed")
       {
@@ -404,7 +407,7 @@ namespace brep
         throw invalid_request (400, move (m));
       }
 
-      // Store the app-id webhook query parameter in the gh_pull_request
+      // Store the app-id webhook query parameter in the gh_pull_request_event
       // object (see gh_pull_request for an explanation).
       //
       // When we receive the other webhooks we do check that the app ids in
@@ -494,6 +497,40 @@ namespace brep
         return true;
       }
     }
+    else if (event == "push")
+    {
+      // Push events are triggered by branch pushes, branch creation, and
+      // branch deletion.
+      //
+      gh_push_event ps;
+      try
+      {
+        json::parser p (body.data (), body.size (), "push event");
+
+        ps = gh_push_event (p);
+      }
+      catch (const json::invalid_json_input& e)
+      {
+        string m ("malformed JSON in " + e.name + " request body");
+
+        error << m << ", line: " << e.line << ", column: " << e.column
+              << ", byte offset: " << e.position << ", error: " << e;
+
+        throw invalid_request (400, move (m));
+      }
+
+      // Store the app-id webhook query parameter in the gh_push_event
+      // object (see gh_push_event for an explanation).
+      //
+      // When we receive the other webhooks we do check that the app ids in
+      // the payload and query match but here we have to assume it is valid.
+      //
+      ps.app_id = app_id;
+
+      // Note that the push request event has no action.
+      //
+      return handle_branch_push (move (ps), warning_success);
+    }
     else
     {
       // Log to investigate.
@@ -549,11 +586,13 @@ namespace brep
   }
 
   bool ci_github::
-  handle_check_suite_request (gh_check_suite_event cs, bool warning_success)
+  handle_check_suite_rerequest (gh_check_suite_event cs, bool warning_success)
   {
     HANDLER_DIAG;
 
     l3 ([&]{trace << "check_suite event { " << cs << " }";});
+
+    assert (cs.action == "rerequested");
 
     // While we don't need the installation access token in this request,
     // let's obtain it to flush out any permission issues early. Also, it is
@@ -571,15 +610,6 @@ namespace brep
       throw server_error ();
 
     l3 ([&]{trace << "installation_access_token { " << *iat << " }";});
-
-    // While it would have been nice to cancel CIs of PRs with this branch as
-    // base not to waste resources, there are complications: Firstly, we can
-    // only do this for remote PRs (since local PRs will most likely share the
-    // result with branch push). Secondly, we try to do our best even if the
-    // branch protection rule for head behind is not enabled. In this case, it
-    // would be good to complete the CI. So maybe/later. See also the head
-    // case in handle_pull_request(), where we do cancel remote PRs that are
-    // not shared.
 
     // Service id that uniquely identifies the CI tenant.
     //
@@ -604,9 +634,10 @@ namespace brep
     string check_sha;
     service_data::kind_type kind;
 
-    bool re_requested (cs.action == "rerequested");
-    if (re_requested && !cs.check_suite.head_branch)
+    if (!cs.check_suite.head_branch)
     {
+      // Rebuild of remote PR.
+      //
       kind = service_data::remote;
 
       if (optional<tenant_data> d = find (*build_db_, "ci-github", sid))
@@ -634,7 +665,7 @@ namespace brep
     }
     else
     {
-      // Branch push or local PR rebuild.
+      // Rebuild of branch push or local PR.
       //
       kind = service_data::local;
       check_sha = cs.check_suite.head_sha;
@@ -647,20 +678,15 @@ namespace brep
                      cs.installation.id,
                      move (cs.repository.node_id),
                      move (cs.repository.clone_url),
-                     kind, false /* pre_check */, re_requested,
+                     kind, false /* pre_check */, true /* re_requested */,
                      move (check_sha),
                      move (cs.check_suite.head_sha) /* report_sha */);
 
-    // If this check suite is being re-run, replace the existing CI tenant if
-    // it exists; otherwise create a new one, doing nothing if a tenant
-    // already exists (which could've been created by handle_pull_request()).
+    // Replace the existing CI tenant if it exists.
     //
     // Note that GitHub UI does not allow re-running the entire check suite
     // until all the check runs are completed.
     //
-    duplicate_tenant_mode dtm (re_requested
-                               ? duplicate_tenant_mode::replace
-                               : duplicate_tenant_mode::ignore);
 
     // Create an unloaded CI tenant.
     //
@@ -681,7 +707,7 @@ namespace brep
                      tenant_service (sid, "ci-github", sd.json ()),
                      chrono::seconds (30) /* interval */,
                      chrono::seconds (0) /* delay */,
-                     dtm));
+                     duplicate_tenant_mode::replace));
 
     if (!pr)
     {
@@ -689,8 +715,7 @@ namespace brep
            << ": unable to create unloaded CI tenant";
     }
 
-    if (dtm == duplicate_tenant_mode::replace &&
-        pr->second == duplicate_tenant_result::created)
+    if (pr->second == duplicate_tenant_result::created)
     {
       error << "check suite " << cs.check_suite.node_id
             << ": re-requested but tenant_service with id " << sid
@@ -1410,7 +1435,7 @@ namespace brep
                       : "");
 
     // Note that PR rebuilds (re-requested) are handled by
-    // handle_check_suite_request().
+    // handle_check_suite_rerequest().
     //
     // Note that, in the case of a remote PR, GitHub will copy the PR head
     // commit from the head (forked) repository into the base repository. So
@@ -1437,7 +1462,7 @@ namespace brep
     // Create with an empty service id so that the generated tenant id is used
     // instead during the pre-check phase (so as not to clash with a proper
     // service id for this head commit, potentially created in
-    // handle_check_suite() or as another PR).
+    // handle_branch_push() or as another PR).
     //
     tenant_service ts ("", "ci-github", sd.json ());
 
@@ -1460,6 +1485,124 @@ namespace brep
     {
       fail << "pull request " << pr.pull_request.node_id
            << ": unable to create unloaded pre-check tenant";
+    }
+
+    return true;
+  }
+
+  bool ci_github::
+  handle_branch_push (gh_push_event ps, bool warning_success)
+  {
+    HANDLER_DIAG;
+
+    l3 ([&]{trace << "push event { " << ps << " }";});
+
+    // Cancel the CI tenant associated with the overwritten/deleted previous
+    // head commit if this is a forced push or a branch deletion.
+    //
+    if (ps.forced || ps.deleted)
+    {
+      // Service id that will uniquely identify the CI tenant.
+      //
+      string sid (ps.repository.node_id + ':' + ps.before);
+
+      // Note that it's possible this commit still exists in another branch so
+      // we do refcount-aware cancel.
+      //
+      if (optional<tenant_service> ts = cancel (error, warn,
+                                                verb_ ? &trace : nullptr,
+                                                *build_db_, retry_,
+                                                "ci-github", sid,
+                                                true /* ref_count */))
+      {
+        l3 ([&]{trace << (ps.forced ? "forced push " + ps.after + " to "
+                                    : "deletion of ")
+                      << ps.ref << ": attempted to cancel CI of previous"
+                      << " head commit with tenant_service id " << sid
+                      << " (ref_count: " << ts->ref_count << ')';});
+      }
+      else
+      {
+        // It's possible that there was no CI for the previous commit for
+        // various reasons (e.g., CI was not enabled).
+        //
+        l3 ([&]{trace << (ps.forced ? "forced push " + ps.after + " to "
+                                    : "deletion of ")
+                      << ps.ref << ": failed to cancel CI of previous"
+                      << " head commit with tenant_service id " << sid;});
+      }
+    }
+
+    if (ps.deleted)
+      return true; // Do nothing further if this was a branch deletion.
+
+    // While we don't need the installation access token in this request,
+    // let's obtain it to flush out any permission issues early. Also, it is
+    // valid for an hour so we will most likely make use of it.
+    //
+    optional<string> jwt (generate_jwt (ps.app_id, trace, error));
+    if (!jwt)
+      throw server_error ();
+
+    optional<gh_installation_access_token> iat (
+        obtain_installation_access_token (ps.installation.id,
+                                          move (*jwt),
+                                          error));
+    if (!iat)
+      throw server_error ();
+
+    l3 ([&]{trace << "installation_access_token { " << *iat << " }";});
+
+    // While it would have been nice to cancel CIs of PRs with this branch as
+    // base not to waste resources, there are complications: Firstly, we can
+    // only do this for remote PRs (since local PRs will most likely share the
+    // result with branch push). Secondly, we try to do our best even if the
+    // branch protection rule for head behind is not enabled. In this case, it
+    // would be good to complete the CI. So maybe/later. See also the head
+    // case in handle_pull_request(), where we do cancel remote PRs that are
+    // not shared.
+
+    // Service id that uniquely identifies the CI tenant.
+    //
+    string sid (ps.repository.node_id + ':' + ps.after);
+
+    service_data sd (warning_success,
+                     iat->token,
+                     iat->expires_at,
+                     ps.app_id,
+                     ps.installation.id,
+                     move (ps.repository.node_id),
+                     move (ps.repository.clone_url),
+                     service_data::local,
+                     false /* pre_check */,
+                     false /* re_requested */,
+                     ps.after /* check_sha */,
+                     ps.after /* report_sha */);
+
+    // Create an unloaded CI tenant, doing nothing if one already exists
+    // (which could've been created by handle_pull_request() or by us as a
+    // result of a push to another branch). Note that the tenant's reference
+    // count is incremented in all cases.
+    //
+    // Note: use no delay since we need to (re)create the synthetic conclusion
+    // check run as soon as possible.
+    //
+    // Note that we use the create() API instead of start() since duplicate
+    // management is not available in start().
+    //
+    // After this call we will start getting the build_unloaded()
+    // notifications until (1) we load the tenant, (2) we cancel it, or (3)
+    // it gets archived after some timeout.
+    //
+    if (!create (error, warn, verb_ ? &trace : nullptr,
+                 *build_db_, retry_,
+                 tenant_service (sid, "ci-github", sd.json ()),
+                 chrono::seconds (30) /* interval */,
+                 chrono::seconds (0) /* delay */,
+                 duplicate_tenant_mode::ignore))
+    {
+      fail << "push " + ps.after + " to " + ps.ref
+           << ": unable to create unloaded CI tenant";
     }
 
     return true;
@@ -1578,7 +1721,8 @@ namespace brep
 
       // Create an unloaded CI tenant, doing nothing if one already exists
       // (which could've been created by a head branch push or another PR
-      // sharing the same head commit).
+      // sharing the same head commit). Note that the tenant's reference count
+      // is incremented in all cases.
       //
       // Note: use no delay since we need to (re)create the synthetic
       // conclusion check run as soon as possible.
