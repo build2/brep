@@ -546,43 +546,277 @@ namespace brep
   //
   static string conclusion_check_run_name ("CONCLUSION");
 
-  // Return the colored circle corresponding to a result_status.
-  //
-  static string
-  circle (result_status rs)
+  bool ci_github::
+  handle_branch_push (gh_push_event ps, bool warning_success)
   {
-    switch (rs)
-    {
-    case result_status::success:  return "\U0001F7E2"; // Green circle.
-    case result_status::warning:  return "\U0001F7E0"; // Orange circle.
-    case result_status::error:
-    case result_status::abort:
-    case result_status::abnormal: return "\U0001F534"; // Red circle.
+    HANDLER_DIAG;
 
-      // Valid values we should never encounter.
+    l3 ([&]{trace << "push event { " << ps << " }";});
+
+    // Cancel the CI tenant associated with the overwritten/deleted previous
+    // head commit if this is a forced push or a branch deletion.
+    //
+    if (ps.forced || ps.deleted)
+    {
+      // Service id that will uniquely identify the CI tenant.
       //
-    case result_status::skip:
-    case result_status::interrupt:
-      throw invalid_argument ("unexpected result_status value: " +
-                              to_string (rs));
+      string sid (ps.repository.node_id + ':' + ps.before);
+
+      // Note that it's possible this commit still exists in another branch so
+      // we do refcount-aware cancel.
+      //
+      if (optional<tenant_service> ts = cancel (error, warn,
+                                                verb_ ? &trace : nullptr,
+                                                *build_db_, retry_,
+                                                "ci-github", sid,
+                                                true /* ref_count */))
+      {
+        l3 ([&]{trace << (ps.forced ? "forced push " + ps.after + " to "
+                                    : "deletion of ")
+                      << ps.ref << ": attempted to cancel CI of previous"
+                      << " head commit with tenant_service id " << sid
+                      << " (ref_count: " << ts->ref_count << ')';});
+      }
+      else
+      {
+        // It's possible that there was no CI for the previous commit for
+        // various reasons (e.g., CI was not enabled).
+        //
+        l3 ([&]{trace << (ps.forced ? "forced push " + ps.after + " to "
+                                    : "deletion of ")
+                      << ps.ref << ": failed to cancel CI of previous"
+                      << " head commit with tenant_service id " << sid;});
+      }
     }
 
-    return ""; // Should never reach.
+    if (ps.deleted)
+      return true; // Do nothing further if this was a branch deletion.
+
+    // While we don't need the installation access token in this request,
+    // let's obtain it to flush out any permission issues early. Also, it is
+    // valid for an hour so we will most likely make use of it.
+    //
+    optional<string> jwt (generate_jwt (ps.app_id, trace, error));
+    if (!jwt)
+      throw server_error ();
+
+    optional<gh_installation_access_token> iat (
+        obtain_installation_access_token (ps.installation.id,
+                                          move (*jwt),
+                                          error));
+    if (!iat)
+      throw server_error ();
+
+    l3 ([&]{trace << "installation_access_token { " << *iat << " }";});
+
+    // While it would have been nice to cancel CIs of PRs with this branch as
+    // base not to waste resources, there are complications: Firstly, we can
+    // only do this for remote PRs (since local PRs will most likely share the
+    // result with branch push). Secondly, we try to do our best even if the
+    // branch protection rule for head behind is not enabled. In this case, it
+    // would be good to complete the CI. So maybe/later. See also the head
+    // case in handle_pull_request(), where we do cancel remote PRs that are
+    // not shared.
+
+    // Service id that uniquely identifies the CI tenant.
+    //
+    string sid (ps.repository.node_id + ':' + ps.after);
+
+    service_data sd (warning_success,
+                     iat->token,
+                     iat->expires_at,
+                     ps.app_id,
+                     ps.installation.id,
+                     move (ps.repository.node_id),
+                     move (ps.repository.clone_url),
+                     service_data::local,
+                     false /* pre_check */,
+                     false /* re_requested */,
+                     ps.after /* check_sha */,
+                     ps.after /* report_sha */);
+
+    // Create an unloaded CI tenant, doing nothing if one already exists
+    // (which could've been created by handle_pull_request() or by us as a
+    // result of a push to another branch). Note that the tenant's reference
+    // count is incremented in all cases.
+    //
+    // Note: use no delay since we need to (re)create the synthetic conclusion
+    // check run as soon as possible.
+    //
+    // Note that we use the create() API instead of start() since duplicate
+    // management is not available in start().
+    //
+    // After this call we will start getting the build_unloaded()
+    // notifications until (1) we load the tenant, (2) we cancel it, or (3)
+    // it gets archived after some timeout.
+    //
+    if (!create (error, warn, verb_ ? &trace : nullptr,
+                 *build_db_, retry_,
+                 tenant_service (sid, "ci-github", sd.json ()),
+                 chrono::seconds (30) /* interval */,
+                 chrono::seconds (0) /* delay */,
+                 duplicate_tenant_mode::ignore))
+    {
+      fail << "push " + ps.after + " to " + ps.ref
+           << ": unable to create unloaded CI tenant";
+    }
+
+    return true;
   }
 
-  // Make a check run summary from a CI start_result.
+  // Miscellaneous pull request facts
   //
-  static string
-  to_check_run_summary (const optional<ci_start::start_result>& r)
+  // - Although some of the GitHub documentation makes it sound like they
+  //   expect check runs to be added to both the PR head commit and the merge
+  //   commit, the PR UI does not react to the merge commit's check runs
+  //   consistently. It actually seems to be quite broken. The only thing it
+  //   does seem to do reliably is blocking the PR merge if the merge commit's
+  //   check runs are not successful (i.e, overriding the PR head commit's
+  //   check runs). But the UI looks quite messed up generally in this state.
+  //
+  // - When new commits are added to a PR base branch, pull_request.base.sha
+  //   does not change, but the test merge commit will be updated to include
+  //   the new commits to the base branch.
+  //
+  // - When new commits are added to a PR head branch, pull_request.head.sha
+  //   gets updated with the head commit's SHA and check_suite.pull_requests[]
+  //   will contain all PRs with this branch as head.
+  //
+  bool ci_github::
+  handle_pull_request (gh_pull_request_event pr, bool warning_success)
   {
-    string s;
+    HANDLER_DIAG;
 
-    s = "```\n";
-    if (r) s += r->message;
-    else s += "Internal service error";
-    s += "\n```";
+    l3 ([&]{trace << "pull_request event { " << pr << " }";});
 
-    return s;
+    // While we don't need the installation access token in this request,
+    // let's obtain it to flush out any permission issues early. Also, it is
+    // valid for an hour so we will most likely make use of it.
+    //
+    optional<string> jwt (generate_jwt (pr.pull_request.app_id, trace, error));
+    if (!jwt)
+      throw server_error ();
+
+    optional<gh_installation_access_token> iat (
+      obtain_installation_access_token (pr.installation.id,
+                                        move (*jwt),
+                                        error));
+    if (!iat)
+      throw server_error ();
+
+    l3 ([&]{trace << "installation_access_token { " << *iat << " }";});
+
+    // Distinguish between local and remote PRs by comparing the head and base
+    // repositories' paths.
+    //
+    service_data::kind_type kind (
+      pr.pull_request.head_path == pr.pull_request.base_path
+      ? service_data::local
+      : service_data::remote);
+
+    // Note that similar to the branch push case above, while it would have
+    // been nice to cancel the previous CI job once the PR head moves (the
+    // "synchronize" event), due to the head sharing problem the previous CI
+    // job might actually still be relevant (in both local and remote PR
+    // cases). So we only do it for the remote PRs and only if the head is not
+    // shared (via tenant reference counting).
+    //
+    if (kind == service_data::remote && pr.action == "synchronize")
+    {
+      if (pr.before)
+      {
+        // Service id that will uniquely identify the CI tenant.
+        //
+        string sid (pr.repository.node_id + ':' + *pr.before);
+
+        if (optional<tenant_service> ts = cancel (error, warn,
+                                                  verb_ ? &trace : nullptr,
+                                                  *build_db_, retry_,
+                                                  "ci-github", sid,
+                                                  true /* ref_count */))
+        {
+          l3 ([&]{trace << "pull request " << pr.pull_request.node_id
+                        << ": attempted to cancel CI of previous head commit"
+                        << " (ref_count: " << ts->ref_count << ')';});
+        }
+        else
+        {
+          // It's possible that there was no CI for the previous commit for
+          // various reasons (e.g., CI was not enabled).
+          //
+          l3 ([&]{trace << "pull request " << pr.pull_request.node_id
+                        << ": failed to cancel CI of previous head commit "
+                        << "with tenant_service id " << sid;});
+        }
+      }
+      else
+      {
+        error << "pull request " << pr.pull_request.node_id
+              << ": before commit is missing in synchronize event";
+      }
+    }
+
+    // Note: for remote PRs the check_sha will be set later, in
+    // build_unloaded_pre_check(), to test merge commit id.
+    //
+    string check_sha (kind == service_data::local
+                      ? pr.pull_request.head_sha
+                      : "");
+
+    // Note that PR rebuilds (re-requested) are handled by
+    // handle_check_suite_rerequest().
+    //
+    // Note that, in the case of a remote PR, GitHub will copy the PR head
+    // commit from the head (forked) repository into the base repository. So
+    // the check runs must always be added to the base repository, whether the
+    // PR is local or remote. The head commit refs are located at
+    // refs/pull/<PR-number>/head.
+    //
+    service_data sd (warning_success,
+                     move (iat->token),
+                     iat->expires_at,
+                     pr.pull_request.app_id,
+                     pr.installation.id,
+                     move (pr.repository.node_id),
+                     move (pr.repository.clone_url),
+                     kind, true /* pre_check */, false /* re_request */,
+                     move (check_sha),
+                     move (pr.pull_request.head_sha) /* report_sha */,
+                     pr.pull_request.node_id,
+                     pr.pull_request.number);
+
+    // Create an unloaded CI tenant for the pre-check phase (during which we
+    // wait for the PR's merge commit and behindness to become available).
+    //
+    // Create with an empty service id so that the generated tenant id is used
+    // instead during the pre-check phase (so as not to clash with a proper
+    // service id for this head commit, potentially created in
+    // handle_branch_push() or as another PR).
+    //
+    tenant_service ts ("", "ci-github", sd.json ());
+
+    // Note: use no delay since we need to start the actual CI (which in turn
+    // (re)creates the synthetic conclusion check run) as soon as possible.
+    //
+    // After this call we will start getting the build_unloaded()
+    // notifications -- which will be routed to build_unloaded_pre_check() --
+    // until we cancel the tenant or it gets archived after some timeout.
+    // (Note that we never actually load this request, we always cancel it;
+    // see build_unloaded_pre_check() for details.)
+    //
+    if (!create (error,
+                 warn,
+                 verb_ ? &trace : nullptr,
+                 *build_db_, retry_,
+                 move (ts),
+                 chrono::seconds (30) /* interval */,
+                 chrono::seconds (0) /* delay */))
+    {
+      fail << "pull request " << pr.pull_request.node_id
+           << ": unable to create unloaded pre-check tenant";
+    }
+
+    return true;
   }
 
   bool ci_github::
@@ -844,6 +1078,45 @@ namespace brep
     return true;
   }
 
+  // Return the colored circle corresponding to a result_status.
+  //
+  static string
+  circle (result_status rs)
+  {
+    switch (rs)
+    {
+    case result_status::success:  return "\U0001F7E2"; // Green circle.
+    case result_status::warning:  return "\U0001F7E0"; // Orange circle.
+    case result_status::error:
+    case result_status::abort:
+    case result_status::abnormal: return "\U0001F534"; // Red circle.
+
+      // Valid values we should never encounter.
+      //
+    case result_status::skip:
+    case result_status::interrupt:
+      throw invalid_argument ("unexpected result_status value: " +
+                              to_string (rs));
+    }
+
+    return ""; // Should never reach.
+  }
+
+  // Make a check run summary from a CI start_result.
+  //
+  static string
+  to_check_run_summary (const optional<ci_start::start_result>& r)
+  {
+    string s;
+
+    s = "```\n";
+    if (r) s += r->message;
+    else s += "Internal service error";
+    s += "\n```";
+
+    return s;
+  }
+
   // Create a gq_built_result.
   //
   // Throw invalid_argument in case of invalid result_status.
@@ -945,6 +1218,9 @@ namespace brep
 
     ccr.name = conclusion_check_run_name;
 
+    const gh_installation_access_token* iat (nullptr);
+    optional<gh_installation_access_token> new_iat;
+
     // Load the service data, failing the check runs if the tenant has been
     // archived.
     //
@@ -955,78 +1231,8 @@ namespace brep
       //
       string sid (repo_node_id + ':' + head_sha);
 
-      if (optional<tenant_data> d = find (*build_db_, "ci-github", sid))
-      {
-        if (d->archived) // Tenant is archived
-        {
-          // Fail (re-create) the check runs.
-          //
-          optional<gh_installation_access_token> iat (get_iat ());
-          if (!iat)
-            throw server_error ();
-
-          gq_built_result br (
-            make_built_result (
-              result_status::error, warning_success,
-              "Unable to rebuild individual configuration: build has "
-              "been archived"));
-
-          // Try to update the conclusion check run even if the first update
-          // fails.
-          //
-          bool f (false); // Failed.
-
-          if (gq_create_check_run (error, bcr, iat->token,
-                                   repo_node_id, head_sha,
-                                   cr.check_run.details_url,
-                                   build_state::built, br))
-          {
-            l3 ([&]{trace << "created check_run { " << bcr << " }";});
-          }
-          else
-          {
-            error << "check_run " << cr.check_run.node_id
-                  << ": unable to re-create check run";
-            f = true;
-          }
-
-          if (gq_create_check_run (error, ccr, iat->token,
-                                   repo_node_id, head_sha,
-                                   nullopt /* details_url */,
-                                   build_state::built, move (br)))
-          {
-            l3 ([&]{trace << "created conclusion check_run { " << ccr << " }";});
-          }
-          else
-          {
-            error << "check_run " << cr.check_run.node_id
-                  << ": unable to re-create conclusion check run";
-            f = true;
-          }
-
-          // Fail the handler if either of the check runs could not be
-          // updated.
-          //
-          if (f)
-            throw server_error ();
-
-          return true;
-        }
-
-        tenant_service& ts (d->service);
-
-        try
-        {
-          sd = service_data (*ts.data);
-        }
-        catch (const invalid_argument& e)
-        {
-          fail << "failed to parse service data: " << e;
-        }
-
-        tenant_id = d->tenant_id;
-      }
-      else
+      optional<tenant_data> d (find (*build_db_, "ci-github", sid));
+      if (!d)
       {
         // No such tenant.
         //
@@ -1034,29 +1240,104 @@ namespace brep
              << " re-requested but tenant_service with id " << sid
              << " does not exist";
       }
-    }
 
-    // Get a new IAT if the one from the service data has expired.
-    //
-    const gh_installation_access_token* iat (nullptr);
-    optional<gh_installation_access_token> new_iat;
+      tenant_service& ts (d->service);
 
-    if (system_clock::now () > sd.installation_access.expires_at)
-    {
-      if ((new_iat = get_iat ()))
-        iat = &*new_iat;
+      try
+      {
+        sd = service_data (*ts.data);
+      }
+      catch (const invalid_argument& e)
+      {
+        fail << "failed to parse service data: " << e;
+      }
+
+      if (!sd.conclusion_node_id)
+        fail << "no conclusion node id for check run " << cr.check_run.node_id;
+
+      tenant_id = d->tenant_id;
+
+      // Get a new IAT if the one from the service data has expired.
+      //
+      if (system_clock::now () > sd.installation_access.expires_at)
+      {
+        if ((new_iat = get_iat ()))
+          iat = &*new_iat;
+        else
+          throw server_error ();
+      }
       else
-        throw server_error ();
+        iat = &sd.installation_access;
+
+      if (d->archived) // Tenant is archived
+      {
+        // Fail (update) the check runs.
+        //
+        gq_built_result br (
+          make_built_result (
+            result_status::error, warning_success,
+            "Unable to rebuild individual configuration: build has "
+            "been archived"));
+
+        // Try to update the conclusion check run even if the first update
+        // fails.
+        //
+        bool f (false); // Failed.
+
+        if (gq_update_check_run (error, bcr, iat->token,
+                                 repo_node_id, cr.check_run.node_id,
+                                 nullopt /* details_url */,
+                                 build_state::built, br))
+        {
+          l3 ([&]{trace << "updated check_run { " << bcr << " }";});
+        }
+        else
+        {
+          error << "check_run " << cr.check_run.node_id
+                << ": unable to update check run";
+          f = true;
+        }
+
+        if (gq_update_check_run (error, ccr, iat->token,
+                                 repo_node_id, *sd.conclusion_node_id,
+                                 nullopt /* details_url */,
+                                 build_state::built, move (br)))
+        {
+          l3 ([&]{trace << "updated conclusion check_run { " << ccr << " }";});
+        }
+        else
+        {
+          error << "check_run " << cr.check_run.node_id
+                << ": unable to update conclusion check run";
+          f = true;
+        }
+
+        // Fail the handler if either of the check runs could not be
+        // updated.
+        //
+        if (f)
+          throw server_error ();
+
+        return true;
+      }
     }
-    else
-      iat = &sd.installation_access;
 
     // Fail if it's the conclusion check run that is being re-requested.
+    //
+    // Expect that if the user selects re-run all failed checks we will
+    // receive multiple check runs, one of which will be the conclusion. And
+    // if we fail it while it happens to arrive last, then we will end up in
+    // the wrong overall state (real check run is building while conclusion is
+    // failed). It seems the best we can do is to ignore it: if the user did
+    // request a rebuild of the conclusion check run explicitly, there will be
+    // no change, which is not ideal but is still an indication that this
+    // operation is not supported.
     //
     if (cr.check_run.name == conclusion_check_run_name)
     {
       l3 ([&]{trace << "re-requested conclusion check_run";});
 
+#if 0
       if (!sd.conclusion_node_id)
         fail << "no conclusion node id for check run " << cr.check_run.node_id;
 
@@ -1079,6 +1360,7 @@ namespace brep
              << ": unable to update conclusion check run "
              << *sd.conclusion_node_id;
       }
+#endif
 
       return true;
     }
@@ -1331,279 +1613,6 @@ namespace brep
     //
     if (f)
       throw server_error ();
-
-    return true;
-  }
-
-  // Miscellaneous pull request facts
-  //
-  // - Although some of the GitHub documentation makes it sound like they
-  //   expect check runs to be added to both the PR head commit and the merge
-  //   commit, the PR UI does not react to the merge commit's check runs
-  //   consistently. It actually seems to be quite broken. The only thing it
-  //   does seem to do reliably is blocking the PR merge if the merge commit's
-  //   check runs are not successful (i.e, overriding the PR head commit's
-  //   check runs). But the UI looks quite messed up generally in this state.
-  //
-  // - When new commits are added to a PR base branch, pull_request.base.sha
-  //   does not change, but the test merge commit will be updated to include
-  //   the new commits to the base branch.
-  //
-  // - When new commits are added to a PR head branch, pull_request.head.sha
-  //   gets updated with the head commit's SHA and check_suite.pull_requests[]
-  //   will contain all PRs with this branch as head.
-  //
-  bool ci_github::
-  handle_pull_request (gh_pull_request_event pr, bool warning_success)
-  {
-    HANDLER_DIAG;
-
-    l3 ([&]{trace << "pull_request event { " << pr << " }";});
-
-    // While we don't need the installation access token in this request,
-    // let's obtain it to flush out any permission issues early. Also, it is
-    // valid for an hour so we will most likely make use of it.
-    //
-    optional<string> jwt (generate_jwt (pr.pull_request.app_id, trace, error));
-    if (!jwt)
-      throw server_error ();
-
-    optional<gh_installation_access_token> iat (
-      obtain_installation_access_token (pr.installation.id,
-                                        move (*jwt),
-                                        error));
-    if (!iat)
-      throw server_error ();
-
-    l3 ([&]{trace << "installation_access_token { " << *iat << " }";});
-
-    // Distinguish between local and remote PRs by comparing the head and base
-    // repositories' paths.
-    //
-    service_data::kind_type kind (
-      pr.pull_request.head_path == pr.pull_request.base_path
-      ? service_data::local
-      : service_data::remote);
-
-    // Note that similar to the branch push case above, while it would have
-    // been nice to cancel the previous CI job once the PR head moves (the
-    // "synchronize" event), due to the head sharing problem the previous CI
-    // job might actually still be relevant (in both local and remote PR
-    // cases). So we only do it for the remote PRs and only if the head is not
-    // shared (via tenant reference counting).
-    //
-    if (kind == service_data::remote && pr.action == "synchronize")
-    {
-      if (pr.before)
-      {
-        // Service id that will uniquely identify the CI tenant.
-        //
-        string sid (pr.repository.node_id + ':' + *pr.before);
-
-        if (optional<tenant_service> ts = cancel (error, warn,
-                                                  verb_ ? &trace : nullptr,
-                                                  *build_db_, retry_,
-                                                  "ci-github", sid,
-                                                  true /* ref_count */))
-        {
-          l3 ([&]{trace << "pull request " << pr.pull_request.node_id
-                        << ": attempted to cancel CI of previous head commit"
-                        << " (ref_count: " << ts->ref_count << ')';});
-        }
-        else
-        {
-          // It's possible that there was no CI for the previous commit for
-          // various reasons (e.g., CI was not enabled).
-          //
-          l3 ([&]{trace << "pull request " << pr.pull_request.node_id
-                        << ": failed to cancel CI of previous head commit "
-                        << "with tenant_service id " << sid;});
-        }
-      }
-      else
-      {
-        error << "pull request " << pr.pull_request.node_id
-              << ": before commit is missing in synchronize event";
-      }
-    }
-
-    // Note: for remote PRs the check_sha will be set later, in
-    // build_unloaded_pre_check(), to test merge commit id.
-    //
-    string check_sha (kind == service_data::local
-                      ? pr.pull_request.head_sha
-                      : "");
-
-    // Note that PR rebuilds (re-requested) are handled by
-    // handle_check_suite_rerequest().
-    //
-    // Note that, in the case of a remote PR, GitHub will copy the PR head
-    // commit from the head (forked) repository into the base repository. So
-    // the check runs must always be added to the base repository, whether the
-    // PR is local or remote. The head commit refs are located at
-    // refs/pull/<PR-number>/head.
-    //
-    service_data sd (warning_success,
-                     move (iat->token),
-                     iat->expires_at,
-                     pr.pull_request.app_id,
-                     pr.installation.id,
-                     move (pr.repository.node_id),
-                     move (pr.repository.clone_url),
-                     kind, true /* pre_check */, false /* re_request */,
-                     move (check_sha),
-                     move (pr.pull_request.head_sha) /* report_sha */,
-                     pr.pull_request.node_id,
-                     pr.pull_request.number);
-
-    // Create an unloaded CI tenant for the pre-check phase (during which we
-    // wait for the PR's merge commit and behindness to become available).
-    //
-    // Create with an empty service id so that the generated tenant id is used
-    // instead during the pre-check phase (so as not to clash with a proper
-    // service id for this head commit, potentially created in
-    // handle_branch_push() or as another PR).
-    //
-    tenant_service ts ("", "ci-github", sd.json ());
-
-    // Note: use no delay since we need to start the actual CI (which in turn
-    // (re)creates the synthetic conclusion check run) as soon as possible.
-    //
-    // After this call we will start getting the build_unloaded()
-    // notifications -- which will be routed to build_unloaded_pre_check() --
-    // until we cancel the tenant or it gets archived after some timeout.
-    // (Note that we never actually load this request, we always cancel it;
-    // see build_unloaded_pre_check() for details.)
-    //
-    if (!create (error,
-                 warn,
-                 verb_ ? &trace : nullptr,
-                 *build_db_, retry_,
-                 move (ts),
-                 chrono::seconds (30) /* interval */,
-                 chrono::seconds (0) /* delay */))
-    {
-      fail << "pull request " << pr.pull_request.node_id
-           << ": unable to create unloaded pre-check tenant";
-    }
-
-    return true;
-  }
-
-  bool ci_github::
-  handle_branch_push (gh_push_event ps, bool warning_success)
-  {
-    HANDLER_DIAG;
-
-    l3 ([&]{trace << "push event { " << ps << " }";});
-
-    // Cancel the CI tenant associated with the overwritten/deleted previous
-    // head commit if this is a forced push or a branch deletion.
-    //
-    if (ps.forced || ps.deleted)
-    {
-      // Service id that will uniquely identify the CI tenant.
-      //
-      string sid (ps.repository.node_id + ':' + ps.before);
-
-      // Note that it's possible this commit still exists in another branch so
-      // we do refcount-aware cancel.
-      //
-      if (optional<tenant_service> ts = cancel (error, warn,
-                                                verb_ ? &trace : nullptr,
-                                                *build_db_, retry_,
-                                                "ci-github", sid,
-                                                true /* ref_count */))
-      {
-        l3 ([&]{trace << (ps.forced ? "forced push " + ps.after + " to "
-                                    : "deletion of ")
-                      << ps.ref << ": attempted to cancel CI of previous"
-                      << " head commit with tenant_service id " << sid
-                      << " (ref_count: " << ts->ref_count << ')';});
-      }
-      else
-      {
-        // It's possible that there was no CI for the previous commit for
-        // various reasons (e.g., CI was not enabled).
-        //
-        l3 ([&]{trace << (ps.forced ? "forced push " + ps.after + " to "
-                                    : "deletion of ")
-                      << ps.ref << ": failed to cancel CI of previous"
-                      << " head commit with tenant_service id " << sid;});
-      }
-    }
-
-    if (ps.deleted)
-      return true; // Do nothing further if this was a branch deletion.
-
-    // While we don't need the installation access token in this request,
-    // let's obtain it to flush out any permission issues early. Also, it is
-    // valid for an hour so we will most likely make use of it.
-    //
-    optional<string> jwt (generate_jwt (ps.app_id, trace, error));
-    if (!jwt)
-      throw server_error ();
-
-    optional<gh_installation_access_token> iat (
-        obtain_installation_access_token (ps.installation.id,
-                                          move (*jwt),
-                                          error));
-    if (!iat)
-      throw server_error ();
-
-    l3 ([&]{trace << "installation_access_token { " << *iat << " }";});
-
-    // While it would have been nice to cancel CIs of PRs with this branch as
-    // base not to waste resources, there are complications: Firstly, we can
-    // only do this for remote PRs (since local PRs will most likely share the
-    // result with branch push). Secondly, we try to do our best even if the
-    // branch protection rule for head behind is not enabled. In this case, it
-    // would be good to complete the CI. So maybe/later. See also the head
-    // case in handle_pull_request(), where we do cancel remote PRs that are
-    // not shared.
-
-    // Service id that uniquely identifies the CI tenant.
-    //
-    string sid (ps.repository.node_id + ':' + ps.after);
-
-    service_data sd (warning_success,
-                     iat->token,
-                     iat->expires_at,
-                     ps.app_id,
-                     ps.installation.id,
-                     move (ps.repository.node_id),
-                     move (ps.repository.clone_url),
-                     service_data::local,
-                     false /* pre_check */,
-                     false /* re_requested */,
-                     ps.after /* check_sha */,
-                     ps.after /* report_sha */);
-
-    // Create an unloaded CI tenant, doing nothing if one already exists
-    // (which could've been created by handle_pull_request() or by us as a
-    // result of a push to another branch). Note that the tenant's reference
-    // count is incremented in all cases.
-    //
-    // Note: use no delay since we need to (re)create the synthetic conclusion
-    // check run as soon as possible.
-    //
-    // Note that we use the create() API instead of start() since duplicate
-    // management is not available in start().
-    //
-    // After this call we will start getting the build_unloaded()
-    // notifications until (1) we load the tenant, (2) we cancel it, or (3)
-    // it gets archived after some timeout.
-    //
-    if (!create (error, warn, verb_ ? &trace : nullptr,
-                 *build_db_, retry_,
-                 tenant_service (sid, "ci-github", sd.json ()),
-                 chrono::seconds (30) /* interval */,
-                 chrono::seconds (0) /* delay */,
-                 duplicate_tenant_mode::ignore))
-    {
-      fail << "push " + ps.after + " to " + ps.ref
-           << ": unable to create unloaded CI tenant";
-    }
 
     return true;
   }
