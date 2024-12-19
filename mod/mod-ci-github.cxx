@@ -943,6 +943,7 @@ namespace brep
     check_run& bcr (check_runs[0]); // Build check run
     check_run& ccr (check_runs[1]); // Conclusion check run
 
+    bcr.name = cr.check_run.name;
     ccr.name = conclusion_check_run_name;
 
     // Load the service data, failing the check runs if the tenant has been
