@@ -960,6 +960,11 @@ namespace brep
       {
         if (d->archived) // Tenant is archived
         {
+          // @@ TODO Why aren't we updating instead of creating? The node ids
+          //    are in the service data (which is still available after
+          //    archiving, which I didn't know). And both CRs should already
+          //    be built.
+
           // Fail (re-create) the check runs.
           //
           optional<gh_installation_access_token> iat (get_iat ());
@@ -1053,6 +1058,11 @@ namespace brep
       iat = &sd.installation_access;
 
     // Fail if it's the conclusion check run that is being re-requested.
+    //
+    // @@ TMP When user selects re-run all failed checks we receive multiple
+    //    check_runs, one of which is for the CCR. We then update it with the
+    //    error message, triggering another check_suite(completed) right after
+    //    all of the check_runs(rerequested).
     //
     if (cr.check_run.name == conclusion_check_run_name)
     {
