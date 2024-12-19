@@ -946,6 +946,9 @@ namespace brep
     bcr.name = cr.check_run.name;
     ccr.name = conclusion_check_run_name;
 
+    const gh_installation_access_token* iat (nullptr);
+    optional<gh_installation_access_token> new_iat;
+
     // Load the service data, failing the check runs if the tenant has been
     // archived.
     //
@@ -974,14 +977,22 @@ namespace brep
 
         tenant_id = d->tenant_id;
 
+        // Get a new IAT if the one from the service data has expired.
+        //
+        if (system_clock::now () > sd.installation_access.expires_at)
+        {
+          if ((new_iat = get_iat ()))
+            iat = &*new_iat;
+          else
+            throw server_error ();
+        }
+        else
+          iat = &sd.installation_access;
+
         if (d->archived) // Tenant is archived
         {
-          // Fail (re-create) the check runs.
+          // Fail the check runs.
           //
-          optional<gh_installation_access_token> iat (get_iat ());
-          if (!iat)
-            throw server_error ();
-
           gq_built_result br (
             make_built_result (
               result_status::error, warning_success,
@@ -1039,21 +1050,6 @@ namespace brep
              << " does not exist";
       }
     }
-
-    // Get a new IAT if the one from the service data has expired.
-    //
-    const gh_installation_access_token* iat (nullptr);
-    optional<gh_installation_access_token> new_iat;
-
-    if (system_clock::now () > sd.installation_access.expires_at)
-    {
-      if ((new_iat = get_iat ()))
-        iat = &*new_iat;
-      else
-        throw server_error ();
-    }
-    else
-      iat = &sd.installation_access;
 
     // Fail if it's the conclusion check run that is being re-requested.
     //
