@@ -958,13 +958,24 @@ namespace brep
 
       if (optional<tenant_data> d = find (*build_db_, "ci-github", sid))
       {
+        tenant_service& ts (d->service);
+
+        try
+        {
+          sd = service_data (*ts.data);
+        }
+        catch (const invalid_argument& e)
+        {
+          fail << "failed to parse service data: " << e;
+        }
+
+        if (!sd.conclusion_node_id)
+          fail << "no conclusion node id for check run " << cr.check_run.node_id;
+
+        tenant_id = d->tenant_id;
+
         if (d->archived) // Tenant is archived
         {
-          // @@ TODO Why aren't we updating instead of creating? The node ids
-          //    are in the service data (which is still available after
-          //    archiving, which I didn't know). And both CRs should already
-          //    be built.
-
           // Fail (re-create) the check runs.
           //
           optional<gh_installation_access_token> iat (get_iat ());
@@ -982,31 +993,31 @@ namespace brep
           //
           bool f (false); // Failed.
 
-          if (gq_create_check_run (error, bcr, iat->token,
-                                   repo_node_id, head_sha,
-                                   cr.check_run.details_url,
+          if (gq_update_check_run (error, bcr, iat->token,
+                                   repo_node_id, cr.check_run.node_id,
+                                   nullopt /* details_url */,
                                    build_state::built, br))
           {
-            l3 ([&]{trace << "created check_run { " << bcr << " }";});
+            l3 ([&]{trace << "updated check_run { " << bcr << " }";});
           }
           else
           {
             error << "check_run " << cr.check_run.node_id
-                  << ": unable to re-create check run";
+                  << ": unable to update check run";
             f = true;
           }
 
-          if (gq_create_check_run (error, ccr, iat->token,
-                                   repo_node_id, head_sha,
+          if (gq_update_check_run (error, ccr, iat->token,
+                                   repo_node_id, *sd.conclusion_node_id,
                                    nullopt /* details_url */,
                                    build_state::built, move (br)))
           {
-            l3 ([&]{trace << "created conclusion check_run { " << ccr << " }";});
+            l3 ([&]{trace << "updated conclusion check_run { " << ccr << " }";});
           }
           else
           {
             error << "check_run " << cr.check_run.node_id
-                  << ": unable to re-create conclusion check run";
+                  << ": unable to update conclusion check run";
             f = true;
           }
 
@@ -1018,19 +1029,6 @@ namespace brep
 
           return true;
         }
-
-        tenant_service& ts (d->service);
-
-        try
-        {
-          sd = service_data (*ts.data);
-        }
-        catch (const invalid_argument& e)
-        {
-          fail << "failed to parse service data: " << e;
-        }
-
-        tenant_id = d->tenant_id;
       }
       else
       {
