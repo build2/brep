@@ -2263,11 +2263,14 @@ namespace brep
         //
         bs.push_back (b);
 
-        crs.emplace_back (move (bid),
-                          gh_check_run_name (b, &hs),
-                          nullopt, /* node_id */
-                          build_state::queued,
-                          false /* state_synced */);
+        crs.push_back (
+          check_run {move (bid),
+                     gh_check_run_name (b, &hs),
+                     nullopt, /* node_id */
+                     build_state::queued,
+                     false /* state_synced */,
+                     nullopt /* status */,
+                     nullopt /* details_url */});
       }
     }
 

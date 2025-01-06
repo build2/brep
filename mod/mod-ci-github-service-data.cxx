@@ -113,7 +113,14 @@ namespace brep
         }
       }
 
-      check_runs.emplace_back (move (bid), move (nm), move (nid), s, ss, rs);
+      check_runs.push_back (
+        check_run {move (bid),
+                   move (nm),
+                   move (nid),
+                   s,
+                   ss,
+                   rs,
+                   nullopt /* details_url */});
 
       p.next_expect (event::end_object);
     }
