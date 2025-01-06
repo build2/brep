@@ -1232,89 +1232,8 @@ namespace brep
       //
       string sid (repo_node_id + ':' + head_sha);
 
-      if (optional<tenant_data> d = find (*build_db_, "ci-github", sid))
-      {
-        tenant_service& ts (d->service);
-
-        try
-        {
-          sd = service_data (*ts.data);
-        }
-        catch (const invalid_argument& e)
-        {
-          fail << "failed to parse service data: " << e;
-        }
-
-        if (!sd.conclusion_node_id)
-          fail << "no conclusion node id for check run " << cr.check_run.node_id;
-
-        tenant_id = d->tenant_id;
-
-        // Get a new IAT if the one from the service data has expired.
-        //
-        if (system_clock::now () > sd.installation_access.expires_at)
-        {
-          if ((new_iat = get_iat ()))
-            iat = &*new_iat;
-          else
-            throw server_error ();
-        }
-        else
-          iat = &sd.installation_access;
-
-        if (d->archived) // Tenant is archived
-        {
-          // Fail the check runs.
-          //
-          gq_built_result br (
-            make_built_result (
-              result_status::error, warning_success,
-              "Unable to rebuild individual configuration: build has "
-              "been archived"));
-
-          // Try to update the conclusion check run even if the first update
-          // fails.
-          //
-          bool f (false); // Failed.
-
-          if (gq_update_check_run (error, bcr, iat->token,
-                                   repo_node_id, cr.check_run.node_id,
-                                   nullopt /* details_url */,
-                                   build_state::built, br))
-          {
-            l3 ([&]{trace << "updated check_run { " << bcr << " }";});
-          }
-          else
-          {
-            error << "check_run " << cr.check_run.node_id
-                  << ": unable to update check run";
-            f = true;
-          }
-
-          if (gq_update_check_run (error, ccr, iat->token,
-                                   repo_node_id, *sd.conclusion_node_id,
-                                   nullopt /* details_url */,
-                                   build_state::built, move (br)))
-          {
-            l3 ([&]{trace << "updated conclusion check_run { " << ccr << " }";});
-          }
-          else
-          {
-            error << "check_run " << cr.check_run.node_id
-                  << ": unable to update conclusion check run";
-            f = true;
-          }
-
-          // Fail the handler if either of the check runs could not be
-          // updated.
-          //
-          if (f)
-            throw server_error ();
-
-          return true;
-        }
-      }
-      else
+      optional<tenant_data> d (find (*build_db_, "ci-github", sid));
+      if (!d)
       {
         // No such tenant.
         //
@@ -1322,19 +1241,104 @@ namespace brep
              << " re-requested but tenant_service with id " << sid
              << " does not exist";
       }
+
+      tenant_service& ts (d->service);
+
+      try
+      {
+        sd = service_data (*ts.data);
+      }
+      catch (const invalid_argument& e)
+      {
+        fail << "failed to parse service data: " << e;
+      }
+
+      if (!sd.conclusion_node_id)
+        fail << "no conclusion node id for check run " << cr.check_run.node_id;
+
+      tenant_id = d->tenant_id;
+
+      // Get a new IAT if the one from the service data has expired.
+      //
+      if (system_clock::now () > sd.installation_access.expires_at)
+      {
+        if ((new_iat = get_iat ()))
+          iat = &*new_iat;
+        else
+          throw server_error ();
+      }
+      else
+        iat = &sd.installation_access;
+
+      if (d->archived) // Tenant is archived
+      {
+        // Fail (update) the check runs.
+        //
+        gq_built_result br (
+          make_built_result (
+            result_status::error, warning_success,
+            "Unable to rebuild individual configuration: build has "
+            "been archived"));
+
+        // Try to update the conclusion check run even if the first update
+        // fails.
+        //
+        bool f (false); // Failed.
+
+        if (gq_update_check_run (error, bcr, iat->token,
+                                 repo_node_id, cr.check_run.node_id,
+                                 nullopt /* details_url */,
+                                 build_state::built, br))
+        {
+          l3 ([&]{trace << "updated check_run { " << bcr << " }";});
+        }
+        else
+        {
+          error << "check_run " << cr.check_run.node_id
+                << ": unable to update check run";
+          f = true;
+        }
+
+        if (gq_update_check_run (error, ccr, iat->token,
+                                 repo_node_id, *sd.conclusion_node_id,
+                                 nullopt /* details_url */,
+                                 build_state::built, move (br)))
+        {
+          l3 ([&]{trace << "updated conclusion check_run { " << ccr << " }";});
+        }
+        else
+        {
+          error << "check_run " << cr.check_run.node_id
+                << ": unable to update conclusion check run";
+          f = true;
+        }
+
+        // Fail the handler if either of the check runs could not be
+        // updated.
+        //
+        if (f)
+          throw server_error ();
+
+        return true;
+      }
     }
 
     // Fail if it's the conclusion check run that is being re-requested.
     //
-    // @@ TMP When user selects re-run all failed checks we receive multiple
-    //    check_runs, one of which is for the CCR. We then update it with the
-    //    error message, triggering another check_suite(completed) right after
-    //    all of the check_runs(rerequested).
+    // Expect that if the user selects re-run all failed checks we will
+    // receive multiple check runs, one of which will be the conclusion. And
+    // if we fail it while it happens to arrive last, then we will end up in
+    // the wrong overall state (real check run is building while conclusion is
+    // failed). It seems the best we can do is to ignore it: if the user did
+    // request a rebuild of the conclusion check run explicitly, there will be
+    // no change, which is not ideal but is still an indication that this
+    // operation is not supported.
     //
     if (cr.check_run.name == conclusion_check_run_name)
     {
       l3 ([&]{trace << "re-requested conclusion check_run";});
 
+#if 0
       if (!sd.conclusion_node_id)
         fail << "no conclusion node id for check run " << cr.check_run.node_id;
 
@@ -1357,6 +1361,7 @@ namespace brep
              << ": unable to update conclusion check run "
              << *sd.conclusion_node_id;
       }
+#endif
 
       return true;
     }

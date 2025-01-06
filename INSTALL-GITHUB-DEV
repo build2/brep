@@ -155,14 +155,10 @@ aspects but can't redeliver webhooks.
     - Push new commit to head.
     - Re-requested check suite.
     - Re-requested check run.
-    - Head shared with BP.
-
-      @@ TMP Does this mean the pull_request is received after the
-         check_suite?
-
+    - Head shared with BP (pull_request is received after check_suite)
     - Not meargeable.
     - Head behind base.
-    - Head commit has changed.
+    - Head commit has changed while testing manageability.
 
   - Remote PR.
 
