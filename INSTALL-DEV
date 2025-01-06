@@ -1,6 +1,7 @@
 The goal of this setup is to run the brep Apache2 modules from the development
 build while still being as close to the real deployment as possible. To this
 end, we use default, system-wide installations of both Apache2 and Postgres.
+See also INSTALL-CI-DEV and INSTALL-GITHUB-DEV.
 
 In the below instructions replace <user> with your login and www-data with the
 user under which Apache2 is running (See the "User" directive in the Apache2

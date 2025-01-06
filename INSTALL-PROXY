@@ -1,4 +1,4 @@
-This guide shows how to configure the Apache2-based HTTP proxy server for
+This guide describes how to configure the Apache2-based HTTP proxy server for
 proxying HTTP(S) requests and caching the responses.
 
 Note that for security reasons most clients (curl, wget, etc) perform HTTPS

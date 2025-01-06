@@ -1,4 +1,4 @@
-This guide shows how to configure the brep module for serving the CI and
+This guide describes how to configure the brep module for serving the CI and
 build2 build bot requests and how to smoke-test it.
 
 Note that during the testing both the user and CI submission handler (executed
