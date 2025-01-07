@@ -356,7 +356,116 @@ For sample CI request handler implementations see brep/handler/ci/.
 
 6.4 Enabling GitHub CI integration
 
-@@ TODO
+6.4.1 Background
+
+The GitHub CI integration has one user-configurable setting:
+warning=<success|failure> (whether or not to fail on warnings).
+
+In order not to have to support repository configuration files, a deployment
+will consist of two registered GitHub Apps with the same webhook URL (i.e.,
+the same brep instance) but different query parameters: one with
+warning=success and the other with warning=failure. The App id is passed (as a
+query parameter) so that we know which private key to use (the key cannot be
+shared between Apps).
+
+We will call the warning=success App the "Default App" and the warning=failure
+App the "Werror App".
+
+6.4.2 Create the GitHub Apps
+
+To create a GitHub App under the <org> organization, visit
+https://github.com/organizations/<org>/settings/apps (Settings -> Developer
+settings -> GitHub Apps). Then click on New GitHub App.
+
+App names (note: 34 character limit):
+
+  Default App: "<org> CI"
+  Werror App:  "<org> CI - warnings as errors"
+
+App description:
+
+  Default App: "Trigger <org> CI on branch push and pull request."
+  Werror App:  "Trigger <org> CI on branch push and pull request. Warnings are
+                treated as errors".
+
+App homepage:
+
+  https://ci.<org>.org/
+
+Skip the "Identifying and authorizing users" and "Post installation" sections.
+
+Leave webhooks active.
+
+Webhook URL:
+
+  Default App: https://ci.<org>.org/?ci-github&app-id=XXX&warning=success
+  Werror App:  https://ci.<org>.org/?ci-github&app-id=XXX&warning=failure
+
+Note that the App id only becomes available once the App has been registered
+so we update it later in both URLs.
+
+Webhook secret: Use the same random 64-character string for both Apps.
+
+  echo `tr -dc -- A-Za-z0-9 </dev/urandom | head -c 64`
+
+Note that GitHub says only that the secret should be "a random string with
+high entropy." However lots of sources say 32 bytes should be secure enough
+for HMAC-SHA256, while other sources recommend 64 bytes for maximal security
+at an insignificant performance cost. (Keys longer than 64 bytes are hashed to
+match the internal block size and are therefore not recommended.)
+
+Repository permissions:
+  - Checks: RW
+  - Contents: RO (for Push events)
+  - Metadata (mandatory): RO
+  - Pull requests: RO
+
+Subscribed events:
+  - Check suite
+  - Pull request
+  - Push
+
+Note that GitHub Apps with write access to the "Checks" permission are
+automatically subscribed to check_suite(requested|rerequested) and check_run
+events so no need to subscribe explicitly. However in order to receive
+check_suite(completed) events, which we need, one does have to subscribe to
+Check suite.
+
+Select "Any account" under "Where can this GitHub App be installed?".
+
+Click "Create GitHub App".
+
+When the page reloads (should be the General tab), note the App id and replace
+the XXX in the webhook URL with it.
+
+Still in the General tab, scroll to Private keys and generate a private key.
+The file will be downloaded by the browser.
+
+@@ TODO Logo
+@@ TODO Create Marketplace listing
+
+6.4.3 Configure brep
+
+Assume the following configuration values:
+
+- Webhook secret: abcdefg
+- Default App id: 12345
+- Werror App id: 67890
+
+In brep-module.conf:
+
+Set the webhook secret from the GitHub App settings:
+
+  ci-github-app-webhook-secret abcdefg
+
+Associate each GitHub App id with the App's private key:
+
+  ci-github-app-id-private-key 12345=path/to/default-app-private-key.pem
+  ci-github-app-id-private-key 67890=path/to/werror-app-private-key.pem
+
+Now brep should be ready to handle the webhook event requests triggered by
+branch pushes and pull requests in repositories into which one of these Apps
+has been installed.
 
 
 7. Optimize CSS
