@@ -16,6 +16,12 @@ compute_hmac (const options::openssl_options& o,
 
     // To compute an HMAC over stdin with the key <secret>:
     //
+    //   openssl dgst -sha256 -hmac <secret>
+    //
+    // Note that since openssl 3.0 the `mac` command is the preferred method
+    // for generating HMACs. For future reference, the equivalent command
+    // would be:
+    //
     //   openssl mac -digest SHA256 -macopt "key:<secret>" HMAC
     //
     // Note that here we assume both output and diagnostics will fit into pipe
@@ -25,10 +31,9 @@ compute_hmac (const options::openssl_options& o,
                 path ("-"), // Write output to openssl::in.
                 process::pipe (errp.in.get (), move (errp.out)),
                 process_env (o.openssl (), o.openssl_envvar ()),
-                "mac", o.openssl_option (),
-                "-digest", "SHA256",
-                "-macopt", string ("key:") + k,
-                "HMAC");
+                "dgst", o.openssl_option (),
+                "-sha256",
+                "-hmac", k);
 
     ifdstream err (move (errp.in));
 
