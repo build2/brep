@@ -77,15 +77,46 @@ namespace brep
 
     // Prepare for the CI requests handling, if configured.
     //
+    // @@ TMP Shouldn't we be checking options_->ci_data_specified () like
+    //    mod-ci does?
+    //
     if (options_->build_config_specified () &&
         options_->ci_github_app_webhook_secret_specified ())
     {
       if (!options_->ci_github_app_id_private_key_specified ())
         fail << "no app id/private key mappings configured";
 
+      for (const auto& pr: options_->ci_github_app_id_private_key ())
+      {
+        if (pr.second.relative ())
+          fail << "ci-github-app-id-private-key paths must be absolute";
+      }
+
       ci_start::init (make_shared<options::ci_start> (*options_));
 
       database_module::init (*options_, options_->build_db_retry ());
+
+      // Read the webhook secret from the configured path.
+      //
+      {
+        const path& p (options_->ci_github_app_webhook_secret ());
+
+        if (p.relative ())
+          fail << "ci-github-app-webhook-secret path must be absolute";
+
+        try
+        {
+          ifdstream is (p);
+          getline (is, webhook_secret_);
+
+          if (webhook_secret_.empty ())
+            fail << "empty webhook secret read from " << p;
+        }
+        catch (const io_error& e)
+        {
+          fail << "unable to read webhook secret file " << p << ": " << e;
+        }
+      }
     }
   }
 
@@ -207,10 +238,10 @@ namespace brep
     //
     try
     {
-      string h (
-        compute_hmac (*options_,
-                      body.data (), body.size (),
-                      options_->ci_github_app_webhook_secret ().c_str ()));
+      string h (compute_hmac (*options_,
+                              body.data (),
+                              body.size (),
+                              webhook_secret_.c_str ()));
 
       if (!icasecmp (h, hmac))
       {

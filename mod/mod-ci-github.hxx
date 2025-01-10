@@ -145,6 +145,8 @@ namespace brep
     shared_ptr<options::ci_github> options_;
 
     tenant_service_map& tenant_service_map_;
+
+    string webhook_secret_;
   };
 }
 
