@@ -77,11 +77,41 @@ namespace brep
 
     // Prepare for the CI requests handling, if configured.
     //
-    if (options_->build_config_specified () &&
-        options_->ci_github_app_webhook_secret_specified ())
+    if (options_->ci_github_app_webhook_secret_specified ())
     {
+      if (!options_->build_config_specified ())
+        fail << "package building functionality must be enabled";
+
       if (!options_->ci_github_app_id_private_key_specified ())
         fail << "no app id/private key mappings configured";
+
+      for (const auto& pr: options_->ci_github_app_id_private_key ())
+      {
+        if (pr.second.relative ())
+          fail << "ci-github-app-id-private-key path must be absolute";
+      }
+
+      // Read the webhook secret from the configured path.
+      //
+      {
+        const path& p (options_->ci_github_app_webhook_secret ());
+
+        if (p.relative ())
+          fail << "ci-github-app-webhook-secret path must be absolute";
+
+        try
+        {
+          ifdstream is (p);
+          getline (is, webhook_secret_, '\0');
+
+          if (webhook_secret_.empty ())
+            fail << "empty webhook secret in " << p;
+        }
+        catch (const io_error& e)
+        {
+          fail << "unable to read webhook secret from " << p << ": " << e;
+        }
+      }
 
       ci_start::init (make_shared<options::ci_start> (*options_));
 
@@ -207,10 +237,10 @@ namespace brep
     //
     try
     {
-      string h (
-        compute_hmac (*options_,
-                      body.data (), body.size (),
-                      options_->ci_github_app_webhook_secret ().c_str ()));
+      string h (compute_hmac (*options_,
+                              body.data (),
+                              body.size (),
+                              webhook_secret_.c_str ()));
 
       if (!icasecmp (h, hmac))
       {

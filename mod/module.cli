@@ -850,12 +850,12 @@ namespace brep
       // GitHub CI-specific options.
       //
 
-      string ci-github-app-webhook-secret
+      path ci-github-app-webhook-secret
       {
-        "<secret>",
+        "<path>",
         "The GitHub App's configured webhook secret. If not set, then the
-         GitHub CI service is disabled. Note: make sure to choose a strong
-         (random) secret."
+         GitHub CI service is disabled. Note that the path must be absolute.
+         Note: make sure to choose a strong (random) secret."
       }
 
       std::map<string, dir_path> ci-github-app-id-private-key
@@ -863,7 +863,7 @@ namespace brep
         "<id>=<path>",
         "The private key used during GitHub API authentication for the
          specified GitHub App ID. Both vales are found in the GitHub App's
-         settings."
+         settings. Note that the paths must be absolute."
       }
 
       uint16_t ci-github-jwt-validity-period = 600
