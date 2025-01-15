@@ -58,10 +58,10 @@ init (scanner& s)
   {
     database_module::init (*options_, options_->build_db_retry ());
     build_config_module::init (*options_);
-  }
 
-  if (options_->root ().empty ())
-    options_->root (dir_path ("/"));
+    if (options_->root ().empty ())
+      options_->root (dir_path ("/"));
+  }
 }
 
 template <typename T, typename C>

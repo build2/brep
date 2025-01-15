@@ -93,10 +93,10 @@ init (scanner& s)
     if (options_->submit_handler_specified () &&
         options_->submit_handler ().relative ())
       fail << "submit-handler path must be absolute";
-  }
 
-  if (options_->root ().empty ())
-    options_->root (dir_path ("/"));
+    if (options_->root ().empty ())
+      options_->root (dir_path ("/"));
+  }
 }
 
 bool brep::submit::
@@ -108,8 +108,6 @@ handle (request& rq, response& rs)
   using serialization = manifest_serialization;
 
   HANDLER_DIAG;
-
-  const dir_path& root (options_->root ());
 
   // We will respond with the manifest to the submission protocol violations
   // and with a plain text message on the internal errors. In the latter case
@@ -162,6 +160,8 @@ handle (request& rq, response& rs)
   //
   if (!options_->submit_data_specified ())
     return respond_manifest (404, "submission disabled");
+
+  const dir_path& root (options_->root ());
 
   // Parse the request form data and verify the submission size limit.
   //

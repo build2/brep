@@ -105,17 +105,17 @@ init (scanner& s)
         fail << "unable to read ci-form file '" << ci_form << "': " << e;
       }
     }
-  }
 
 #ifdef BREP_CI_TENANT_SERVICE_UNLOADED
-  if (!options_->build_config_specified ())
-    fail << "package building functionality must be enabled";
+    if (!options_->build_config_specified ())
+      fail << "package building functionality must be enabled";
 
-  database_module::init (*options_, options_->build_db_retry ());
+    database_module::init (*options_, options_->build_db_retry ());
 #endif
 
-  if (options_->root ().empty ())
-    options_->root (dir_path ("/"));
+    if (options_->root ().empty ())
+      options_->root (dir_path ("/"));
+  }
 }
 
 bool brep::ci::
@@ -130,8 +130,6 @@ handle (request& rq, response& rs)
   using serialization = manifest_serialization;
 
   HANDLER_DIAG;
-
-  const dir_path& root (options_->root ());
 
   // We will respond with the manifest to the CI request submission protocol
   // violations and with a plain text message on the internal errors. In the
@@ -179,6 +177,8 @@ handle (request& rq, response& rs)
   //
   if (!options_->ci_data_specified ())
     return respond_manifest (404, "CI request submission disabled");
+
+  const dir_path& root (options_->root ());
 
   // Parse the request form data and verify the submission size limit.
   //
@@ -387,18 +387,19 @@ handle (request& rq, response& rs)
 
   optional<start_result> r;
 
-  if (optional<string> ref = create (error,
-                                     warn,
-                                     verb_ ? &trace : nullptr,
-                                     *build_db_,
-                                     tenant_service ("", "ci", rl.string ()),
-                                     chrono::seconds (40),
-                                     chrono::seconds (10)))
+  if (optional<pair<string, duplicate_tenant_result>> ref =
+      create (error,
+              warn,
+              verb_ ? &trace : nullptr,
+              *build_db_, retry_,
+              tenant_service ("", "ci", rl.string ()),
+              chrono::seconds (40),
+              chrono::seconds (10)))
   {
     string msg ("unloaded CI request is created: " +
-                options_->host () + tenant_dir (root, *ref).string ());
+                options_->host () + tenant_dir (root, ref->first).string ());
 
-    r = start_result {200, move (msg), move (*ref), {}};
+    r = start_result {200, move (msg), move (ref->first), {}};
   }
 #endif
 
@@ -519,8 +520,10 @@ build_built (const string& /*tenant_id*/,
 }
 
 #ifdef BREP_CI_TENANT_SERVICE_UNLOADED
-function<optional<string> (const brep::tenant_service&)> brep::ci::
-build_unloaded (tenant_service&& ts,
+function<optional<string> (const string& tenant_id,
+                           const brep::tenant_service&)> brep::ci::
+build_unloaded (const string& /* tenant_id */,
+                tenant_service&& ts,
                 const diag_epilogue& log_writer) const noexcept
 {
   NOTIFICATION_DIAG (log_writer);
@@ -532,7 +535,7 @@ build_unloaded (tenant_service&& ts,
     repository_location rl (*ts.data);
 
     if (!load (error, warn, verb_ ? &trace : nullptr,
-               *build_db_,
+               *build_db_, retry_,
                move (ts),
                rl))
       return nullptr; // The diagnostics is already issued.
@@ -545,7 +548,10 @@ build_unloaded (tenant_service&& ts,
     return nullptr;
   }
 
-  return [] (const tenant_service& ts) {return "loaded " + *ts.data;};
+  return [] (const string& tenant_id, const tenant_service& ts)
+         {
+           return "loaded " + tenant_id + ' ' + *ts.data;
+         };
 }
 #endif
 #endif

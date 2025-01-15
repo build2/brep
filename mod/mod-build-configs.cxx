@@ -34,10 +34,12 @@ init (scanner& s)
     s, unknown_mode::fail, unknown_mode::fail);
 
   if (options_->build_config_specified ())
+  {
     build_config_module::init (*options_);
 
-  if (options_->root ().empty ())
-    options_->root (dir_path ("/"));
+    if (options_->root ().empty ())
+      options_->root (dir_path ("/"));
+  }
 }
 
 bool brep::build_configs::
