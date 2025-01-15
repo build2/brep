@@ -12,7 +12,7 @@
 #include <algorithm> // *
 
 #include <libbutl/utility.hxx> // icasecmp(), reverse_iterate(),
-                               // operator<<(ostream, exception)
+                               // operator<<(ostream, exception), etc
 
 namespace brep
 {
@@ -28,6 +28,9 @@ namespace brep
   // <libbutl/utility.hxx>
   //
   using butl::utf8;
+  using butl::trim;
+  using butl::trim_left;
+  using butl::trim_right;
   using butl::icasecmp;
   using butl::reverse_iterate;
 }

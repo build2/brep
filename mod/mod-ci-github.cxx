@@ -104,7 +104,10 @@ namespace brep
           ifdstream is (p);
           getline (is, webhook_secret_, '\0');
 
-          if (webhook_secret_.empty ())
+          // Trim leading/trailing whitespaces (presumably GitHub does the
+          // same in its web UI).
+          //
+          if (trim (webhook_secret_).empty ())
             fail << "empty webhook secret in " << p;
         }
         catch (const io_error& e)
