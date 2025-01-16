@@ -3015,7 +3015,7 @@ namespace brep
       options_->host ()                                               +
       tenant_dir (options_->root (), b.tenant).string ()              +
       "?builds=" + mime_url_encode (b.package_name.string ())         +
-      "&pv=" + b.package_version.string ()                            +
+      "&pv=" + mime_url_encode (b.package_version.string ())          +
       "&tg=" + mime_url_encode (b.target.string ())                   +
       "&tc=" + mime_url_encode (b.target_config_name)                 +
       "&pc=" + mime_url_encode (b.package_config_name)                +
@@ -3101,7 +3101,7 @@ namespace brep
       };
 
       if (c (pn, "builds"))  r.package.name        = package_name (decval ());
-      else if (c (pv, "pv")) r.package.version     = make_version (rawval ());
+      else if (c (pv, "pv")) r.package.version     = make_version (decval ());
       else if (c (tg, "tg")) r.target              = target_triplet (decval ());
       else if (c (tc, "tc")) r.target_config_name  = decval ();
       else if (c (pc, "pc")) r.package_config_name = decval ();
