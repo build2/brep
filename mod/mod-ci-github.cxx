@@ -2316,7 +2316,7 @@ namespace brep
                      build_state::queued,
                      false /* state_synced */,
                      nullopt /* status */,
-                     nullopt /* details_url */});
+                     details_url (b)});
       }
     }
 
@@ -2520,7 +2520,7 @@ namespace brep
                                iat->token,
                                sd.repository_node_id,
                                *cr->node_id,
-                               details_url (b),
+                               nullopt /* details_url */,
                                build_state::building))
       {
         // Do nothing further if the state was already built on GitHub (note
