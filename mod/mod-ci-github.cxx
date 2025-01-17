@@ -2628,8 +2628,51 @@ namespace brep
     //
     optional<result_status> conclusion (*b.status);
 
+    // Conclusion check run summary. Will include the success/warning/failure
+    // count breakdown.
+    //
+    string summary;
+
     check_run cr; // Updated check run.
     {
+      // The success/warning/failure counts.
+      //
+      // Note that the warning count will be included in the success or
+      // failure count (depending on the value of sd.warning_success).
+      //
+      size_t succ_count (0), warn_count (0), fail_count (0);
+
+      // Count a result_status under the appropriate category.
+      //
+      auto count = [&succ_count,
+                    &warn_count,
+                    &fail_count,
+                    ws = sd.warning_success] (result_status rs)
+      {
+        switch (rs)
+        {
+        case result_status::success:  ++succ_count; break;
+
+        case result_status::error:
+        case result_status::abort:
+        case result_status::abnormal: ++fail_count; break;
+
+        case result_status::warning:
+          {
+            ++warn_count;
+
+            if (ws)
+              ++succ_count;
+            else
+              ++fail_count;
+
+            break;
+          }
+        }
+      };
+
+      count (*b.status);
+
       string bid (gh_check_run_name (b)); // Full build id.
 
       optional<check_run> scr;
@@ -2648,6 +2691,8 @@ namespace brep
 
             if (conclusion)
               *conclusion |= *cr.status;
+
+            count (*cr.status);
           }
           else
             conclusion = nullopt;
@@ -2685,6 +2730,29 @@ namespace brep
       }
 
       cr.state_synced = false;
+
+      // Construct the conclusion check run summary if all check runs are
+      // built.
+      //
+      if (conclusion)
+      {
+        ostringstream os;
+
+        // Note: the warning count has already been included in the success or
+        // failure count.
+        //
+        os << fail_count << " failed";
+        if (!sd.warning_success && warn_count != 0)
+          os << " (" << warn_count << " due to warnings)";
+
+        os << ", " << succ_count << " succeeded";
+        if (sd.warning_success && warn_count != 0)
+          os << " (" << warn_count << " with warnings)";
+
+        os << ", " << (succ_count + fail_count) << " total";
+
+        summary = os.str ();
+      }
     }
 
     // Get a new installation access token if the current one has expired.
@@ -2875,8 +2943,7 @@ namespace brep
           result_status rs (*conclusion);
 
           gq_built_result br (
-            make_built_result (rs, sd.warning_success,
-                               "All configurations are built"));
+            make_built_result (rs, sd.warning_success, move (summary)));
 
           check_run cr;
 
