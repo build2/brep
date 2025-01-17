@@ -1161,8 +1161,14 @@ namespace brep
   static gq_built_result
   make_built_result (result_status rs, bool warning_success, string message)
   {
+    string title (circle (rs == result_status::warning && !warning_success
+                          ? result_status::error
+                          : rs));
+    title += ' ';
+    title += ucase (to_string (rs));
+
     return {gh_to_conclusion (rs, warning_success),
-            circle (rs) + ' ' + ucase (to_string (rs)),
+            move (title),
             move (message)};
   }
 
