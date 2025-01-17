@@ -33,10 +33,17 @@ namespace brep
 
     optional<result_status> status; // Only if state is built & synced.
 
-    // Note: never serialized (only used to pass information to the GraphQL
-    // functions).
+    // Note: these are never serialized (only used to pass information to the
+    // GraphQL functions).
     //
-    optional<string>        details_url;
+    struct description_type
+    {
+      string title;
+      string summary;
+    };
+
+    optional<string>           details_url;
+    optional<description_type> description;
 
     string
     state_string () const

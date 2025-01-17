@@ -380,9 +380,12 @@ namespace brep
 
       assert (cr.state != build_state::built); // Not supported.
 
-      // Ensure details URL is non-empty if present.
+      // Ensure details URL and output are non-empty if present.
       //
       assert (!cr.details_url || !cr.details_url->empty ());
+      assert (!cr.description ||
+              (!cr.description->title.empty () &&
+               !cr.description->summary.empty ()));
 
       string al ("cr" + to_string (i)); // Field alias.
 
@@ -395,6 +398,13 @@ namespace brep
       {
         os                                                          << '\n';
         os << "  detailsUrl: " << gq_str (*cr.details_url);
+      }
+      if (cr.description)
+      {
+        os << "  output: {"                                         << '\n'
+           << "    title: "    << gq_str (cr.description->title)    << '\n'
+           << "    summary: "  << gq_str (cr.description->summary)  << '\n'
+           << "  }";
       }
       os << "})"                                                    << '\n'
         // Specify the selection set (fields to be returned). Note that we
@@ -417,9 +427,9 @@ namespace brep
 
   // Serialize a `createCheckRun` mutation for a build to GraphQL.
   //
-  // The build result argument (`br`) is required if the build_state is built
-  // because GitHub does not allow a check run status of completed without a
-  // conclusion.
+  // The conclusion argument (`co`) is required if the check run status is
+  // completed because GitHub does not allow a check run status of completed
+  // without a conclusion.
   //
   // The details URL argument (`du`) can be empty for queued but not for the
   // other states.
@@ -433,11 +443,17 @@ namespace brep
                                 const optional<string>& du, // Details URL.
                                 const check_run& cr,
                                 const string& st,           // Check run status.
-                                optional<gq_built_result> br = nullopt)
+                                const string& ti,           // Output title.
+                                const string& su,           // Output summary.
+                                optional<string> co = nullopt) // Conclusion.
   {
     // Ensure details URL is non-empty if present.
     //
     assert (!du || !du->empty ());
+
+    // Ensure we have conclusion if the status is completed.
+    //
+    assert (st != "COMPLETED" || co);
 
     ostringstream os;
 
@@ -455,15 +471,13 @@ namespace brep
       os                                                          << '\n';
       os << "  detailsUrl: " << gq_str (*du);
     }
-    if (br)
-    {
-      os                                                          << '\n';
-      os << "  conclusion: " << gq_enum (br->conclusion)          << '\n'
-         << "  output: {"                                         << '\n'
-         << "    title: "    << gq_str (br->title)                << '\n'
-         << "    summary: "  << gq_str (br->summary)              << '\n'
-         << "  }";
-    }
+    os                                                            << '\n';
+    if (co)
+      os << "  conclusion: " << gq_enum (*co)                     << '\n';
+    os << "  output: {"                                           << '\n'
+       << "    title: "    << gq_str (ti)                         << '\n'
+       << "    summary: "  << gq_str (su)                         << '\n'
+       << "  }";
     os << "})"                                                    << '\n'
       // Specify the selection set (fields to be returned). Note that we
       // rename `id` to `node_id` (using a field alias) for consistency with
@@ -485,7 +499,7 @@ namespace brep
 
   // Serialize an `updateCheckRun` mutation for one build to GraphQL.
   //
-  // The `co` (conclusion) argument is required if the build_state is built
+  // The `br` argument is required if the check run status is completed
   // because GitHub does not allow updating a check run to completed without a
   // conclusion.
   //
@@ -503,6 +517,8 @@ namespace brep
     // Ensure details URL is non-empty if present.
     //
     assert (!du || !du->empty ());
+
+    assert (st != "COMPLETED" || br);
 
     ostringstream os;
 
@@ -586,11 +602,11 @@ namespace brep
                        const string& hs,
                        const optional<string>& du,
                        build_state st,
-                       optional<gq_built_result> br)
+                       string ti, string su)
   {
-    // Must have a result if state is built.
+    // State cannot be built without a conclusion.
     //
-    assert (st != build_state::built || br);
+    assert (st != build_state::built && !ti.empty () && !su.empty ());
 
     string rq (
       gq_serialize_request (
@@ -599,10 +615,40 @@ namespace brep
                                       du,
                                       cr,
                                       gh_to_status (st),
-                                      move (br))));
+                                      move (ti), move (su),
+                                      nullopt /* conclusion */)));
 
     vector<check_run> crs {move (cr)};
     crs[0].state = st;
+
+    bool r (gq_mutate_check_runs (error, crs, iat, move (rq)));
+
+    cr = move (crs[0]);
+
+    return r;
+  }
+
+  bool
+  gq_create_check_run (const basic_mark& error,
+                       check_run& cr,
+                       const string& iat,
+                       const string& rid,
+                       const string& hs,
+                       const optional<string>& du,
+                       gq_built_result br)
+  {
+    string rq (
+      gq_serialize_request (
+        gq_mutation_create_check_run (rid,
+                                      hs,
+                                      du,
+                                      cr,
+                                      gh_to_status (build_state::built),
+                                      move (br.title), move (br.summary),
+                                      move (br.conclusion))));
+
+    vector<check_run> crs {move (cr)};
+    crs[0].state = build_state::built;
 
     bool r (gq_mutate_check_runs (error, crs, iat, move (rq)));
 

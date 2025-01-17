@@ -579,6 +579,10 @@ namespace brep
   //
   static string conclusion_check_run_name ("CONCLUSION");
 
+  static check_run::description_type conclusion_check_run_building_description {
+    "\U000026AA IN PROGRESS", // "Medium white" circle.
+    "Waiting for all builds to complete"};
+
   bool ci_github::
   handle_branch_push (gh_push_event ps, bool warning_success)
   {
@@ -1463,6 +1467,8 @@ namespace brep
 
     ccr.state = build_state::building;
     ccr.state_synced = false;
+    ccr.details_url = details_url (tenant_id);
+    ccr.description = conclusion_check_run_building_description;
 
     if (gq_create_check_runs (error, check_runs, iat->token,
                               repo_node_id, head_sha))
@@ -1929,9 +1935,13 @@ namespace brep
     // Create a synthetic check run with an in-progress state. Return the
     // check run on success or nullopt on failure.
     //
-    auto create_synthetic_cr = [iat,
+    auto create_synthetic_cr = [&tenant_id,
+                                iat,
                                 &sd,
-                                &error] (string name) -> optional<check_run>
+                                &error,
+                                this] (string name,
+                                       const check_run::description_type& output)
+      -> optional<check_run>
     {
       check_run cr;
       cr.name = move (name);
@@ -1943,8 +1953,9 @@ namespace brep
                                iat->token,
                                sd.repository_node_id,
                                sd.report_sha,
-                               nullopt /* details_url */,
-                               build_state::building))
+                               details_url (tenant_id),
+                               build_state::building,
+                               output.title, output.summary))
       {
         return cr;
       }
@@ -2002,7 +2013,9 @@ namespace brep
 
     if (!sd.conclusion_node_id)
     {
-      if (auto cr = create_synthetic_cr (conclusion_check_run_name))
+      if (auto cr =
+          create_synthetic_cr (conclusion_check_run_name,
+                               conclusion_check_run_building_description))
       {
         l3 ([&]{trace << "created check_run { " << *cr << " }";});
 
@@ -2847,7 +2860,6 @@ namespace brep
                                  sd.repository_node_id,
                                  sd.report_sha,
                                  details_url (b),
-                                 build_state::built,
                                  move (br)))
         {
           assert (cr.state == build_state::built);

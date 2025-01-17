@@ -20,7 +20,7 @@ namespace brep
   //
 
   // Create a new check run on GitHub for each build with the build state,
-  // name, and details_url taken from each check_run object. Update
+  // name, details_url, and output taken from each check_run object. Update
   // `check_runs` with the new data (node id and state_synced). Return false
   // and issue diagnostics if the request failed.
   //
@@ -39,18 +39,32 @@ namespace brep
                         const string& repository_id,
                         const string& head_sha);
 
-  // Create a new check run on GitHub for a build. Update `cr` with the new
-  // data (node id, state, and state_synced). Return false and issue
-  // diagnostics if the request failed.
+  // Create a new check run on GitHub for a build in the queued or building
+  // state. Note that the state cannot be built because in that case a
+  // conclusion is required.
+  //
+  // Update `cr` with the new data (node id, state, and state_synced). Return
+  // false and issue diagnostics if the request failed.
   //
   // Throw invalid_argument if the passed data is invalid, missing, or
   // inconsistent.
   //
-  // If the details_url is absent GitHub will use the app's homepage.
+  // If the details_url is absent GitHub will use the app's homepage. Title
+  // and summary are required and cannot be empty.
   //
-  // The gq_built_result is required if the build_state is built because
-  // GitHub does not allow a check run status of `completed` without at least
-  // a conclusion.
+  bool
+  gq_create_check_run (const basic_mark& error,
+                       check_run& cr,
+                       const string& installation_access_token,
+                       const string& repository_id,
+                       const string& head_sha,
+                       const optional<string>& details_url,
+                       build_state,
+                       string title,
+                       string summary);
+
+  // As above but create a check run in the built state (which requires a
+  // conclusion).
   //
   struct gq_built_result
   {
@@ -66,8 +80,7 @@ namespace brep
                        const string& repository_id,
                        const string& head_sha,
                        const optional<string>& details_url,
-                       build_state,
-                       optional<gq_built_result> = nullopt);
+                       gq_built_result);
 
   // Update a check run on GitHub. Update `cr` with the new data (state and
   // state_synced). Return false and issue diagnostics if the request failed.
