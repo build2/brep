@@ -127,6 +127,11 @@ namespace brep
     string
     details_url (const build&) const;
 
+    // Build a check run details_url for a tenant.
+    //
+    string
+    details_url (const string& tenant) const;
+
     optional<string>
     generate_jwt (const string& app_id,
                   const basic_mark& trace,

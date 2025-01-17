@@ -3008,8 +3008,9 @@ namespace brep
   {
     // This code is based on build_force_url() in mod/build.cxx.
     //
-    return options_->host ()                                          +
-      "/@" + b.tenant                                                 +
+    return
+      options_->host ()                                               +
+      tenant_dir (options_->root (), b.tenant).string ()              +
       "?builds=" + mime_url_encode (b.package_name.string ())         +
       "&pv=" + b.package_version.string ()                            +
       "&tg=" + mime_url_encode (b.target.string ())                   +
@@ -3017,6 +3018,15 @@ namespace brep
       "&pc=" + mime_url_encode (b.package_config_name)                +
       "&th=" + mime_url_encode (b.toolchain_name)                     + '-' +
                                 b.toolchain_version.string ();
+  }
+
+  string ci_github::
+  details_url (const string& t) const
+  {
+    return
+      options_->host () +
+      tenant_dir (options_->root (), t).string () +
+      "?builds";
   }
 
   static optional<build_id>
@@ -3031,12 +3041,21 @@ namespace brep
 
     // Extract the tenant from the URL path.
     //
-    // Example path: @d2586f57-21dc-40b7-beb2-6517ad7917dd
+    // Example paths:
     //
-    if (!u.path || u.path->size () != 37 || (*u.path)[0] != '@')
+    //   @d2586f57-21dc-40b7-beb2-6517ad7917dd (37 characters)
+    //   <brep-root>/@d2586f57-21dc-40b7-beb2-6517ad7917dd
+    //
+    if (!u.path)
       return nullopt;
 
-    r.package.tenant = u.path->substr (1);
+    {
+      size_t p (u.path->find ('@'));
+      if (p == string::npos || u.path->size () - p != 37)
+        return nullopt; // Tenant not found or too short.
+
+      r.package.tenant = u.path->substr (p + 1);
+    }
 
     // Extract the rest of the build_id members from the URL query.
     //
@@ -3091,8 +3110,8 @@ namespace brep
 
         // Note: parsing code based on mod/mod-builds.cxx.
         //
-        size_t p (v.find_first_of ('-'));
-        if (p >= v.size () - 1)
+        size_t p (v.find ('-'));
+        if (p == string::npos || p >= v.size () - 1)
           return nullopt; // Invalid format.
 
         r.toolchain_name    = v.substr (0, p);
