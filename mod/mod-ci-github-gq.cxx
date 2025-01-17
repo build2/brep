@@ -509,15 +509,10 @@ namespace brep
   static string
   gq_mutation_update_check_run (const string& ri,           // Repository ID.
                                 const string& ni,           // Node ID.
-                                const optional<string>& du, // Details URL.
                                 const string& st,           // Check run status.
                                 optional<timestamp> sa,     // Started at.
                                 optional<gq_built_result> br)
   {
-    // Ensure details URL is non-empty if present.
-    //
-    assert (!du || !du->empty ());
-
     assert (st != "COMPLETED" || br);
 
     ostringstream os;
@@ -542,11 +537,6 @@ namespace brep
                                 to_string (system_clock::to_time_t (*sa)) +
                                 ": " + e.what ());
       }
-    }
-    if (du)
-    {
-      os                                                          << '\n';
-      os << "  detailsUrl: " << gq_str (*du);
     }
     if (br)
     {
@@ -663,7 +653,6 @@ namespace brep
                        const string& iat,
                        const string& rid,
                        const string& nid,
-                       const optional<string>& du,
                        build_state st,
                        optional<gq_built_result> br)
   {
@@ -682,7 +671,6 @@ namespace brep
       gq_serialize_request (
         gq_mutation_update_check_run (rid,
                                       nid,
-                                      du,
                                       gh_to_status (st),
                                       sa,
                                       move (br))));

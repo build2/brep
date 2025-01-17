@@ -92,8 +92,6 @@ namespace brep
   // built to built is allowed). The latter case is signalled by setting the
   // check_run state_synced member to false and the state member to built.
   //
-  // If the details_url is absent GitHub will use the app's homepage.
-  //
   // The gq_built_result is required if the build_state is built because
   // GitHub does not allow a check run status of `completed` without at least
   // a conclusion.
@@ -104,7 +102,6 @@ namespace brep
                        const string& installation_access_token,
                        const string& repository_id,
                        const string& node_id,
-                       const optional<string>& details_url,
                        build_state,
                        optional<gq_built_result> = nullopt);
 

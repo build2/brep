@@ -1323,7 +1323,6 @@ namespace brep
 
         if (gq_update_check_run (error, bcr, iat->token,
                                  repo_node_id, cr.check_run.node_id,
-                                 nullopt /* details_url */,
                                  build_state::built, br))
         {
           l3 ([&]{trace << "updated check_run { " << bcr << " }";});
@@ -1337,7 +1336,6 @@ namespace brep
 
         if (gq_update_check_run (error, ccr, iat->token,
                                  repo_node_id, *sd.conclusion_node_id,
-                                 nullopt /* details_url */,
                                  build_state::built, move (br)))
         {
           l3 ([&]{trace << "updated conclusion check_run { " << ccr << " }";});
@@ -1386,7 +1384,6 @@ namespace brep
       //
       if (gq_update_check_run (error, ccr, iat->token,
                                repo_node_id, *sd.conclusion_node_id,
-                               nullopt /* details_url */,
                                build_state::built, move (br)))
       {
         l3 ([&]{trace << "updated conclusion check_run { " << ccr << " }";});
@@ -1619,7 +1616,6 @@ namespace brep
     //
     if (gq_update_check_run (error, bcr, iat->token,
                              repo_node_id, *bcr.node_id,
-                             nullopt /* details_url */,
                              build_state::built, br))
     {
       l3 ([&]{trace << "updated check_run { " << bcr << " }";});
@@ -1636,7 +1632,6 @@ namespace brep
     //
     if (gq_update_check_run (error, ccr, iat->token,
                              repo_node_id, *ccr.node_id,
-                             nullopt /* details_url */,
                              build_state::built, move (br)))
     {
       l3 ([&]{trace << "updated conclusion check_run { " << ccr << " }";});
@@ -1990,7 +1985,6 @@ namespace brep
                                iat->token,
                                sd.repository_node_id,
                                node_id,
-                               nullopt /* details_url */,
                                build_state::built,
                                move (br)))
       {
@@ -2520,7 +2514,6 @@ namespace brep
                                iat->token,
                                sd.repository_node_id,
                                *cr->node_id,
-                               nullopt /* details_url */,
                                build_state::building))
       {
         // Do nothing further if the state was already built on GitHub (note
@@ -2836,7 +2829,6 @@ namespace brep
                                  iat->token,
                                  sd.repository_node_id,
                                  *cr.node_id,
-                                 details_url (b),
                                  build_state::built,
                                  move (br)))
         {
@@ -2900,7 +2892,6 @@ namespace brep
                                    iat->token,
                                    sd.repository_node_id,
                                    *sd.conclusion_node_id,
-                                   nullopt /* details_url */,
                                    build_state::built,
                                    move (br)))
           {
