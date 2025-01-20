@@ -2316,7 +2316,8 @@ namespace brep
                      build_state::queued,
                      false /* state_synced */,
                      nullopt /* status */,
-                     details_url (b)});
+                     details_url (b),
+                     nullopt /* description */});
       }
     }
 
@@ -2673,6 +2674,12 @@ namespace brep
               ++fail_count;
 
             break;
+          }
+
+        case result_status::skip:
+        case result_status::interrupt:
+          {
+            assert (false);
           }
         }
       };

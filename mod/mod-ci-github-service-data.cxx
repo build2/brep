@@ -120,7 +120,8 @@ namespace brep
                    s,
                    ss,
                    rs,
-                   nullopt /* details_url */});
+                   nullopt, /* details_url */
+                   nullopt /* description */});
 
       p.next_expect (event::end_object);
     }
