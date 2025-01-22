@@ -565,7 +565,7 @@ handle (request& rq, response&)
   {
     assert (tss); // Wouldn't be here otherwise.
 
-    const tenant_service& ss (tss->first);
+    tenant_service& ss (tss->first);
     const build& b (*tss->second);
 
     // Release the database connection since build_built() notification can
@@ -576,7 +576,33 @@ handle (request& rq, response&)
     if (auto f = tsb->build_built (b.tenant, ss, b, log_writer_))
     {
       conn = build_db_->connection ();
-      update_tenant_service_state (conn, ss.type, ss.id, f);
+
+      bool build_completed (false);
+
+      if (optional<string> data =
+          update_tenant_service_state (
+            conn, ss.type, ss.id,
+            [&f, &build_completed] (const string& tid,
+                                    const tenant_service& ts)
+            {
+              auto r (f (tid, ts));
+              build_completed = r.second;
+              return move (r.first);
+            }))
+      {
+        ss.data = move (data);
+      }
+
+      if (build_completed)
+      {
+        // Release the database connection since the build_completed()
+        // notification can potentially be time-consuming (e.g., it may
+        // perform an HTTP request).
+        //
+        conn.reset ();
+
+        tsb->build_completed (b.tenant, ss, log_writer_);
+      }
     }
   }
 

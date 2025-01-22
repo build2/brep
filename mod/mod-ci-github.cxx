@@ -2596,7 +2596,8 @@ namespace brep
     return nullptr;
   }
 
-  function<optional<string> (const string&, const tenant_service&)> ci_github::
+  function<pair<optional<string>, bool> (const string&,
+                                         const tenant_service&)> ci_github::
   build_built (const string& tenant_id,
                const tenant_service& ts,
                const build& b,
@@ -2998,13 +2999,15 @@ namespace brep
             completed = completed,
             error = move (error),
             warn = move (warn)] (const string& ti,
-                                 const tenant_service& ts) -> optional<string>
+                                 const tenant_service& ts)
     {
       // NOTE: this lambda may be called repeatedly (e.g., due to transaction
       // being aborted) and so should not move out of its captures.
 
+      // Do nothing if the tenant has been replaced.
+      //
       if (tenant_id != ti)
-        return nullopt; // Do nothing if the tenant has been replaced.
+        return make_pair (optional<string> (), false);
 
       service_data sd;
       try
@@ -3014,7 +3017,7 @@ namespace brep
       catch (const invalid_argument& e)
       {
         error << "failed to parse service data: " << e;
-        return nullopt;
+        return make_pair (optional<string> (), false);
       }
 
       if (iat)
@@ -3072,7 +3075,7 @@ namespace brep
         }
       }
 
-      return sd.json ();
+      return make_pair (optional<string> (sd.json ()), false);
     };
   }
   catch (const std::exception& e)

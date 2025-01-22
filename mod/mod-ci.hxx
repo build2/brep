@@ -87,8 +87,8 @@ namespace brep
                     const build&,
                     const diag_epilogue& log_writer) const noexcept override;
 
-    virtual function<optional<string> (const string& tenant_id,
-                                       const tenant_service&)>
+    virtual function<pair<optional<string>, bool> (const string& tenant_id,
+                                                   const tenant_service&)>
     build_built (const string& tenant_id,
                  const tenant_service&,
                  const build&,

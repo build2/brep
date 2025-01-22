@@ -127,12 +127,20 @@ namespace brep
   class tenant_service_build_built: public virtual tenant_service_base
   {
   public:
-    virtual function<optional<string> (const string& tenant_id,
-                                       const tenant_service&)>
+    // The second half of the pair signals whether to call the
+    // build_completed() notification.
+    //
+    virtual function<pair<optional<string>, bool> (const string& tenant_id,
+                                                   const tenant_service&)>
     build_built (const string& tenant_id,
                  const tenant_service&,
                  const build&,
                  const diag_epilogue& log_writer) const noexcept = 0;
+
+    virtual void
+    build_completed (const string& tenant_id,
+                     const tenant_service&,
+                     const diag_epilogue& log_writer) const noexcept;
   };
 
   // This notification is only made on unloaded CI requests created with the

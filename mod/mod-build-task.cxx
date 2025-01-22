@@ -2407,7 +2407,7 @@ handle (request& rq, response& rs)
       }
 
       // If a third-party service needs to be notified about the package
-      // build, then call the tenant_service_build_built::build_building()
+      // build, then call the tenant_service_build_building::build_building()
       // callback function and, if requested, update the tenant-associated
       // service state.
       //
@@ -2556,9 +2556,32 @@ handle (request& rq, response& rs)
           {
             conn = build_db_->connection ();
 
+            bool build_completed (false);
+
             if (optional<string> data =
-                update_tenant_service_state (conn, ss.type, ss.id, f))
+                update_tenant_service_state (
+                  conn, ss.type, ss.id,
+                  [&f, &build_completed] (const string& tid,
+                                          const tenant_service& ts)
+                  {
+                    auto r (f (tid, ts));
+                    build_completed = r.second;
+                    return move (r.first);
+                  }))
+            {
               ss.data = move (data);
+            }
+
+            if (build_completed)
+            {
+              // Release the database connection since the build_completed()
+              // notification can potentially be time-consuming (e.g., it may
+              // perform an HTTP request).
+              //
+              conn.reset ();
+
+              tsb->build_completed (b.tenant, ss, log_writer_);
+            }
           }
         }
       }

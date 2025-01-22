@@ -496,8 +496,8 @@ build_building (const string& /*tenant_id*/,
          };
 }
 
-function<optional<string> (const string& tenant_id,
-                           const brep::tenant_service&)> brep::ci::
+function<pair<optional<string>, bool> (const string& tenant_id,
+                                       const brep::tenant_service&)> brep::ci::
 build_built (const string& /*tenant_id*/,
              const tenant_service&,
              const build& b,
@@ -515,7 +515,8 @@ build_built (const string& /*tenant_id*/,
                      b.toolchain_name + '/'            +
                      b.toolchain_version.string ());
 
-           return ts.data ? *ts.data + ", " + s : s;
+           return make_pair (
+             optional<string> (ts.data ? *ts.data + ", " + s : s), false);
          };
 }
 
