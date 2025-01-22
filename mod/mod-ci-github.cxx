@@ -3047,31 +3047,53 @@ namespace brep
         else
           sd.check_runs.push_back (cr);
 
-        if (bool c = completed)
+        // Calculate check suite completeness again because this can be racy:
+        // while we calculated the completed value based on the snapshot of
+        // the service data in build_built(), it could have been changed in
+        // the meantime (e.g., by another check run completing or
+        // handle_check_run_rerequest()).
+        //
+        // @@ TMP Does it even make sense to log these errors anymore, now
+        //    that we're handling completeness more systematically?
+        //
+        if (find_if (sd.check_runs.begin (), sd.check_runs.end (),
+                     [] (const check_run& scr)
+                     {
+                       return scr.state != build_state::built;
+                     }) == sd.check_runs.end ())
         {
-          // Note that this can be racy: while we calculated the completed
-          // value based on the snapshot of the service data, it could have
-          // been changed (e.g., by handle_check_run_rerequest()). So we
-          // re-calculate it based on the check run states and only update if
-          // it matches. Otherwise, we log an error.
-          //
-          for (const check_run& scr: sd.check_runs)
+          // All check runs are built.
+
+          if (!completed)
           {
-            if (scr.state != build_state::built)
-            {
-              string sid (sd.repository_node_id + ':' + sd.report_sha);
+            // One or more check runs were updated to built since
+            // build_built().
+            //
+            string sid (sd.repository_node_id + ':' + sd.report_sha);
 
-              error << "tenant_service id " << sid
-                    << ": out of order built notification service data update; "
-                    << "check suite is no longer complete";
-
-              c = false;
-              break;
-            }
+            error << "tenant_service id " << sid
+                  << ": out of order built notification service data update; "
+                  << "check suite is now completed";
           }
 
-          if (c)
-            sd.completed = true;
+          sd.completed = true;
+
+          // @@ TODO Indicate that we want build_complete() to be called.
+        }
+        else
+        {
+          // Not all check runs are built. Do not update the service data.
+
+          if (completed)
+          {
+            // Some check runs have been re-requested since build_built().
+            //
+            string sid (sd.repository_node_id + ':' + sd.report_sha);
+
+            error << "tenant_service id " << sid
+                  << ": out of order built notification service data update; "
+                  << "check suite is no longer complete";
+          }
         }
       }
 
