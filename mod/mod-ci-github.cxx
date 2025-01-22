@@ -2628,95 +2628,17 @@ namespace brep
     if (sd.completed)
       return nullptr;
 
-    // Here we need to update the state of this check run and, if there are no
-    // more unbuilt ones, update the synthetic conclusion check run and mark
-    // the check suite as completed.
-    //
-    // Absent means we still have unbuilt check runs.
-    //
-    optional<result_status> conclusion (*b.status);
-
-    // Conclusion check run summary. Will include the success/warning/failure
-    // count breakdown.
-    //
-    string summary;
+    // Here we only update the state of this check run. If there are no more
+    // unbuilt ones, then the synthetic conclusion check run will be updated
+    // in build_completed(). Note that determining whether we have no more
+    // unbuilt would be racy here so instead we do it in the service data
+    // update function that we return.
 
     check_run cr; // Updated check run.
     {
-      // The success/warning/failure counts.
-      //
-      // Note that the warning count will be included in the success or
-      // failure count (depending on the value of sd.warning_success).
-      //
-      size_t succ_count (0), warn_count (0), fail_count (0);
-
-      // Count a result_status under the appropriate category.
-      //
-      auto count = [&succ_count,
-                    &warn_count,
-                    &fail_count,
-                    ws = sd.warning_success] (result_status rs)
-      {
-        switch (rs)
-        {
-        case result_status::success:  ++succ_count; break;
-
-        case result_status::error:
-        case result_status::abort:
-        case result_status::abnormal: ++fail_count; break;
-
-        case result_status::warning:
-          {
-            ++warn_count;
-
-            if (ws)
-              ++succ_count;
-            else
-              ++fail_count;
-
-            break;
-          }
-
-        case result_status::skip:
-        case result_status::interrupt:
-          {
-            assert (false);
-          }
-        }
-      };
-
-      count (*b.status);
-
       string bid (gh_check_run_name (b)); // Full build id.
 
-      optional<check_run> scr;
-      for (check_run& cr: sd.check_runs)
-      {
-        if (cr.build_id == bid)
-        {
-          assert (!scr);
-          scr = move (cr);
-        }
-        else
-        {
-          if (cr.state == build_state::built)
-          {
-            assert (cr.status);
-
-            if (conclusion)
-              *conclusion |= *cr.status;
-
-            count (*cr.status);
-          }
-          else
-            conclusion = nullopt;
-        }
-
-        if (scr && !conclusion.has_value ())
-          break;
-      }
-
-      if (scr)
+      if (check_run* scr = sd.find_check_run (bid))
       {
         if (scr->state != build_state::building)
         {
@@ -2744,29 +2666,6 @@ namespace brep
       }
 
       cr.state_synced = false;
-
-      // Construct the conclusion check run summary if all check runs are
-      // built.
-      //
-      if (conclusion)
-      {
-        ostringstream os;
-
-        // Note: the warning count has already been included in the success or
-        // failure count.
-        //
-        os << fail_count << " failed";
-        if (!sd.warning_success && warn_count != 0)
-          os << " (" << warn_count << " due to warnings)";
-
-        os << ", " << succ_count << " succeeded";
-        if (sd.warning_success && warn_count != 0)
-          os << " (" << warn_count << " with warnings)";
-
-        os << ", " << (succ_count + fail_count) << " total";
-
-        summary = os.str ();
-      }
     }
 
     // Get a new installation access token if the current one has expired.
@@ -2787,8 +2686,6 @@ namespace brep
     }
     else
       iat = &sd.installation_access;
-
-    bool completed (false);
 
     // Note: we treat the failure to obtain the installation access token the
     // same as the failure to notify GitHub (state is updated but not marked
@@ -2943,60 +2840,16 @@ namespace brep
 
       if (cr.state_synced)
       {
-        // Check run was created/updated successfully to built (with
-        // status we specified).
+        // Check run was created/updated successfully to built (with status we
+        // specified).
         //
         cr.status = b.status;
-
-        // Update the conclusion check run if all check runs are now built.
-        //
-        if (conclusion)
-        {
-          assert (sd.conclusion_node_id);
-
-          result_status rs (*conclusion);
-
-          gq_built_result br (
-            make_built_result (rs, sd.warning_success, move (summary)));
-
-          check_run cr;
-
-          // Set some fields for display purposes.
-          //
-          cr.node_id = *sd.conclusion_node_id;
-          cr.name = conclusion_check_run_name;
-
-          // Let unlikely invalid_argument propagate.
-          //
-          if (gq_update_check_run (error,
-                                   cr,
-                                   iat->token,
-                                   sd.repository_node_id,
-                                   *sd.conclusion_node_id,
-                                   build_state::built,
-                                   move (br)))
-          {
-            assert (cr.state == build_state::built);
-            l3 ([&]{trace << "updated conclusion check_run { " << cr << " }";});
-          }
-          else
-          {
-            // Nothing we can do here except log the error.
-            //
-            error << "tenant_service id " << ts.id
-                  << ": unable to update conclusion check run "
-                  << *sd.conclusion_node_id;
-          }
-
-          completed = true;
-        }
       }
     }
 
     return [tenant_id,
             iat = move (new_iat),
             cr = move (cr),
-            completed = completed,
             error = move (error),
             warn = move (warn)] (const string& ti,
                                  const tenant_service& ts)
@@ -3017,6 +2870,18 @@ namespace brep
       catch (const invalid_argument& e)
       {
         error << "failed to parse service data: " << e;
+        return make_pair (optional<string> (), false);
+      }
+
+      // Feel like this could potentially happen in case of an out of order
+      // notification (see above).
+      //
+      if (sd.completed)
+      {
+        // @@ Perhaps this should be a warning but let's try error for now (we
+        //    essentially missed a build, which could have failed).
+        //
+        error << "built notification for completed check suite";
         return make_pair (optional<string> (), false);
       }
 
@@ -3047,35 +2912,16 @@ namespace brep
         else
           sd.check_runs.push_back (cr);
 
-        if (bool c = completed)
-        {
-          // Note that this can be racy: while we calculated the completed
-          // value based on the snapshot of the service data, it could have
-          // been changed (e.g., by handle_check_run_rerequest()). So we
-          // re-calculate it based on the check run states and only update if
-          // it matches. Otherwise, we log an error.
-          //
-          for (const check_run& scr: sd.check_runs)
-          {
-            if (scr.state != build_state::built)
-            {
-              string sid (sd.repository_node_id + ':' + sd.report_sha);
-
-              error << "tenant_service id " << sid
-                    << ": out of order built notification service data update; "
-                    << "check suite is no longer complete";
-
-              c = false;
-              break;
-            }
-          }
-
-          if (c)
-            sd.completed = true;
-        }
+        // Determine of this check suite is completed.
+        //
+        sd.completed = find_if (sd.check_runs.begin (), sd.check_runs.end (),
+                                [] (const check_run& scr)
+                                {
+                                  return scr.state != build_state::built;
+                                }) == sd.check_runs.end ();
       }
 
-      return make_pair (optional<string> (sd.json ()), false);
+      return make_pair (optional<string> (sd.json ()), sd.completed);
     };
   }
   catch (const std::exception& e)
@@ -3084,9 +2930,186 @@ namespace brep
 
     string bid (gh_check_run_name (b)); // Full build id.
 
-    error << "check run " << bid << ": unhandled exception: " << e.what();
+    error << "check run " << bid << ": unhandled exception: " << e.what ();
 
     return nullptr;
+  }
+
+  void ci_github::
+  build_completed (const string& /* tenant_id */,
+                   const tenant_service& ts,
+                   const diag_epilogue& log_writer) const noexcept
+  try
+  {
+    // NOTE: this function is noexcept and should not throw.
+
+    NOTIFICATION_DIAG (log_writer);
+
+    service_data sd;
+    try
+    {
+      sd = service_data (*ts.data);
+    }
+    catch (const invalid_argument& e)
+    {
+      error << "failed to parse service data: " << e;
+      return;
+    }
+
+    // This could have been reset by handle_check_run_rerequest().
+    //
+    if (!sd.completed)
+      return;
+
+    assert (!sd.check_runs.empty ());
+
+    // Here we need to update the state of the synthetic conclusion check run.
+    //
+    result_status result (result_status::success);
+
+    // Conclusion check run summary. Will include the success/warning/failure
+    // count breakdown.
+    //
+    string summary;
+    {
+      // The success/warning/failure counts.
+      //
+      // Note that the warning count will be included in the success or
+      // failure count (depending on the value of sd.warning_success).
+      //
+      size_t succ_count (0), warn_count (0), fail_count (0);
+
+      // Count a result_status under the appropriate category.
+      //
+      auto count = [&succ_count,
+                    &warn_count,
+                    &fail_count,
+                    ws = sd.warning_success] (result_status rs)
+      {
+        switch (rs)
+        {
+        case result_status::success:  ++succ_count; break;
+
+        case result_status::error:
+        case result_status::abort:
+        case result_status::abnormal: ++fail_count; break;
+
+        case result_status::warning:
+          {
+            ++warn_count;
+
+            if (ws)
+              ++succ_count;
+            else
+              ++fail_count;
+
+            break;
+          }
+
+        case result_status::skip:
+        case result_status::interrupt:
+          {
+            assert (false);
+          }
+        }
+      };
+
+      for (const check_run& cr: sd.check_runs)
+      {
+        assert (cr.state == build_state::built && cr.status);
+
+        result |= *cr.status;
+        count (*cr.status);
+      }
+
+      // Construct the conclusion check run summary.
+      //
+      ostringstream os;
+
+      // Note: the warning count has already been included in the success or
+      // failure count.
+      //
+      os << fail_count << " failed";
+      if (!sd.warning_success && warn_count != 0)
+        os << " (" << warn_count << " due to warnings)";
+
+      os << ", " << succ_count << " succeeded";
+      if (sd.warning_success && warn_count != 0)
+        os << " (" << warn_count << " with warnings)";
+
+      os << ", " << (succ_count + fail_count) << " total";
+
+      summary = os.str ();
+    }
+
+    // Get a new installation access token if the current one has expired
+    // (unlikely since we just returned from build_built()). Note also that we
+    // are not saving the new token in the service data.
+    //
+    const gh_installation_access_token* iat (nullptr);
+    optional<gh_installation_access_token> new_iat;
+
+    if (system_clock::now () > sd.installation_access.expires_at)
+    {
+      if (optional<string> jwt = generate_jwt (sd.app_id, trace, error))
+      {
+        new_iat = obtain_installation_access_token (sd.installation_id,
+                                                    move (*jwt),
+                                                    error);
+        if (new_iat)
+          iat = &*new_iat;
+      }
+    }
+    else
+      iat = &sd.installation_access;
+
+    // Note: we treat the failure to obtain the installation access token the
+    // same as the failure to notify GitHub.
+    //
+    if (iat != nullptr)
+    {
+      // Update the conclusion check run if all check runs are now built.
+      //
+      assert (sd.conclusion_node_id);
+
+      gq_built_result br (
+        make_built_result (result, sd.warning_success, move (summary)));
+
+      check_run cr;
+
+      // Set some fields for display purposes.
+      //
+      cr.node_id = *sd.conclusion_node_id;
+      cr.name = conclusion_check_run_name;
+
+      // Let unlikely invalid_argument propagate.
+      //
+      if (gq_update_check_run (error,
+                               cr,
+                               iat->token,
+                               sd.repository_node_id,
+                               *sd.conclusion_node_id,
+                               build_state::built,
+                               move (br)))
+      {
+        assert (cr.state == build_state::built);
+        l3 ([&]{trace << "updated conclusion check_run { " << cr << " }";});
+      }
+      else
+      {
+        // Nothing we can do here except log the error.
+        //
+        error << "tenant_service id " << ts.id
+              << ": unable to update conclusion check run "
+              << *sd.conclusion_node_id;
+      }
+    }
+  }
+  catch (const std::exception& e)
+  {
+    NOTIFICATION_DIAG (log_writer);
+
+    error << "unhandled exception: " << e.what ();
   }
 
   string ci_github::

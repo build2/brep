@@ -79,6 +79,11 @@ namespace brep
                  const build&,
                  const diag_epilogue& log_writer) const noexcept override;
 
+    virtual void
+    build_completed (const string& tenant_id,
+                     const tenant_service& ts,
+                     const diag_epilogue& log_writer) const noexcept override;
+
   private:
     virtual void
     init (cli::scanner&);
