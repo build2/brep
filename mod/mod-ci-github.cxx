@@ -577,11 +577,51 @@ namespace brep
   // Let's capitalize the synthetic conclusion check run name to make it
   // easier to distinguish from the regular ones.
   //
-  static string conclusion_check_run_name ("CONCLUSION");
+  static const string conclusion_check_run_name ("CONCLUSION");
 
-  static check_run::description_type conclusion_check_run_building_description {
-    "\U000026AA IN PROGRESS", // "Medium white" circle.
-    "Waiting for all builds to complete"};
+  // Yellow circle.
+  //
+  static const string conclusion_building_title ("\U0001F7E1 IN PROGRESS");
+  static const string conclusion_building_summary (
+    "Waiting for all the builds to complete.");
+
+  // "Medium white" circle.
+  //
+  static const string check_run_queued_title ("\U000026AA QUEUED");
+  static const string check_run_queued_summary (
+    "Waiting for the build to start.");
+
+  // Yellow circle.
+  //
+  static const string check_run_building_title ("\U0001F7E1 BUILDING");
+  static const string check_run_building_summary (
+    "Waiting for the build to complete.");
+
+  // Return the colored circle corresponding to a result_status.
+  //
+  // Note: the rest of the title is produced by to_string(result_status).
+  //
+  static string
+  circle (result_status rs)
+  {
+    switch (rs)
+    {
+    case result_status::success:  return "\U0001F7E2"; // Green circle.
+    case result_status::warning:  return "\U0001F7E0"; // Orange circle.
+    case result_status::error:
+    case result_status::abort:
+    case result_status::abnormal: return "\U0001F534"; // Red circle.
+
+      // Valid values we should never encounter.
+      //
+    case result_status::skip:
+    case result_status::interrupt:
+      throw invalid_argument ("unexpected result_status value: " +
+                              to_string (rs));
+    }
+
+    return ""; // Should never reach.
+  }
 
   bool ci_github::
   handle_branch_push (gh_push_event ps, bool warning_success)
@@ -1115,30 +1155,6 @@ namespace brep
     return true;
   }
 
-  // Return the colored circle corresponding to a result_status.
-  //
-  static string
-  circle (result_status rs)
-  {
-    switch (rs)
-    {
-    case result_status::success:  return "\U0001F7E2"; // Green circle.
-    case result_status::warning:  return "\U0001F7E0"; // Orange circle.
-    case result_status::error:
-    case result_status::abort:
-    case result_status::abnormal: return "\U0001F534"; // Red circle.
-
-      // Valid values we should never encounter.
-      //
-    case result_status::skip:
-    case result_status::interrupt:
-      throw invalid_argument ("unexpected result_status value: " +
-                              to_string (rs));
-    }
-
-    return ""; // Should never reach.
-  }
-
   // Make a check run summary from a CI start_result.
   //
   static string
@@ -1329,7 +1345,7 @@ namespace brep
 
         if (gq_update_check_run (error, bcr, iat->token,
                                  repo_node_id, cr.check_run.node_id,
-                                 build_state::built, br))
+                                 br))
         {
           l3 ([&]{trace << "updated check_run { " << bcr << " }";});
         }
@@ -1342,7 +1358,7 @@ namespace brep
 
         if (gq_update_check_run (error, ccr, iat->token,
                                  repo_node_id, *sd.conclusion_node_id,
-                                 build_state::built, move (br)))
+                                 move (br)))
         {
           l3 ([&]{trace << "updated conclusion check_run { " << ccr << " }";});
         }
@@ -1390,7 +1406,7 @@ namespace brep
       //
       if (gq_update_check_run (error, ccr, iat->token,
                                repo_node_id, *sd.conclusion_node_id,
-                               build_state::built, move (br)))
+                               move (br)))
       {
         l3 ([&]{trace << "updated conclusion check_run { " << ccr << " }";});
       }
@@ -1467,11 +1483,13 @@ namespace brep
     bcr.state = build_state::queued;
     bcr.state_synced = false;
     bcr.details_url = cr.check_run.details_url;
+    bcr.description = {check_run_queued_title, check_run_queued_summary};
 
     ccr.state = build_state::building;
     ccr.state_synced = false;
     ccr.details_url = details_url (tenant_id);
-    ccr.description = conclusion_check_run_building_description;
+    ccr.description = {conclusion_building_title,
+                       conclusion_building_summary};
 
     if (gq_create_check_runs (error, check_runs, iat->token,
                               repo_node_id, head_sha))
@@ -1622,7 +1640,7 @@ namespace brep
     //
     if (gq_update_check_run (error, bcr, iat->token,
                              repo_node_id, *bcr.node_id,
-                             build_state::built, br))
+                             br))
     {
       l3 ([&]{trace << "updated check_run { " << bcr << " }";});
     }
@@ -1638,7 +1656,7 @@ namespace brep
     //
     if (gq_update_check_run (error, ccr, iat->token,
                              repo_node_id, *ccr.node_id,
-                             build_state::built, move (br)))
+                             move (br)))
     {
       l3 ([&]{trace << "updated conclusion check_run { " << ccr << " }";});
     }
@@ -1941,7 +1959,8 @@ namespace brep
                                 &sd,
                                 &error,
                                 this] (string name,
-                                       const check_run::description_type& output)
+                                       const string& title,
+                                       const string& summary)
       -> optional<check_run>
     {
       check_run cr;
@@ -1956,7 +1975,7 @@ namespace brep
                                sd.report_sha,
                                details_url (tenant_id),
                                build_state::building,
-                               output.title, output.summary))
+                               title, summary))
       {
         return cr;
       }
@@ -1991,7 +2010,6 @@ namespace brep
                                iat->token,
                                sd.repository_node_id,
                                node_id,
-                               build_state::built,
                                move (br)))
       {
         assert (cr.state == build_state::built);
@@ -2013,9 +2031,9 @@ namespace brep
 
     if (!sd.conclusion_node_id)
     {
-      if (auto cr =
-          create_synthetic_cr (conclusion_check_run_name,
-                               conclusion_check_run_building_description))
+      if (auto cr = create_synthetic_cr (conclusion_check_run_name,
+                                         conclusion_building_title,
+                                         conclusion_building_summary))
       {
         l3 ([&]{trace << "created check_run { " << *cr << " }";});
 
@@ -2317,7 +2335,8 @@ namespace brep
                      false /* state_synced */,
                      nullopt /* status */,
                      details_url (b),
-                     nullopt /* description */});
+                     check_run::description_type {check_run_queued_title,
+                                                  check_run_queued_summary}});
       }
     }
 
@@ -2521,7 +2540,9 @@ namespace brep
                                iat->token,
                                sd.repository_node_id,
                                *cr->node_id,
-                               build_state::building))
+                               build_state::building,
+                               check_run_building_title,
+                               check_run_building_summary))
       {
         // Do nothing further if the state was already built on GitHub (note
         // that this is based on the above-mentioned special GitHub semantics
@@ -2808,7 +2829,6 @@ namespace brep
                                  iat->token,
                                  sd.repository_node_id,
                                  *cr.node_id,
-                                 build_state::built,
                                  move (br)))
         {
           assert (cr.state == build_state::built);
@@ -3089,7 +3109,6 @@ namespace brep
                                iat->token,
                                sd.repository_node_id,
                                *sd.conclusion_node_id,
-                               build_state::built,
                                move (br)))
       {
         assert (cr.state == build_state::built);
