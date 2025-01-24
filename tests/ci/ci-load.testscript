@@ -275,7 +275,7 @@
   {
     $clone_root_data_clean;
 
-    sed -i -e "s%^\(repository:\) .+\$%\\1 http://example.com/repo.git%" \
+    sed -i -e "s%^\(repository:\) .+\$%\\1 https://git.build2.org/no-such-repo.git%" \
         $data_dir/request.manifest;
 
     $* >>~"%EOO%"

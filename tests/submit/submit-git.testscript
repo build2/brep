@@ -1056,7 +1056,7 @@ pkg_ctl="$prj_ctl/hello.git"
   :
   {
     $clone_root_data_clean;
-    sed -i -e 's%^(control:) .+$%\1 http://example.com/path/rep.git%' \
+    sed -i -e 's%^(control:) .+$%\1 https://git.build2.org/no-such-repo.git%' \
         $data_dir/request.manifest;
 
     $clone_root_tgt;
@@ -1066,8 +1066,9 @@ pkg_ctl="$prj_ctl/hello.git"
       status: 422
       message:
       \\
-      failed to git-clone build2-control branch of http://example.com/path/rep.git
-        info: repository 'http://example.com/path/rep.git/' not found
+      failed to git-clone build2-control branch of https://git.build2.org/no-such-r\\
+      epo.git
+        info: repository 'https://git.build2.org/no-such-repo.git/' not found
       \\
       reference: $checksum
       EOO
@@ -1093,7 +1094,7 @@ pkg_ctl="$prj_ctl/hello.git"
   {
     $clone_root_data_clean;
 
-    $* 'http://example.com/path/rep.git' $data_dir 2>>~%EOE% != 0
+    $* 'https://git.build2.org/no-such-repo.git' $data_dir 2>>~%EOE% != 0
       %fatal: .+%
       EOE
   }
