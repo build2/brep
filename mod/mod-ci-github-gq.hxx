@@ -82,19 +82,20 @@ namespace brep
                        const optional<string>& details_url,
                        gq_built_result);
 
-  // Update a check run on GitHub. Update `cr` with the new data (state and
-  // state_synced). Return false and issue diagnostics if the request failed.
+  // Update a check run on GitHub to the queued or building state. Note that
+  // the state cannot be built because in that case a conclusion is required.
+  //
+  // Update `cr` with the new data (state and state_synced). Return false and
+  // issue diagnostics if the request failed.
   //
   // Throw invalid_argument if the passed data is invalid, missing, or
   // inconsistent.
   //
-  // Note that GitHub allows any state transitions except from built (but
-  // built to built is allowed). The latter case is signalled by setting the
-  // check_run state_synced member to false and the state member to built.
+  // Title and summary are required and cannot be empty.
   //
-  // The gq_built_result is required if the build_state is built because
-  // GitHub does not allow a check run status of `completed` without at least
-  // a conclusion.
+  // @@ TMP Neither this function nor the gq_create_check_run() equivalent are
+  // ever called with queued (only building) so should we hardcode
+  // build_state::building (and remove the build_state argument)?
   //
   bool
   gq_update_check_run (const basic_mark& error,
@@ -103,7 +104,23 @@ namespace brep
                        const string& repository_id,
                        const string& node_id,
                        build_state,
-                       optional<gq_built_result> = nullopt);
+                       string title,
+                       string summary);
+
+  // As above but update a check run to the built state (which requires a
+  // conclusion).
+  //
+  // Note that GitHub allows any state transitions except from built (but
+  // built to built is allowed). The latter case is signalled by setting the
+  // check_run state_synced member to false and the state member to built.
+  //
+  bool
+  gq_update_check_run (const basic_mark& error,
+                       check_run& cr,
+                       const string& installation_access_token,
+                       const string& repository_id,
+                       const string& node_id,
+                       gq_built_result);
 
   // Fetch pre-check information for a pull request from GitHub. This
   // information is used to decide whether or not to CI the PR and is

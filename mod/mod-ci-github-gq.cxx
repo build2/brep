@@ -511,9 +511,13 @@ namespace brep
                                 const string& ni,           // Node ID.
                                 const string& st,           // Check run status.
                                 optional<timestamp> sa,     // Started at.
-                                optional<gq_built_result> br)
+                                const string& ti,           // Output title.
+                                const string& su,           // Output summary.
+                                optional<string> co = nullopt) // Conclusion.
   {
-    assert (st != "COMPLETED" || br);
+    // Ensure we have conclusion if the status is completed.
+    //
+    assert (st != "COMPLETED" || co);
 
     ostringstream os;
 
@@ -538,15 +542,13 @@ namespace brep
                                 ": " + e.what ());
       }
     }
-    if (br)
-    {
-      os                                                          << '\n';
-      os << "  conclusion: " << gq_enum (br->conclusion)          << '\n'
-         << "  output: {"                                         << '\n'
-         << "    title: "    << gq_str (br->title)                << '\n'
-         << "    summary: "  << gq_str (br->summary)              << '\n'
-         << "  }";
-    }
+    os                                                            << '\n';
+    if (co)
+      os << "  conclusion: " << gq_enum (*co)                     << '\n';
+    os << "  output: {"                                           << '\n'
+       << "    title: "    << gq_str (ti)                         << '\n'
+       << "    summary: "  << gq_str (su)                         << '\n'
+       << "  }";
     os << "})"                                                    << '\n'
       // Specify the selection set (fields to be returned). Note that we
       // rename `id` to `node_id` (using a field alias) for consistency with
@@ -654,11 +656,11 @@ namespace brep
                        const string& rid,
                        const string& nid,
                        build_state st,
-                       optional<gq_built_result> br)
+                       string ti, string su)
   {
-    // Must have a result if state is built.
+    // State cannot be built without a conclusion.
     //
-    assert (st != build_state::built || br);
+    assert (st != build_state::built && !ti.empty () && !su.empty ());
 
     // Set `startedAt` to current time if updating to building.
     //
@@ -673,10 +675,38 @@ namespace brep
                                       nid,
                                       gh_to_status (st),
                                       sa,
-                                      move (br))));
+                                      move (ti), move (su),
+                                      nullopt /* conclusion */)));
 
     vector<check_run> crs {move (cr)};
     crs[0].state = st;
+
+    bool r (gq_mutate_check_runs (error, crs, iat, move (rq)));
+
+    cr = move (crs[0]);
+
+    return r;
+  }
+
+  bool
+  gq_update_check_run (const basic_mark& error,
+                       check_run& cr,
+                       const string& iat,
+                       const string& rid,
+                       const string& nid,
+                       gq_built_result br)
+  {
+    string rq (
+      gq_serialize_request (
+        gq_mutation_update_check_run (rid,
+                                      nid,
+                                      gh_to_status (build_state::built),
+                                      nullopt /* startedAt */,
+                                      move (br.title), move (br.summary),
+                                      move (br.conclusion))));
+
+    vector<check_run> crs {move (cr)};
+    crs[0].state = build_state::built;
 
     bool r (gq_mutate_check_runs (error, crs, iat, move (rq)));
 

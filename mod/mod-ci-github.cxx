@@ -580,8 +580,12 @@ namespace brep
   static string conclusion_check_run_name ("CONCLUSION");
 
   static check_run::description_type conclusion_check_run_building_description {
-    "\U000026AA IN PROGRESS", // "Medium white" circle.
+    "\U0001F7E1 IN PROGRESS", // Yellow circle.
     "Waiting for all builds to complete"};
+
+  static check_run::description_type check_run_queued_description {
+    "\U000026AA QUEUED", // "Medium white" circle.
+    "Waiting for build to start"};
 
   bool ci_github::
   handle_branch_push (gh_push_event ps, bool warning_success)
@@ -1329,7 +1333,7 @@ namespace brep
 
         if (gq_update_check_run (error, bcr, iat->token,
                                  repo_node_id, cr.check_run.node_id,
-                                 build_state::built, br))
+                                 br))
         {
           l3 ([&]{trace << "updated check_run { " << bcr << " }";});
         }
@@ -1342,7 +1346,7 @@ namespace brep
 
         if (gq_update_check_run (error, ccr, iat->token,
                                  repo_node_id, *sd.conclusion_node_id,
-                                 build_state::built, move (br)))
+                                 move (br)))
         {
           l3 ([&]{trace << "updated conclusion check_run { " << ccr << " }";});
         }
@@ -1390,7 +1394,7 @@ namespace brep
       //
       if (gq_update_check_run (error, ccr, iat->token,
                                repo_node_id, *sd.conclusion_node_id,
-                               build_state::built, move (br)))
+                               move (br)))
       {
         l3 ([&]{trace << "updated conclusion check_run { " << ccr << " }";});
       }
@@ -1467,6 +1471,7 @@ namespace brep
     bcr.state = build_state::queued;
     bcr.state_synced = false;
     bcr.details_url = cr.check_run.details_url;
+    bcr.description = check_run_queued_description;
 
     ccr.state = build_state::building;
     ccr.state_synced = false;
@@ -1622,7 +1627,7 @@ namespace brep
     //
     if (gq_update_check_run (error, bcr, iat->token,
                              repo_node_id, *bcr.node_id,
-                             build_state::built, br))
+                             br))
     {
       l3 ([&]{trace << "updated check_run { " << bcr << " }";});
     }
@@ -1638,7 +1643,7 @@ namespace brep
     //
     if (gq_update_check_run (error, ccr, iat->token,
                              repo_node_id, *ccr.node_id,
-                             build_state::built, move (br)))
+                             move (br)))
     {
       l3 ([&]{trace << "updated conclusion check_run { " << ccr << " }";});
     }
@@ -1991,7 +1996,6 @@ namespace brep
                                iat->token,
                                sd.repository_node_id,
                                node_id,
-                               build_state::built,
                                move (br)))
       {
         assert (cr.state == build_state::built);
@@ -2317,7 +2321,7 @@ namespace brep
                      false /* state_synced */,
                      nullopt /* status */,
                      details_url (b),
-                     nullopt /* description */});
+                     check_run_queued_description});
       }
     }
 
@@ -2521,7 +2525,9 @@ namespace brep
                                iat->token,
                                sd.repository_node_id,
                                *cr->node_id,
-                               build_state::building))
+                               build_state::building,
+                               "\U0001F7E1 IN PROGRESS", // Yellow circle
+                               "Waiting for build to complete"))
       {
         // Do nothing further if the state was already built on GitHub (note
         // that this is based on the above-mentioned special GitHub semantics
@@ -2808,7 +2814,6 @@ namespace brep
                                  iat->token,
                                  sd.repository_node_id,
                                  *cr.node_id,
-                                 build_state::built,
                                  move (br)))
         {
           assert (cr.state == build_state::built);
@@ -3089,7 +3094,6 @@ namespace brep
                                iat->token,
                                sd.repository_node_id,
                                *sd.conclusion_node_id,
-                               build_state::built,
                                move (br)))
       {
         assert (cr.state == build_state::built);
