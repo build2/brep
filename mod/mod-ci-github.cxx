@@ -564,6 +564,31 @@ namespace brep
       //
       return handle_branch_push (move (ps), warning_success);
     }
+    // Ignore marketplace_purchase events (sent by the GitHub Marketplace) by
+    // sending a 200 response with empty body. We offer a free plan only and
+    // do not support user accounts so there is nothing to be done.
+    //
+    else if (event == "marketplace_purchase")
+    {
+      return true;
+    }
+    // Ignore GitHub App installation events by sending a 200 response with
+    // empty body. These are triggered when a user installs a GitHub App in a
+    // repository or organization.
+    //
+    else if (event == "installation")
+    {
+      return true;
+    }
+    // Ignore ping events by sending a 200 response with empty body. This
+    // event occurs when you create a new webhook. The ping event is a
+    // confirmation from GitHub that you configured the webhook correctly. One
+    // of its triggers is listing an App on the GitHub Marketplace.
+    //
+    else if (event == "ping")
+    {
+      return true;
+    }
     else
     {
       // Log to investigate.
