@@ -93,10 +93,6 @@ namespace brep
   //
   // Title and summary are required and cannot be empty.
   //
-  // @@ TMP Neither this function nor the gq_create_check_run() equivalent are
-  // ever called with queued (only building) so should we hardcode
-  // build_state::building (and remove the build_state argument)?
-  //
   bool
   gq_update_check_run (const basic_mark& error,
                        check_run& cr,

@@ -602,15 +602,51 @@ namespace brep
   // Let's capitalize the synthetic conclusion check run name to make it
   // easier to distinguish from the regular ones.
   //
-  static string conclusion_check_run_name ("CONCLUSION");
+  static const string conclusion_check_run_name ("CONCLUSION");
 
-  static check_run::description_type conclusion_check_run_building_description {
-    "\U0001F7E1 IN PROGRESS", // Yellow circle.
-    "Waiting for all builds to complete"};
+  // Yellow circle.
+  //
+  static const string conclusion_building_title ("\U0001F7E1 IN PROGRESS");
+  static const string conclusion_building_summary (
+    "Waiting for all the builds to complete.");
 
-  static check_run::description_type check_run_queued_description {
-    "\U000026AA QUEUED", // "Medium white" circle.
-    "Waiting for build to start"};
+  // "Medium white" circle.
+  //
+  static const string check_run_queued_title ("\U000026AA QUEUED");
+  static const string check_run_queued_summary (
+    "Waiting for the build to start.");
+
+  // Yellow circle.
+  //
+  static const string check_run_building_title ("\U0001F7E1 BUILDING");
+  static const string check_run_building_summary (
+    "Waiting for the build to complete.");
+
+  // Return the colored circle corresponding to a result_status.
+  //
+  // Note: the rest of the title is produced by to_string(result_status).
+  //
+  static string
+  circle (result_status rs)
+  {
+    switch (rs)
+    {
+    case result_status::success:  return "\U0001F7E2"; // Green circle.
+    case result_status::warning:  return "\U0001F7E0"; // Orange circle.
+    case result_status::error:
+    case result_status::abort:
+    case result_status::abnormal: return "\U0001F534"; // Red circle.
+
+      // Valid values we should never encounter.
+      //
+    case result_status::skip:
+    case result_status::interrupt:
+      throw invalid_argument ("unexpected result_status value: " +
+                              to_string (rs));
+    }
+
+    return ""; // Should never reach.
+  }
 
   bool ci_github::
   handle_branch_push (gh_push_event ps, bool warning_success)
@@ -1142,30 +1178,6 @@ namespace brep
     }
 
     return true;
-  }
-
-  // Return the colored circle corresponding to a result_status.
-  //
-  static string
-  circle (result_status rs)
-  {
-    switch (rs)
-    {
-    case result_status::success:  return "\U0001F7E2"; // Green circle.
-    case result_status::warning:  return "\U0001F7E0"; // Orange circle.
-    case result_status::error:
-    case result_status::abort:
-    case result_status::abnormal: return "\U0001F534"; // Red circle.
-
-      // Valid values we should never encounter.
-      //
-    case result_status::skip:
-    case result_status::interrupt:
-      throw invalid_argument ("unexpected result_status value: " +
-                              to_string (rs));
-    }
-
-    return ""; // Should never reach.
   }
 
   // Make a check run summary from a CI start_result.
@@ -1971,7 +1983,7 @@ namespace brep
                                 &sd,
                                 &error,
                                 this] (string name,
-                                       const check_run::description_type& output)
+                                       const check_run::description_type& descr)
       -> optional<check_run>
     {
       check_run cr;
@@ -1986,7 +1998,7 @@ namespace brep
                                sd.report_sha,
                                details_url (tenant_id),
                                build_state::building,
-                               output.title, output.summary))
+                               descr.title, descr.summary))
       {
         return cr;
       }
@@ -2551,8 +2563,8 @@ namespace brep
                                sd.repository_node_id,
                                *cr->node_id,
                                build_state::building,
-                               "\U0001F7E1 IN PROGRESS", // Yellow circle
-                               "Waiting for build to complete"))
+                               check_run_buildin_title,
+                               check_run_buildin_summary))
       {
         // Do nothing further if the state was already built on GitHub (note
         // that this is based on the above-mentioned special GitHub semantics
