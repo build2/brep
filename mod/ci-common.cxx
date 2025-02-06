@@ -433,7 +433,8 @@ namespace brep
                    },
                    2 /* stderr */,
                    ops.email (),
-                   "CI request submission (" + sr.reference + ')',
+                   ((service ? service->type : "ci") +
+                    " request submission: " + repository.string ()),
                    {ops.ci_email ()});
 
       // Write the CI request manifest.
