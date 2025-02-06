@@ -989,8 +989,8 @@ handle (request& rq, response& rs)
 
       pq += "ORDER BY";
 
-      // If the interactive mode is both, then order the packages so that ones
-      // from the interactive build tenants appear first.
+      // If the interactive mode is `both`, then order the packages so that
+      // ones from the interactive build tenants appear first.
       //
       if (imode == interactive_mode::both)
         pq += pkg_query::build_tenant::interactive + "NULLS LAST,";
@@ -1657,9 +1657,8 @@ handle (request& rq, response& rs)
 
             // Collect the potential build configurations as all combinations
             // of the tenant's packages build configurations and the
-            // non-excluded (by the packages) build target
-            // configurations. Note that here we ignore the machines from the
-            // task request.
+            // non-excluded (by the packages) build target configurations.
+            // Note that here we ignore the machines from the task request.
             //
             struct build_config
             {
@@ -1800,9 +1799,9 @@ handle (request& rq, response& rs)
 
             pkg_config = pc.name;
 
-            // Iterate through the built configurations and erase them from the
-            // build configuration map. All those configurations that remained
-            // can be built. We will take the first one, if present.
+            // Iterate through the built configurations and erase them from
+            // the build configuration map. All those configurations that
+            // remained can be built. We will take the first one, if present.
             //
             // Also save the built configurations for which it's time to be
             // rebuilt.
@@ -2005,10 +2004,21 @@ handle (request& rq, response& rs)
                       qbs = queue_builds (*p, *b);
 
                       // If we ought to call the
-                      // tenant_service_build_queued::build_queued() callback,
-                      // then also set the package tenant's queued timestamp
-                      // to the current time to prevent the notifications race
-                      // (see tenant::queued_timestamp for details).
+                      // tenant_service_build_queued::build_queued() callback
+                      // for the queued builds (qbs is not empty), then we
+                      // also set the package tenant's queued timestamp to the
+                      // current time to prevent any concurrently running task
+                      // handlers from picking any of these queued builds now
+                      // and so potentially interfering with us by sending
+                      // their `building` notification before we send our
+                      // `queued` notification (see tenant::queued_timestamp
+                      // for details). Note that the `queued` notification for
+                      // the being built configuration doesn't require setting
+                      // this timestamp, since after the respective build
+                      // object is changed and updated in the database it may
+                      // not be picked by any task handler in the foreseeable
+                      // future and so our {`queued`, `building`} notification
+                      // sequence may not be interfered.
                       //
                       if (!qbs.empty ()  ||
                           !initial_state ||
@@ -2017,8 +2027,11 @@ handle (request& rq, response& rs)
                       {
                         qhs = queue_hints (*p);
 
-                        t->queued_timestamp = system_clock::now ();
-                        build_db_->update (t);
+                        if (!qbs.empty ())
+                        {
+                          t->queued_timestamp = system_clock::now ();
+                          build_db_->update (t);
+                        }
                       }
                     }
 
@@ -2261,17 +2274,20 @@ handle (request& rq, response& rs)
 
                         // If we ought to call the
                         // tenant_service_build_queued::build_queued()
-                        // callback, then also set the package tenant's queued
-                        // timestamp to the current time to prevent the
-                        // notifications race (see tenant::queued_timestamp
-                        // for details).
+                        // callback for the queued builds, then also set the
+                        // package tenant's queued timestamp to the current
+                        // time to prevent the notifications race (see above
+                        // building from scratch for details).
                         //
                         if (!qbs.empty () || !rebuild_interrupted_rebuild)
                         {
                           qhs = queue_hints (*p);
 
-                          t->queued_timestamp = system_clock::now ();
-                          build_db_->update (t);
+                          if (!qbs.empty ())
+                          {
+                            t->queued_timestamp = system_clock::now ();
+                            build_db_->update (t);
+                          }
                         }
                       }
 
@@ -2311,6 +2327,13 @@ handle (request& rq, response& rs)
             agent_fp      = move (b->agent_fingerprint);
             challenge     = move (b->agent_challenge);
             task_response = task_response_manifest ();
+
+            // Also cleanup the tenant-associated third-party service data.
+            //
+            tsb = nullptr;
+            tsq = nullptr;
+            tss = nullopt;
+            qbs.clear ();
           }
 
           // If the task manifest is prepared, then bail out from the package
@@ -2371,6 +2394,10 @@ handle (request& rq, response& rs)
 
         // Send the `queued` notification for the task build, unless it is
         // already sent, and update the service state, if requested.
+        //
+        // Why don't we join this notification with the previous one? We
+        // cannot do this since the initial_state argument differs for the
+        // respective build_queued() function calls.
         //
         if (initial_state                         &&
             *initial_state != build_state::queued &&

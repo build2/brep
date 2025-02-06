@@ -261,8 +261,10 @@ handle (request& rq, response& rs)
             // If we ought to call the
             // tenant_service_build_queued::build_queued() callback, then also
             // set the package tenant's queued timestamp to the current time
-            // to prevent the notifications race (see tenant::queued_timestamp
-            // for details).
+            // to prevent the task handler from picking the build and
+            // potentially interfering with us by sending its `building`
+            // notification before we send our `queued` notification (see
+            // tenant::queued_timestamp for details).
             //
             if (tsq != nullptr)
             {
