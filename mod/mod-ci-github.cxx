@@ -2523,8 +2523,15 @@ namespace brep
         }
       }
       else
-        warn << "check run " << bid << ": out of order building "
-             << "notification; existing state: " << scr->state_string ();
+      {
+        // Ignore interrupted (building -> queued -> building transition).
+        //
+        if (scr->state != build_state::building)
+        {
+          warn << "check run " << bid << ": out of order building "
+               << "notification; existing state: " << scr->state_string ();
+        }
+      }
     }
     else
       warn << "check run " << bid << ": out of order building "
