@@ -172,7 +172,8 @@ build_query (const brep::vector<brep::build_target_config_id>* config_ids,
     {
       if (rs == "pending")
       {
-        q = q && qb::force != "unforced";
+        q = q && ((qb::state == "built" && qb::force =="forced") ||
+                  (qb::state == "building" && qb::force =="forcing"));
       }
       else if (rs == "building")
       {
