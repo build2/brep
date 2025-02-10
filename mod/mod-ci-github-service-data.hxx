@@ -97,7 +97,7 @@ namespace brep
     gh_installation_access_token installation_access;
 
     uint64_t app_id;
-    string installation_id;
+    string installation_id; // @@ TMP Also actually an integer
 
     string repository_node_id; // GitHub-internal opaque repository id.
 

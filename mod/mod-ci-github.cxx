@@ -17,6 +17,8 @@
 #include <mod/mod-ci-github-post.hxx>
 #include <mod/mod-ci-github-service-data.hxx>
 
+#include <cerrno>
+#include <cstdlib>   // strtoull()
 #include <stdexcept>
 
 // Resources:
@@ -284,9 +286,11 @@ namespace brep
 
           // Parse the app id value.
           //
+          const char* b (rp.value->c_str ());
           char* e (nullptr);
-          app_id = strtoull (rp.value->c_str (), &e, 10);
-          if (app_id == 0 || app_id == ULLONG_MAX || *e != '\0')
+          errno = 0; // We must clear it according to POSIX.
+          app_id = strtoull (b, &e, 10);
+          if (errno == ERANGE || e == b || *e != '\0')
           {
             badreq ("invalid 'app-id' webhook query parameter value: '" +
                     *rp.value + '\'');
@@ -1526,7 +1530,7 @@ namespace brep
                        conclusion_building_summary};
 
     if (gq_create_check_runs (error, check_runs, iat->token,
-                              repo_node_id, head_sha))
+                              repo_node_id, head_sha, cr.check_run.app_id))
     {
       assert (bcr.state == build_state::queued);
       assert (ccr.state == build_state::building);
@@ -2007,6 +2011,7 @@ namespace brep
                                iat->token,
                                sd.repository_node_id,
                                sd.report_sha,
+                               sd.app_id,
                                details_url (tenant_id),
                                build_state::building,
                                title, summary))
@@ -2409,7 +2414,9 @@ namespace brep
       if (gq_create_check_runs (error,
                                 crs,
                                 iat->token,
-                                sd.repository_node_id, sd.report_sha))
+                                sd.repository_node_id,
+                                sd.report_sha,
+                                sd.app_id))
       {
         for (const check_run& cr: crs)
         {
@@ -2528,7 +2535,10 @@ namespace brep
         }
         else
         {
-          // Network error during queued notification, ignore.
+          // Network error during queued notification (state unsynchronized),
+          // ignore.
+          //
+          l3 ([&]{trace << "unsynchronized check run " << bid;});
         }
       }
       else
@@ -2891,6 +2901,7 @@ namespace brep
                                  iat->token,
                                  sd.repository_node_id,
                                  sd.report_sha,
+                                 sd.app_id,
                                  details_url (b),
                                  move (br)))
         {
