@@ -223,20 +223,28 @@ namespace brep
     return r;
   }
 
-  // Send a GraphQL mutation request `rq` that creates or updates one or more
-  // check runs. The requested build state is taken from each check_run
-  // object. Update the check runs in `crs` with the new data (state, node ID
-  // if unset, and state_synced). Return false and issue diagnostics if the
-  // request failed.
+  // Send a GraphQL mutation request `rq` that creates (create=true) or
+  // updates (create=false) one or more check runs. The requested build state
+  // is taken from each check_run object. Update the check runs in `crs` with
+  // the new data (state, node ID if unset, and state_synced). Return false
+  // and issue diagnostics if the request failed.
   //
+  struct gq_create_data
+  {
+    reference_wrapper<const string> repository_id;
+    reference_wrapper<const string> head_sha;
+  };
+
   static bool
   gq_mutate_check_runs (const basic_mark& error,
                         vector<check_run>& crs,
                         const string& iat,
-                        string rq)
+                        string rq,
+                        const optional<gq_create_data>& create_data)
   {
     vector<gh_check_run> rcrs;
 
+    const char* what (nullptr);
     try
     {
       // Response type which parses a GraphQL response containing multiple
@@ -252,10 +260,39 @@ namespace brep
         resp () = default;
       } rs;
 
+      what = create_data ? "create" : "update";
       uint16_t sc (github_post (rs,
                                 "graphql", // API Endpoint.
                                 strings {"Authorization: Bearer " + iat},
                                 move (rq)));
+
+      // Turns out it's not uncommon to not get a reply from GitHub if the
+      // number of check runs being created in build_queued() is large. The
+      // symptom is a 502 (Bad gateway) reply from GitHub and the theory being
+      // that their load balancer drops the connection if the request is not
+      // handled within a certain time. Note that in this case the check runs
+      // are still created on GitHub, we just don't get the reply (and thus
+      // their node ids). So we try to re-query that information.
+      //
+      optional<uint16_t> sc1;
+      if (sc == 502 && create_data)
+      {
+        // @@ TODO: query check runs into rs.
+        //
+        what = "re-query";
+        sc1 = github_post (...);
+
+        if (*sc1 == 200)
+        {
+          if (rs.check_runs.size () == crs.size ())
+          {
+            // Reduce to as-if the create request succeeded.
+            //
+            what = "create";
+            sc = 200;
+          }
+        }
+      }
 
       if (sc == 200)
       {
@@ -298,32 +335,47 @@ namespace brep
           error << "unexpected number of check_run objects in response";
       }
       else
-        error << "failed to mutate check runs: error HTTP response status "
-              << sc;
+      {
+        diag_record dr (error);
+
+        dr << "failed to " << what " check runs: error HTTP response status "
+           << sc;
+
+        if (sc1)
+        {
+          if (*sc1 != 200)
+            dr << error << "failed to re-query check runs: error HTTP "
+               << "response status " << *sc1;
+          else
+            dr << error << "unexpected number of check_run objects in "
+               << "re-query response";
+        }
+      }
     }
     catch (const json::invalid_json_input& e) // struct resp (via github_post())
     {
       // Note: e.name is the GitHub API endpoint.
       //
-      error << "malformed JSON in response from " << e.name << ", line: "
-            << e.line << ", column: " << e.column << ", byte offset: "
-            << e.position << ", error: " << e;
+      error << "malformed JSON in " << what << " response from " << e.name
+            << ", line: " << e.line << ", column: " << e.column
+            << ", byte offset: " << e.position
+            << ", error: " << e;
     }
     catch (const invalid_argument& e) // github_post()
     {
-      error << "malformed header(s) in response: " << e;
+      error << "malformed header(s) in " << what << " response: " << e;
     }
     catch (const system_error& e) // github_post()
     {
-      error << "unable to mutate check runs (errno=" << e.code () << "): "
-            << e.what ();
+      error << "unable to " << what << " check runs (errno=" << e.code ()
+            << "): " << e.what ();
     }
     catch (const runtime_error& e) // gq_parse_response_check_runs()
     {
       // GitHub response contained error(s) (could be ours or theirs at this
       // point).
       //
-      error << "unable to mutate check runs: " << e;
+      error << "unable to " << what << " check runs: " << e;
     }
 
     return false;

@@ -2519,7 +2519,10 @@ namespace brep
         }
         else
         {
-          // Network error during queued notification, ignore.
+          // Network error during queued notification (state unsynchronized),
+          // ignore.
+          //
+          l3 ([&]{trace << "unsynchronized check run " << bid;});
         }
       }
       else
