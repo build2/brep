@@ -1526,7 +1526,7 @@ namespace brep
                        conclusion_building_summary};
 
     if (gq_create_check_runs (error, check_runs, iat->token,
-                              repo_node_id, head_sha))
+                              repo_node_id, head_sha, cr.check_run.app_id))
     {
       assert (bcr.state == build_state::queued);
       assert (ccr.state == build_state::building);
@@ -2007,6 +2007,7 @@ namespace brep
                                iat->token,
                                sd.repository_node_id,
                                sd.report_sha,
+                               sd.app_id,
                                details_url (tenant_id),
                                build_state::building,
                                title, summary))
@@ -2409,7 +2410,9 @@ namespace brep
       if (gq_create_check_runs (error,
                                 crs,
                                 iat->token,
-                                sd.repository_node_id, sd.report_sha))
+                                sd.repository_node_id,
+                                sd.report_sha,
+                                sd.app_id))
       {
         for (const check_run& cr: crs)
         {
@@ -2894,6 +2897,7 @@ namespace brep
                                  iat->token,
                                  sd.repository_node_id,
                                  sd.report_sha,
+                                 sd.app_id,
                                  details_url (b),
                                  move (br)))
         {
