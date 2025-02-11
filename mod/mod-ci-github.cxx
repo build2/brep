@@ -261,7 +261,7 @@ namespace brep
 
     // Process the `app-id` and `warning` webhook request query parameters.
     //
-    string app_id;
+    uint64_t app_id;
     bool warning_success;
     {
       const name_values& rps (rq.parameters (1024, true /* url_only */));
@@ -281,7 +281,16 @@ namespace brep
             badreq ("missing 'app-id' webhook query parameter value");
 
           ai = true;
-          app_id = *rp.value;
+
+          // Parse the app id value.
+          //
+          char* e (nullptr);
+          app_id = strtoull (rp.value->c_str (), &e, 10);
+          if (app_id == 0 || app_id == ULLONG_MAX || *e != '\0')
+          {
+            badreq ("invalid 'app-id' webhook query parameter value: '" +
+                    *rp.value + '\'');
+          }
         }
         else if (rp.name == "warning")
         {
@@ -3292,7 +3301,7 @@ namespace brep
   }
 
   optional<string> ci_github::
-  generate_jwt (const string& app_id,
+  generate_jwt (uint64_t app_id,
                 const basic_mark& trace,
                 const basic_mark& error) const
   {
@@ -3301,7 +3310,7 @@ namespace brep
     {
       // Look up the private key path for the app id and fail if not found.
       //
-      const map<string, dir_path>& pks (
+      const map<uint64_t, dir_path>& pks (
         options_->ci_github_app_id_private_key ());
 
       auto pk (pks.find (app_id));
@@ -3317,7 +3326,7 @@ namespace brep
       //
       jwt = brep::generate_jwt (
           *options_,
-          pk->second, app_id,
+          pk->second, to_string (app_id),
           chrono::seconds (options_->ci_github_jwt_validity_period ()),
           chrono::seconds (60));
 

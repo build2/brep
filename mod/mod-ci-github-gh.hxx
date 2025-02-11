@@ -66,7 +66,7 @@ namespace brep
     size_t check_runs_count;
     optional<string> conclusion;
 
-    string app_id;
+    uint64_t app_id;
 
     explicit
     gh_check_suite_ex (json::parser&);
@@ -97,7 +97,7 @@ namespace brep
     string details_url;
     gh_check_suite check_suite;
 
-    string app_id;
+    uint64_t app_id;
 
     explicit
     gh_check_run_ex (json::parser&);
@@ -129,7 +129,7 @@ namespace brep
     // simplicity we emulate check_suite and check_run by storing the app-id
     // webhook query parameter here.
     //
-    string app_id;
+    uint64_t app_id;
 
     explicit
     gh_pull_request (json::parser&);
@@ -256,7 +256,7 @@ namespace brep
     // emulate check_suite and check_run by storing the app-id webhook query
     // parameter here.
     //
-    string app_id;
+    uint64_t app_id;
 
     explicit
     gh_push_event (json::parser&);

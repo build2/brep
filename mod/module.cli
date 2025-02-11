@@ -858,7 +858,7 @@ namespace brep
          Note: make sure to choose a strong (random) secret."
       }
 
-      std::map<string, dir_path> ci-github-app-id-private-key
+      std::map<uint64_t, dir_path> ci-github-app-id-private-key
       {
         "<id>=<path>",
         "The private key used during GitHub API authentication for the

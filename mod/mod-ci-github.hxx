@@ -139,7 +139,7 @@ namespace brep
     details_url (const string& tenant) const;
 
     optional<string>
-    generate_jwt (const string& app_id,
+    generate_jwt (uint64_t app_id,
                   const basic_mark& trace,
                   const basic_mark& error) const;
 

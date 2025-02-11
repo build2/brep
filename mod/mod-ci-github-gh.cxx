@@ -211,9 +211,9 @@ namespace brep
             // one can be null. It's unclear under what circumstances, but it
             // shouldn't happen unless something is broken.
             //
-            string* v (p.next_expect_number_null ());
+            optional<uint64_t> v (p.next_expect_number_null<uint64_t> ());
 
-            if (v == nullptr)
+            if (!v)
               throw_json (p, "check_suite.app.id is null");
 
             app_id = *v;
@@ -310,7 +310,7 @@ namespace brep
         //
         while (p.next_expect (event::name, event::end_object))
         {
-          if (c (ai, "id")) app_id = p.next_expect_number ();
+          if (c (ai, "id")) app_id = p.next_expect_number<uint64_t> ();
           else p.next_expect_value_skip ();
         }
 

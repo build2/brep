@@ -96,7 +96,7 @@ namespace brep
     //
     gh_installation_access_token installation_access;
 
-    string app_id;
+    uint64_t app_id;
     string installation_id;
 
     string repository_node_id; // GitHub-internal opaque repository id.
@@ -159,7 +159,7 @@ namespace brep
     service_data (bool warning_success,
                   string iat_token,
                   timestamp iat_expires_at,
-                  string app_id,
+                  uint64_t app_id,
                   string installation_id,
                   string repository_node_id,
                   string repository_clone_url,
@@ -174,7 +174,7 @@ namespace brep
     service_data (bool warning_success,
                   string iat_token,
                   timestamp iat_expires_at,
-                  string app_id,
+                  uint64_t app_id,
                   string installation_id,
                   string repository_node_id,
                   string repository_clone_url,
