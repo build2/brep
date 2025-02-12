@@ -278,10 +278,9 @@ namespace brep
   // query as constructed by gq_query_get_check_runs().
   //
   // Note that there might be other check suites on this commit but they will
-  // all have been created by other apps because we never create more than one
-  // check suite. Therefore our query filters by app id and as a result there
-  // should never be more than one check suite in the response. @@ Not the
-  // case.
+  // all have been created by other apps (GitHub never creates more than one
+  // check suite per app). Therefore our query filters by app id and as a
+  // result there should never be more than one check suite in the response.
   //
   // Throw invalid_json_input.
   //
@@ -469,14 +468,34 @@ namespace brep
 
         if (*sc1 == 200)
         {
-          if (rs1.check_runs.size () == crs.size ())
-          {
-            // Reduce to as-if the create request succeeded.
-            //
-            what = "create";
-            sc = 200;
+          size_t n (rs1.check_runs.size ());
 
-            rs.check_runs = move (rs1.check_runs);
+          if (n == crs.size ())
+          {
+            // It's possible GitHub did not create all the checkruns we have
+            // requested. In which case it may return some unrelated checkruns
+            // (for example, from before re-request). So we verify we got the
+            // expected ones.
+            //
+            size_t i (0);
+            for (; i != n; ++i)
+            {
+              const check_run& cr (crs[i]);
+              const gh_check_run& gcr (rs1.check_runs[i]);
+
+              if (cr.name != gcr.name || cr.state != gcr.status)
+                break;
+            }
+
+            if (i == n)
+            {
+              rs.check_runs = move (rs1.check_runs);
+
+              // Reduce to as-if the create request succeeded.
+              //
+              what = "create";
+              sc = 200;
+            }
           }
         }
       }
