@@ -280,7 +280,8 @@ namespace brep
   // Note that there might be other check suites on this commit but they will
   // all have been created by other apps because we never create more than one
   // check suite. Therefore our query filters by app id and as a result there
-  // should never be more than one check suite in the response.
+  // should never be more than one check suite in the response. @@ Not the
+  // case.
   //
   // Throw invalid_json_input.
   //
@@ -292,7 +293,6 @@ namespace brep
   //       "checkSuites":{
   //         "edges":[
   //            {"node":{
-  //               "id":"CS_kwDOLc8CoM8AAAAH9Mmfxw",
   //               "checkRuns":{
   //                 "edges":[
   //                   {"node":{"id":"CR_kwDOLc8CoM8AAAAImvJPfw",
