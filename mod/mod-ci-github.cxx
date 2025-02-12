@@ -17,6 +17,8 @@
 #include <mod/mod-ci-github-post.hxx>
 #include <mod/mod-ci-github-service-data.hxx>
 
+#include <cerrno>
+#include <cstdlib>   // strtoull()
 #include <stdexcept>
 
 // Resources:
@@ -284,9 +286,11 @@ namespace brep
 
           // Parse the app id value.
           //
+          const char* b (rp.value->c_str ());
           char* e (nullptr);
-          app_id = strtoull (rp.value->c_str (), &e, 10);
-          if (app_id == 0 || app_id == ULLONG_MAX || *e != '\0')
+          errno = 0; // We must clear it according to POSIX.
+          app_id = strtoull (b, &e, 10);
+          if (errno == ERANGE || e == b || *e != '\0')
           {
             badreq ("invalid 'app-id' webhook query parameter value: '" +
                     *rp.value + '\'');
