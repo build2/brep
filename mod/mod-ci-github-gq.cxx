@@ -227,9 +227,9 @@ namespace brep
   // Serialize a query that fetches the most recent check runs on a commit.
   //
   static string
-  gq_query_get_check_runs (const string& ri, // Repository id
+  gq_query_get_check_runs (uint64_t ai,      // App id
+                           const string& ri, // Repository id
                            const string& ci, // Commit id
-                           uint64_t ai,      // App id
                            size_t cn)        // Check run count
   {
 
@@ -401,9 +401,9 @@ namespace brep
   //
   struct gq_create_data
   {
+    uint64_t                        app_id;
     reference_wrapper<const string> repository_id;
     reference_wrapper<const string> head_sha;
-    uint64_t                        app_id;
   };
 
   static bool
@@ -456,10 +456,10 @@ namespace brep
         // GraphQL query which fetches the most recently-created check runs.
         //
         string rq (gq_serialize_request (
-          gq_query_get_check_runs (create_data->repository_id,
+          gq_query_get_check_runs (create_data->app_id,
+                                   create_data->repository_id,
                                    create_data->head_sha,
-                                   create_data->app_id,
-                                   crs.size ())));
+                                   crs_n)));
 
         // Type that parses the result of the above GraphQL query.
         //
@@ -820,9 +820,9 @@ namespace brep
   gq_create_check_runs (const basic_mark& error,
                         vector<check_run>& crs,
                         const string& iat,
+                        uint64_t ai,
                         const string& rid,
-                        const string& hs,
-                        uint64_t ai)
+                        const string& hs)
   {
     // No support for result_status so state cannot be built.
     //
@@ -838,16 +838,20 @@ namespace brep
                                  crs,
                                  iat,
                                  move (rq),
-                                 gq_create_data {rid, hs, ai});
+                                 gq_create_data {ai, rid, hs}))
+        return false;
+    }
+
+    return true;
   }
 
   bool
   gq_create_check_run (const basic_mark& error,
                        check_run& cr,
                        const string& iat,
+                       uint64_t ai,
                        const string& rid,
                        const string& hs,
-                       uint64_t ai,
                        const optional<string>& du,
                        build_state st,
                        string ti, string su)
@@ -873,7 +877,7 @@ namespace brep
                                   crs,
                                   iat,
                                   move (rq),
-                                  gq_create_data {rid, hs, ai}));
+                                  gq_create_data {ai, rid, hs}));
 
     cr = move (crs[0]);
 
@@ -884,9 +888,9 @@ namespace brep
   gq_create_check_run (const basic_mark& error,
                        check_run& cr,
                        const string& iat,
+                       uint64_t ai,
                        const string& rid,
                        const string& hs,
-                       uint64_t ai,
                        const optional<string>& du,
                        gq_built_result br)
   {
@@ -907,7 +911,7 @@ namespace brep
                                   crs,
                                   iat,
                                   move (rq),
-                                  gq_create_data {rid, hs, ai}));
+                                  gq_create_data {ai, rid, hs}));
 
     cr = move (crs[0]);
 

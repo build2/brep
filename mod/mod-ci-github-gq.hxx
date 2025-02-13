@@ -36,9 +36,9 @@ namespace brep
   gq_create_check_runs (const basic_mark& error,
                         vector<check_run>& check_runs,
                         const string& installation_access_token,
+                        uint64_t app_id,
                         const string& repository_id,
-                        const string& head_sha,
-                        uint64_t app_id);
+                        const string& head_sha);
 
   // Create a new check run on GitHub for a build in the queued or building
   // state. Note that the state cannot be built because in that case a
@@ -57,9 +57,9 @@ namespace brep
   gq_create_check_run (const basic_mark& error,
                        check_run& cr,
                        const string& installation_access_token,
+                       uint64_t app_id,
                        const string& repository_id,
                        const string& head_sha,
-                       uint64_t app_id,
                        const optional<string>& details_url,
                        build_state,
                        string title,
@@ -79,9 +79,9 @@ namespace brep
   gq_create_check_run (const basic_mark& error,
                        check_run& cr,
                        const string& installation_access_token,
+                       uint64_t app_id,
                        const string& repository_id,
                        const string& head_sha,
-                       uint64_t app_id,
                        const optional<string>& details_url,
                        gq_built_result);
 
