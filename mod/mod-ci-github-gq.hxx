@@ -22,7 +22,8 @@ namespace brep
   // Create a new check run on GitHub for each build with the build state,
   // name, details_url, and output taken from each check_run object. Update
   // `check_runs` with the new data (node id and state_synced). Return false
-  // and issue diagnostics if the request failed.
+  // and issue diagnostics if the request failed. Note that in this case some
+  // elements in check_runs may still have been updated (due to batching).
   //
   // Throw invalid_argument if the passed data is invalid, missing, or
   // inconsistent.
@@ -34,7 +35,7 @@ namespace brep
   //
   bool
   gq_create_check_runs (const basic_mark& error,
-                        vector<check_run>& check_runs,
+                        brep::check_runs& check_runs,
                         const string& installation_access_token,
                         uint64_t app_id,
                         const string& repository_id,

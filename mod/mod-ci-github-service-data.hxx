@@ -55,6 +55,8 @@ namespace brep
     }
   };
 
+  using check_runs = vector<check_run>;
+
   // We have two kinds of service data that correspond to the following two
   // typical scenarios (until/unless we add support for merge queues):
   //
@@ -123,7 +125,7 @@ namespace brep
     //
     string report_sha;
 
-    vector<check_run> check_runs;
+    brep::check_runs check_runs;
 
     // Flag indicating that all the elements in check_runs are built and this
     // check suite is completed.
