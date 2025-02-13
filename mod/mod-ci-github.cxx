@@ -1309,7 +1309,7 @@ namespace brep
     // a single request (unless something goes wrong) so store them together
     // from the outset.
     //
-    vector<check_run> check_runs (2);
+    brep::check_runs check_runs (2);
     check_run& bcr (check_runs[0]); // Build check run
     check_run& ccr (check_runs[1]); // Conclusion check run
 
@@ -2328,7 +2328,7 @@ namespace brep
     // The builds for which we will be creating check runs.
     //
     vector<reference_wrapper<const build>> bs;
-    vector<check_run> crs; // Parallel to bs.
+    brep::check_runs crs; // Parallel to bs.
 
     // Exclude the builds for which we won't be creating check runs.
     //

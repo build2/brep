@@ -35,7 +35,7 @@ namespace brep
   //
   bool
   gq_create_check_runs (const basic_mark& error,
-                        vector<check_run>& check_runs,
+                        brep::check_runs& check_runs,
                         const string& installation_access_token,
                         uint64_t app_id,
                         const string& repository_id,

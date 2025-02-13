@@ -479,7 +479,7 @@ namespace brep
 
         if (*sc1 == 200)
         {
-          if (rs1.check_runs.size () == n)
+          if (rs1.check_runs.size () == crs_n)
           {
             // It's possible GitHub did not create all the checkruns we have
             // requested. In which case it may return some unrelated checkruns
@@ -487,7 +487,7 @@ namespace brep
             // expected ones.
             //
             size_t i (0);
-            for (; i != n; ++i)
+            for (; i != crs_n; ++i)
             {
               const check_run& cr (*(crs_b + i));
               const gh_check_run& gcr (rs1.check_runs[i]);
@@ -497,7 +497,7 @@ namespace brep
                 break;
             }
 
-            if (i == n)
+            if (i == crs_n)
             {
               rs.check_runs = move (rs1.check_runs);
 
@@ -514,9 +514,9 @@ namespace brep
       {
         vector<gh_check_run>& rcrs (rs.check_runs);
 
-        if (rcrs.size () == n)
+        if (rcrs.size () == crs_n)
         {
-          for (size_t i (0); i != n; ++i)
+          for (size_t i (0); i != crs_n; ++i)
           {
             check_run& cr (*(crs_b + i));
 
@@ -614,7 +614,8 @@ namespace brep
   static string
   gq_mutation_create_check_runs (const string& ri,           // Repository ID
                                  const string& hs,           // Head SHA
-                                 const vector<check_run>& crs)
+                                 brep::check_runs::iterator crs_b,
+                                 brep::check_runs::iterator crs_e)
   {
     ostringstream os;
 
@@ -622,9 +623,9 @@ namespace brep
 
     // Serialize a `createCheckRun` for each build.
     //
-    for (size_t i (0); i != crs.size (); ++i)
+    for (brep::check_runs::iterator crs_i (crs_b); crs_i != crs_e; ++crs_i)
     {
-      const check_run& cr (crs[i]);
+      const check_run& cr (*crs_i);
 
       assert (cr.state != build_state::built); // Not supported.
 
@@ -635,7 +636,7 @@ namespace brep
               (!cr.description->title.empty () &&
                !cr.description->summary.empty ()));
 
-      string al ("cr" + to_string (i)); // Field alias.
+      string al ("cr" + to_string (crs_i - crs_b)); // Field alias.
 
       os << gq_name (al) << ":createCheckRun(input: {"              << '\n'
          << "  name: "         << gq_str (cr.name)                  << '\n'
@@ -815,7 +816,7 @@ namespace brep
 
   bool
   gq_create_check_runs (const basic_mark& error,
-                        vector<check_run>& crs,
+                        brep::check_runs& crs,
                         const string& iat,
                         uint64_t ai,
                         const string& rid,
@@ -857,6 +858,8 @@ namespace brep
                                  move (rq),
                                  gq_create_data {ai, rid, hs}))
         return false;
+
+      i += bn;
     }
 
     return true;
@@ -887,11 +890,11 @@ namespace brep
                                       move (ti), move (su),
                                       nullopt /* conclusion */)));
 
-    vector<check_run> crs {move (cr)};
+    brep::check_runs crs {move (cr)};
     crs[0].state = st;
 
     bool r (gq_mutate_check_runs (error,
-                                  crs,
+                                  crs.begin (), crs.end (),
                                   iat,
                                   move (rq),
                                   gq_create_data {ai, rid, hs}));
@@ -921,11 +924,11 @@ namespace brep
                                       move (br.title), move (br.summary),
                                       move (br.conclusion))));
 
-    vector<check_run> crs {move (cr)};
+    brep::check_runs crs {move (cr)};
     crs[0].state = build_state::built;
 
     bool r (gq_mutate_check_runs (error,
-                                  crs,
+                                  crs.begin (), crs.end (),
                                   iat,
                                   move (rq),
                                   gq_create_data {ai, rid, hs}));
@@ -964,10 +967,14 @@ namespace brep
                                       move (ti), move (su),
                                       nullopt /* conclusion */)));
 
-    vector<check_run> crs {move (cr)};
+    brep::check_runs crs {move (cr)};
     crs[0].state = st;
 
-    bool r (gq_mutate_check_runs (error, crs, iat, move (rq), nullopt));
+    bool r (gq_mutate_check_runs (error,
+                                  crs.begin (), crs.end (),
+                                  iat,
+                                  move (rq),
+                                  nullopt));
 
     cr = move (crs[0]);
 
@@ -991,10 +998,14 @@ namespace brep
                                       move (br.title), move (br.summary),
                                       move (br.conclusion))));
 
-    vector<check_run> crs {move (cr)};
+    brep::check_runs crs {move (cr)};
     crs[0].state = build_state::built;
 
-    bool r (gq_mutate_check_runs (error, crs, iat, move (rq), nullopt));
+    bool r (gq_mutate_check_runs (error,
+                                  crs.begin (), crs.end (),
+                                  iat,
+                                  move (rq),
+                                  nullopt));
 
     cr = move (crs[0]);
 
