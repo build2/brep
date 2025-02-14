@@ -19,6 +19,7 @@
 #include <libbrep/build-package.hxx>
 #include <libbrep/build-package-odb.hxx>
 
+#include <mod/utility.hxx>          // sleep_before_retry()
 #include <mod/external-handler.hxx>
 
 namespace brep
@@ -542,7 +543,7 @@ namespace brep
           const basic_mark&,
           const basic_mark* trace,
           odb::core::database& db,
-          size_t retry,
+          size_t retry_max,
           tenant_service&& service,
           duration notify_interval,
           duration notify_delay,
@@ -560,7 +561,8 @@ namespace brep
     duplicate_tenant_result r (duplicate_tenant_result::created);
     service.ref_count = 1;
 
-    for (string request_id;;)
+    string request_id;
+    for (size_t retry (0);;)
     {
       try
       {
@@ -693,7 +695,7 @@ namespace brep
         // If no more retries left, don't re-throw odb::recoverable not to
         // retry at the upper level.
         //
-        if (retry-- == 0)
+        if (retry == retry_max)
           throw runtime_error (e.what ());
 
         // Prepare for the next iteration.
@@ -702,6 +704,8 @@ namespace brep
         service = move (*t.service);
         service.ref_count = 1;
         r = duplicate_tenant_result::created;
+
+        sleep_before_retry (retry++);
       }
     }
 
@@ -713,7 +717,7 @@ namespace brep
         const basic_mark& warn,
         const basic_mark* trace,
         odb::core::database& db,
-        size_t retry,
+        size_t retry_max,
         tenant_service&& service,
         const repository_location& repository) const
   {
@@ -721,7 +725,7 @@ namespace brep
 
     string request_id;
 
-    for (;;)
+    for (size_t retry (0);;)
     {
       try
       {
@@ -773,8 +777,10 @@ namespace brep
         // If no more retries left, don't re-throw odb::recoverable not to
         // retry at the upper level.
         //
-        if (retry-- == 0)
+        if (retry == retry_max)
           throw runtime_error (e.what ());
+
+        sleep_before_retry (retry++);
       }
     }
 
@@ -809,7 +815,7 @@ namespace brep
           const basic_mark&,
           const basic_mark* trace,
           odb::core::database& db,
-          size_t retry,
+          size_t retry_max,
           const string& type,
           const string& id,
           bool ref_count) const
@@ -820,7 +826,7 @@ namespace brep
 
     optional<tenant_service> r;
 
-    for (;;)
+    for (size_t retry (0);;)
     {
       try
       {
@@ -882,10 +888,12 @@ namespace brep
         // If no more retries left, don't re-throw odb::recoverable not to
         // retry at the upper level.
         //
-        if (retry-- == 0)
+        if (retry == retry_max)
           throw runtime_error (e.what ());
 
         r = nullopt; // Prepare for the next iteration.
+
+        sleep_before_retry (retry++);
       }
     }
 
@@ -898,14 +906,14 @@ namespace brep
           const basic_mark* trace,
           const string& reason,
           odb::core::database& db,
-          size_t retry,
+          size_t retry_max,
           const string& tid) const
   {
     using namespace odb::core;
 
     assert (!transaction::has_current ());
 
-    for (;;)
+    for (size_t retry (0);;)
     {
       try
       {
@@ -938,8 +946,10 @@ namespace brep
         // If no more retries left, don't re-throw odb::recoverable not to
         // retry at the upper level.
         //
-        if (retry-- == 0)
+        if (retry == retry_max)
           throw runtime_error (e.what ());
+
+        sleep_before_retry (retry++);
       }
     }
 
@@ -954,7 +964,7 @@ namespace brep
 
   optional<build_state> ci_start::
   rebuild (odb::core::database& db,
-           size_t retry,
+           size_t retry_max,
            const build_id& id,
            function<optional<string> (const string& tenant_id,
                                       const tenant_service&,
@@ -964,7 +974,7 @@ namespace brep
 
     build_state s;
 
-    for (;;)
+    for (size_t retry (0);;)
     {
       try
       {
@@ -1024,8 +1034,10 @@ namespace brep
         // If no more retries left, don't re-throw odb::recoverable not to
         // retry at the upper level.
         //
-        if (retry-- == 0)
+        if (retry == retry_max)
           throw runtime_error (e.what ());
+
+        sleep_before_retry (retry++);
       }
     }
 

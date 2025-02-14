@@ -391,7 +391,7 @@ handle (request& rq, response& rs)
       create (error,
               warn,
               verb_ ? &trace : nullptr,
-              *build_db_, retry_,
+              *build_db_, retry_max_,
               tenant_service ("", "ci", rl.string ()),
               chrono::seconds (40),
               chrono::seconds (10)))
@@ -536,7 +536,7 @@ build_unloaded (const string& /* tenant_id */,
     repository_location rl (*ts.data);
 
     if (!load (error, warn, verb_ ? &trace : nullptr,
-               *build_db_, retry_,
+               *build_db_, retry_max_,
                move (ts),
                rl))
       return nullptr; // The diagnostics is already issued.
@@ -610,7 +610,7 @@ handle (request& rq, response& rs)
 
   if (!cancel (error, warn, verb_ ? &trace : nullptr,
                reason,
-               *build_db_, retry_,
+               *build_db_, retry_max_,
                tid))
     throw invalid_request (400, "unknown CI request id");
 

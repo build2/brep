@@ -120,7 +120,7 @@ namespace brep
             const basic_mark& warn,
             const basic_mark* trace,
             odb::core::database&,
-            size_t retry,
+            size_t retry_max,
             tenant_service&&,
             duration notify_interval,
             duration notify_delay,
@@ -141,7 +141,7 @@ namespace brep
           const basic_mark& warn,
           const basic_mark* trace,
           odb::core::database&,
-          size_t retry,
+          size_t retry_max,
           tenant_service&&,
           const repository_location& repository) const;
 
@@ -169,7 +169,7 @@ namespace brep
             const basic_mark& warn,
             const basic_mark* trace,
             odb::core::database&,
-            size_t retry,
+            size_t retry_max,
             const string& type,
             const string& id,
             bool ref_count = false) const;
@@ -194,7 +194,7 @@ namespace brep
             const basic_mark* trace,
             const string& reason,
             odb::core::database&,
-            size_t retry,
+            size_t retry_max,
             const string& tenant_id) const;
 
     // Schedule the re-build of the package build and return the build object
@@ -240,7 +240,7 @@ namespace brep
     //
     optional<build_state>
     rebuild (odb::core::database&,
-             size_t retry,
+             size_t retry_max,
              const build_id&,
              function<optional<string> (const string& tenant_id,
                                         const tenant_service&,

@@ -179,12 +179,12 @@ namespace brep
          5."
       }
 
-      size_t package-db-retry = 10
+      size_t package-db-retry = 20
       {
         "<num>",
         "The maximum number of times to retry package database transactions in
          the face of recoverable failures (deadlock, loss of connection, etc).
-         The default is 10."
+         The default is 20."
       }
     };
 
@@ -379,12 +379,12 @@ namespace brep
          5."
       }
 
-      size_t build-db-retry = 10
+      size_t build-db-retry = 20
       {
         "<num>",
         "The maximum number of times to retry build database transactions in
          the face of recoverable failures (deadlock, loss of connection, etc).
-         The default is 10."
+         The default is 20."
       }
     };
 

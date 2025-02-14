@@ -42,13 +42,13 @@ namespace brep
     // failure.
     //
     void
-    init (const options::package_db&, size_t retry);
+    init (const options::package_db&, size_t retry_max);
 
     // Initialize the build database instance. Throw odb::exception on
     // database failure.
     //
     void
-    init (const options::build_db&, size_t retry);
+    init (const options::build_db&, size_t retry_max);
 
     virtual bool
     handle (request&, response&) = 0;
@@ -91,7 +91,8 @@ namespace brep
       const function<void (const shared_ptr<build_tenant>&)>&);
 
   protected:
-    size_t retry_ = 0; // Max of all retries.
+    size_t retry_     = 0; // Performed retries.
+    size_t retry_max_ = 0; // Maximum number of retries to perform.
 
     shared_ptr<odb::core::database> package_db_;
     shared_ptr<odb::core::database> build_db_;   // NULL if not building.

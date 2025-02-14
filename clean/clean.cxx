@@ -22,6 +22,7 @@
 #include <libbrep/build-package-odb.hxx>
 #include <libbrep/database-lock.hxx>
 
+#include <mod/utility.hxx>             // sleep_before_retry()
 #include <mod/build-target-config.hxx>
 
 #include <clean/clean-options.hxx>
@@ -317,8 +318,8 @@ namespace brep
     // builds in the current chunk, up to 10 times. If we still end up with
     // the recoverable database error, then just skip this builds chunk.
     //
-    const size_t max_retries (10);
-    size_t retry (max_retries);
+    size_t retry (0);
+    const size_t retry_max (10);
 
     // If we fail to erase some builds due to the recoverable database error
     // and no builds are erased during this run, then we terminate with the
@@ -409,7 +410,7 @@ namespace brep
           erased = (not_erased != n);
 
         offset += not_erased;
-        retry = max_retries;
+        retry = 0;
       }
       catch (const recoverable& e)
       {
@@ -417,14 +418,16 @@ namespace brep
         // attempts left. In the later case stash the error message, if not
         // stashed yet, and skip the current builds chunk.
         //
-        if (retry-- == 0)
+        if (retry == retry_max)
         {
           offset += n;
-          retry = max_retries;
+          retry = 0;
 
           if (!re)
             re = e.what ();
         }
+        else
+          sleep_before_retry (retry++);
 
         tnt = "";
         pkg_name = package_name ();

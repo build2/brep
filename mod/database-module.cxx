@@ -10,6 +10,7 @@
 #include <libbrep/build-package.hxx>
 #include <libbrep/build-package-odb.hxx>
 
+#include <mod/utility.hxx>        // sleep_before_retry()
 #include <mod/database.hxx>
 #include <mod/module-options.hxx>
 
@@ -25,13 +26,14 @@ namespace brep
   database_module (const database_module& r)
       : handler (r),
         retry_ (r.retry_),
+        retry_max_ (r.retry_max_),
         package_db_ (r.initialized_ ? r.package_db_ : nullptr),
         build_db_ (r.initialized_ ? r.build_db_ : nullptr)
   {
   }
 
   void database_module::
-  init (const options::package_db& o, size_t retry)
+  init (const options::package_db& o, size_t retry_max)
   {
     package_db_ = shared_database (o.package_db_user (),
                                    o.package_db_role (),
@@ -41,11 +43,12 @@ namespace brep
                                    o.package_db_port (),
                                    o.package_db_max_connections ());
 
-    retry_ = retry_ < retry ? retry : retry_;
+    retry_max_ = retry_max_ < retry_max ? retry_max : retry_max_;
+    retry_ = 0;
   }
 
   void database_module::
-  init (const options::build_db& o, size_t retry)
+  init (const options::build_db& o, size_t retry_max)
   {
     build_db_ = shared_database (o.build_db_user (),
                                  o.build_db_role (),
@@ -55,7 +58,8 @@ namespace brep
                                  o.build_db_port (),
                                  o.build_db_max_connections ());
 
-    retry_ = retry_ < retry ? retry : retry_;
+    retry_max_ = retry_max_ < retry_max ? retry_max : retry_max_;
+    retry_ = 0;
   }
 
   bool database_module::
@@ -66,10 +70,12 @@ namespace brep
   }
   catch (const odb::recoverable& e)
   {
-    if (retry_-- > 0)
+    if (retry_ != retry_max_)
     {
       HANDLER_DIAG;
-      l1 ([&]{trace << e << "; " << retry_ + 1 << " retries left";});
+      l1 ([&]{trace << e << "; " << retry_max_ - retry_ << " retries left";});
+
+      sleep_before_retry (retry_++);
       throw retry ();
     }
 
@@ -133,7 +139,7 @@ namespace brep
     //
     assert (build_db_ != nullptr);
 
-    for (size_t retry (retry_);;)
+    for (size_t retry (0);;)
     {
       try
       {
@@ -160,11 +166,13 @@ namespace brep
         // If no more retries left, don't re-throw odb::recoverable not to
         // retry at the upper level.
         //
-        if (retry-- == 0)
+        if (retry == retry_max_)
           fail << e << "; no tenant service state update retries left";
 
-        l1 ([&]{trace << e << "; " << retry + 1 << " tenant service "
+        l1 ([&]{trace << e << "; " << retry_max_ - retry << " tenant service "
                       << "state update retries left";});
+
+        sleep_before_retry (retry++);
       }
     }
   }

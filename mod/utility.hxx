@@ -26,6 +26,19 @@ namespace brep
   //
   string
   wildcard_to_similar_to_pattern (const string&);
+
+  // Sleep for a random period of time before retrying an action after its
+  // recoverable failure (for example, odb::recoverable exception). The
+  // maximum sleep time is specified in milliseconds.
+  //
+  // Note that the current implementation doesn't sleep on the first retry
+  // (retry argument is 0) yielding instead.
+  //
+  // Also note that in the future we may support growth of the sleep time for
+  // greater retry numbers.
+  //
+  void
+  sleep_before_retry (size_t retry, size_t max_time = 100);
 }
 
 #endif // MOD_UTILITY_HXX

@@ -682,7 +682,7 @@ namespace brep
       //
       if (optional<tenant_service> ts = cancel (error, warn,
                                                 verb_ ? &trace : nullptr,
-                                                *build_db_, retry_,
+                                                *build_db_, retry_max_,
                                                 "ci-github", sid,
                                                 true /* ref_count */))
       {
@@ -766,7 +766,7 @@ namespace brep
     // it gets archived after some timeout.
     //
     if (!create (error, warn, verb_ ? &trace : nullptr,
-                 *build_db_, retry_,
+                 *build_db_, retry_max_,
                  tenant_service (sid, "ci-github", sd.json ()),
                  chrono::seconds (30) /* interval */,
                  chrono::seconds (0) /* delay */,
@@ -846,7 +846,7 @@ namespace brep
 
         if (optional<tenant_service> ts = cancel (error, warn,
                                                   verb_ ? &trace : nullptr,
-                                                  *build_db_, retry_,
+                                                  *build_db_, retry_max_,
                                                   "ci-github", sid,
                                                   true /* ref_count */))
         {
@@ -922,7 +922,7 @@ namespace brep
     if (!create (error,
                  warn,
                  verb_ ? &trace : nullptr,
-                 *build_db_, retry_,
+                 *build_db_, retry_max_,
                  move (ts),
                  chrono::seconds (30) /* interval */,
                  chrono::seconds (0) /* delay */))
@@ -1052,7 +1052,7 @@ namespace brep
     auto pr (create (error,
                      warn,
                      verb_ ? &trace : nullptr,
-                     *build_db_, retry_,
+                     *build_db_, retry_max_,
                      tenant_service (sid, "ci-github", sd.json ()),
                      chrono::seconds (30) /* interval */,
                      chrono::seconds (0) /* delay */,
@@ -1626,7 +1626,8 @@ namespace brep
       return sd.json ();
     };
 
-    optional<build_state> bs (rebuild (*build_db_, retry_, *bid, update_sd));
+    optional<build_state> bs (
+      rebuild (*build_db_, retry_max_, *bid, update_sd));
 
     // If the build has been archived or re-enqueued since we loaded the
     // service data, fail (by updating) both the build check run and the
@@ -1843,7 +1844,7 @@ namespace brep
       try
       {
         if (auto pr = create (error, warn, verb_ ? &trace : nullptr,
-                              *build_db_, retry_,
+                              *build_db_, retry_max_,
                               tenant_service (sid, "ci-github", sd.json ()),
                               chrono::seconds (30) /* interval */,
                               chrono::seconds (0) /* delay */,
@@ -1894,7 +1895,7 @@ namespace brep
     try
     {
       if (!cancel (error, warn, verb_ ? &trace : nullptr,
-                   *build_db_, retry_,
+                   *build_db_, retry_max_,
                    ts.type,
                    ts.id))
       {
@@ -1926,7 +1927,7 @@ namespace brep
     try
     {
       if (cancel (error, warn, verb_ ? &trace : nullptr,
-                  *build_db_, retry_,
+                  *build_db_, retry_max_,
                   ts.type,
                   ts.id))
         l3 ([&]{trace << "canceled pre-check tenant " << ts.id;});
@@ -2112,7 +2113,7 @@ namespace brep
       try
       {
         optional<start_result> r (load (error, warn, verb_ ? &trace : nullptr,
-                                        *build_db_, retry_,
+                                        *build_db_, retry_max_,
                                         move (ts),
                                         move (rl)));
 
@@ -2195,7 +2196,7 @@ namespace brep
     try
     {
       if (cancel (error, warn, verb_ ? &trace : nullptr,
-                  *build_db_, retry_, ts.type, ts.id))
+                  *build_db_, retry_max_, ts.type, ts.id))
         l3 ([&]{trace << "canceled CI tenant " << ts.id;});
     }
     catch (const runtime_error& e) // Database retries exhausted.
