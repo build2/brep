@@ -14,6 +14,7 @@
 
 namespace brep
 {
+  class build_tenant;
   struct tenant_service;
 
   // A handler that utilises the database. Specifically, it will retry the
@@ -73,6 +74,21 @@ namespace brep
       const string& id,
       const function<optional<string> (const string& tenant_id,
                                        const tenant_service&)>&);
+
+    // A low-level version of the above.
+    //
+    // Specifically, the specified function is expected to update the
+    // tenant-associated service state directly, if required. While at it, it
+    // may also update some other tenant members. Note that if no tenant with
+    // the specified service type/id exists in the database, then the function
+    // will be called with the NULL pointer.
+    //
+    void
+    update_tenant_service_state (
+      const odb::core::connection_ptr&,
+      const string& type,
+      const string& id,
+      const function<void (const shared_ptr<build_tenant>&)>&);
 
   protected:
     size_t retry_ = 0; // Max of all retries.

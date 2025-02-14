@@ -820,8 +820,11 @@ namespace brep
                         const string& iat,
                         uint64_t ai,
                         const string& rid,
-                        const string& hs)
+                        const string& hs,
+                        size_t batch)
   {
+    assert (batch != 0);
+
     // No support for result_status so state cannot be built.
     //
 #ifndef NDEBUG
@@ -840,7 +843,7 @@ namespace brep
     //    responding with 502). We handle this here by batching the creation.
     //
     size_t n (crs.size ());
-    size_t b (n / 60 + (n % 60 != 0 ? 1 : 0));
+    size_t b (n / batch + (n % batch != 0 ? 1 : 0));
     size_t bn (n / b);
 
     auto i (crs.begin ());

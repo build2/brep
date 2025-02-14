@@ -92,23 +92,18 @@ namespace brep
 
     optional<string> r;
 
-    for (size_t retry (retry_);; )
-    {
-      try
+    update_tenant_service_state (
+      conn, type, id,
+      [&r, &f, this] (const shared_ptr<build_tenant>& t)
       {
-        transaction tr (conn->begin ());
-
-        using query = query<build_tenant>;
-
-        shared_ptr<build_tenant> t (
-          build_db_->query_one<build_tenant> (query::service.id == id &&
-                                              query::service.type == type));
+        // Reset, in case this is a retry after the recoverable database
+        // failure.
+        //
+        r = nullopt;
 
         if (t != nullptr)
         {
-          // Shouldn't be here otherwise.
-          //
-          assert (t->service);
+          assert (t->service); // Shouldn't be here otherwise.
 
           tenant_service& s (*t->service);
 
@@ -120,6 +115,37 @@ namespace brep
             r = move (s.data);
           }
         }
+      });
+
+    return r;
+  }
+
+  void database_module::
+  update_tenant_service_state (
+    const connection_ptr& conn,
+    const string& type,
+    const string& id,
+    const function<void (const shared_ptr<build_tenant>&)>& f)
+  {
+    assert (f != nullptr); // Shouldn't be called otherwise.
+
+    // Must be initialized via the init(options::build_db) function call.
+    //
+    assert (build_db_ != nullptr);
+
+    for (size_t retry (retry_);;)
+    {
+      try
+      {
+        transaction tr (conn->begin ());
+
+        using query = query<build_tenant>;
+
+        shared_ptr<build_tenant> t (
+          build_db_->query_one<build_tenant> (query::service.id == id &&
+                                              query::service.type == type));
+
+        f (t);
 
         tr.commit ();
 
@@ -139,11 +165,7 @@ namespace brep
 
         l1 ([&]{trace << e << "; " << retry + 1 << " tenant service "
                       << "state update retries left";});
-
-        r = nullopt; // Prepare for the next iteration.
       }
     }
-
-    return r;
   }
 }

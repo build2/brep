@@ -305,13 +305,23 @@ namespace brep
          for the \cb{build-hard-rebuild-timeout} option."
       }
 
-      size_t build-queued-timeout = 30
+      size_t build-queued-timeout = 15
       {
         "<seconds>",
-        "Time to wait before assuming the \cb{queued} notifications are
+        "Time to wait before assuming the \cb{queued} notification batch is
          delivered for package CI requests submitted via third-party services
-         (GitHub, etc). During this time a package is not considered for a
-         build. Must be specified in seconds. Default is 30 seconds."
+         (GitHub, etc). Until all such batches are delivered, a package is
+         not considered for a build. Must be specified in seconds. Default
+         is 15 seconds. See also \cb{build-queued-batch}."
+      }
+
+      size_t build-queued-batch = 60
+      {
+        "<num>",
+        "The maximum number of build configurations in the \cb{queued}
+         notification batch for package CI requests submitted via third-party
+         services (see \cb{build-queued-timeout} for details). The default
+         is 60."
       }
     };
 

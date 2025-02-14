@@ -3,6 +3,8 @@
 
 #include <mod/mod-build-force.hxx>
 
+#include <chrono>
+
 #include <odb/database.hxx>
 #include <odb/transaction.hxx>
 
@@ -260,11 +262,11 @@ handle (request& rq, response& rs)
 
             // If we ought to call the
             // tenant_service_build_queued::build_queued() callback, then also
-            // set the package tenant's queued timestamp to the current time
-            // to prevent the task handler from picking the build and
-            // potentially interfering with us by sending its `building`
-            // notification before we send our `queued` notification (see
-            // tenant::queued_timestamp for details).
+            // set the package tenant's queued timestamp to prevent the task
+            // handler from picking the build and potentially interfering with
+            // us by sending its `building` notification before we send our
+            // `queued` notification (see tenant::queued_timestamp for
+            // details).
             //
             if (tsq != nullptr)
             {
@@ -280,10 +282,18 @@ handle (request& rq, response& rs)
               qhs = tenant_service_build_queued::build_queued_hints {
                 tpc == 1, p->configs.size () == 1};
 
-              // Set the package tenant's queued timestamp.
+              // Set the package tenant's queued timestamp, unless it is
+              // already set to the same or greater value.
               //
-              t->queued_timestamp = system_clock::now ();
-              build_db_->update (t);
+              timestamp ts (
+                system_clock::now () +
+                chrono::seconds (options_->build_queued_timeout ()));
+
+              if (!t->queued_timestamp || *t->queued_timestamp < ts)
+              {
+                t->queued_timestamp = ts;
+                build_db_->update (t);
+              }
 
               tss = make_pair (move (*t->service), move (b));
             }

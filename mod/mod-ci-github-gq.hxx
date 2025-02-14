@@ -39,7 +39,8 @@ namespace brep
                         const string& installation_access_token,
                         uint64_t app_id,
                         const string& repository_id,
-                        const string& head_sha);
+                        const string& head_sha,
+                        size_t batch);
 
   // Create a new check run on GitHub for a build in the queued or building
   // state. Note that the state cannot be built because in that case a
