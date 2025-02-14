@@ -2351,7 +2351,11 @@ namespace brep
         {
           // Unexpected built->queued transition (rebuild).
           //
-          warn << "check run " << bid << ": unexpected rebuild";
+          // Note that handle_check_run_rerequest() may trigger an "expected"
+          // rebuild, in which case our state should be set to queued.
+          //
+          if (scr->state != build_state::queued || !scr->state_synced)
+            warn << "check run " << bid << ": unexpected rebuild";
         }
         else
         {
