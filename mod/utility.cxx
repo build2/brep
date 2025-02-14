@@ -3,7 +3,15 @@
 
 #include <mod/utility.hxx>
 
+#include <chrono>
+#include <random>
+#include <thread> // this_thread::sleep_for(), this_thread::yield()
+
 #include <libbutl/path-pattern.hxx>
+
+using namespace std;
+
+static thread_local mt19937 rand_gen (random_device {} ());
 
 namespace brep
 {
@@ -65,5 +73,17 @@ namespace brep
     }
 
     return r;
+  }
+
+  void
+  retry_sleep (size_t retry)
+  {
+    if (retry != 0)
+    {
+      size_t ms (uniform_int_distribution<unsigned short> (1, 100) (rand_gen));
+      this_thread::sleep_for (chrono::milliseconds (ms));
+    }
+    else
+      this_thread::yield ();
   }
 }

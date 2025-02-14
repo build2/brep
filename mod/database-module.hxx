@@ -75,7 +75,8 @@ namespace brep
                                        const tenant_service&)>&);
 
   protected:
-    size_t retry_ = 0; // Max of all retries.
+    size_t retry_   = 0; // Max of all retries.
+    size_t retried_ = 0; // Performed retries.
 
     shared_ptr<odb::core::database> package_db_;
     shared_ptr<odb::core::database> build_db_;   // NULL if not building.

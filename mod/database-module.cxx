@@ -10,6 +10,7 @@
 #include <libbrep/build-package.hxx>
 #include <libbrep/build-package-odb.hxx>
 
+#include <mod/utility.hxx>        // retry_sleep()
 #include <mod/database.hxx>
 #include <mod/module-options.hxx>
 
@@ -66,10 +67,12 @@ namespace brep
   }
   catch (const odb::recoverable& e)
   {
-    if (retry_-- > 0)
+    if (retried_ != retry_)
     {
       HANDLER_DIAG;
-      l1 ([&]{trace << e << "; " << retry_ + 1 << " retries left";});
+      l1 ([&]{trace << e << "; " << retry_ - retried_ << " retries left";});
+
+      retry_sleep (retried_++);
       throw retry ();
     }
 
@@ -92,7 +95,7 @@ namespace brep
 
     optional<string> r;
 
-    for (size_t retry (retry_);; )
+    for (size_t retried (0);;)
     {
       try
       {
@@ -134,13 +137,15 @@ namespace brep
         // If no more retries left, don't re-throw odb::recoverable not to
         // retry at the upper level.
         //
-        if (retry-- == 0)
+        if (retried == retry_)
           fail << e << "; no tenant service state update retries left";
 
-        l1 ([&]{trace << e << "; " << retry + 1 << " tenant service "
+        l1 ([&]{trace << e << "; " << retry_ - retried << " tenant service "
                       << "state update retries left";});
 
         r = nullopt; // Prepare for the next iteration.
+
+        retry_sleep (retried++);
       }
     }
 

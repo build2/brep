@@ -26,6 +26,14 @@ namespace brep
   //
   string
   wildcard_to_similar_to_pattern (const string&);
+
+  // Sleep during some short random period of time (up to 100ms) before
+  // retrying some action after its recoverable failure (odb::recoverable
+  // exception, etc). The period length probability may potentially depend on
+  // the retry number (0-based index).
+  //
+  void
+  retry_sleep (size_t retry);
 }
 
 #endif // MOD_UTILITY_HXX

@@ -19,6 +19,7 @@
 #include <libbrep/build-package.hxx>
 #include <libbrep/build-package-odb.hxx>
 
+#include <mod/utility.hxx>          // retry_sleep()
 #include <mod/external-handler.hxx>
 
 namespace brep
@@ -560,7 +561,8 @@ namespace brep
     duplicate_tenant_result r (duplicate_tenant_result::created);
     service.ref_count = 1;
 
-    for (string request_id;;)
+    string request_id;
+    for (size_t retried (0);;)
     {
       try
       {
@@ -693,7 +695,7 @@ namespace brep
         // If no more retries left, don't re-throw odb::recoverable not to
         // retry at the upper level.
         //
-        if (retry-- == 0)
+        if (retried == retry)
           throw runtime_error (e.what ());
 
         // Prepare for the next iteration.
@@ -702,6 +704,8 @@ namespace brep
         service = move (*t.service);
         service.ref_count = 1;
         r = duplicate_tenant_result::created;
+
+        retry_sleep (retried++);
       }
     }
 
@@ -721,7 +725,7 @@ namespace brep
 
     string request_id;
 
-    for (;;)
+    for (size_t retried (0);;)
     {
       try
       {
@@ -773,8 +777,10 @@ namespace brep
         // If no more retries left, don't re-throw odb::recoverable not to
         // retry at the upper level.
         //
-        if (retry-- == 0)
+        if (retried == retry)
           throw runtime_error (e.what ());
+
+        retry_sleep (retried++);
       }
     }
 
@@ -820,7 +826,7 @@ namespace brep
 
     optional<tenant_service> r;
 
-    for (;;)
+    for (size_t retried (0);;)
     {
       try
       {
@@ -882,10 +888,12 @@ namespace brep
         // If no more retries left, don't re-throw odb::recoverable not to
         // retry at the upper level.
         //
-        if (retry-- == 0)
+        if (retried == retry)
           throw runtime_error (e.what ());
 
         r = nullopt; // Prepare for the next iteration.
+
+        retry_sleep (retried++);
       }
     }
 
@@ -905,7 +913,7 @@ namespace brep
 
     assert (!transaction::has_current ());
 
-    for (;;)
+    for (size_t retried (0);;)
     {
       try
       {
@@ -938,8 +946,10 @@ namespace brep
         // If no more retries left, don't re-throw odb::recoverable not to
         // retry at the upper level.
         //
-        if (retry-- == 0)
+        if (retried == retry)
           throw runtime_error (e.what ());
+
+        retry_sleep (retried++);
       }
     }
 
@@ -964,7 +974,7 @@ namespace brep
 
     build_state s;
 
-    for (;;)
+    for (size_t retried (0);;)
     {
       try
       {
@@ -1024,8 +1034,10 @@ namespace brep
         // If no more retries left, don't re-throw odb::recoverable not to
         // retry at the upper level.
         //
-        if (retry-- == 0)
+        if (retried == retry)
           throw runtime_error (e.what ());
+
+        retry_sleep (retried++);
       }
     }
 
