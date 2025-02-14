@@ -282,11 +282,18 @@ namespace brep
     // for it. It feels like there is no easy way to reliably fix that.
     // Instead, we just decrease the probability of such a notifications
     // sequence failure by delaying builds of the freshly queued packages for
-    // some time.  Specifically, whenever the `queued` notification is ought
-    // to be sent (normally out of the database transaction, since it likely
-    // sends an HTTP request, etc) the tenant's queued_timestamp member is set
-    // to the current time. During the configured time interval since that
-    // time point the build tasks may not be issued for the tenant's packages.
+    // some time. Specifically, whenever the `queued` notification,
+    // potentially for multiple builds, is ought to be sent (normally out of
+    // the database transaction, since it likely sends one or more HTTP
+    // requests, etc) the tenant's queued_timestamp member is set to the time
+    // point when we assume this notification will finally be delivered to the
+    // service. This timestamp is calculated as the sum of the current time
+    // and some time interval, proportional to the number of the queued builds
+    // we need to notify the third party service about. Until this time point
+    // is reached, the build tasks may not be issued for the tenant's
+    // packages. The thinking here is that the bigger the number of builds we
+    // need to notify about, the longer it normally takes to deliver this
+    // notification.
     //
     // Also note that while there are similar potential races for other
     // notification sequences, their probability is rather low due to the

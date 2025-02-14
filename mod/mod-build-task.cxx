@@ -156,8 +156,7 @@ template <typename T>
 static inline query<T>
 package_query (bool custom_bot,
                brep::params::build_task& params,
-               interactive_mode imode,
-               uint64_t queued_expiration_ns)
+               interactive_mode imode)
 {
   using namespace brep;
   using query = query<T>;
@@ -258,7 +257,8 @@ package_query (bool custom_bot,
 
   return q &&
          (query::build_tenant::queued_timestamp.is_null () ||
-          query::build_tenant::queued_timestamp < queued_expiration_ns);
+          query::build_tenant::queued_timestamp <
+            system_clock::now ().time_since_epoch ().count ());
 }
 
 bool brep::build_task::
@@ -540,7 +540,7 @@ handle (request& rq, response& rs)
                         const config_machine& cm) -> task_response_manifest
     {
       uint64_t ts (
-        chrono::duration_cast<std::chrono::nanoseconds> (
+        chrono::duration_cast<chrono::nanoseconds> (
           b.timestamp.time_since_epoch ()).count ());
 
       string session (b.tenant + '/'                      +
@@ -658,9 +658,6 @@ handle (request& rq, response& rs)
     timestamp forced_rebuild_expiration (
       expiration (options_->build_forced_rebuild_timeout ()));
 
-    uint64_t queued_expiration_ns (
-      expiration_ns (options_->build_queued_timeout ()));
-
     // Calculate the soft/hard rebuild expiration time, based on the
     // respective build-{soft,hard}-rebuild-timeout and
     // build-alt-{soft,hard}-rebuild-{start,stop,timeout} configuration
@@ -777,8 +774,7 @@ handle (request& rq, response& rs)
 
     pkg_query pq (package_query<buildable_package> (custom_bot,
                                                     params,
-                                                    imode,
-                                                    queued_expiration_ns));
+                                                    imode));
 
     // Transform (in-place) the interactive login information into the actual
     // login command, if specified in the manifest and the transformation
@@ -934,8 +930,7 @@ handle (request& rq, response& rs)
 
       query q (package_query<buildable_package_count> (custom_bot,
                                                        params,
-                                                       imode,
-                                                       queued_expiration_ns));
+                                                       imode));
 
       if (conn == nullptr)
         conn = build_db_->connection ();
@@ -1229,6 +1224,45 @@ handle (request& rq, response& rs)
         return tenant_service_build_queued::build_queued_hints {
           tpc == 1, p.configs.size () == 1};
       };
+
+      // Calculate the tenant's queued timestamp based on the number of queued
+      // builds, update the tenant, and return the resulting timestamp. Must
+      // be called inside the build db transaction.
+      //
+      // Note that it feels unlikely that the tenant queued timestamp is
+      // already set to some greater value. Let's however consider such a
+      // possibility (can potentially be a result of some reconfiguration,
+      // etc) and, if that's the case, leave the timestamp intact and return
+      // nullopt.
+      //
+      auto update_queued_timestamp = [this] (const shared_ptr<build_tenant>& t,
+                                             size_t queued_builds)
+        -> optional<timestamp>
+      {
+        assert (transaction::has_current ());
+
+        // Let's assume that the `queued` notification will be delivered in
+        // batches, with up to 60 queued builds per batch, and that the total
+        // notification delivery time is proportional to the number of
+        // batches.
+        //
+        size_t n (queued_builds / 60 + (queued_builds % 60 != 0 ? 1 : 0));
+
+        timestamp ts (system_clock::now () +
+                      chrono::seconds (n * options_->build_queued_timeout ()));
+
+        if (t->queued_timestamp && *t->queued_timestamp > ts)
+          return nullopt;
+
+        t->queued_timestamp = ts;
+        build_db_->update (t);
+
+        return t->queued_timestamp;
+      };
+
+      // Stash the tenant queued timestamp, if we set it.
+      //
+      optional<timestamp> queued_timestamp;
 
       // Collect the auxiliary machines required for testing of the specified
       // package configuration and the external test packages, if present for
@@ -2029,8 +2063,8 @@ handle (request& rq, response& rs)
 
                         if (!qbs.empty ())
                         {
-                          t->queued_timestamp = system_clock::now ();
-                          build_db_->update (t);
+                          queued_timestamp =
+                            update_queued_timestamp (t, qbs.size ());
                         }
                       }
                     }
@@ -2285,8 +2319,8 @@ handle (request& rq, response& rs)
 
                           if (!qbs.empty ())
                           {
-                            t->queued_timestamp = system_clock::now ();
-                            build_db_->update (t);
+                            queued_timestamp =
+                              update_queued_timestamp (t, qbs.size ());
                           }
                         }
                       }
@@ -2334,6 +2368,7 @@ handle (request& rq, response& rs)
             tsq = nullptr;
             tss = nullopt;
             qbs.clear ();
+            queued_timestamp = nullopt;
           }
 
           // If the task manifest is prepared, then bail out from the package
@@ -2459,6 +2494,41 @@ handle (request& rq, response& rs)
               update_tenant_service_state (conn, ss.type, ss.id, f))
             ss.data = move (data);
         }
+      }
+
+      // Now, as all the potential tenant service notifications are delivered,
+      // let's check it we have set the tenant's queued timestamp to prevent
+      // the race and, if that's the case, reset it.
+      //
+      // Note that we could potentially optimize by doing this while
+      // intercepting the call of the function returned by the above
+      // build_queued() callback function call, not to start an additional
+      // transaction here. However, build_queued() may not return any
+      // function, in which case we would have to run the separate transaction
+      // anyway. Thus, given that we normally do this once per tenant, let's
+      // keep it simple for now.
+      //
+      if (queued_timestamp)
+      {
+        assert (tss); // Wouldn't be here otherwise.
+
+        const build& b (*tss->second);
+
+        if (conn == nullptr)
+          conn = build_db_->connection ();
+
+        transaction tr (conn->begin ());
+
+        shared_ptr<build_tenant> t (
+          build_db_->load<build_tenant> (b.tenant));
+
+        if (t->queued_timestamp == queued_timestamp)
+        {
+          t->queued_timestamp = nullopt;
+          build_db_->update (t);
+        }
+
+        tr.commit ();
       }
 
       // If the task manifest is prepared, then check that the number of the
