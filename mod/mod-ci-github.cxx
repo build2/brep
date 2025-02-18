@@ -2707,6 +2707,21 @@ namespace brep
     if (sd.completed)
       return nullptr;
 
+    // If we don't have the accurate list of check runs in the service data
+    // (for example, because we ran out of transaction retries trying to
+    // update it), then things are going to fall apart: we will add this check
+    // run and then immediately conclude that the check suite is complete
+    // (while GitHub will likely continue showing a bunch of queued check
+    // runs. If this checks run is successful, then we will conclude the
+    // check suite is successful and update the conclusion check run, all
+    // based on one build.
+    //
+    if (sd.check_runs.empty ())
+    {
+      error << "no queued check runs in service data for tenant " << tenant_id;
+      return nullptr;
+    }
+
     // Here we only update the state of this check run. If there are no more
     // unbuilt ones, then the synthetic conclusion check run will be updated
     // in build_completed(). Note that determining whether we have no more
