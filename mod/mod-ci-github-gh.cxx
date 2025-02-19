@@ -137,8 +137,7 @@ namespace brep
       if      (c (ni, "node_id")) node_id = p.next_expect_string ();
       else if (c (hb, "head_branch"))
       {
-        string* v (p.next_expect_string_null ());
-        if (v != nullptr)
+        if (string* v = p.next_expect_string_null ())
           head_branch = *v;
       }
       else if (c (hs, "head_sha")) head_sha = p.next_expect_string ();
@@ -182,8 +181,7 @@ namespace brep
       if      (c (ni, "node_id")) node_id = p.next_expect_string ();
       else if (c (hb, "head_branch"))
       {
-        string* v (p.next_expect_string_null ());
-        if (v != nullptr)
+        if (string* v = p.next_expect_string_null ())
           head_branch = *v;
       }
       else if (c (hs, "head_sha")) head_sha = p.next_expect_string ();
@@ -191,8 +189,7 @@ namespace brep
         check_runs_count = p.next_expect_number <size_t> ();
       else if (c (co, "conclusion"))
       {
-        string* v (p.next_expect_string_null ());
-        if (v != nullptr)
+        if (string* v = p.next_expect_string_null ())
           conclusion = *v;
       }
       else if (c (ap, "app"))
@@ -268,6 +265,15 @@ namespace brep
       if      (c (ni, "node_id")) node_id = p.next_expect_string ();
       else if (c (nm, "name"))    name = p.next_expect_string ();
       else if (c (st, "status"))  status = p.next_expect_string ();
+      // checkSuite is only present in some GraphQL responses and we select
+      // only the node id so there won't be any other members.
+      //
+      else if (p.name () == "checkSuite")
+      {
+        p.next_expect (event::begin_object);
+        check_suite_node_id = p.next_expect_member_string ("node_id");
+        p.next_expect (event::end_object);
+      }
       else p.next_expect_value_skip ();
     }
 

@@ -125,6 +125,10 @@ namespace brep
     //
     string report_sha;
 
+    // GitHub-internal opaque check suite id.
+    //
+    optional<string> check_suite_node_id;
+
     brep::check_runs check_runs;
 
     // Flag indicating that all the elements in check_runs are built and this

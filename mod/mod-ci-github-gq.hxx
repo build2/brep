@@ -47,7 +47,8 @@ namespace brep
   // conclusion is required.
   //
   // Update `cr` with the new data (node id, state, and state_synced). Return
-  // false and issue diagnostics if the request failed.
+  // nullopt and issue diagnostics if the request failed. Return the check
+  // suite node id otherwise (so can be used as bool).
   //
   // Throw invalid_argument if the passed data is invalid, missing, or
   // inconsistent.
@@ -55,7 +56,7 @@ namespace brep
   // If the details_url is absent GitHub will use the app's homepage. Title
   // and summary are required and cannot be empty.
   //
-  bool
+  optional<string>
   gq_create_check_run (const basic_mark& error,
                        check_run& cr,
                        const string& installation_access_token,

@@ -1994,11 +1994,14 @@ namespace brep
     if (iat == nullptr)
       return nullptr; // Try again on the next call.
 
+    optional<string> check_suite_node_id;
+
     // Create a synthetic check run with an in-progress state. Return the
     // check run on success or nullopt on failure.
     //
     auto create_synthetic_cr = [&tenant_id,
                                 iat,
+                                &check_suite_node_id,
                                 &sd,
                                 &error,
                                 this] (string name,
@@ -2011,15 +2014,16 @@ namespace brep
 
       // Let unlikely invalid_argument propagate (see above).
       //
-      if (gq_create_check_run (error,
-                               cr,
-                               iat->token,
-                               sd.app_id,
-                               sd.repository_node_id,
-                               sd.report_sha,
-                               details_url (tenant_id),
-                               build_state::building,
-                               title, summary))
+      if (check_suite_node_id = gq_create_check_run (error,
+                                                     cr,
+                                                     iat->token,
+                                                     sd.app_id,
+                                                     sd.repository_node_id,
+                                                     sd.report_sha,
+                                                     details_url (tenant_id),
+                                                     build_state::building,
+                                                     title,
+                                                     summary))
       {
         return cr;
       }
@@ -2157,6 +2161,7 @@ namespace brep
     return [&error,
             tenant_id,
             iat = move (new_iat),
+            csi = move (check_suite_node_id),
             cni = move (conclusion_node_id)]
       (const string& ti,
        const tenant_service& ts) -> optional<string>
@@ -2181,6 +2186,9 @@ namespace brep
 
       if (iat)
         sd.installation_access = *iat;
+
+      if (csi)
+        sd.check_suite_node_id = *csi;
 
       if (!cni.empty ())
         sd.conclusion_node_id = cni;

@@ -60,16 +60,16 @@ namespace brep
     repository_node_id = p.next_expect_member_string ("repository_node_id");
     repository_clone_url = p.next_expect_member_string ("repository_clone_url");
 
-    {
-      string* s (p.next_expect_member_string_null ("pr_node_id"));
-      if (s != nullptr)
-        pr_node_id = *s;
-    }
+    if (string* s = p.next_expect_member_string_null ("pr_node_id"))
+      pr_node_id = *s;
 
     pr_number = p.next_expect_member_number_null<uint32_t> ("pr_number");
 
     check_sha = p.next_expect_member_string ("check_sha");
     report_sha = p.next_expect_member_string ("report_sha");
+
+    if (string* s = p.next_expect_member_string_null ("check_suite_node_id"))
+      check_suite_node_id = *s;
 
     p.next_expect_member_array ("check_runs");
     while (p.next_expect (event::begin_object, event::end_array))
@@ -78,11 +78,8 @@ namespace brep
       string nm (p.next_expect_member_string ("name"));
 
       optional<string> nid;
-      {
-        string* v (p.next_expect_member_string_null ("node_id"));
-        if (v != nullptr)
-          nid = *v;
-      }
+      if (string* v = p.next_expect_member_string_null ("node_id"))
+        nid = *v;
 
       build_state s;
       try
@@ -98,8 +95,7 @@ namespace brep
 
       optional<result_status> rs;
       {
-        string* v (p.next_expect_member_string_null ("status"));
-        if (v != nullptr)
+        if (string* v = p.next_expect_member_string_null ("status"))
         {
           try
           {
@@ -128,11 +124,8 @@ namespace brep
 
     completed = p.next_expect_member_boolean<bool> ("completed");
 
-    {
-      string* s (p.next_expect_member_string_null ("conclusion_node_id"));
-      if (s != nullptr)
-        conclusion_node_id = *s;
-    }
+    if (string* s = p.next_expect_member_string_null ("conclusion_node_id"))
+      conclusion_node_id = *s;
 
     p.next_expect (event::end_object);
   }
@@ -264,6 +257,12 @@ namespace brep
 
     s.member ("check_sha", check_sha);
     s.member ("report_sha", report_sha);
+
+    s.member_name ("check_suite_node_id");
+    if (check_suite_node_id)
+      s.value (*check_suite_node_id);
+    else
+      s.value (nullptr);
 
     s.member_begin_array ("check_runs");
     for (const check_run& cr: check_runs)

@@ -84,6 +84,11 @@ namespace brep
     string name;
     string status;
 
+    // Check suite node id this check runs belongs to. Note: only returned
+    // in certain cases thus optional.
+    //
+    optional<string> check_suite_node_id;
+
     explicit
     gh_check_run (json::parser&);
 
