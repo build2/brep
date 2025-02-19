@@ -230,7 +230,8 @@ namespace brep
   gq_query_get_check_runs (uint64_t ai,      // App id
                            const string& ri, // Repository id
                            const string& ci, // Commit id
-                           size_t cn)        // Check run count
+                           size_t cn,        // Check run count
+                           bool csi)         // Get check suite node id
   {
 
     ostringstream os;
@@ -272,14 +273,17 @@ namespace brep
     os << "        checkRuns(last: " << gq_int (cn)                     << '\n'
        << "                  filterBy: {appId: " << gq_int (ai)         << '\n'
        << "                             checkType: LATEST}) {"          << '\n'
-       << "          edges { node { node_id: id name status } }"        << '\n'
-       << "        }" /* checkRuns */                                   << '\n'
-       << "      } }" /* node, edges */                                 << '\n'
-       << "    }"     /* checkSuites */                                 << '\n'
-       << "  }"       /* ... on Commit */                               << '\n'
-       << "  }"       /* object */                                      << '\n'
-       << "}"         /* ... on Repository */                           << '\n'
-       << "}"         /* node */                                        << '\n';
+       << "          edges { node { node_id: id name status"            << '\n';
+    if (csi)
+      os << "                       checkSuite { node_id: id }"         << '\n';
+    os << "          } }" /* node, edges */                             << '\n'
+       << "        }"     /* checkRuns */                               << '\n'
+       << "      } }"     /* node, edges */                             << '\n'
+       << "    }"         /* checkSuites */                             << '\n'
+       << "  }"           /* ... on Commit */                           << '\n'
+       << "  }"           /* object */                                  << '\n'
+       << "}"             /* ... on Repository */                       << '\n'
+       << "}"             /* node */                                    << '\n';
 
     os << '}'         /* query */                                       << '\n';
 
@@ -462,7 +466,7 @@ namespace brep
                                    create_data->repository_id,
                                    create_data->head_sha,
                                    crs_n,
-                                   check_suite_node_id))); // @@ TODO: need cs node id.
+                                   check_suite_node_id)));
 
         // Type that parses the result of the above GraphQL query.
         //
@@ -539,7 +543,7 @@ namespace brep
               error << "unexpected check_run status: received '" << rcr.status
                     << "' but expected '" << gh_to_status (st) << '\'';
 
-              return false; // Fail because something is clearly very wrong.
+              return nullopt; // Fail because something is clearly very wrong.
             }
 
             if (!cr.node_id)
@@ -702,9 +706,10 @@ namespace brep
                                 const string& hs,           // Head SHA
                                 const optional<string>& du, // Details URL.
                                 const check_run& cr,
-                                const string& st,           // Check run status.
-                                const string& ti,           // Output title.
-                                const string& su,           // Output summary.
+                                bool csi,         // Get check suite node id
+                                const string& st, // Check run status.
+                                const string& ti, // Output title.
+                                const string& su, // Output summary.
                                 optional<string> co = nullopt) // Conclusion.
   {
     // Ensure details URL is non-empty if present.
@@ -747,8 +752,10 @@ namespace brep
        << "  checkRun {"                                          << '\n'
        << "    node_id: id"                                       << '\n'
        << "    name"                                              << '\n'
-       << "    status"                                            << '\n'
-       << "  }"                                                   << '\n'
+       << "    status"                                            << '\n';
+    if (csi)
+      os << "  checkSuite { node_id: id }"                        << '\n';
+    os << "  }"                                                   << '\n'
        << "}"                                                     << '\n';
 
     os << "}"                                                      << '\n';
@@ -900,6 +907,7 @@ namespace brep
                                       hs,
                                       du,
                                       cr,
+                                      true /* Get check suite node id */,
                                       gh_to_status (st),
                                       move (ti), move (su),
                                       nullopt /* conclusion */)));
@@ -913,6 +921,8 @@ namespace brep
                             iat,
                             move (rq),
                             gq_create_data {ai, rid, hs}));
+
+    assert (!r || !r->empty ());
 
     cr = move (crs[0]);
 
@@ -935,6 +945,7 @@ namespace brep
                                       hs,
                                       du,
                                       cr,
+                                      false /* Get check suite id */,
                                       gh_to_status (build_state::built),
                                       move (br.title), move (br.summary),
                                       move (br.conclusion))));

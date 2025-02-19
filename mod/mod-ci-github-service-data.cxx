@@ -71,6 +71,12 @@ namespace brep
     check_sha = p.next_expect_member_string ("check_sha");
     report_sha = p.next_expect_member_string ("report_sha");
 
+    {
+      string* s (p.next_expect_member_string_null ("check_suite_node_id"));
+      if (s != nullptr)
+        check_suite_node_id = *s;
+    }
+
     p.next_expect_member_array ("check_runs");
     while (p.next_expect (event::begin_object, event::end_array))
     {
@@ -264,6 +270,12 @@ namespace brep
 
     s.member ("check_sha", check_sha);
     s.member ("report_sha", report_sha);
+
+    s.member_name ("check_suite_node_id");
+    if (check_suite_node_id)
+      s.value (*check_suite_node_id);
+    else
+      s.value (nullptr);
 
     s.member_begin_array ("check_runs");
     for (const check_run& cr: check_runs)

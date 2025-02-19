@@ -268,6 +268,15 @@ namespace brep
       if      (c (ni, "node_id")) node_id = p.next_expect_string ();
       else if (c (nm, "name"))    name = p.next_expect_string ();
       else if (c (st, "status"))  status = p.next_expect_string ();
+      // checkSuite is only present in some GraphQL responses and we select
+      // only the node id so there won't be any other members.
+      //
+      else if (p.name () == "checkSuite")
+      {
+        p.next_expect (event::begin_object);
+        check_suite_node_id = p.next_expect_member_string ("node_id");
+        p.next_expect (event::end_object);
+      }
       else p.next_expect_value_skip ();
     }
 
