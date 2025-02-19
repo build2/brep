@@ -396,8 +396,9 @@ namespace brep
   // Send a GraphQL mutation request `rq` that creates (create=true) or
   // updates (create=false) one or more check runs. The requested build state
   // is taken from each check_run object. Update the check runs in `crs` with
-  // the new data (state, node ID if unset, and state_synced). Return false
-  // and issue diagnostics if the request failed.
+  // the new data (state, node ID if unset, and state_synced). Return nullopt
+  // and issue diagnostics if the request failed. Return check suite node id
+  // if creating a single check run and empty string otherwise.
   //
   struct gq_create_data
   {
@@ -406,7 +407,7 @@ namespace brep
     reference_wrapper<const string> head_sha;
   };
 
-  static bool
+  static optional<string>
   gq_mutate_check_runs (const basic_mark& error,
                         check_runs::iterator crs_b,
                         check_runs::iterator crs_e,
@@ -415,6 +416,8 @@ namespace brep
                         const optional<gq_create_data>& create_data)
   {
     size_t crs_n (crs_e - crs_b);
+
+    bool check_suite_node_id (create_data && crs_n == 1);
 
     const char* what (nullptr);
     try
@@ -458,7 +461,8 @@ namespace brep
           gq_query_get_check_runs (create_data->app_id,
                                    create_data->repository_id,
                                    create_data->head_sha,
-                                   crs_n)));
+                                   crs_n,
+                                   check_suite_node_id))); // @@ TODO: need cs node id.
 
         // Type that parses the result of the above GraphQL query.
         //
@@ -545,7 +549,14 @@ namespace brep
             cr.state_synced = (rst == st);
           }
 
-          return true;
+          if (check_suite_node_id)
+          {
+            optional<string>& r (rcrs.front ().check_suite_node_id);
+            assert (r);
+            return move (r);
+          }
+          else
+            return string ();
         }
         else
           error << "unexpected number of check_run objects in response";
@@ -594,7 +605,7 @@ namespace brep
       error << "unable to " << what << " check runs: " << e;
     }
 
-    return false;
+    return nullopt;
   }
 
   // Serialize `createCheckRun` mutations for one or more builds to GraphQL.
@@ -868,7 +879,7 @@ namespace brep
     return true;
   }
 
-  bool
+  optional<string>
   gq_create_check_run (const basic_mark& error,
                        check_run& cr,
                        const string& iat,
@@ -896,11 +907,12 @@ namespace brep
     brep::check_runs crs {move (cr)};
     crs[0].state = st;
 
-    bool r (gq_mutate_check_runs (error,
-                                  crs.begin (), crs.end (),
-                                  iat,
-                                  move (rq),
-                                  gq_create_data {ai, rid, hs}));
+    optional<string> r (
+      gq_mutate_check_runs (error,
+                            crs.begin (), crs.end (),
+                            iat,
+                            move (rq),
+                            gq_create_data {ai, rid, hs}));
 
     cr = move (crs[0]);
 

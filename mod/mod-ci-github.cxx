@@ -2008,6 +2008,8 @@ namespace brep
 
       // Let unlikely invalid_argument propagate (see above).
       //
+      // @@ TODO: get check suite node id.
+      //
       if (gq_create_check_run (error,
                                cr,
                                iat->token,
@@ -2181,6 +2183,8 @@ namespace brep
 
       if (!cni.empty ())
         sd.conclusion_node_id = cni;
+
+      //@@ TODO: save check suite node id.
 
       return sd.json ();
     };
