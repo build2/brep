@@ -20,6 +20,7 @@
 #include <libbrep/build-package-odb.hxx>
 
 #include <mod/utility.hxx>          // sleep_before_retry()
+#include <mod/database-module.hxx>  // database_module::cancel_tenant()
 #include <mod/external-handler.hxx>
 
 namespace brep
@@ -856,7 +857,7 @@ namespace brep
           {
             db.erase (t);
           }
-          else
+          else if (!t->archived || t->service)
           {
             t->service = nullopt;
             t->archived = true;
@@ -893,7 +894,13 @@ namespace brep
 
         r = nullopt; // Prepare for the next iteration.
 
+        // Try to cancel as fast as possible.
+        //
+#if 0
         sleep_before_retry (retry++);
+#else
+        retry++;
+#endif
       }
     }
 
@@ -949,7 +956,13 @@ namespace brep
         if (retry == retry_max)
           throw runtime_error (e.what ());
 
+        // Try to cancel as fast as possible.
+        //
+#if 0
         sleep_before_retry (retry++);
+#else
+        retry++;
+#endif
       }
     }
 
@@ -965,6 +978,8 @@ namespace brep
   optional<build_state> ci_start::
   rebuild (odb::core::database& db,
            size_t retry_max,
+           const tenant_service_map& tsm,
+           const diag_epilogue& log_writer,
            const build_id& id,
            function<optional<string> (const string& tenant_id,
                                       const tenant_service&,
@@ -973,6 +988,14 @@ namespace brep
     using namespace odb::core;
 
     build_state s;
+    shared_ptr<build_tenant> unsaved_data;
+
+    // Use the database connection for starting the transaction. This way, if
+    // no more retries after the recoverable database failures left, we can
+    // reuse the connection for the cancel_tenant() call to cancel as fast as
+    // possible, not wasting time on re-acquiring it.
+    //
+    connection_ptr conn (db.connection ());
 
     for (size_t retry (0);;)
     {
@@ -981,7 +1004,7 @@ namespace brep
         // NOTE: don't forget to update build_force::handle() if changing
         //       anything here.
         //
-        transaction t (db.begin ());
+        transaction t (conn->begin ());
 
         package_build pb;
         if (!db.query_one<package_build> (query<package_build>::build::id == id,
@@ -1017,6 +1040,14 @@ namespace brep
             if (optional<string> data = uf (t->id, ts, s))
             {
               ts.data = move (*data);
+
+              // If this is our last chance to persist the service data
+              // change, then stash the tenant for cancellation on a potential
+              // failure to persist.
+              //
+              if (retry == retry_max)
+                unsaved_data = t;
+
               db.update (t);
             }
           }
@@ -1035,9 +1066,45 @@ namespace brep
         // retry at the upper level.
         //
         if (retry == retry_max)
-          throw runtime_error (e.what ());
+        {
+          // Cancel the tenant if we failed to persist the service data
+          // change.
+          //
+          if (unsaved_data != nullptr)
+          {
+            NOTIFICATION_DIAG (log_writer);
 
+            const string& tid (unsaved_data->id);
+            const tenant_service& ts (*unsaved_data->service);
+
+            error << e << "; no tenant service state update retries left, "
+                  << "canceling tenant " << tid << " for service " << ts.id
+                  << ' ' << ts.type;
+
+            try
+            {
+              database_module::cancel_tenant (move (conn), retry_max,
+                                              tsm, log_writer,
+                                              tid, ts);
+            }
+            catch (const runtime_error& e)
+            {
+              error << e << "; no retries left to cancel tenant " << tid
+                    << " for service " << ts.id << ' ' << ts.type;
+
+              // Fall through to throw.
+            }
+          }
+
+          throw runtime_error (e.what ());
+        }
+
+        // Release the database connection before the sleep and re-acquire it
+        // afterwards.
+        //
+        conn.reset ();
         sleep_before_retry (retry++);
+        conn = db.connection ();
       }
     }
 

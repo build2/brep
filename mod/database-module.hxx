@@ -11,6 +11,7 @@
 
 #include <mod/module.hxx>
 #include <mod/module-options.hxx>
+#include <mod/tenant-service.hxx> // tenant_service_map
 
 namespace brep
 {
@@ -65,11 +66,18 @@ namespace brep
     // and, if present, call the callback-returned function on this state. If
     // this call returns the data string (rather than nullopt), then update
     // the service state with this data and persist the change. Repeat all the
-    // above steps on the recoverable database failures (deadlocks, etc).
+    // above steps on the recoverable database failures (deadlocks, etc). If
+    // no more retries left, then cancel the tenant (by calling
+    // cancel_tenant()) and throw server_error.
+    //
+    // Note that the passed connection argument may refer to a different
+    // connection object on return. Also note that on the server_error
+    // exception the connection is released.
     //
     optional<string>
     update_tenant_service_state (
-      const odb::core::connection_ptr&,
+      odb::core::connection_ptr&,
+      const tenant_service_map&,
       const string& type,
       const string& id,
       const function<optional<string> (const string& tenant_id,
@@ -77,18 +85,46 @@ namespace brep
 
     // A low-level version of the above.
     //
-    // Specifically, the specified function is expected to update the
-    // tenant-associated service state directly, if required. While at it, it
-    // may also update some other tenant members. Note that if no tenant with
-    // the specified service type/id exists in the database, then the function
-    // will be called with the NULL pointer.
+    // Specifically, the specified function is expected to change the
+    // tenant-associated service state directly and return true if any changes
+    // has been made. While at it, it may also change some other tenant
+    // members. If it returns true, then the update_tenant_service_state()
+    // function assumes that the service state (in a broad sense) was changed,
+    // updates the tenant in the database, and returns the tenant service
+    // state data.
     //
-    void
+    // Note that if no tenant with the specified service type/id exists in the
+    // database, then the specified function will be called with the NULL
+    // pointer.
+    //
+    optional<string>
     update_tenant_service_state (
-      const odb::core::connection_ptr&,
+      odb::core::connection_ptr&,
+      const tenant_service_map&,
       const string& type,
       const string& id,
-      const function<void (const shared_ptr<build_tenant>&)>&);
+      const function<bool (const shared_ptr<build_tenant>&)>&);
+
+  public:
+    // Cancel a tenant due to the inability to save the associated service
+    // data (for example, due to persistent transaction rollbacks). The passed
+    // tenant_service argument contains the unsaved service data.
+    //
+    // Specifically, this function clears the tenant service state (thus
+    // allowing reusing the same service type/id pair in another tenant) and
+    // archives the tenant, unless the tenant is unloaded, in which case it is
+    // dropped. Afterwards, sends the build canceled service notification.
+    //
+    // Repeat the attempts on the recoverable database failures (deadlocks,
+    // etc) and throw runtime_error if no more retries left.
+    //
+    static void
+    cancel_tenant (odb::core::connection_ptr&&,
+                   size_t retry_max,
+                   const tenant_service_map&,
+                   const diag_epilogue& log_writer,
+                   const string& tenant_id,
+                   const tenant_service&);
 
   protected:
     size_t retry_     = 0; // Performed retries.

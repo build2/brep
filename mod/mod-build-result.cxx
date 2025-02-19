@@ -565,7 +565,10 @@ handle (request& rq, response&)
                                     log_writer_))
     {
       conn = build_db_->connection ();
-      update_tenant_service_state (conn, ss.type, ss.id, f);
+      update_tenant_service_state (conn,
+                                   tenant_service_map_,
+                                   ss.type, ss.id,
+                                   f);
     }
   }
 
@@ -593,7 +596,9 @@ handle (request& rq, response&)
 
       if (optional<string> data =
           update_tenant_service_state (
-            conn, ss.type, ss.id,
+            conn,
+            tenant_service_map_,
+            ss.type, ss.id,
             [&f, &build_completed] (const string& tid,
                                     const tenant_service& ts)
             {

@@ -334,7 +334,10 @@ handle (request& rq, response& rs)
                                     log_writer_))
     {
       conn = build_db_->connection ();
-      update_tenant_service_state (conn, ss.type, ss.id, f);
+      update_tenant_service_state (conn,
+                                   tenant_service_map_,
+                                   ss.type, ss.id,
+                                   f);
     }
   }
 

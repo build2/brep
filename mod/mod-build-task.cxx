@@ -510,7 +510,7 @@ handle (request& rq, response& rs)
       if (auto f = tsu->build_unloaded (t->id, move (ts), log_writer_))
       {
         conn = build_db_->connection ();
-        update_tenant_service_state (conn, type, id, f);
+        update_tenant_service_state (conn, tenant_service_map_, type, id, f);
       }
     }
   }
@@ -2430,63 +2430,56 @@ handle (request& rq, response& rs)
             // database transaction, we will do this together with the service
             // data update.
             //
-            optional<string> service_data;
             bool queued_timestamp_reset (false);
 
-            update_tenant_service_state (
-              conn, ss.type, ss.id,
-              [&service_data,
-               &queued_timestamp_reset,
-               &queued_timestamp,
-               &f,
-               this] (const shared_ptr<build_tenant>& t)
-              {
-                // Reset, in case this is a retry after the recoverable
-                // database failure.
-                //
-                service_data = nullopt;
-                queued_timestamp_reset = false;
-
-                if (t != nullptr)
-                {
-                  // Reset the queued timestamp.
-                  //
-                  // Note that it may potentially be re-assigned by some other
-                  // handler to some greater value (timeout calculated by the
-                  // update_queued_timestamp() was too small, etc). Thus,
-                  // let's only reset it if it was set by us.
-                  //
-                  if (t->queued_timestamp == queued_timestamp)
+            if (optional<string> data =
+                update_tenant_service_state (
+                  conn,
+                  tenant_service_map_,
+                  ss.type, ss.id,
+                  [&queued_timestamp_reset,
+                   &queued_timestamp,
+                   &f] (const shared_ptr<build_tenant>& t)
                   {
-                    t->queued_timestamp = nullopt;
-                    queued_timestamp_reset = true;
-                  }
+                    // Reset, in case this is a retry after the recoverable
+                    // database failure.
+                    //
+                    queued_timestamp_reset = false;
 
-                  // Update the service data.
-                  //
-                  assert (t->service); // Shouldn't be here otherwise.
+                    if (t != nullptr)
+                    {
+                      // Reset the queued timestamp.
+                      //
+                      // Note that it may potentially be re-assigned by some
+                      // other handler to some greater value (timeout
+                      // calculated by the update_queued_timestamp() was too
+                      // small, etc). Thus, let's only reset it if it was set
+                      // by us.
+                      //
+                      if (t->queued_timestamp == queued_timestamp)
+                      {
+                        t->queued_timestamp = nullopt;
+                        queued_timestamp_reset = true;
+                      }
 
-                  tenant_service& s (*t->service);
-                  optional<string> data (f (t->id, s));
+                      // Update the service data.
+                      //
+                      assert (t->service); // Shouldn't be here otherwise.
 
-                  if (data)
-                    s.data = move (*data);
+                      tenant_service& s (*t->service);
+                      optional<string> data (f (t->id, s));
 
-                  // If queued timestamp is reset and/or the service data is
-                  // updated, then update the tenant object in the database.
-                  //
-                  if (queued_timestamp_reset || data)
-                    build_db_->update (t);
+                      if (data)
+                        s.data = move (*data);
 
-                  // If the service data is updated, then stash the new data.
-                  //
-                  if (data)
-                    service_data = move (s.data);
-                }
-              });
+                      return queued_timestamp_reset || data;
+                    }
 
-            if (service_data)
-              ss.data = move (service_data);
+                    return false;
+                  }))
+            {
+              ss.data = move (data);
+            }
 
             // Make sure we will not try to reset the queued timestamp again.
             //
@@ -2527,8 +2520,12 @@ handle (request& rq, response& rs)
             conn = build_db_->connection ();
 
             if (optional<string> data =
-                update_tenant_service_state (conn, ss.type, ss.id, f))
+                update_tenant_service_state (conn,
+                                             tenant_service_map_,
+                                             ss.type, ss.id, f))
+            {
               ss.data = move (data);
+            }
           }
         }
 
@@ -2559,8 +2556,12 @@ handle (request& rq, response& rs)
           conn = build_db_->connection ();
 
           if (optional<string> data =
-              update_tenant_service_state (conn, ss.type, ss.id, f))
+              update_tenant_service_state (conn,
+                                           tenant_service_map_,
+                                           ss.type, ss.id, f))
+          {
             ss.data = move (data);
+          }
         }
       }
 
@@ -2718,7 +2719,9 @@ handle (request& rq, response& rs)
 
             if (optional<string> data =
                 update_tenant_service_state (
-                  conn, ss.type, ss.id,
+                  conn,
+                  tenant_service_map_,
+                  ss.type, ss.id,
                   [&f, &build_completed] (const string& tid,
                                           const tenant_service& ts)
                   {

@@ -15,4 +15,12 @@ namespace brep
     //
     assert (false);
   }
+
+  void tenant_service_build_built::
+  build_canceled (const string& /* tenant_id */,
+                  const tenant_service&,
+                  const diag_epilogue& /* log_writer */) const noexcept
+  {
+    // Noop by default.
+  }
 }

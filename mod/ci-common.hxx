@@ -14,6 +14,7 @@
 
 #include <mod/diagnostics.hxx>
 #include <mod/module-options.hxx>
+#include <mod/tenant-service.hxx> // tenant_service_map
 
 namespace brep
 {
@@ -234,13 +235,17 @@ namespace brep
     // state is building or built.
     //
     // Repeat the attempts on the recoverable database failures (deadlocks,
-    // etc) and throw runtime_error if no more retries left.
+    // etc). If no more retries left, then, if unable to persist the service
+    // data change, cancel the CI request by calling
+    // database_module::cancel_tenant(), and throw runtime_error.
     //
     // Note: should be called out of the database transaction.
     //
     optional<build_state>
     rebuild (odb::core::database&,
              size_t retry_max,
+             const tenant_service_map&,
+             const diag_epilogue& log_writer,
              const build_id&,
              function<optional<string> (const string& tenant_id,
                                         const tenant_service&,

@@ -1627,7 +1627,10 @@ namespace brep
     };
 
     optional<build_state> bs (
-      rebuild (*build_db_, retry_max_, *bid, update_sd));
+      rebuild (*build_db_, retry_max_,
+               tenant_service_map_,
+               log_writer_,
+               *bid, update_sd));
 
     // If the build has been archived or re-enqueued since we loaded the
     // service data, fail (by updating) both the build check run and the

@@ -141,6 +141,17 @@ namespace brep
     build_completed (const string& tenant_id,
                      const tenant_service&,
                      const diag_epilogue& log_writer) const noexcept;
+
+    // Called when the tenant is canceled due to the inability to save service
+    // data (for example, due to persistent transaction rollbacks). Note that
+    // the passed tenant_service argument contains the unsaved service data.
+    // Note also that this function is not called when the tenant is canceled
+    // explicitly with the ci_start::cancel() functions.
+    //
+    virtual void
+    build_canceled (const string& tenant_id,
+                    const tenant_service&,
+                    const diag_epilogue& log_writer) const noexcept;
   };
 
   // This notification is only made on unloaded CI requests created with the
