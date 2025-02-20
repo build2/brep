@@ -124,6 +124,21 @@ namespace brep
                        const string& node_id,
                        gq_built_result);
 
+  // Re-request a check suite. This will result in the delivery of a
+  // check_suite webhook with the "rerequested" action, just as if the user
+  // had clicked "re-run all checks" in the GitHub UI.
+  //
+  // Return false and issue diagnostics if the request failed.
+  //
+  // Throw invalid_argument if the passed data is invalid, missing, or
+  // inconsistent.
+  //
+  bool
+  gq_rerequest_check_suite (const basic_mark& error,
+                            const string& installation_access_token,
+                            const string& repository_id,
+                            const string& node_id);
+
   // Fetch pre-check information for a pull request from GitHub. This
   // information is used to decide whether or not to CI the PR and is
   // comprised of the PR's head commit SHA, whether its head branch is behind

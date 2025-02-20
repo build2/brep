@@ -1034,13 +1034,17 @@ namespace brep
     // Replace the existing CI tenant if it exists.
     //
     // Note that GitHub UI does not allow re-running the entire check suite
-    // until all the check runs are completed.
-    //
+    // until all the check runs are completed. However if we got here as a
+    // result of re-requesting the check suite from build_canceled() the check
+    // runs could be in any state (and, yes, re-requesting a not completed
+    // check suite via the API works).
 
     // Create an unloaded CI tenant.
     //
     // Note: use no delay since we need to (re)create the synthetic conclusion
     // check run as soon as possible.
+    //
+    // @@ Maybe impose a delay to match rebuild delay? Also see build_cancel().
     //
     // Note that we use the create() API instead of start() since duplicate
     // management is not available in start().
@@ -3206,6 +3210,105 @@ namespace brep
         error << "tenant_service id " << ts.id
               << ": unable to update conclusion check run "
               << *sd.conclusion_node_id;
+      }
+    }
+  }
+  catch (const std::exception& e)
+  {
+    NOTIFICATION_DIAG (log_writer);
+
+    error << "unhandled exception: " << e.what ();
+  }
+
+  void ci_github::
+  build_canceled (const string& /* tenant_id */,
+                  const tenant_service& ts,
+                  const diag_epilogue& log_writer) const noexcept
+  try
+  {
+    // NOTE: this function is noexcept and should not throw.
+
+    NOTIFICATION_DIAG (log_writer);
+
+    // We end up here when the service data could not be saved (for example,
+    // due to persistent transaction conflicts, which does happen if the user
+    // requests a rebuild of a large number of failed check runs).
+    //
+    // Note that we cannot recover from this situation since now our state (in
+    // service data) does not match the state on GitHub. Ideally in this case
+    // we would like to fail the conclusion check run and ask the user to
+    // re-request the entire check suite. However, failing the conclusion is
+    // not enough -- we also need to either remove all other check runs or to
+    // at least change them to the completed state (failed that, GitHub UI
+    // won't allow the user to re-request the check suite). Unfortunately,
+    // there is no way to remove check runs on GitHub nor to change the state
+    // of all the check runs that match a certain criteria. The only way is
+    // to specify each check run mutation with its node id (which we may not
+    // have). So the only way to implement this would be to query all the
+    // existing check runs (with pagination and all), and then change them to
+    // the completed state (again, probably in batches).
+    //
+    // So instead of going through all this trouble, we are going to just
+    // re-request the check suite ourselves. Luckily the GitHub API allows
+    // this even if the check suite is not completed. This is not ideal since
+    // we may cause an infinite failure cycle, but seem to be the best we can
+    // do without heroic measures.
+
+    // Parse the unsaved service data.
+    //
+    service_data sd;
+    try
+    {
+      sd = service_data (*ts.data);
+    }
+    catch (const invalid_argument& e)
+    {
+      error << "failed to parse service data: " << e;
+      return;
+    }
+
+    // Get a new installation access token if the current one has expired.
+    //
+    const gh_installation_access_token* iat (nullptr);
+    optional<gh_installation_access_token> new_iat;
+
+    if (system_clock::now () > sd.installation_access.expires_at)
+    {
+      if (optional<string> jwt = generate_jwt (sd.app_id, trace, error))
+      {
+        new_iat = obtain_installation_access_token (sd.installation_id,
+                                                    move (*jwt),
+                                                    error);
+        if (new_iat)
+          iat = &*new_iat;
+      }
+    }
+    else
+      iat = &sd.installation_access;
+
+    if (iat != nullptr)
+    {
+      // Re-request the check suite.
+      //
+      // Note that the conclusion check run is created before the tenant is
+      // loaded so the unsaved service data should normally contain the check
+      // suite node id, but let's not assume, just in case.
+      //
+      if (sd.check_suite_node_id)
+      {
+        const string& nid (*sd.check_suite_node_id);
+
+        // Let unlikely invalid_argument propagate.
+        //
+        if (gq_rerequest_check_suite (error,
+                                      iat->token,
+                                      sd.repository_node_id,
+                                      nid))
+        {
+          l3 ([&]{trace << "re-requested check suite " << nid;});
+        }
+        else
+          error << "failed to re-request check suite " << nid;
       }
     }
   }
