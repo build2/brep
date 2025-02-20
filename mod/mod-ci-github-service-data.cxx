@@ -60,11 +60,8 @@ namespace brep
     repository_node_id = p.next_expect_member_string ("repository_node_id");
     repository_clone_url = p.next_expect_member_string ("repository_clone_url");
 
-    {
-      string* s (p.next_expect_member_string_null ("pr_node_id"));
-      if (s != nullptr)
-        pr_node_id = *s;
-    }
+    if (string* s = p.next_expect_member_string_null ("pr_node_id"))
+      pr_node_id = *s;
 
     pr_number = p.next_expect_member_number_null<uint32_t> ("pr_number");
 
