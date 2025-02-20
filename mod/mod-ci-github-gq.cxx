@@ -1038,6 +1038,131 @@ namespace brep
     return r;
   }
 
+
+  // Serialize a GraphQL query that rerequests a check suite.
+  //
+  // Throw invalid_argument if any of the node ids are not a valid GraphQL
+  // string.
+  //
+  static string
+  gq_mutation_rerequest_check_suite (const string& rid, const string& nid)
+  {
+    ostringstream os;
+
+    os << "mutation {"                                                   << '\n'
+       << "  rerequestCheckSuite(input: {repositoryId: " << gq_str (rid) << '\n'
+       << "                              checkSuiteId: " << gq_str (nid) << '\n'
+       << "                      }) {"                                   << '\n'
+       << "    checkSuite { id }"                                        << '\n'
+       << "  }"                                                          << '\n'
+       << "}";
+
+    return os.str ();
+  }
+
+  bool
+  gq_rerequest_check_suite (const basic_mark& error,
+                            const string& iat,
+                            const string& rid,
+                            const string& nid)
+  {
+    // Let invalid_argument from gq_mutation_rerequest_check_suite()
+    // propagate.
+    //
+    string rq (
+      gq_serialize_request (gq_mutation_rerequest_check_suite (rid, nid)));
+
+    try
+    {
+      // Response parser.
+      //
+      struct resp
+      {
+        // True if the check suite was found (i.e., the node id was valid).
+        //
+        bool found = false;
+
+        // Example response (note: outer `data` object already stripped at
+        // this point):
+        //
+        // {"rerequestCheckSuite":{"checkSuite":{"id":"CS_kwDOLc8CoM8AAAAIDgO-Qw"}}}
+        //
+        resp (json::parser& p)
+        {
+          using event = json::event;
+
+          gq_parse_response (p, [this] (json::parser& p)
+          {
+            p.next_expect (event::begin_object); // Outer {
+
+            // This object will be null if the repository or check suite node
+            // ids were invalid.
+            //
+            if (p.next_expect_member_object_null ("rerequestCheckSuite"))
+            {
+              found = true;
+
+              p.next_expect_member_object ("checkSuite");
+              p.next_expect_member_string ("id");
+              p.next_expect (event::end_object); // checkSuite
+              p.next_expect (event::end_object); // rerequestCheckSuite
+            }
+
+            p.next_expect (event::end_object); // Outer }
+          });
+        }
+
+        resp () = default;
+      } rs;
+
+      uint16_t sc (github_post (rs,
+                                "graphql", // API Endpoint.
+                                strings {"Authorization: Bearer " + iat},
+                                move (rq)));
+
+      if (sc == 200)
+      {
+        if (!rs.found)
+        {
+          error << "check suite '" << nid
+                << "' not found in repository '" << rid << '\'';
+          return false;
+        }
+
+        return true;
+      }
+      else
+        error << "failed to re-request check suite: error HTTP response status "
+              << sc;
+    }
+    catch (const json::invalid_json_input& e) // struct resp (via github_post())
+    {
+      // Note: e.name is the GitHub API endpoint.
+      //
+      error << "malformed JSON in response from " << e.name << ", line: "
+            << e.line << ", column: " << e.column << ", byte offset: "
+            << e.position << ", error: " << e;
+    }
+    catch (const invalid_argument& e) // github_post()
+    {
+      error << "malformed header(s) in response: " << e;
+    }
+    catch (const system_error& e) // github_post()
+    {
+      error << "unable to re-request check suite (errno=" << e.code () << "): "
+            << e.what ();
+    }
+    catch (const runtime_error& e) // struct resp
+    {
+      // GitHub response contained error(s) (could be ours or theirs at this
+      // point).
+      //
+      error << "unable to re-request check suite: " << e;
+    }
+
+    return false;
+  }
+
   // Serialize a GraphQL query that fetches a pull request from GitHub.
   //
   // Throw invalid_argument if the node id is not a valid GraphQL string.

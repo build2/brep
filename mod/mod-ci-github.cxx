@@ -1034,8 +1034,9 @@ namespace brep
     // Replace the existing CI tenant if it exists.
     //
     // Note that GitHub UI does not allow re-running the entire check suite
-    // until all the check runs are completed.
-    //
+    // until all the check runs are completed. However if we got here as a
+    // result of re-requesting the check suite from build_canceled() the check
+    // runs could be in any state.
 
     // Create an unloaded CI tenant.
     //
@@ -3204,6 +3205,81 @@ namespace brep
               << ": unable to update conclusion check run "
               << *sd.conclusion_node_id;
       }
+    }
+  }
+  catch (const std::exception& e)
+  {
+    NOTIFICATION_DIAG (log_writer);
+
+    error << "unhandled exception: " << e.what ();
+  }
+
+  void ci_github::
+  build_canceled (const string& /* tenant_id */,
+                  const tenant_service& ts,
+                  const diag_epilogue& log_writer) const noexcept
+  try
+  {
+    // NOTE: this function is noexcept and should not throw.
+
+    NOTIFICATION_DIAG (log_writer);
+
+    // We end up here when the service data could not be saved so re-request
+    // the check suite in order to restart all of the builds.
+
+    // Load the unsaved service data.
+    //
+    service_data sd;
+    try
+    {
+      sd = service_data (*ts.data);
+    }
+    catch (const invalid_argument& e)
+    {
+      error << "failed to parse service data: " << e;
+      return;
+    }
+
+    // Get a new installation access token if the current one has expired.
+    //
+    const gh_installation_access_token* iat (nullptr);
+    optional<gh_installation_access_token> new_iat;
+
+    if (system_clock::now () > sd.installation_access.expires_at)
+    {
+      if (optional<string> jwt = generate_jwt (sd.app_id, trace, error))
+      {
+        new_iat = obtain_installation_access_token (sd.installation_id,
+                                                    move (*jwt),
+                                                    error);
+        if (new_iat)
+          iat = &*new_iat;
+      }
+    }
+    else
+      iat = &sd.installation_access;
+
+    if (iat != nullptr)
+    {
+      // Re-request the check suite.
+
+      // Note that the conclusion check run is created before the tenant is
+      // loaded so the unsaved service data should always contain the check
+      // suite node id.
+      //
+      assert (sd.check_suite_node_id.has_value ());
+
+      // Let unlikely invalid_argument propagate.
+      //
+      if (gq_rerequest_check_suite (error,
+                                    iat->token,
+                                    sd.repository_node_id,
+                                    *sd.check_suite_node_id))
+      {
+        l3 ([&]{trace << "re-requested check suite " << *sd.check_suite_node_id;});
+      }
+      else
+        error << "failed to re-request check suite " << *sd.check_suite_node_id;
     }
   }
   catch (const std::exception& e)
