@@ -455,66 +455,82 @@ namespace brep
       // information.
       //
       optional<uint16_t> sc1;
-      if (sc == 502 && create_data)
+      if (sc == 502)
       {
-        what = "re-query";
-
-        // GraphQL query which fetches the most recently-created check runs.
-        //
-        string rq (gq_serialize_request (
-          gq_query_get_check_runs (create_data->app_id,
-                                   create_data->repository_id,
-                                   create_data->head_sha,
-                                   crs_n,
-                                   check_suite_node_id)));
-
-        // Type that parses the result of the above GraphQL query.
-        //
-        struct resp
+        if (create_data)
         {
-          vector<gh_check_run> check_runs; // Received check runs.
+          what = "re-query";
 
-          resp (json::parser& p)
-              : check_runs (gq_parse_get_check_runs_response (p)) {}
+          // GraphQL query which fetches the most recently-created check runs.
+          //
+          string rq (gq_serialize_request (
+                       gq_query_get_check_runs (create_data->app_id,
+                                                create_data->repository_id,
+                                                create_data->head_sha,
+                                                crs_n,
+                                                check_suite_node_id)));
 
-          resp () = default;
-        } rs1;
-
-        sc1 = github_post (rs1,
-                           "graphql", // API Endpoint.
-                           strings {"Authorization: Bearer " + iat},
-                           move (rq));
-
-        if (*sc1 == 200)
-        {
-          if (rs1.check_runs.size () == crs_n)
+          // Type that parses the result of the above GraphQL query.
+          //
+          struct resp
           {
-            // It's possible GitHub did not create all the checkruns we have
-            // requested. In which case it may return some unrelated checkruns
-            // (for example, from before re-request). So we verify we got the
-            // expected ones.
-            //
-            size_t i (0);
-            for (; i != crs_n; ++i)
+            vector<gh_check_run> check_runs; // Received check runs.
+
+            resp (json::parser& p)
+                : check_runs (gq_parse_get_check_runs_response (p)) {}
+
+            resp () = default;
+          } rs1;
+
+          sc1 = github_post (rs1,
+                             "graphql", // API Endpoint.
+                             strings {"Authorization: Bearer " + iat},
+                             move (rq));
+
+          if (*sc1 == 200)
+          {
+            if (rs1.check_runs.size () == crs_n)
             {
-              const check_run& cr (*(crs_b + i));
-              const gh_check_run& gcr (rs1.check_runs[i]);
-
-              if (cr.name != gcr.name ||
-                  cr.state != gh_from_status (gcr.status))
-                break;
-            }
-
-            if (i == crs_n)
-            {
-              rs.check_runs = move (rs1.check_runs);
-
-              // Reduce to as-if the create request succeeded.
+              // It's possible GitHub did not create all the checkruns we have
+              // requested. In which case it may return some unrelated
+              // checkruns (for example, from before re-request). So we verify
+              // we got the expected ones.
               //
-              what = "create";
-              sc = 200;
+              size_t i (0);
+              for (; i != crs_n; ++i)
+              {
+                const check_run& cr (*(crs_b + i));
+                const gh_check_run& gcr (rs1.check_runs[i]);
+
+                if (cr.name != gcr.name ||
+                    cr.state != gh_from_status (gcr.status))
+                  break;
+              }
+
+              if (i == crs_n)
+              {
+                rs.check_runs = move (rs1.check_runs);
+
+                // Reduce to as-if the create request succeeded.
+                //
+                what = "create";
+                sc = 200;
+              }
             }
           }
+        }
+        else
+        {
+          // Since we only update one check run at a time, let's assume that
+          // 502 means the request received and acted upon by GitHub but we
+          // never received a reply. Empirically, this appears to be the case.
+          //
+          assert (crs_n == 1);
+
+          check_run& cr (*crs_b);
+          cr.state_synced = true;
+
+          return string ();
         }
       }
 
