@@ -566,7 +566,7 @@ namespace brep
 
             // Validate the check run in the response against the build.
             //
-            const gh_check_run& rcr (rcrs[i]); // Received check run.
+            gh_check_run& rcr (rcrs[i]); // Received check run.
 
             build_state st (cr.state);                     // Requested state.
             build_state rst (gh_from_status (rcr.status)); // Received state.
