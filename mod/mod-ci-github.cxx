@@ -1044,7 +1044,8 @@ namespace brep
     // Note: use no delay since we need to (re)create the synthetic conclusion
     // check run as soon as possible.
     //
-    // @@ Maybe impose a delay to match rebuild delay? Also see build_cancel().
+    // Impose a slight delay to avoid GitHub state update races (see
+    // build_cancel() for background).
     //
     // Note that we use the create() API instead of start() since duplicate
     // management is not available in start().
@@ -1059,7 +1060,7 @@ namespace brep
                      *build_db_, retry_max_,
                      tenant_service (sid, "ci-github", sd.json ()),
                      chrono::seconds (30) /* interval */,
-                     chrono::seconds (0) /* delay */,
+                     chrono::seconds (10) /* delay */,
                      duplicate_tenant_mode::replace));
 
     if (!pr)
@@ -1337,9 +1338,21 @@ namespace brep
       {
         // No such tenant.
         //
+        // This can happen because of the tenant cancellation due to a large
+        // number of rebuild requests (see build_canceled()). There is no way
+        // to distinguish this specific case (the tenant is after all canceled
+        // and, no, we cannot keep it with some special value as an indication
+        // because we need to be able to reuse type/id to create a new one).
+        // So suppressing this diagnostics seems like the only sensible
+        // choice.
+        //
+#if 0
         fail << "check run " << cr.check_run.node_id
              << " re-requested but tenant_service with id " << sid
              << " does not exist";
+#else
+        return true;
+#endif
       }
 
       tenant_service& ts (d->service);
