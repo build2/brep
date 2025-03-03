@@ -75,9 +75,10 @@ namespace brep
   {
     using event = json::event;
 
-    // True if the data/errors fields are present.
+    // True/present if the data/errors fields are present.
     //
-    bool dat (false), err (false);
+    bool dat (false);
+    optional<string> err;
 
     // Because the errors field is likely to come before the data field,
     // serialize data to a stringstream and only parse it later once we're
@@ -120,9 +121,27 @@ namespace brep
         // Skip the errors object but don't stop parsing because the error
         // semantics depends on whether or not `data` is present.
         //
-        err = true; // Handled below.
+        err = string (); // Handled below.
 
-        p.next_expect_value_skip ();
+        json::buffer_serializer s (*err, 0);
+
+        try
+        {
+          p.next_expect (event::begin_array);
+          s.next (event::begin_array);
+
+          for (event e: p)
+          {
+            if (!s.next (e, p.data ()))
+              break; // Stop if errors array is complete.
+          }
+        }
+        catch (const json::invalid_json_output& e)
+        {
+          throw_json (p,
+                      string ("serializer rejected response 'errors' field: ") +
+                      e.what ());
+        }
       }
       else
       {
@@ -155,11 +174,12 @@ namespace brep
     {
       if (dat)
       {
-        throw runtime_error ("field error(s) received from GraphQL endpoint; "
-                             "incomplete data received");
+        throw runtime_error ("field error received from GraphQL endpoint: "
+                             "incomplete data");
       }
       else
-        throw runtime_error ("request error(s) received from GraphQL endpoint");
+        throw runtime_error ("request error received from GraphQL endpoint: " +
+                             *err);
     }
   }
 
