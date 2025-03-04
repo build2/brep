@@ -965,7 +965,7 @@ namespace brep
     return r;
   }
 
-  bool
+  optional<string>
   gq_create_check_run (const basic_mark& error,
                        check_run& cr,
                        const string& iat,
@@ -981,7 +981,7 @@ namespace brep
                                       hs,
                                       du,
                                       cr,
-                                      false /* Get check suite id */,
+                                      true /* Get check suite node id */,
                                       gh_to_status (build_state::built),
                                       move (br.title), move (br.summary),
                                       move (br.conclusion))));
@@ -989,11 +989,14 @@ namespace brep
     brep::check_runs crs {move (cr)};
     crs[0].state = build_state::built;
 
-    bool r (gq_mutate_check_runs (error,
-                                  crs.begin (), crs.end (),
-                                  iat,
-                                  move (rq),
-                                  gq_create_data {ai, rid, hs}));
+    optional<string> r (
+      gq_mutate_check_runs (error,
+                            crs.begin (), crs.end (),
+                            iat,
+                            move (rq),
+                            gq_create_data {ai, rid, hs}));
+
+    assert (!r || !r->empty ());
 
     cr = move (crs[0]);
 

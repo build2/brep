@@ -78,7 +78,7 @@ namespace brep
     string summary;
   };
 
-  bool
+  optional<string>
   gq_create_check_run (const basic_mark& error,
                        check_run& cr,
                        const string& installation_access_token,
