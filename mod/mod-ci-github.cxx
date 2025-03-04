@@ -134,6 +134,35 @@ namespace brep
     if (build_db_ == nullptr)
       throw invalid_request (501, "GitHub CI submission not implemented");
 
+    // The request's query parameters.
+    //
+    const name_values& rps (rq.parameters (1024, true /* url_only */));
+
+    // Process the handler's default parameter (named "_").
+    //
+    // Note that the default parameter currently only gets used for forced
+    // rebuild requests (see handle_forced_check_suite_rebuild() in the
+    // header). All of the GitHub webhook requests are handled separately
+    // below.
+    //
+    // Also note that the default parameter gets renamed from "ci-github" to
+    // "_" in request_proxy::parameters() and that it will have been removed
+    // if it had no value at all (not even an empty one).
+    //
+    if (!rps.empty () && rps.front ().name == "_")
+    {
+      const optional<string>& dpv (rps.front ().value); // Default param value.
+      assert (dpv); // Should have been removed from rps if no value.
+
+      if (*dpv == "rerequest") // Forced rebuild.
+        return handle_forced_check_suite_rebuild (rps);
+      else if (!dpv->empty ())
+        throw invalid_request (400, "invalid default parameter value '" +
+                                    *dpv + '\'');
+    }
+
+    // Handle GitHub webhook requests.
+
     // Process headers.
     //
     string event; // Webhook event.
@@ -266,8 +295,6 @@ namespace brep
     uint64_t app_id;
     bool warning_success;
     {
-      const name_values& rps (rq.parameters (1024, true /* url_only */));
-
       bool ai (false), wa (false);
 
       auto badreq = [] (const string& m)
@@ -1207,7 +1234,7 @@ namespace brep
 
     s = "```\n";
     if (r) s += r->message;
-    else s += "Internal service error";
+    else s += "Internal service error.";
     s += "\n```";
 
     return s;
@@ -1405,8 +1432,10 @@ namespace brep
           make_built_result (
             result_status::error, warning_success,
             "Unable to rebuild individual configuration: build has "
-            "been archived"));
+            "been archived."));
 
+        // Update the build check run.
+        //
         // Try to update the conclusion check run even if the first update
         // fails.
         //
@@ -1424,6 +1453,12 @@ namespace brep
                 << ": unable to update check run";
           f = true;
         }
+
+        // Update the conclusion check run.
+        //
+        // Append the force rebuild link to the summary.
+        //
+        br.summary += ' ' + force_rebuild_md_link (sd) + '.';
 
         if (gq_update_check_run (error, ccr, iat->token,
                                  repo_node_id, *sd.conclusion_node_id,
@@ -1544,7 +1579,8 @@ namespace brep
     ccr.state_synced = false;
     ccr.details_url = details_url (tenant_id);
     ccr.description = {conclusion_building_title,
-                       conclusion_building_summary};
+                       conclusion_building_summary +
+                       ' ' + force_rebuild_md_link (sd) + '.'};
 
     if (gq_create_check_runs (error, check_runs, iat->token,
                               cr.check_run.app_id, repo_node_id, head_sha,
@@ -1689,7 +1725,7 @@ namespace brep
       //
       br = make_built_result (
         result_status::error, warning_success,
-        "Unable to rebuild individual configuration: build has been archived");
+        "Unable to rebuild individual configuration: build has been archived.");
     }
 
     // Try to update the conclusion check run even if the first update fails.
@@ -1714,6 +1750,10 @@ namespace brep
 
     // Fail the conclusion check run.
     //
+    // Append the force rebuild link to the summary.
+    //
+    br.summary += ' ' + force_rebuild_md_link (sd) + '.';
+
     if (gq_update_check_run (error, ccr, iat->token,
                              repo_node_id, *ccr.node_id,
                              move (br)))
@@ -1731,6 +1771,126 @@ namespace brep
     //
     if (f)
       throw server_error ();
+
+    return true;
+  }
+
+  bool ci_github::
+  handle_forced_check_suite_rebuild (const name_values& rps)
+  {
+    HANDLER_DIAG;
+
+    // Process the request query parameters.
+    //
+    string repo_id;
+    string head_sha;
+    string reason;
+    {
+      auto badreq = [] [[noreturn]] (const string& m)
+      {
+        throw invalid_request (400, m);
+      };
+
+      for (const name_value& rp: rps)
+      {
+        auto c = [badreq, &rp] (const char* n)
+        {
+          if (rp.name != n) return false;
+          if (rp.value)     return true;
+          badreq ("missing '" + string (n) + "' parameter value");
+        };
+
+        if      (c ("repo-id"))  repo_id = *rp.value;
+        else if (c ("head-sha")) head_sha = *rp.value;
+        else if (c ("reason"))   reason = *rp.value;
+      }
+
+      if (repo_id.empty ()) badreq ("missing 'repo-id' parameter");
+      if (head_sha.empty ()) badreq ("missing 'head-sha' parameter");
+      if (reason.empty ()) badreq ("missing rebuild reason"); // User-visible.
+    }
+
+    string sid (repo_id + ':' + head_sha);
+
+    // Log the force rebuild with the warning severity, truncating the
+    // reason if too long.
+    //
+    {
+      diag_record dr (warn);
+      dr << "force rebuild for " << sid << ": ";
+
+      if (reason.size () < 50)
+        dr << reason;
+      else
+        dr << string (reason, 0, 50) << "...";
+    }
+
+    // Load the service data.
+    //
+    service_data sd;
+
+    if (optional<tenant_data> d = find (*build_db_, "ci-github", sid))
+    {
+      tenant_service& ts (d->service);
+
+      try
+      {
+        sd = service_data (*ts.data);
+      }
+      catch (const invalid_argument& e)
+      {
+        fail << "failed to parse service data: " << e;
+      }
+    }
+    else
+      throw invalid_request (400,
+                             "no build for repository id: " + repo_id +
+                             ", commit id: " + head_sha); // User-visible.
+
+    // Get a new installation access token if the current one has expired.
+    //
+    const gh_installation_access_token* iat (nullptr);
+    optional<gh_installation_access_token> new_iat;
+
+    if (system_clock::now () > sd.installation_access.expires_at)
+    {
+      optional<string> jwt (generate_jwt (sd.app_id, trace, error));
+      if (!jwt)
+        throw server_error ();
+
+      new_iat = obtain_installation_access_token (sd.installation_id,
+                                                  move (*jwt),
+                                                  error);
+      if (!new_iat)
+        throw server_error ();
+
+      iat = &*new_iat;
+    }
+    else
+      iat = &sd.installation_access;
+
+    // Re-request the check suite.
+
+    // Note that the service id remains valid across tenant recreation (and
+    // thus so does the force rebuild URL) so there may well not be a check
+    // suite node id for the current tenant yet. Feels like ignoring the
+    // request is the most sensible option (the tenant is presumably being
+    // created/loaded).
+    //
+    if (sd.check_suite_node_id)
+    {
+      const string& nid (*sd.check_suite_node_id);
+
+      if (gq_rerequest_check_suite (error,
+                                    iat->token,
+                                    sd.repository_node_id,
+                                    nid))
+      {
+        l3 ([&]{trace << "re-requested check suite " << nid;});
+      }
+      else
+        fail << "failed to re-request check suite " << nid;
+    }
 
     return true;
   }
@@ -2098,7 +2258,8 @@ namespace brep
     {
       if (auto cr = create_synthetic_cr (conclusion_check_run_name,
                                          conclusion_building_title,
-                                         conclusion_building_summary))
+                                         conclusion_building_summary +
+                                         ' ' + force_rebuild_md_link (sd) + '.'))
       {
         l3 ([&]{trace << "created check_run { " << *cr << " }";});
 
@@ -2143,12 +2304,15 @@ namespace brep
 
         if (!r || r->status != 200)
         {
+          string sm (to_check_run_summary (r) +
+                     "\n\n" + force_rebuild_md_link (sd) + '.');
+
           // Let unlikely invalid_argument propagate (see above).
           //
           if (auto cr = update_synthetic_cr (effective_conclusion_node_id,
                                              conclusion_check_run_name,
                                              result_status::error,
-                                             to_check_run_summary (r)))
+                                             move (sm)))
           {
             l3 ([&]{trace << "updated check_run { " << *cr << " }";});
           }
@@ -3159,7 +3323,11 @@ namespace brep
       if (sd.warning_success && warn_count != 0)
         os << " (" << warn_count << " with warnings)";
 
-      os << ", " << (succ_count + fail_count) << " total";
+      os << ", " << (succ_count + fail_count) << " total.";
+
+      // Append the force rebuild link.
+      //
+      os << ' ' << force_rebuild_md_link (sd) << '.';
 
       summary = os.str ();
     }
@@ -3359,6 +3527,19 @@ namespace brep
       options_->host () +
       tenant_dir (options_->root (), t).string () +
       "?builds";
+  }
+
+  string ci_github::
+  force_rebuild_md_link (const service_data& sd) const
+  {
+    return
+      "[Force rebuild](" +
+      options_->host () +
+      options_->root ().string () +
+      "?ci-github=rerequest" +
+      "&repo-id=" + sd.repository_node_id +
+      "&head-sha=" + sd.report_sha +
+      "&reason=)";
   }
 
   static optional<build_id>

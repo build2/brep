@@ -226,23 +226,25 @@ handle (request& rq, response& rs)
       // Log the force rebuild with the warning severity, truncating the
       // reason if too long.
       //
-      diag_record dr (warn);
-      dr << "force rebuild for ";
+      {
+        diag_record dr (warn);
+        dr << "force rebuild for ";
 
-      if (!b->tenant.empty ())
-        dr << b->tenant << ' ';
+        if (!b->tenant.empty ())
+          dr << b->tenant << ' ';
 
-      dr << b->package_name << '/' << b->package_version << ' '
-         << b->target_config_name << '/' << b->target << ' '
-         << b->package_config_name << ' '
-         << b->toolchain_name << '-' << b->toolchain_version
-         << " (state: " << to_string (b->state) << ' ' << to_string (b->force)
-         << "): ";
+        dr << b->package_name << '/' << b->package_version << ' '
+           << b->target_config_name << '/' << b->target << ' '
+           << b->package_config_name << ' '
+           << b->toolchain_name << '-' << b->toolchain_version
+           << " (state: " << to_string (b->state) << ' '
+           << to_string (b->force) << "): ";
 
-      if (reason.size () < 50)
-        dr << reason;
-      else
-        dr << string (reason, 0, 50) << "...";
+        if (reason.size () < 50)
+          dr << reason;
+        else
+          dr << string (reason, 0, 50) << "...";
+      }
 
       b->force = force;
       build_db_->update (b);

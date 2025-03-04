@@ -133,6 +133,20 @@ namespace brep
     bool
     handle_check_run_rerequest (const gh_check_run_event&, bool warning_success);
 
+    // Handle forced check suite rebuild.
+    //
+    // A forced rebuild is a last-resort, user-initiated process used to
+    // recover from an inconsistent check run state on GitHub. For example, if
+    // all build check runs have been updated on GitHub as successfully
+    // completed but the final conclusion check run update fails -- leaving it
+    // in progress -- none of the various check run re-requesting options will
+    // be presented in the GitHub UI. In such cases the force rebuild link in
+    // the conclusion check run description can be used to trigger a rebuild
+    // of the entire check suite (all check runs).
+    //
+    bool
+    handle_forced_check_suite_rebuild (const name_values& query_parameters);
+
     // Build a check run details_url for a build.
     //
     string
@@ -142,6 +156,13 @@ namespace brep
     //
     string
     details_url (const string& tenant) const;
+
+    // Generate a force rebuild link in Markdown. For example:
+    //
+    //   [Force rebuild](https://...)
+    //
+    string
+    force_rebuild_md_link (const service_data&) const;
 
     optional<string>
     generate_jwt (uint64_t app_id,
