@@ -1058,6 +1058,33 @@ namespace brep
                      move (check_sha),
                      move (cs.check_suite.head_sha) /* report_sha */);
 
+    // Re-create a temporary conclusion check run in the queued state to
+    // provide immediate user feedback (the real conclusion check run is only
+    // re-created when the tenant is loaded).
+    //
+    // Note that we cannot provide a details URL because the tenant id is not
+    // readily available.
+    //
+    auto create_ccr = [this, &error, &sd, iat] (const string& summary)
+    {
+      check_run cr;
+      cr.name = conclusion_check_run_name;
+
+      if (!gq_create_check_run (
+            error,
+            cr,
+            iat->token,
+            sd.app_id, sd.repository_node_id, sd.report_sha,
+            nullopt /* details_url */,
+            build_state::queued, check_run_queued_title,
+            summary + ' ' + force_rebuild_md_link (sd) + '.'))
+      {
+        error << "failed to re-create conclusion check run";
+      }
+    };
+
+    create_ccr ("Rebuild initiated, waiting for the builds to restart.");
+
     // Replace the existing CI tenant if it exists.
     //
     // Note that GitHub UI does not allow re-running the entire check suite
@@ -2188,21 +2215,20 @@ namespace brep
 
     optional<string> check_suite_node_id;
 
-    // Create a synthetic check run with an in-progress state. Return the
-    // check run on success or nullopt on failure.
+    // Create the synthetic conclusion check run with an in-progress
+    // state. Return the check run on success or nullopt on failure.
     //
-    auto create_synthetic_cr = [&tenant_id,
-                                iat,
-                                &check_suite_node_id,
-                                &sd,
-                                &error,
-                                this] (string name,
-                                       const string& title,
-                                       const string& summary)
+    auto create_ccr = [&tenant_id,
+                       iat,
+                       &check_suite_node_id,
+                       &sd,
+                       &error,
+                       this] (const string& title,
+                              const string& summary)
       -> optional<check_run>
     {
       check_run cr;
-      cr.name = move (name);
+      cr.name = conclusion_check_run_name;
 
       // Let unlikely invalid_argument propagate (see above).
       //
@@ -2223,15 +2249,14 @@ namespace brep
         return nullopt;
     };
 
-    // Update a synthetic check run with success or failure. Return the check
-    // run on success or nullopt on failure.
+    // Update the synthetic conclusion check run with success or failure.
+    // Return the check run on success or nullopt on failure.
     //
-    auto update_synthetic_cr = [iat,
-                                &sd,
-                                &error] (const string& node_id,
-                                         const string& name,
-                                         result_status rs,
-                                         string summary) -> optional<check_run>
+    auto update_ccr = [iat,
+                       &sd,
+                       &error] (const string& node_id,
+                                result_status rs,
+                                string summary) -> optional<check_run>
     {
       assert (!node_id.empty ());
 
@@ -2241,7 +2266,7 @@ namespace brep
         make_built_result (rs, sd.warning_success, move (summary)));
 
       check_run cr;
-      cr.name = name; // For display purposes only.
+      cr.name = conclusion_check_run_name; // For display purposes only.
 
       // Let unlikely invalid_argument propagate (see above).
       //
@@ -2271,10 +2296,9 @@ namespace brep
 
     if (!sd.conclusion_node_id)
     {
-      if (auto cr = create_synthetic_cr (conclusion_check_run_name,
-                                         conclusion_building_title,
-                                         conclusion_building_summary +
-                                         ' ' + force_rebuild_md_link (sd) + '.'))
+      if (auto cr = create_ccr (conclusion_building_title,
+                                conclusion_building_summary +
+                                ' ' + force_rebuild_md_link (sd) + '.'))
       {
         l3 ([&]{trace << "created check_run { " << *cr << " }";});
 
@@ -2324,10 +2348,9 @@ namespace brep
 
           // Let unlikely invalid_argument propagate (see above).
           //
-          if (auto cr = update_synthetic_cr (effective_conclusion_node_id,
-                                             conclusion_check_run_name,
-                                             result_status::error,
-                                             move (sm)))
+          if (auto cr = update_ccr (effective_conclusion_node_id,
+                                    result_status::error,
+                                    move (sm)))
           {
             l3 ([&]{trace << "updated check_run { " << *cr << " }";});
           }
