@@ -1279,6 +1279,26 @@ namespace brep
 
     l3 ([&]{trace << "check_run event { " << cr << " }";});
 
+    // Get a new installation access token.
+    //
+    auto get_iat = [this, &trace, &error, &cr] ()
+      -> optional<gh_installation_access_token>
+    {
+      optional<string> jwt (generate_jwt (cr.check_run.app_id, trace, error));
+      if (!jwt)
+        return nullopt;
+
+      optional<gh_installation_access_token> iat (
+        obtain_installation_access_token (cr.installation.id,
+                                          move (*jwt),
+                                          error));
+
+      if (iat)
+        l3 ([&]{trace << "installation_access_token { " << *iat << " }";});
+
+      return iat;
+    };
+
     // The overall plan is as follows:
     //
     // 1. Load service data.
@@ -1314,25 +1334,18 @@ namespace brep
     // existing ones because GitHub does not allow transitioning out of the
     // built state.
 
-    // Get a new installation access token.
+    // Ignore if this is the conclusion check run (see below for why we cannot
+    // fail, but in a nutshell, a request to update all the failed check runs
+    // will always include the conclusion).
     //
-    auto get_iat = [this, &trace, &error, &cr] ()
-      -> optional<gh_installation_access_token>
+    // Note that we should check this early since parse_details_url() for it
+    // will fail.
+    //
+    if (cr.check_run.name == conclusion_check_run_name)
     {
-      optional<string> jwt (generate_jwt (cr.check_run.app_id, trace, error));
-      if (!jwt)
-        return nullopt;
-
-      optional<gh_installation_access_token> iat (
-        obtain_installation_access_token (cr.installation.id,
-                                          move (*jwt),
-                                          error));
-
-      if (iat)
-        l3 ([&]{trace << "installation_access_token { " << *iat << " }";});
-
-      return iat;
-    };
+      l3 ([&]{trace << "re-requested conclusion check_run";});
+      return true;
+    }
 
     // Parse the check_run's details_url to extract build id.
     //
@@ -1483,6 +1496,9 @@ namespace brep
       }
     }
 
+    // Note: handled at the beginning of the function.
+    //
+#if 0
     // Fail if it's the conclusion check run that is being re-requested.
     //
     // Expect that if the user selects re-run all failed checks we will
@@ -1498,7 +1514,6 @@ namespace brep
     {
       l3 ([&]{trace << "re-requested conclusion check_run";});
 
-#if 0
       if (!sd.conclusion_node_id)
         fail << "no conclusion node id for check run " << cr.check_run.node_id;
 
@@ -1520,10 +1535,10 @@ namespace brep
              << ": unable to update conclusion check run "
              << *sd.conclusion_node_id;
       }
-#endif
 
       return true;
     }
+#endif
 
     // Initialize the check run (`bcr`) with state from the service data.
     //
