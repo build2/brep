@@ -262,24 +262,17 @@ namespace brep
 
         shared_ptr<build_tenant> t (db.find<build_tenant> (tid));
 
-        if (t == nullptr)
+        // Note: if already archived, don't call the callback below. Failed
+        // that, we will likely call it multiple times.
+        //
+        if (t == nullptr || t->archived)
           return;
 
-        if (t->unloaded_timestamp)
-        {
-          db.erase (t);
-        }
-        else if (!t->archived || t->service)
-        {
-          t->service = nullopt;
-          t->archived = true;
-          db.update (t);
-        }
-
+        t->archived = true;
+        db.update (t);
         tr.commit ();
 
-        // Bail out if we have successfully updated or erased the tenant
-        // object.
+        // Bail out if we have successfully archived the tenant.
         //
         break;
       }
@@ -297,6 +290,12 @@ namespace brep
       }
     }
 
+    // Release the database connection since the build_canceled() notification
+    // can potentially be time-consuming (e.g., it may perform an HTTP
+    // request).
+    //
+    conn.reset ();
+
     // Now, as the tenant is successfully canceled, call the build canceled
     // notification.
     //
@@ -308,12 +307,6 @@ namespace brep
         if (auto tsb =
             dynamic_cast<const tenant_service_build_built*> (i->second.get ()))
         {
-          // Release the database connection since the build_canceled()
-          // notification can potentially be time-consuming (e.g., it may
-          // perform an HTTP request).
-          //
-          conn.reset ();
-
           tsb->build_canceled (tid, ts, log_writer);
         }
       }

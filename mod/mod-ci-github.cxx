@@ -768,7 +768,7 @@ namespace brep
     if (!create (error, warn, verb_ ? &trace : nullptr,
                  *build_db_, retry_max_,
                  tenant_service (sid, "ci-github", sd.json ()),
-                 chrono::seconds (30) /* interval */,
+                 chrono::seconds (15) /* interval */,
                  chrono::seconds (0) /* delay */,
                  duplicate_tenant_mode::ignore))
     {
@@ -924,7 +924,7 @@ namespace brep
                  verb_ ? &trace : nullptr,
                  *build_db_, retry_max_,
                  move (ts),
-                 chrono::seconds (30) /* interval */,
+                 chrono::seconds (15) /* interval */,
                  chrono::seconds (0) /* delay */))
     {
       fail << "pull request " << pr.pull_request.node_id
@@ -1059,8 +1059,8 @@ namespace brep
                      verb_ ? &trace : nullptr,
                      *build_db_, retry_max_,
                      tenant_service (sid, "ci-github", sd.json ()),
-                     chrono::seconds (30) /* interval */,
-                     chrono::seconds (10) /* delay */,
+                     chrono::seconds (15) /* interval */,
+                     chrono::seconds (20) /* delay */,
                      duplicate_tenant_mode::replace));
 
     if (!pr)
@@ -1866,7 +1866,7 @@ namespace brep
         if (auto pr = create (error, warn, verb_ ? &trace : nullptr,
                               *build_db_, retry_max_,
                               tenant_service (sid, "ci-github", sd.json ()),
-                              chrono::seconds (30) /* interval */,
+                              chrono::seconds (15) /* interval */,
                               chrono::seconds (0) /* delay */,
                               duplicate_tenant_mode::ignore))
         {
@@ -3266,6 +3266,9 @@ namespace brep
     // this even if the check suite is not completed. This is not ideal since
     // we may cause an infinite failure cycle, but seem to be the best we can
     // do without heroic measures.
+    //
+    // Note also that the tenant still contains the original service data
+    // and which we need in certain cases in handle_check_suite_rerequest().
 
     // Parse the unsaved service data.
     //

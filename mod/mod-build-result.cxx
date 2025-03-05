@@ -193,7 +193,7 @@ handle (request& rq, response&)
   // then check if the tenant_service_build_built callback is registered for
   // the type of the associated service. If it is, then stash the state, the
   // build object, and the callback pointer for the subsequent service `built`
-  // notification. Note that we send this notification for the skip result as
+  // notification. Note that we call this notification for the skip result as
   // well, since it is semantically equivalent to the previous build result
   // with the actual build process being optimized out.
   //
@@ -201,6 +201,10 @@ handle (request& rq, response&)
   // callback is associated with the package tenant, then stash the state, the
   // build object, and the callback pointer and calculate the hints for the
   // subsequent service `queued` notification.
+  //
+  // Note, however, that while we accept the build results for the archived
+  // tenants, we don't call any service notifications for them (see
+  // database_module::cancel_tenant() for the rationale).
   //
   const tenant_service_build_built* tsb (nullptr);
   const tenant_service_build_queued* tsq (nullptr);
@@ -264,7 +268,7 @@ handle (request& rq, response&)
       {
         t = build_db_->load<build_tenant> (b->tenant);
 
-        if (t->service)
+        if (t->service && !pb.archived)
         {
           auto i (tenant_service_map_.find (t->service->type));
 

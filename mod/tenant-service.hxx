@@ -142,10 +142,12 @@ namespace brep
                      const tenant_service&,
                      const diag_epilogue& log_writer) const noexcept;
 
-    // Called when the tenant is canceled due to the inability to save service
+    // Called when the tenant is archived due to the inability to save service
     // data (for example, due to persistent transaction rollbacks). Note that
-    // the passed tenant_service argument contains the unsaved service data.
-    // Note also that this function is not called when the tenant is canceled
+    // the passed tenant_service argument contains the unsaved service data
+    // (while the tenant still contains the original data; note that this
+    // behavior is unlike explicit cancellation via ci_start::cancel()). Note
+    // also that this function is not called when the tenant is canceled
     // explicitly with the ci_start::cancel() functions.
     //
     virtual void

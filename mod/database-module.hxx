@@ -110,10 +110,13 @@ namespace brep
     // data (for example, due to persistent transaction rollbacks). The passed
     // tenant_service argument contains the unsaved service data.
     //
-    // Specifically, this function clears the tenant service state (thus
-    // allowing reusing the same service type/id pair in another tenant) and
-    // archives the tenant, unless the tenant is unloaded, in which case it is
-    // dropped. Afterwards, sends the build canceled service notification.
+    // Specifically, this function archives the tenant and calls the build
+    // canceled service notification.
+    //
+    // Note that it doesn't clear the tenant service state, which allows the
+    // service to still handle requests, if desired. Also note that brep won't
+    // call any notifications anymore for this tenant since it is archived
+    // now.
     //
     // Repeat the attempts on the recoverable database failures (deadlocks,
     // etc) and throw runtime_error if no more retries left.
