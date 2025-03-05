@@ -537,7 +537,6 @@ namespace brep
 
                 // Reduce to as-if the create request succeeded.
                 //
-                what = "create";
                 sc = 200;
               }
             }
@@ -609,8 +608,8 @@ namespace brep
       {
         diag_record dr (error);
 
-        dr << "failed to " << what << " check runs: error HTTP response status "
-           << sc;
+        dr << "failed to " << (create_data ? "create" : "update")
+           << " check runs: error HTTP response status " << sc;
 
         if (sc1)
         {
