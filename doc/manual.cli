@@ -709,6 +709,12 @@ report their progress and results back to GitHub to be shown to the user,
 and, in case of PRs, to prevent them from being merged in case the result
 is unsuccessful.
 
+\N|More precisely, this prevention applies more generally to any attempt to
+merge or push an unchecked commit to a protected branch. For example, if
+the default branch is protected and you attempt to push to it a commit that
+hasn't been successfully checked, this attempt will fail. See the next
+section on setting branch protection rule.|
+
 Let's examine in more detail what exactly happens in case of a branch push and
 a pull request.
 
@@ -827,5 +833,89 @@ in-progress build when a new commit is added to a PR because the result could
 be shared with a branch push or another PR. Nevertheless, this integration
 will attempt to cancel a stale build of a remote PR provided it's not
 (currently) shared.
+
+\h#github-ci-setup|Enabling CI Integration on GitHub Repository|
+
+To enable the CI integration on a GitHub repository, the corresponding GitHub
+App must be first installed into the user or organization account to which
+this repository belongs. To do this go to \l{https://github.com/marketplace/
+GitHub Marketplace} and search for \"build2 CI\". This should bring the list
+of available \c{build2} CI Apps to choose from. Click on the desired App and
+scroll to the bottom to install it.
+
+Once this is done, go to the account settings and open the \"Applications\"
+tab. There you should see the App you just installed. Click on the
+\"Configure\" button next to it and in the \"Repository Access\" section list
+the repositories you wish to CI. Then click \"Save\".
+
+Once this is done, all future pushed commits and pull requests will be tested
+using \c{build2} CI.
+
+While you can stop here, it is strongly recommended to also enable a branch
+protection rule that takes into account the configured CI. As discussed in
+the previous section, GitHub CI model has a number of limitations and without
+the branch protection you may, for example, make a decision to merge a PR
+based on the stale CI results.
+
+The are two ways to enable the necessary branch protection: using the classic
+branch protection rule or with the new rulesets. Both of these methods should
+produce the same result and are discussed in the following two sections.
+
+Note, however, that before you can proceed to enabling branch protection, you
+need to trigger at least one CI job (for example, by pushing a commit).
+Failed, that, the \c{CONCLUSION} check that we will use as the required
+check will not yet be known in this repository.
+
+\h2#github-ci-setup-classic|Adding classic branch protection rule|
+
+Go to the repository settings and open the \"Branches\" tab. There click
+on the \"Add classic branch protection rule\" (or edit an existing rule
+if you already have one for the branch you wish to protect).
+
+In the \"Branch name pattern\" specify the branch you would like to protect.
+Usually you protect branches that should only contain successfully checked
+commits. So normally at least \c{master}/\c{main}.
+
+While you can enable any other protection rules, the one that is pertinent to
+our problem is \"Require status checks to pass before merging\". Enable it and
+then also enable the \"Require branches to be up to date before merging\"
+sub-rule. Finally, in the search field type \c{CONCLUSION} and select it as a
+required check. Click \"Create\" (or \"Save\").
+
+A note on the \"Do not allow bypassing the above settings\" rule: if you
+enable it, then repository administrators won't be able to push any commits to
+the protected branch that haven't been successfully checked. In other words,
+with this enabled, the only way to push a commit would be to first push it to
+an unprotected branch, wait for the CI to complete, and then, if successful,
+push it to the protected branch.
+
+
+\h2#github-ci-setup-ruleset|Adding branch ruleset|
+
+Go to the repository settings and open the \"Rules/Rulesets\" tab. There click
+on the \"New ruleset/New branch ruleset\" (or edit an existing ruleset if you
+already have one for the branch you wish to protect).
+
+In the \"Ruleset Name\" specify an appropriate name, for example \c{build2
+CI}.
+
+In the \"Target branches\" specify the branch you would like to protect.
+Usually you protect branches that should only contain successfully checked
+commits. So normally at least \c{master}/\c{main}. If that's your default
+branch, then selecting \"Include default branch\" should do the trick.
+
+While you can enable any other protection rules, the one that is pertinent to
+our problem is \"Require status checks to pass\". Enable it and then also
+enable the \"Require branches to be up to date before merging\"
+sub-rule. Finally, click on \"Add checks\" and in the search field type
+\c{CONCLUSION} and select it as a required check. Click \"Create\" (or \"Save
+changes\").
+
+A note on the \"Bypass list\": if you don't add the \"Repository admin\" role
+to this list, then repository administrators won't be able to push any commits
+to the protected branch that haven't been successfully checked. In other
+words, without this bypass, the only way to push a commit would be to first
+push it to an unprotected branch, wait for the CI to complete, and then, if
+successful, push it to the protected branch.
 
 "
