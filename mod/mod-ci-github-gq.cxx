@@ -475,6 +475,8 @@ namespace brep
       // information.
       //
       optional<uint16_t> sc1;
+      size_t rs1_n;
+
       if (sc == 502)
       {
         if (create_data)
@@ -509,7 +511,9 @@ namespace brep
 
           if (*sc1 == 200)
           {
-            if (rs1.check_runs.size () == crs_n)
+            rs1_n = rs1.check_runs.size (); // Save for diagnostics below.
+
+            if (rs1_n == crs_n)
             {
               // It's possible GitHub did not create all the checkruns we have
               // requested. In which case it may return some unrelated
@@ -611,11 +615,21 @@ namespace brep
         if (sc1)
         {
           if (*sc1 != 200)
+          {
             dr << error << "failed to re-query check runs: error HTTP "
                << "response status " << *sc1;
-          else
+          }
+          else if (rs1_n != crs_n)
+          {
             dr << error << "unexpected number of check_run objects in "
-               << "re-query response";
+               << "re-query response, received: " << rs1_n << ", expected: "
+               << crs_n;
+          }
+          else
+          {
+            dr << error << "unexpected check_run objects in re-query "
+               << "response: name or state mismatch";
+          }
         }
       }
     }
