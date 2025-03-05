@@ -1307,6 +1307,20 @@ namespace brep
       return iat;
     };
 
+    // Parse the check_run's details_url to extract build id.
+    //
+    // While this is a bit hackish, there doesn't seem to be a better way
+    // (like associating custom data with a check run). Note that the GitHub
+    // UI only allows rebuilding completed check runs, so the details URL
+    // should be there.
+    //
+    optional<build_id> bid (parse_details_url (cr.check_run.details_url));
+    if (!bid)
+    {
+      fail << "check run " << cr.check_run.node_id
+           << ": failed to extract build id from details_url";
+    }
+
     const string& repo_node_id (cr.repository.node_id);
     const string& head_sha (cr.check_run.check_suite.head_sha);
 
@@ -1338,21 +1352,9 @@ namespace brep
       {
         // No such tenant.
         //
-        // This can happen because of the tenant cancellation due to a large
-        // number of rebuild requests (see build_canceled()). There is no way
-        // to distinguish this specific case (the tenant is after all canceled
-        // and, no, we cannot keep it with some special value as an indication
-        // because we need to be able to reuse type/id to create a new one).
-        // So suppressing this diagnostics seems like the only sensible
-        // choice.
-        //
-#if 0
         fail << "check run " << cr.check_run.node_id
              << " re-requested but tenant_service with id " << sid
              << " does not exist";
-#else
-        return true;
-#endif
       }
 
       tenant_service& ts (d->service);
@@ -1366,10 +1368,22 @@ namespace brep
         fail << "failed to parse service data: " << e;
       }
 
+      tenant_id = move (d->tenant_id);
+
+      // It's possible that the tenant has been re-created due to a large
+      // number of rebuild requests (see build_canceled()). So we ignore
+      // requests for the (presumably) old tenant.
+      //
+      if (tenant_id != bid->package.tenant)
+      {
+        l3 ([&]{trace << "tenant id mismatch, old: " << bid->package.tenant
+                      << ", new: " << tenant_id;});
+
+        return true;
+      }
+
       if (!sd.conclusion_node_id)
         fail << "no conclusion node id for check run " << cr.check_run.node_id;
-
-      tenant_id = d->tenant_id;
 
       // Get a new IAT if the one from the service data has expired.
       //
@@ -1474,20 +1488,6 @@ namespace brep
 #endif
 
       return true;
-    }
-
-    // Parse the check_run's details_url to extract build id.
-    //
-    // While this is a bit hackish, there doesn't seem to be a better way
-    // (like associating custom data with a check run). Note that the GitHub
-    // UI only allows rebuilding completed check runs, so the details URL
-    // should be there.
-    //
-    optional<build_id> bid (parse_details_url (cr.check_run.details_url));
-    if (!bid)
-    {
-      fail << "check run " << cr.check_run.node_id
-           << ": failed to extract build id from details_url";
     }
 
     // Initialize the check run (`bcr`) with state from the service data.
