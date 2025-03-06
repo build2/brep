@@ -1827,7 +1827,7 @@ namespace brep
     string head_sha;
     string reason;
     {
-      auto badreq = [] [[noreturn]] (const string& m)
+      auto badreq = [] (const string& m)
       {
         throw invalid_request (400, m);
       };
@@ -1836,9 +1836,14 @@ namespace brep
       {
         auto c = [badreq, &rp] (const char* n)
         {
-          if (rp.name != n) return false;
-          if (rp.value)     return true;
-          badreq ("missing '" + string (n) + "' parameter value");
+          if (rp.name == n)
+          {
+            if (!rp.value)
+              badreq ("missing '" + string (n) + "' parameter value");
+
+            return true;
+          }
+          return false;
         };
 
         if      (c ("repo-id"))  repo_id = *rp.value;
