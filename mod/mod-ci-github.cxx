@@ -1058,33 +1058,6 @@ namespace brep
                      move (check_sha),
                      move (cs.check_suite.head_sha) /* report_sha */);
 
-    // Re-create a temporary conclusion check run in the queued state to
-    // provide immediate user feedback (the real conclusion check run is only
-    // re-created when the tenant is loaded).
-    //
-    // Note that we cannot provide a details URL because the tenant id is not
-    // readily available.
-    //
-    auto create_ccr = [this, &error, &sd, iat] (const string& summary)
-    {
-      check_run cr;
-      cr.name = conclusion_check_run_name;
-
-      if (!gq_create_check_run (
-            error,
-            cr,
-            iat->token,
-            sd.app_id, sd.repository_node_id, sd.report_sha,
-            nullopt /* details_url */,
-            build_state::queued, check_run_queued_title,
-            summary + ' ' + force_rebuild_md_link (sd) + '.'))
-      {
-        error << "failed to re-create conclusion check run";
-      }
-    };
-
-    create_ccr ("Rebuild initiated, waiting for the builds to restart.");
-
     // Replace the existing CI tenant if it exists.
     //
     // Note that GitHub UI does not allow re-running the entire check suite
@@ -1129,6 +1102,36 @@ namespace brep
             << " did not exist";
       return true;
     }
+
+    // Re-create a temporary conclusion check run in the queued state to
+    // provide immediate user feedback (the real conclusion check run is only
+    // re-created when the tenant is loaded).
+    //
+    // Note that we cannot provide a details URL because the tenant id is not
+    // readily available.
+    //
+    // Note also that we do it after replacing the tenant to make sure it is
+    // done without delay (see build_cancel() for background).
+    //
+    auto create_ccr = [this, &error, &sd, iat] (const string& summary)
+    {
+      check_run cr;
+      cr.name = conclusion_check_run_name;
+
+      if (!gq_create_check_run (
+            error,
+            cr,
+            iat->token,
+            sd.app_id, sd.repository_node_id, sd.report_sha,
+            nullopt /* details_url */,
+            build_state::queued, check_run_queued_title,
+            summary + ' ' + force_rebuild_md_link (sd) + '.'))
+      {
+        error << "failed to re-create conclusion check run";
+      }
+    };
+
+    create_ccr ("Rebuild initiated, waiting for the builds to restart.");
 
     return true;
   }
