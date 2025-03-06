@@ -899,6 +899,8 @@ already have one for the branch you wish to protect).
 In the \"Ruleset Name\" specify an appropriate name, for example \c{build2
 CI}.
 
+In the \"Enforcement status\" select \"Active\".
+
 In the \"Target branches\" specify the branch you would like to protect.
 Usually you protect branches that should only contain successfully checked
 commits. So normally at least \c{master}/\c{main}. If that's your default
