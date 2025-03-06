@@ -103,6 +103,10 @@ In brep-module.conf:
 
   ci-github-app-id-private-key 12345=path/to/private-key.pem
 
+- Associate each GitHub App id with the App's name:
+
+  ci-github-app-id-name 12345=build2 CI
+
 6. Forward GitHub webhooks to a local brep instance
 
 Install the smee client:

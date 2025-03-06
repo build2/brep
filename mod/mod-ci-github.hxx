@@ -147,6 +147,18 @@ namespace brep
     bool
     handle_forced_check_suite_rebuild (const name_values& query_parameters);
 
+    // Construct and return the conclusion check run name for the specified
+    // GitHub App id.
+    //
+    // Append the GitHub App name to the conclusion check run basename in
+    // order to provide additional context where it is lacking in certain
+    // parts of the GitHub UI.
+    //
+    // Throw invalid_argument if no app name is configured for this app id.
+    //
+    string
+    conclusion_check_run_name (uint64_t app_id) const;
+
     // Build a check run details_url for a build.
     //
     string

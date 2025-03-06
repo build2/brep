@@ -463,6 +463,11 @@ Associate each GitHub App id with the App's private key:
   ci-github-app-id-private-key 12345=path/to/default-app-private-key.pem
   ci-github-app-id-private-key 67890=path/to/werror-app-private-key.pem
 
+Associate each GitHub App id with the App's name:
+
+  ci-github-app-id-name 12345=<org> CI
+  ci-github-app-id-name 67890=<org> CI - warnings as errors
+
 Now brep should be ready to handle the webhook event requests triggered by
 branch pushes and pull requests in repositories into which one of these Apps
 has been installed.

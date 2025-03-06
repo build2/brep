@@ -882,6 +882,14 @@ namespace brep
         "The number of seconds a JWT (authentication token) should be valid for.
          The maximum allowed by GitHub is 10 minutes."
       }
+
+      std::map<uint64_t, string> ci-github-app-id-name
+      {
+        "<id>=<name>",
+        "The name of the GitHub App with the specified GitHub App ID. Used to
+         qualify the conclusion check run name for additional context where it
+         is lacking in certain parts of the GitHub UI."
+      }
     };
 
     class upload: build, build_db, build_upload, repository_email, handler

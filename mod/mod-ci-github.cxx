@@ -118,6 +118,18 @@ namespace brep
         }
       }
 
+      if (!options_->ci_github_app_id_name_specified ())
+        fail << "no app id/app name mappings configured";
+
+      for (const auto& pr: options_->ci_github_app_id_name ())
+      {
+        if (pr.second.empty ())
+        {
+          fail << "ci-github-app-id-name value is empty for app id "
+               << pr.first;
+        }
+      }
+
       ci_start::init (make_shared<options::ci_start> (*options_));
 
       database_module::init (*options_, options_->build_db_retry ());
@@ -188,7 +200,7 @@ namespace brep
           // Check for the presence of the "sha256=" prefix and then strip it
           // to leave only the HMAC value.
           //
-          if (h.value->find ("sha256=", 0, 7) == string::npos)
+          if (h.value->compare (0, 7, "sha256=") != 0)
             throw invalid_request (400, "invalid x-hub-signature-256 value");
 
           hmac = h.value->substr (7);
@@ -642,7 +654,7 @@ namespace brep
   // Let's capitalize the synthetic conclusion check run name to make it
   // easier to distinguish from the regular ones.
   //
-  static const string conclusion_check_run_name ("CONCLUSION");
+  static const string conclusion_check_run_basename ("CONCLUSION");
 
   // Yellow circle.
   //
@@ -1116,7 +1128,7 @@ namespace brep
     auto create_ccr = [this, &error, &sd, iat] (const string& summary)
     {
       check_run cr;
-      cr.name = conclusion_check_run_name;
+      cr.name = conclusion_check_run_name (sd.app_id);
 
       if (!gq_create_check_run (
             error,
@@ -1370,7 +1382,9 @@ namespace brep
     // Note that we should check this early since parse_details_url() for it
     // will fail.
     //
-    if (cr.check_run.name == conclusion_check_run_name)
+    if (cr.check_run.name.compare (0,
+                                   conclusion_check_run_basename.size (),
+                                   conclusion_check_run_basename) == 0)
     {
       l3 ([&]{trace << "re-requested conclusion check_run";});
       return true;
@@ -1401,7 +1415,7 @@ namespace brep
     check_run& bcr (check_runs[0]); // Build check run
     check_run& ccr (check_runs[1]); // Conclusion check run
 
-    ccr.name = conclusion_check_run_name;
+    ccr.name = conclusion_check_run_name (cr.check_run.app_id);
 
     const gh_installation_access_token* iat (nullptr);
     optional<gh_installation_access_token> new_iat;
@@ -1539,7 +1553,9 @@ namespace brep
     // no change, which is not ideal but is still an indication that this
     // operation is not supported.
     //
-    if (cr.check_run.name == conclusion_check_run_name)
+    if (cr.check_run.name.compare (0,
+                                   conclusion_check_run_basename.size (),
+                                   conclusion_check_run_basename) == 0)
     {
       l3 ([&]{trace << "re-requested conclusion check_run";});
 
@@ -1944,6 +1960,19 @@ namespace brep
     return true;
   }
 
+  string ci_github::
+  conclusion_check_run_name (uint64_t app_id) const
+  {
+    const map<uint64_t, string>& an (options_->ci_github_app_id_name ());
+
+    auto ni (an.find (app_id));
+    if (ni == an.end ())
+      throw invalid_argument ("no app name configured for app id " +
+                              to_string (app_id));
+
+    return conclusion_check_run_basename + " (" + ni->second + ')';
+  }
+
   function<optional<string> (const string&, const tenant_service&)> ci_github::
   build_unloaded (const string& ti,
                   tenant_service&& ts,
@@ -2235,7 +2264,9 @@ namespace brep
       -> optional<check_run>
     {
       check_run cr;
-      cr.name = conclusion_check_run_name;
+      // Let invalid_argument propagate (see above).
+      //
+      cr.name = conclusion_check_run_name (sd.app_id);
 
       // Let unlikely invalid_argument propagate (see above).
       //
@@ -2259,7 +2290,8 @@ namespace brep
     // Update the synthetic conclusion check run with success or failure.
     // Return the check run on success or nullopt on failure.
     //
-    auto update_ccr = [iat,
+    auto update_ccr = [this,
+                       iat,
                        &sd,
                        &error] (const string& node_id,
                                 result_status rs,
@@ -2273,7 +2305,9 @@ namespace brep
         make_built_result (rs, sd.warning_success, move (summary)));
 
       check_run cr;
-      cr.name = conclusion_check_run_name; // For display purposes only.
+      // Let invalid_argument propagate (see above).
+      //
+      cr.name = conclusion_check_run_name (sd.app_id); // Display purposes only.
 
       // Let unlikely invalid_argument propagate (see above).
       //
@@ -3415,7 +3449,9 @@ namespace brep
       // Set some fields for display purposes.
       //
       cr.node_id = *sd.conclusion_node_id;
-      cr.name = conclusion_check_run_name;
+      // Let invalid_argument propagate.
+      //
+      cr.name = conclusion_check_run_name (sd.app_id);
 
       // Let unlikely invalid_argument propagate.
       //
