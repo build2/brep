@@ -1095,11 +1095,10 @@ namespace brep
 
     // Create an unloaded CI tenant.
     //
-    // Note: use no delay since we need to (re)create the synthetic conclusion
-    // check run as soon as possible.
-    //
-    // Impose a slight delay to avoid GitHub state update races (see
-    // build_cancel() for background).
+    // Impose a delay to avoid GitHub state update races (see build_cancel()
+    // for background). @@ Should also help prevent abuse, though the delay
+    // should probably be longer (and depend on when was the last time it was
+    // re-requested, similar to what the build_force module does).
     //
     // Note that we use the create() API instead of start() since duplicate
     // management is not available in start().
@@ -1114,7 +1113,7 @@ namespace brep
                      *build_db_, retry_max_,
                      tenant_service (sid, "ci-github", sd.json ()),
                      chrono::seconds (15) /* interval */,
-                     chrono::seconds (20) /* delay */,
+                     chrono::seconds (60) /* delay */,
                      duplicate_tenant_mode::replace));
 
     if (!pr)
