@@ -137,7 +137,7 @@ namespace brep
   }
 
   bool ci_github::
-  handle (request& rq, response&)
+  handle (request& rq, response& rs)
   {
     using namespace bpkg;
 
@@ -167,7 +167,7 @@ namespace brep
       assert (dpv); // Should have been removed from rps if no value.
 
       if (*dpv == "rerequest") // Forced rebuild.
-        return handle_forced_check_suite_rebuild (rps);
+        return handle_forced_check_suite_rebuild (rps, rs);
       else if (!dpv->empty ())
         throw invalid_request (400, "invalid default parameter value '" +
                                     *dpv + '\'');
@@ -1083,7 +1083,8 @@ namespace brep
     // Impose a delay to avoid GitHub state update races (see build_cancel()
     // for background). @@ Should also help prevent abuse, though the delay
     // should probably be longer (and depend on when was the last time it was
-    // re-requested, similar to what the build_force module does).
+    // re-requested, similar to what the build_force module does). @@ TODO:
+    // also update diagnostics handle_forced_check_suite_rebuild().
     //
     // Note that we use the create() API instead of start() since duplicate
     // management is not available in start().
@@ -1836,7 +1837,7 @@ namespace brep
   }
 
   bool ci_github::
-  handle_forced_check_suite_rebuild (const name_values& rps)
+  handle_forced_check_suite_rebuild (const name_values& rps, response& rs)
   {
     HANDLER_DIAG;
 
@@ -1942,6 +1943,7 @@ namespace brep
     // request is the most sensible option (the tenant is presumably being
     // created/loaded).
     //
+    const char* r (nullptr);
     if (sd.check_suite_node_id)
     {
       const string& nid (*sd.check_suite_node_id);
@@ -1952,10 +1954,18 @@ namespace brep
                                     nid))
       {
         l3 ([&]{trace << "re-requested check suite " << nid;});
+        r = "Rebuilding in 60 seconds."; // @@ TODO: dynamic delay.
       }
       else
         fail << "failed to re-request check suite " << nid;
     }
+    else
+      r = "Rebuild already in progress.";
+
+    // We have all the data, so don't buffer the response content.
+    //
+    ostream& os (rs.content (200, "text/plain;charset=utf-8", false));
+    os << r;
 
     return true;
   }

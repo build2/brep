@@ -145,7 +145,8 @@ namespace brep
     // of the entire check suite (all check runs).
     //
     bool
-    handle_forced_check_suite_rebuild (const name_values& query_parameters);
+    handle_forced_check_suite_rebuild (const name_values& query_parameters,
+                                       response&);
 
     // Construct and return the conclusion check run name for the specified
     // GitHub App id.
