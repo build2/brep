@@ -200,7 +200,7 @@ namespace brep
           // Check for the presence of the "sha256=" prefix and then strip it
           // to leave only the HMAC value.
           //
-          if (h.value->find ("sha256=", 0, 7) != 0)
+          if (h.value->compare (0, 7, "sha256=") != 0)
             throw invalid_request (400, "invalid x-hub-signature-256 value");
 
           hmac = h.value->substr (7);
@@ -1382,7 +1382,9 @@ namespace brep
     // Note that we should check this early since parse_details_url() for it
     // will fail.
     //
-    if (cr.check_run.name.find (conclusion_check_run_basename) == 0)
+    if (cr.check_run.name.compare (0,
+                                   conclusion_check_run_basename.size (),
+                                   conclusion_check_run_basename) == 0)
     {
       l3 ([&]{trace << "re-requested conclusion check_run";});
       return true;
@@ -1551,7 +1553,9 @@ namespace brep
     // no change, which is not ideal but is still an indication that this
     // operation is not supported.
     //
-    if (cr.check_run.name.find (conclusion_check_run_basename) == 0)
+    if (cr.check_run.name.compare (0,
+                                   conclusion_check_run_basename.size (),
+                                   conclusion_check_run_basename) == 0)
     {
       l3 ([&]{trace << "re-requested conclusion check_run";});
 
@@ -1966,10 +1970,7 @@ namespace brep
       throw invalid_argument ("no app name configured for app id " +
                               to_string (app_id));
 
-    ostringstream os;
-    os << conclusion_check_run_basename << " (" << ni->second << ')';
-
-    return os.str ();
+    return conclusion_check_run_basename + " (" + ni->second + ')';
   }
 
   function<optional<string> (const string&, const tenant_service&)> ci_github::

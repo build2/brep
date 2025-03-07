@@ -156,7 +156,8 @@ namespace brep
     //
     // Throw invalid_argument if no app name is configured for this app id.
     //
-    string conclusion_check_run_name (uint64_t app_id) const;
+    string
+    conclusion_check_run_name (uint64_t app_id) const;
 
     // Build a check run details_url for a build.
     //
