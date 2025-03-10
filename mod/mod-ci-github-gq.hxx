@@ -16,14 +16,48 @@
 
 namespace brep
 {
+  // The status of the GraphQL API primary rate limits for the calling App
+  // installation. These values are returned in the GraphQL API response
+  // headers.
+  //
+  // GitHub reference:
+  // https://docs.github.com/en/graphql/overview/rate-limits-and-node-limits-for-the-graphql-api
+  //
+  struct gq_rate_limits
+  {
+    // The maximum number of points that you can use per hour.
+    //
+    uint64_t limit;
+
+    // The number of points remaining in the current rate limit window.
+    //
+    uint64_t remaining;
+
+    // The number of points you have used in the current rate limit window.
+    //
+    uint64_t used;
+
+    // The UTC time at which the current rate limit window resets. Looks like
+    // the window is one hour or less.
+    //
+    timestamp reset = butl::timestamp_unknown;
+  };
+
   // GraphQL functions (all start with gq_).
   //
 
   // Create a new check run on GitHub for each build with the build state,
-  // name, details_url, and output taken from each check_run object. Update
-  // `check_runs` with the new data (node id and state_synced). Return false
-  // and issue diagnostics if the request failed. Note that in this case some
-  // elements in check_runs may still have been updated (due to batching).
+  // name, details_url, and output taken from each check_run object.
+  //
+  // Update `check_runs` with the new data (node id and state_synced).
+  //
+  // Return the current GraphQL API rate limits status in `limits` if it is
+  // not NULL.
+  //
+  // Return false and issue diagnostics if the request failed. Note that in
+  // this case some elements in check_runs may still have been updated (due to
+  // batching). And the rate limits may or may not be available (check the
+  // reset value for timestamp_unknown).
   //
   // Throw invalid_argument if the passed data is invalid, missing, or
   // inconsistent.
@@ -40,15 +74,23 @@ namespace brep
                         uint64_t app_id,
                         const string& repository_id,
                         const string& head_sha,
-                        size_t batch);
+                        size_t batch,
+                        gq_rate_limits* limits = nullptr);
 
   // Create a new check run on GitHub for a build in the queued or building
   // state. Note that the state cannot be built because in that case a
   // conclusion is required.
   //
-  // Update `cr` with the new data (node id, state, and state_synced). Return
-  // nullopt and issue diagnostics if the request failed. Return the check
-  // suite node id otherwise (so can be used as bool).
+  // Update `cr` with the new data (node id, state, and state_synced).
+  //
+  // Return the current GraphQL API rate limits status in `limits` if it is
+  // not NULL.
+  //
+  // Return nullopt and issue diagnostics if the request failed. In this case
+  // the rate limits may or may not be available (check the reset value for
+  // timestamp_unknown).
+  //
+  // Return the check suite node id otherwise (so can be used as bool).
   //
   // Throw invalid_argument if the passed data is invalid, missing, or
   // inconsistent.
@@ -66,7 +108,8 @@ namespace brep
                        const optional<string>& details_url,
                        build_state,
                        string title,
-                       string summary);
+                       string summary,
+                       gq_rate_limits* limits = nullptr);
 
   // As above but create a check run in the built state (which requires a
   // conclusion).
@@ -86,13 +129,20 @@ namespace brep
                        const string& repository_id,
                        const string& head_sha,
                        const optional<string>& details_url,
-                       gq_built_result);
+                       gq_built_result,
+                       gq_rate_limits* limits = nullptr);
 
   // Update a check run on GitHub to the queued or building state. Note that
   // the state cannot be built because in that case a conclusion is required.
   //
-  // Update `cr` with the new data (state and state_synced). Return false and
-  // issue diagnostics if the request failed.
+  // Update `cr` with the new data (state and state_synced).
+  //
+  // Return the current GraphQL API rate limits status in `limits` if it is
+  // not NULL.
+  //
+  // Return false and issue diagnostics if the request failed. In this case
+  // the rate limits may or may not be available (check the reset value for
+  // timestamp_unknown).
   //
   // Throw invalid_argument if the passed data is invalid, missing, or
   // inconsistent.
@@ -107,7 +157,8 @@ namespace brep
                        const string& node_id,
                        build_state,
                        string title,
-                       string summary);
+                       string summary,
+                       gq_rate_limits* limits = nullptr);
 
   // As above but update a check run to the built state (which requires a
   // conclusion).
@@ -122,13 +173,19 @@ namespace brep
                        const string& installation_access_token,
                        const string& repository_id,
                        const string& node_id,
-                       gq_built_result);
+                       gq_built_result,
+                       gq_rate_limits* limits = nullptr);
 
   // Re-request a check suite. This will result in the delivery of a
   // check_suite webhook with the "rerequested" action, just as if the user
   // had clicked "re-run all checks" in the GitHub UI.
   //
-  // Return false and issue diagnostics if the request failed.
+  // Return the current GraphQL API rate limits status in `limits` if it is
+  // not NULL.
+  //
+  // Return false and issue diagnostics if the request failed. In this case
+  // the rate limits may or may not be available (check the reset value for
+  // timestamp_unknown).
   //
   // Throw invalid_argument if the passed data is invalid, missing, or
   // inconsistent.
@@ -137,12 +194,16 @@ namespace brep
   gq_rerequest_check_suite (const basic_mark& error,
                             const string& installation_access_token,
                             const string& repository_id,
-                            const string& node_id);
+                            const string& node_id,
+                            gq_rate_limits* limits = nullptr);
 
   // Fetch pre-check information for a pull request from GitHub. This
   // information is used to decide whether or not to CI the PR and is
   // comprised of the PR's head commit SHA, whether its head branch is behind
   // its base branch, and its mergeability and test merge commit SHA.
+  //
+  // Return the current GraphQL API rate limits status in `limits` if it is
+  // not NULL.
   //
   // Return absent value if the merge commit is still being generated (which
   // means PR head branch behindness is not yet known either). See the
@@ -150,7 +211,9 @@ namespace brep
   // semantics.
   //
   // Issue diagnostics and return absent if the request failed (which means it
-  // will be treated by the caller as still being generated).
+  // will be treated by the caller as still being generated). In this case the
+  // rate limits may or may not be available (check the reset value for
+  // timestamp_unknown).
   //
   // Throw invalid_argument if the node id is invalid.
   //
@@ -182,7 +245,8 @@ namespace brep
   gq_fetch_pull_request_pre_check_info (
     const basic_mark& error,
     const string& installation_access_token,
-    const string& node_id);
+    const string& node_id,
+    gq_rate_limits* limits = nullptr);
 }
 
 #endif // MOD_MOD_CI_GITHUB_GQ_HXX

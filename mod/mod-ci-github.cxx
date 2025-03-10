@@ -2209,6 +2209,25 @@ namespace brep
     return nullptr;
   }
 
+  static ostream&
+  operator<< (ostream& os, const gq_rate_limits& l)
+  {
+    if (l.reset != butl::timestamp_unknown)
+    {
+      using butl::operator<<; // For timestamp (l.reset).
+
+      os << "{ limit: "      << l.limit
+         <<  ", remaining: " << l.remaining
+         <<  ", used: "      << l.used
+         <<  ", reset: "     << l.reset
+         << " }";
+    }
+    else
+      os << "<unknown>";
+
+    return os;
+  }
+
   function<optional<string> (const string&, const tenant_service&)> ci_github::
   build_unloaded_load (const string& tenant_id,
                        tenant_service&& ts,
@@ -2264,9 +2283,11 @@ namespace brep
     // Create the synthetic conclusion check run with an in-progress
     // state. Return the check run on success or nullopt on failure.
     //
+    gq_rate_limits limits;
     auto create_ccr = [&tenant_id,
                        iat,
                        &check_suite_node_id,
+                       &limits,
                        &sd,
                        &error,
                        this] (const string& title,
@@ -2289,7 +2310,8 @@ namespace brep
                                                       details_url (tenant_id),
                                                       build_state::building,
                                                       title,
-                                                      summary)))
+                                                      summary,
+                                                      &limits)))
       {
         return cr;
       }
@@ -2355,6 +2377,11 @@ namespace brep
 
         conclusion_node_id = move (*cr->node_id);
       }
+
+      // Log the limits returned by create_ccr().
+      //
+      info << "installation id " << sd.installation_id << " limits: "
+           << limits;
     }
 
     const string& effective_conclusion_node_id (
@@ -2698,13 +2725,15 @@ namespace brep
       //
       // Let unlikely invalid_argument propagate.
       //
+      gq_rate_limits limits;
       if (gq_create_check_runs (error,
                                 crs,
                                 iat->token,
                                 sd.app_id,
                                 sd.repository_node_id,
                                 sd.report_sha,
-                                options_->build_queued_batch ()))
+                                options_->build_queued_batch (),
+                                &limits))
       {
         for (const check_run& cr: crs)
         {
@@ -2714,6 +2743,9 @@ namespace brep
           l3 ([&]{trace << "created check_run { " << cr << " }";});
         }
       }
+
+      info << "installation id " << sd.installation_id << " limits: "
+           << limits;
     }
 
     return [tenant_id,
@@ -3465,12 +3497,14 @@ namespace brep
 
       // Let unlikely invalid_argument propagate.
       //
+      gq_rate_limits limits;
       if (gq_update_check_run (error,
                                cr,
                                iat->token,
                                sd.repository_node_id,
                                *sd.conclusion_node_id,
-                               move (br)))
+                               move (br),
+                               &limits))
       {
         assert (cr.state == build_state::built);
         l3 ([&]{trace << "updated conclusion check_run { " << cr << " }";});
@@ -3483,6 +3517,9 @@ namespace brep
               << ": unable to update conclusion check run "
               << *sd.conclusion_node_id;
       }
+
+      info << "installation id " << sd.installation_id << " limits: "
+           << limits;
     }
   }
   catch (const std::exception& e)
