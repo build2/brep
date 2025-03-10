@@ -8,6 +8,10 @@
 
 #include <mod/mod-ci-github-post.hxx>
 
+#include <ctime>   // time_t
+#include <chrono>
+#include <cstdlib> // strtoull()
+
 using namespace std;
 using namespace butl;
 
@@ -417,6 +421,68 @@ namespace brep
     return b;
   }
 
+  // The names of the GraphQL API rate limit status response headers.
+  //
+  // Pass a copy of this vector to github_post() to make it save the values of
+  // the named response headers in the corresponding elements' values.
+  //
+  // See struct gq_rate_limits for the meaning of each header.
+  //
+  static const github_response_headers rate_limit_headers
+  {
+    { "x-ratelimit-limit",     nullopt },
+    { "x-ratelimit-remaining", nullopt },
+    { "x-ratelimit-used",      nullopt },
+    { "x-ratelimit-reset",     nullopt }
+  };
+
+  // Parse the values of the GraphQL API rate limit response headers returned
+  // by github_post().
+  //
+  // Each header's value is the string representation of an unsigned integer.
+  // See struct gq_rate_limits for the meaning of each header.
+  //
+  // Throw runtime_error if any of the headers are missing or have missing or
+  // invalid values.
+  //
+  static gq_rate_limits
+  parse_rate_limit_headers (const github_response_headers& rsp_hdrs)
+  {
+    // Note: assume the header names are all the same too.
+    //
+    assert (rsp_hdrs.size () == rate_limit_headers.size ());
+
+    gq_rate_limits r;
+
+    for (const github_response_header& h: rsp_hdrs)
+    {
+      // Convert the header's value from string to size_t. Throw runtime_error
+      // if the header has a missing or invalid value.
+      //
+      auto hval = [&h] () -> size_t
+      {
+        if (!h.second.has_value ())
+          throw runtime_error ("missing '" + h.first + "' header value");
+
+        char* e (nullptr);
+        errno = 0; // We must clear it according to POSIX.
+        size_t r (strtoull (h.second->c_str (), &e, 10));
+        if (errno == ERANGE || e == h.second->c_str () || *e != '\0')
+          throw runtime_error ("invalid '" + h.first + "' header value");
+
+        return r;
+      };
+
+      if      (h.first == "x-ratelimit-limit")     r.limit = hval ();
+      else if (h.first == "x-ratelimit-remaining") r.remaining = hval ();
+      else if (h.first == "x-ratelimit-used")      r.used = hval ();
+      else if (h.first == "x-ratelimit-reset")
+        r.reset = system_clock::from_time_t (static_cast<time_t> (hval ()));
+    }
+
+    return r;
+  }
+
   // Send a GraphQL mutation request `rq` that creates (create=true) or
   // updates (create=false) one or more check runs. The requested build state
   // is taken from each check_run object. Update the check runs in `crs` with
@@ -437,7 +503,8 @@ namespace brep
                         check_runs::iterator crs_e,
                         const string& iat,
                         string rq,
-                        const optional<gq_create_data>& create_data)
+                        const optional<gq_create_data>& create_data,
+                        gq_rate_limits* lim = nullptr)
   {
     size_t crs_n (crs_e - crs_b);
 
@@ -459,11 +526,16 @@ namespace brep
         resp () = default;
       } rs;
 
+      github_response_headers rhs;
+      if (lim != nullptr)
+        rhs = rate_limit_headers;
+
       what = create_data ? "create" : "update";
       uint16_t sc (github_post (rs,
                                 "graphql", // API Endpoint.
                                 strings {"Authorization: Bearer " + iat},
-                                move (rq)));
+                                move (rq),
+                                &rhs));
 
       // Turns out it's not uncommon to not get a reply from GitHub if the
       // number of check runs being created in build_queued() is large. The
@@ -507,7 +579,8 @@ namespace brep
           sc1 = github_post (rs1,
                              "graphql", // API Endpoint.
                              strings {"Authorization: Bearer " + iat},
-                             move (rq));
+                             move (rq),
+                             &rhs);
 
           if (*sc1 == 200)
           {
@@ -553,6 +626,9 @@ namespace brep
           check_run& cr (*crs_b);
           cr.state_synced = true;
 
+          if (lim != nullptr)
+            *lim = parse_rate_limit_headers (rhs);
+
           return string ();
         }
       }
@@ -591,6 +667,9 @@ namespace brep
             cr.state = rst;
             cr.state_synced = (rst == st);
           }
+
+          if (lim != nullptr)
+            *lim = parse_rate_limit_headers (rhs);
 
           if (check_suite_node_id)
           {
@@ -651,6 +730,7 @@ namespace brep
             << "): " << e.what ();
     }
     catch (const runtime_error& e) // gq_parse_{mutate,get}_check_runs_response()
+                                   // or parse_rate_limit_headers().
     {
       // GitHub response contained error(s) (could be ours or theirs at this
       // point).
@@ -676,8 +756,8 @@ namespace brep
   // valid GraphQL values (string, enum, etc).
   //
   static string
-  gq_mutation_create_check_runs (const string& ri,           // Repository ID
-                                 const string& hs,           // Head SHA
+  gq_mutation_create_check_runs (const string& ri, // Repository ID
+                                 const string& hs, // Head SHA
                                  brep::check_runs::iterator crs_b,
                                  brep::check_runs::iterator crs_e)
   {
@@ -888,7 +968,8 @@ namespace brep
                         uint64_t ai,
                         const string& rid,
                         const string& hs,
-                        size_t batch)
+                        size_t batch,
+                        gq_rate_limits* lim)
   {
     assert (batch != 0);
 
@@ -926,7 +1007,8 @@ namespace brep
                                  i, e,
                                  iat,
                                  move (rq),
-                                 gq_create_data {ai, rid, hs}))
+                                 gq_create_data {ai, rid, hs},
+                                 j != b ? nullptr : lim /*On last batch only*/))
         return false;
 
       i += bn;
@@ -944,7 +1026,8 @@ namespace brep
                        const string& hs,
                        const optional<string>& du,
                        build_state st,
-                       string ti, string su)
+                       string ti, string su,
+                       gq_rate_limits* lim)
   {
     // State cannot be built without a conclusion.
     //
@@ -969,7 +1052,8 @@ namespace brep
                             crs.begin (), crs.end (),
                             iat,
                             move (rq),
-                            gq_create_data {ai, rid, hs}));
+                            gq_create_data {ai, rid, hs},
+                            lim));
 
     assert (!r || !r->empty ());
 
@@ -986,7 +1070,8 @@ namespace brep
                        const string& rid,
                        const string& hs,
                        const optional<string>& du,
-                       gq_built_result br)
+                       gq_built_result br,
+                       gq_rate_limits* lim)
   {
     string rq (
       gq_serialize_request (
@@ -1007,7 +1092,8 @@ namespace brep
                             crs.begin (), crs.end (),
                             iat,
                             move (rq),
-                            gq_create_data {ai, rid, hs}));
+                            gq_create_data {ai, rid, hs},
+                            lim));
 
     assert (!r || !r->empty ());
 
@@ -1023,7 +1109,8 @@ namespace brep
                        const string& rid,
                        const string& nid,
                        build_state st,
-                       string ti, string su)
+                       string ti, string su,
+                       gq_rate_limits* lim)
   {
     // State cannot be built without a conclusion.
     //
@@ -1052,7 +1139,8 @@ namespace brep
                                   crs.begin (), crs.end (),
                                   iat,
                                   move (rq),
-                                  nullopt));
+                                  nullopt /* create_data */,
+                                  lim));
 
     cr = move (crs[0]);
 
@@ -1065,7 +1153,8 @@ namespace brep
                        const string& iat,
                        const string& rid,
                        const string& nid,
-                       gq_built_result br)
+                       gq_built_result br,
+                       gq_rate_limits* lim)
   {
     string rq (
       gq_serialize_request (
@@ -1083,7 +1172,8 @@ namespace brep
                                   crs.begin (), crs.end (),
                                   iat,
                                   move (rq),
-                                  nullopt));
+                                  nullopt /* create_data */,
+                                  lim));
 
     cr = move (crs[0]);
 
@@ -1116,7 +1206,8 @@ namespace brep
   gq_rerequest_check_suite (const basic_mark& error,
                             const string& iat,
                             const string& rid,
-                            const string& nid)
+                            const string& nid,
+                            gq_rate_limits* lim)
   {
     // Let invalid_argument from gq_mutation_rerequest_check_suite()
     // propagate.
@@ -1167,10 +1258,18 @@ namespace brep
         resp () = default;
       } rs;
 
+      github_response_headers rhs;
+      if (lim != nullptr)
+        rhs = rate_limit_headers;
+
       uint16_t sc (github_post (rs,
                                 "graphql", // API Endpoint.
                                 strings {"Authorization: Bearer " + iat},
-                                move (rq)));
+                                move (rq),
+                                &rhs));
+
+      if (lim != nullptr)
+        *lim = parse_rate_limit_headers (rhs);
 
       if (sc == 200)
       {
@@ -1204,7 +1303,7 @@ namespace brep
       error << "unable to re-request check suite (errno=" << e.code () << "): "
             << e.what ();
     }
-    catch (const runtime_error& e) // struct resp
+    catch (const runtime_error& e) // struct resp or parse_rate_limit_headers().
     {
       // GitHub response contained error(s) (could be ours or theirs at this
       // point).
@@ -1241,7 +1340,8 @@ namespace brep
   optional<gq_pr_pre_check_info>
   gq_fetch_pull_request_pre_check_info (const basic_mark& error,
                                         const string& iat,
-                                        const string& nid)
+                                        const string& nid,
+                                        gq_rate_limits* lim)
   {
     // Let invalid_argument from gq_query_pr_mergeability() propagate.
     //
@@ -1329,10 +1429,18 @@ namespace brep
         resp () = default;
       } rs;
 
+      github_response_headers rhs;
+      if (lim != nullptr)
+        rhs = rate_limit_headers;
+
       uint16_t sc (github_post (rs,
                                 "graphql", // API Endpoint.
                                 strings {"Authorization: Bearer " + iat},
-                                move (rq)));
+                                move (rq),
+                                &rhs));
+
+      if (lim != nullptr)
+        *lim = parse_rate_limit_headers (rhs);
 
       if (sc == 200)
       {
@@ -1364,7 +1472,7 @@ namespace brep
       error << "unable to fetch pull request (errno=" << e.code () << "): "
             << e.what ();
     }
-    catch (const runtime_error& e) // struct resp
+    catch (const runtime_error& e) // struct resp or parse_rate_limit_headers().
     {
       // GitHub response contained error(s) (could be ours or theirs at this
       // point).

@@ -11,6 +11,12 @@
 
 namespace brep
 {
+  // GitHub response header name and value.
+  //
+  using github_response_header = pair<string, optional<string>>;
+
+  using github_response_headers = vector<github_response_header>;
+
   // Send a POST request to the GitHub API endpoint `ep`, parse GitHub's JSON
   // response into `rs` (only for 200 codes), and return the HTTP status code.
   //
@@ -19,6 +25,10 @@ namespace brep
   // Pass additional HTTP headers in `hdrs`. For example:
   //
   //   "HeaderName: header value"
+  //
+  // To retrieve response headers, specify their names in `rsp_hdrs` and the
+  // received header value will be saved in the corresponding pair's
+  // second. Skip/ignore response headers if rsp_hdrs is null or empty.
   //
   // Throw invalid_argument if unable to parse the response headers,
   // invalid_json_input (derived from invalid_argument) if unable to parse the
@@ -29,7 +39,8 @@ namespace brep
   github_post (T& rs,
                const string& ep,
                const strings& hdrs,
-               const string& body = "")
+               const string& body = "",
+               github_response_headers* rsp_hdrs = nullptr)
   {
     using namespace butl;
 
@@ -94,7 +105,66 @@ namespace brep
           out << body;
         out.close ();
 
-        sc = curl::read_http_status (in).code; // May throw invalid_argument.
+        // True if no response headers were requested to be saved.
+        //
+        bool skip_headers (rsp_hdrs == nullptr || rsp_hdrs->empty ());
+
+        // Read the response status code. May throw invalid_argument.
+        //
+        sc = curl::read_http_status (in, skip_headers).code;
+
+        // Read the response headers and save them in rsp_hdrs if requested.
+        //
+        if (!skip_headers)
+        {
+          // Note: the following code is based on bdep/http-service.cxx.
+
+          // Check if the line contains the specified header and return its
+          // value if that's the case. Return nullopt otherwise.
+          //
+          // Note that we don't expect the header values that we are
+          // interested in to span over multiple lines.
+          //
+          string l;
+          auto header = [&l] (const string& name) -> optional<string>
+          {
+            size_t n (name.size ());
+            if (!(icasecmp (name, l, n) == 0 && l[n] == ':'))
+              return nullopt;
+
+            string r;
+            size_t p (l.find_first_not_of (' ', n + 1)); // The value begin.
+            if (p != string::npos)
+            {
+              size_t e (l.find_last_not_of (' '));       // The value end.
+              assert (e != string::npos && e >= p);
+
+              r = string (l, p, e - p + 1);
+            }
+
+            return optional<string> (move (r));
+          };
+
+          // Read response headers and save the requested ones.
+          //
+          size_t saved_count (0); // Number of headers saved.
+
+          while (!(l = curl::read_http_response_line (in)).empty ())
+          {
+            if (saved_count != rsp_hdrs->size ())
+            {
+              for (github_response_header& rh: *rsp_hdrs)
+              {
+                if (optional<string> v = header (rh.first))
+                {
+                  rh.second = move (v);
+                  ++saved_count;
+                  break;
+                }
+              }
+            }
+          }
+        }
 
         // Parse the response body if the status code is in the 200 range.
         //
