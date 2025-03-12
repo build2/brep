@@ -78,6 +78,13 @@ namespace brep
       // the X-GitHub-Api-Version header is not passed this version will be
       // chosen by default.
       //
+      // Note that by default curl negotiates with GitHub to use HTTP/2 which
+      // often fails with errors like:
+      //
+      // curl: (92) HTTP/2 stream 1 was not closed cleanly: CANCEL (err 8)
+      //
+      // So we are trying to force HTTP 1.1 to see if it will help.
+      //
       fdpipe errp (fdopen_pipe ()); // stderr pipe.
 
       curl c (path ("-"), // Read input from curl::out.
@@ -86,6 +93,7 @@ namespace brep
               curl::post,
               curl::flags::no_fail,
               "https://api.github.com/" + ep,
+              "--http1.1", // Force HTTP 1.1.
               "--no-fail", // Don't fail if response status code >= 400.
               "--include", // Output response headers for status code.
               "--header", "Accept: application/vnd.github+json",
