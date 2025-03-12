@@ -2212,20 +2212,18 @@ namespace brep
   static ostream&
   operator<< (ostream& os, const gq_rate_limits& l)
   {
-    os << "graphql rate limit status";
-
     if (l.reset != butl::timestamp_unknown)
     {
       using butl::operator<<; // For timestamp (l.reset).
 
-      os << " { limit: "     << l.limit
+      os << "{ limit: "     << l.limit
          <<  ", remaining: " << l.remaining
          <<  ", used: "      << l.used
          <<  ", reset: "     << l.reset
          << " }";
     }
     else
-      os << ": unknown";
+      os << "<unknown>";
 
     return os;
   }
@@ -2281,11 +2279,11 @@ namespace brep
       return nullptr; // Try again on the next call.
 
     optional<string> check_suite_node_id;
-    gq_rate_limits limits;
 
     // Create the synthetic conclusion check run with an in-progress
     // state. Return the check run on success or nullopt on failure.
     //
+    gq_rate_limits limits;
     auto create_ccr = [&tenant_id,
                        iat,
                        &check_suite_node_id,
@@ -2326,7 +2324,6 @@ namespace brep
     //
     auto update_ccr = [this,
                        iat,
-                       &limits,
                        &sd,
                        &error] (const string& node_id,
                                 result_status rs,
@@ -2351,8 +2348,7 @@ namespace brep
                                iat->token,
                                sd.repository_node_id,
                                node_id,
-                               move (br),
-                               &limits))
+                               move (br)))
       {
         assert (cr.state == build_state::built);
         return cr;
@@ -2381,6 +2377,11 @@ namespace brep
 
         conclusion_node_id = move (*cr->node_id);
       }
+
+      // Log the limits returned by update_ccr().
+      //
+      info << "installation id " << sd.installation_id << " limits: "
+           << limits;
     }
 
     const string& effective_conclusion_node_id (
@@ -2440,10 +2441,6 @@ namespace brep
                   << " and unable to update conclusion";
           }
 
-          // Log the limits returned by update_ccr().
-          //
-          info << limits << "; installation id: " << sd.installation_id;
-
           return nullptr; // No need to update service data in this case.
         }
       }
@@ -2453,11 +2450,6 @@ namespace brep
 
         // Fall through to retry on next call.
       }
-
-      // Log the limits returned by create_ccr() (even if load() threw
-      // runtime_error).
-      //
-      info << limits << "; installation id: " << sd.installation_id;
     }
 
     if (!new_iat && conclusion_node_id.empty ())
@@ -2729,12 +2721,11 @@ namespace brep
     //
     if (iat != nullptr)
     {
-      gq_rate_limits limits;
-
       // Create a check_run for each build as a single request.
       //
       // Let unlikely invalid_argument propagate.
       //
+      gq_rate_limits limits;
       if (gq_create_check_runs (error,
                                 crs,
                                 iat->token,
@@ -2753,7 +2744,8 @@ namespace brep
         }
       }
 
-      info << limits << "; installation id: " << sd.installation_id;
+      info << "installation id " << sd.installation_id << " limits: "
+           << limits;
     }
 
     return [tenant_id,
@@ -3503,10 +3495,9 @@ namespace brep
       //
       cr.name = conclusion_check_run_name (sd.app_id);
 
-      gq_rate_limits limits;
-
       // Let unlikely invalid_argument propagate.
       //
+      gq_rate_limits limits;
       if (gq_update_check_run (error,
                                cr,
                                iat->token,
@@ -3527,7 +3518,8 @@ namespace brep
               << *sd.conclusion_node_id;
       }
 
-      info << limits << "; installation id: " << sd.installation_id;
+      info << "installation id " << sd.installation_id << " limits: "
+           << limits;
     }
   }
   catch (const std::exception& e)
