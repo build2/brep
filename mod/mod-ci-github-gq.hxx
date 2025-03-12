@@ -40,7 +40,7 @@ namespace brep
     // The UTC time at which the current rate limit window resets. Looks like
     // the window is one hour or less.
     //
-    timestamp reset = timestamp_unknown;
+    timestamp reset = butl::timestamp_unknown;
   };
 
   // GraphQL functions (all start with gq_).
@@ -84,10 +84,13 @@ namespace brep
   // Update `cr` with the new data (node id, state, and state_synced).
   //
   // Return the current GraphQL API rate limits status in `limits` if it is
-  // non-null.
+  // not NULL.
   //
-  // Return nullopt and issue diagnostics if the request failed. Return the
-  // check suite node id otherwise (so can be used as bool).
+  // Return nullopt and issue diagnostics if the request failed. In this case
+  // the rate limits may or may not be available (check the reset value for
+  // timestamp_unknown).
+  //
+  // Return the check suite node id otherwise (so can be used as bool).
   //
   // Throw invalid_argument if the passed data is invalid, missing, or
   // inconsistent.
@@ -135,9 +138,11 @@ namespace brep
   // Update `cr` with the new data (state and state_synced).
   //
   // Return the current GraphQL API rate limits status in `limits` if it is
-  // non-null.
+  // not NULL.
   //
-  // Return false and issue diagnostics if the request failed.
+  // Return false and issue diagnostics if the request failed. In this case
+  // the rate limits may or may not be available (check the reset value for
+  // timestamp_unknown).
   //
   // Throw invalid_argument if the passed data is invalid, missing, or
   // inconsistent.
@@ -176,9 +181,11 @@ namespace brep
   // had clicked "re-run all checks" in the GitHub UI.
   //
   // Return the current GraphQL API rate limits status in `limits` if it is
-  // non-null.
+  // not NULL.
   //
-  // Return false and issue diagnostics if the request failed.
+  // Return false and issue diagnostics if the request failed. In this case
+  // the rate limits may or may not be available (check the reset value for
+  // timestamp_unknown).
   //
   // Throw invalid_argument if the passed data is invalid, missing, or
   // inconsistent.
@@ -196,7 +203,7 @@ namespace brep
   // its base branch, and its mergeability and test merge commit SHA.
   //
   // Return the current GraphQL API rate limits status in `limits` if it is
-  // non-null.
+  // not NULL.
   //
   // Return absent value if the merge commit is still being generated (which
   // means PR head branch behindness is not yet known either). See the
@@ -204,7 +211,9 @@ namespace brep
   // semantics.
   //
   // Issue diagnostics and return absent if the request failed (which means it
-  // will be treated by the caller as still being generated).
+  // will be treated by the caller as still being generated). In this case the
+  // rate limits may or may not be available (check the reset value for
+  // timestamp_unknown).
   //
   // Throw invalid_argument if the node id is invalid.
   //

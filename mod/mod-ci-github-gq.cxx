@@ -461,22 +461,22 @@ namespace brep
       //
       auto hval = [&h] () -> size_t
       {
-        if (!h.second.has_value ())
-          throw runtime_error ("missing '" + h.first + "' header value");
+        if (!h.value.has_value ())
+          throw runtime_error ("missing '" + h.name + "' header value");
 
         char* e (nullptr);
         errno = 0; // We must clear it according to POSIX.
-        uint64_t r (strtoull (h.second->c_str (), &e, 10));
-        if (errno == ERANGE || e == h.second->c_str () || *e != '\0')
-          throw runtime_error ("invalid '" + h.first + "' header value");
+        uint64_t r (strtoull (h.value->c_str (), &e, 10));
+        if (errno == ERANGE || e == h.value->c_str () || *e != '\0')
+          throw runtime_error ("invalid '" + h.name + "' header value");
 
         return r;
       };
 
-      if      (h.first == "x-ratelimit-limit")     r.limit = hval ();
-      else if (h.first == "x-ratelimit-remaining") r.remaining = hval ();
-      else if (h.first == "x-ratelimit-used")      r.used = hval ();
-      else if (h.first == "x-ratelimit-reset")
+      if      (h.name == "x-ratelimit-limit")     r.limit = hval ();
+      else if (h.name == "x-ratelimit-remaining") r.remaining = hval ();
+      else if (h.name == "x-ratelimit-used")      r.used = hval ();
+      else if (h.name == "x-ratelimit-reset")
         r.reset = system_clock::from_time_t (static_cast<time_t> (hval ()));
     }
 

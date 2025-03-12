@@ -163,9 +163,9 @@ namespace brep
             {
               for (github_response_header& rh: *rsp_hdrs)
               {
-                if (optional<string> v = header (rh.first))
+                if (optional<string> v = header (rh.name))
                 {
-                  rh.second = move (v);
+                  rh.value = move (v);
                   ++saved_count;
                   break;
                 }
