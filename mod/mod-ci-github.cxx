@@ -2219,7 +2219,7 @@ namespace brep
       os << "{ limit: "      << l.limit
          <<  ", remaining: " << l.remaining
          <<  ", used: "      << l.used
-         <<  ", reset: "     << l.reset
+         <<  ", reset: "     << l.reset << " UTC"
          << " }";
     }
     else
