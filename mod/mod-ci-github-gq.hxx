@@ -27,20 +27,20 @@ namespace brep
   {
     // The maximum number of points that you can use per hour.
     //
-    size_t limit;
+    uint64_t limit;
 
     // The number of points remaining in the current rate limit window.
     //
-    size_t remaining;
+    uint64_t remaining;
 
     // The number of points you have used in the current rate limit window.
     //
-    size_t used;
+    uint64_t used;
 
-    // The time at which the current rate limit window resets, in UTC epoch
-    // seconds.
+    // The UTC time at which the current rate limit window resets. Looks like
+    // the window is one hour or less.
     //
-    timestamp reset;
+    timestamp reset = timestamp_unknown;
   };
 
   // GraphQL functions (all start with gq_).
@@ -52,11 +52,12 @@ namespace brep
   // Update `check_runs` with the new data (node id and state_synced).
   //
   // Return the current GraphQL API rate limits status in `limits` if it is
-  // non-null.
+  // not NULL.
   //
   // Return false and issue diagnostics if the request failed. Note that in
   // this case some elements in check_runs may still have been updated (due to
-  // batching).
+  // batching). And the rate limits may or may not be available (check the
+  // reset value for timestamp_unknown).
   //
   // Throw invalid_argument if the passed data is invalid, missing, or
   // inconsistent.

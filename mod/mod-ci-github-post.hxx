@@ -11,9 +11,14 @@
 
 namespace brep
 {
-  // GitHub response header name and value.
+  // GitHub response header name and value. The value is absent if the
+  // header is not present.
   //
-  using github_response_header = pair<string, optional<string>>;
+  struct github_response_header
+  {
+    string           name;
+    optional<string> value;
+  };
 
   using github_response_headers = vector<github_response_header>;
 
@@ -28,7 +33,8 @@ namespace brep
   //
   // To retrieve response headers, specify their names in `rsp_hdrs` and the
   // received header value will be saved in the corresponding pair's
-  // second. Skip/ignore response headers if rsp_hdrs is null or empty.
+  // second. Skip/ignore response headers if rsp_hdrs is null or empty. Note
+  // that currently only single-line headers are supported.
   //
   // Throw invalid_argument if unable to parse the response headers,
   // invalid_json_input (derived from invalid_argument) if unable to parse the
@@ -147,10 +153,12 @@ namespace brep
 
           // Read response headers and save the requested ones.
           //
-          size_t saved_count (0); // Number of headers saved.
-
-          while (!(l = curl::read_http_response_line (in)).empty ())
+          for (size_t saved_count (0); // Number of headers saved.
+               !(l = curl::read_http_response_line (in)).empty (); )
           {
+            // Note that we have to finish reading all the headers so cannot
+            // bail out.
+            //
             if (saved_count != rsp_hdrs->size ())
             {
               for (github_response_header& rh: *rsp_hdrs)

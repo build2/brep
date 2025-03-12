@@ -456,8 +456,8 @@ namespace brep
 
     for (const github_response_header& h: rsp_hdrs)
     {
-      // Convert the header's value from string to size_t. Throw runtime_error
-      // if the header has a missing or invalid value.
+      // Convert the header's value from string to uint64_t. Throw
+      // runtime_error if the header has a missing or invalid value.
       //
       auto hval = [&h] () -> size_t
       {
@@ -466,7 +466,7 @@ namespace brep
 
         char* e (nullptr);
         errno = 0; // We must clear it according to POSIX.
-        size_t r (strtoull (h.second->c_str (), &e, 10));
+        uint64_t r (strtoull (h.second->c_str (), &e, 10));
         if (errno == ERANGE || e == h.second->c_str () || *e != '\0')
           throw runtime_error ("invalid '" + h.first + "' header value");
 
