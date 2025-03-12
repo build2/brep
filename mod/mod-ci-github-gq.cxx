@@ -442,27 +442,32 @@ namespace brep
   // Each header's value is the string representation of an unsigned integer.
   // See struct gq_rate_limits for the meaning of each header.
   //
-  // Throw runtime_error if any of the headers are missing or have missing or
-  // invalid values.
+  // Throw runtime_error if any of the headers are missing (provided the
+  // status code is 200) or have missing or invalid values.
   //
   static gq_rate_limits
-  parse_rate_limit_headers (const github_response_headers& rsp_hdrs)
+  parse_rate_limit_headers (uint16_t sc, const github_response_headers& hs)
   {
     // Note: assume the header names are all the same too.
     //
-    assert (rsp_hdrs.size () == rate_limit_headers.size ());
+    assert (hs.size () == rate_limit_headers.size ());
 
     gq_rate_limits r;
 
-    for (const github_response_header& h: rsp_hdrs)
+    for (const github_response_header& h: hs)
     {
       // Convert the header's value from string to uint64_t. Throw
       // runtime_error if the header has a missing or invalid value.
       //
-      auto hval = [&h] () -> size_t
+      auto hval = [sc, &h] () -> uint64_t
       {
         if (!h.value.has_value ())
-          throw runtime_error ("missing '" + h.name + "' header value");
+        {
+          if (sc == 200)
+            throw runtime_error ("missing '" + h.name + "' header value");
+          else
+            return 0;
+        }
 
         char* e (nullptr);
         errno = 0; // We must clear it according to POSIX.
@@ -477,7 +482,14 @@ namespace brep
       else if (h.name == "x-ratelimit-remaining") r.remaining = hval ();
       else if (h.name == "x-ratelimit-used")      r.used = hval ();
       else if (h.name == "x-ratelimit-reset")
-        r.reset = system_clock::from_time_t (static_cast<time_t> (hval ()));
+      {
+        if (uint64_t v = hval ())
+          r.reset = system_clock::from_time_t (static_cast<time_t> (v));
+        else
+        {
+          r.reset = timestamp_nonexistent;
+        }
+      }
     }
 
     return r;
@@ -537,6 +549,9 @@ namespace brep
                                 move (rq),
                                 &rhs));
 
+      if (lim != nullptr)
+        *lim = parse_rate_limit_headers (sc, rhs);
+
       // Turns out it's not uncommon to not get a reply from GitHub if the
       // number of check runs being created in build_queued() is large. The
       // symptom is a 502 (Bad gateway) reply from GitHub and the theory being
@@ -582,6 +597,9 @@ namespace brep
                              move (rq),
                              &rhs);
 
+          if (lim != nullptr)
+            *lim = parse_rate_limit_headers (*sc1, rhs);
+
           if (*sc1 == 200)
           {
             rs1_n = rs1.check_runs.size (); // Save for diagnostics below.
@@ -626,9 +644,6 @@ namespace brep
           check_run& cr (*crs_b);
           cr.state_synced = true;
 
-          if (lim != nullptr)
-            *lim = parse_rate_limit_headers (rhs);
-
           return string ();
         }
       }
@@ -667,9 +682,6 @@ namespace brep
             cr.state = rst;
             cr.state_synced = (rst == st);
           }
-
-          if (lim != nullptr)
-            *lim = parse_rate_limit_headers (rhs);
 
           if (check_suite_node_id)
           {
@@ -1269,7 +1281,7 @@ namespace brep
                                 &rhs));
 
       if (lim != nullptr)
-        *lim = parse_rate_limit_headers (rhs);
+        *lim = parse_rate_limit_headers (sc, rhs);
 
       if (sc == 200)
       {
@@ -1440,7 +1452,7 @@ namespace brep
                                 &rhs));
 
       if (lim != nullptr)
-        *lim = parse_rate_limit_headers (rhs);
+        *lim = parse_rate_limit_headers (sc, rhs);
 
       if (sc == 200)
       {
