@@ -10,6 +10,7 @@
 
 #include <ctime>   // time_t
 #include <chrono>
+#include <thread>  // this_thread::sleep_for()
 #include <cstdlib> // strtoull()
 
 using namespace std;
@@ -1002,6 +1003,13 @@ namespace brep
     // 2. Above about 60 GitHub may not create all the check runs (while still
     //    responding with 502). We handle this here by batching the creation.
     //
+    // Additionally, sometimes, we seem to start failing even at lower numbers
+    // after already processing a large number of batches. To help with that
+    // we add a delay between batches, which is recommended by GitHub:
+    //
+    // "To avoid exceeding a rate limit, you should pause at least 1 second
+    // between mutative requests and avoid concurrent requests."
+    //
     size_t n (crs.size ());
     size_t b (n / batch + (n % batch != 0 ? 1 : 0));
     size_t bn (n / b);
@@ -1009,6 +1017,9 @@ namespace brep
     auto i (crs.begin ());
     for (size_t j (0); j != b; )
     {
+      if (j != 0)
+        this_thread::sleep_for (chrono::milliseconds (500));
+
       auto e (++j != b ? (i + bn): crs.end ());
 
       string rq (
