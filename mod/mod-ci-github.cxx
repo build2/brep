@@ -3342,6 +3342,134 @@ namespace brep
     return nullptr;
   }
 
+  // The status of a number of builds.
+  //
+  struct builds_status
+  {
+    size_t queued_count = 0;
+    size_t building_count = 0;
+
+    // Counts for completed builds.
+    //
+    // Note that the warning count will be included in the success or failure
+    // count (see calc_builds_status()).
+    //
+    size_t success_count = 0;
+    size_t warning_count = 0;
+    size_t failure_count = 0;
+
+    // Aggregated result status. Absent if not all builds have completed.
+    //
+    optional<result_status> result;
+  };
+
+  // Calculate the status of a number of builds.
+  //
+  // Count the number of occurrences of each build state and calculate an
+  // aggregated result status if all builds have completed.
+  //
+  // Note that the warning count will be included in the success or failure
+  // count (depending on the value of warning_success).
+  //
+  static builds_status
+  calc_builds_status (const check_runs& crs, bool warning_success)
+  {
+    builds_status r;
+    r.result = result_status::success;
+
+    for (const check_run& cr: crs)
+    {
+      switch (cr.state)
+      {
+      case build_state::queued:   ++r.queued_count;   break;
+      case build_state::building: ++r.building_count; break;
+      case build_state::built:
+        {
+          assert (cr.status);
+
+          // Add the result status to the count.
+          //
+          switch (*cr.status)
+          {
+          case result_status::success:  ++r.success_count; break;
+
+          case result_status::error:
+          case result_status::abort:
+          case result_status::abnormal: ++r.failure_count; break;
+
+          case result_status::warning:
+            {
+              ++r.warning_count;
+
+              // Include the warning count in the success or failure count.
+              //
+              if (warning_success)
+                ++r.success_count;
+              else
+                ++r.failure_count;
+
+              break;
+            }
+
+          case result_status::skip:
+          case result_status::interrupt:
+            {
+              assert (false);
+            }
+          }
+
+          // Aggregate the result status.
+          //
+          *r.result |= *cr.status;
+
+          break;
+        }
+      }
+    }
+
+    // Reset the result status if not all are built.
+    //
+    if (r.queued_count != 0 || r.building_count != 0)
+      r.result = nullopt;
+
+    return r;
+  }
+
+  // Construct the builds status report. For example:
+  //
+  //   0 queued, 5 building, 3 failed, 10 succeeded (4 with warnings), 18 total
+  //
+  static string
+  make_builds_status_report (const builds_status& bss, bool warning_success)
+  {
+    ostringstream os;
+
+    if (bss.queued_count != 0 || bss.building_count != 0)
+    {
+      os << bss.queued_count << " queued, ";
+
+      if (bss.building_count != 0)
+        os << bss.building_count << " building, ";
+    }
+
+    os << bss.failure_count << " failed";
+    if (!warning_success && bss.warning_count != 0)
+      os << " (" << bss.warning_count << " due to warnings)";
+
+    os << ", " << bss.success_count << " succeeded";
+    if (warning_success && bss.warning_count != 0)
+      os << " (" << bss.warning_count << " with warnings)";
+
+    // Note that the warning count has already been included in the success or
+    // failure count (see calc_builds_status()).
+    //
+    size_t total (bss.queued_count + bss.building_count +
+                  bss.success_count + bss.failure_count);
+    os << ", " << total << " total.";
+
+    return os.str ();
+  }
+
   void ci_github::
   build_completed (const string& /* tenant_id */,
                    const tenant_service& ts,
@@ -3371,87 +3499,18 @@ namespace brep
     assert (!sd.check_runs.empty ());
 
     // Here we need to update the state of the synthetic conclusion check run.
+
+    // Build states count breakdown and aggregated result status for the
+    // builds.
     //
-    result_status result (result_status::success);
+    builds_status bss (calc_builds_status (sd.check_runs, sd.warning_success));
 
-    // Conclusion check run summary. Will include the success/warning/failure
-    // count breakdown.
+    assert (bss.result.has_value ()); // We know the builds are all complete.
+
+    // Conclusion check run summary. Append the force rebuild link.
     //
-    string summary;
-    {
-      // The success/warning/failure counts.
-      //
-      // Note that the warning count will be included in the success or
-      // failure count (depending on the value of sd.warning_success).
-      //
-      size_t succ_count (0), warn_count (0), fail_count (0);
-
-      // Count a result_status under the appropriate category.
-      //
-      auto count = [&succ_count,
-                    &warn_count,
-                    &fail_count,
-                    ws = sd.warning_success] (result_status rs)
-      {
-        switch (rs)
-        {
-        case result_status::success:  ++succ_count; break;
-
-        case result_status::error:
-        case result_status::abort:
-        case result_status::abnormal: ++fail_count; break;
-
-        case result_status::warning:
-          {
-            ++warn_count;
-
-            if (ws)
-              ++succ_count;
-            else
-              ++fail_count;
-
-            break;
-          }
-
-        case result_status::skip:
-        case result_status::interrupt:
-          {
-            assert (false);
-          }
-        }
-      };
-
-      for (const check_run& cr: sd.check_runs)
-      {
-        assert (cr.state == build_state::built && cr.status);
-
-        result |= *cr.status;
-        count (*cr.status);
-      }
-
-      // Construct the conclusion check run summary.
-      //
-      ostringstream os;
-
-      // Note: the warning count has already been included in the success or
-      // failure count.
-      //
-      os << fail_count << " failed";
-      if (!sd.warning_success && warn_count != 0)
-        os << " (" << warn_count << " due to warnings)";
-
-      os << ", " << succ_count << " succeeded";
-      if (sd.warning_success && warn_count != 0)
-        os << " (" << warn_count << " with warnings)";
-
-      os << ", " << (succ_count + fail_count) << " total.";
-
-      // Append the force rebuild link.
-      //
-      os << ' ' << force_rebuild_md_link (sd) << '.';
-
-      summary = os.str ();
-    }
+    string summary (make_builds_status_report (bss, sd.warning_success) +
+                    ' ' + force_rebuild_md_link (sd) + '.');
 
     // Get a new installation access token if the current one has expired
     // (unlikely since we just returned from build_built()). Note also that we
@@ -3484,7 +3543,7 @@ namespace brep
       assert (sd.conclusion_node_id);
 
       gq_built_result br (
-        make_built_result (result, sd.warning_success, move (summary)));
+        make_built_result (*bss.result, sd.warning_success, move (summary)));
 
       check_run cr;
 
