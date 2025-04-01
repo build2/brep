@@ -672,7 +672,7 @@ namespace brep
   //
   static const string check_run_building_title ("\U0001F7E1 BUILDING");
   static const string check_run_building_summary (
-    "Waiting for the build to complete.");
+    "Waiting for the build to complete."); // @@ TODO Remove once unused.
 
   // Return the colored circle corresponding to a result_status.
   //
@@ -2978,7 +2978,21 @@ namespace brep
     if (sd.completed)
       return nullptr;
 
-    optional<check_run> cr; // Updated check run.
+    // The build and conclusion check run updates are sent to GitHub in a
+    // single request so store them together from the outset.
+    //
+    brep::check_runs check_runs (2);
+    check_run& bcr (check_runs[0]); // Build check run.
+    check_run& ccr (check_runs[1]); // Conclusion check run.
+
+    // Reflect the current state of the conclusion check run.
+    //
+    ccr.name = conclusion_check_run_name (sd.app_id);
+    ccr.node_id = sd.conclusion_node_id;
+    ccr.state = build_state::building;
+
+    build_stats bstats; // Build stats for the conclusion check run.
+
     string bid (gh_check_run_name (b)); // Full build id.
 
     if (check_run* scr = sd.find_check_run (bid)) // Stored check run.
@@ -2990,8 +3004,13 @@ namespace brep
       {
         if (scr->node_id)
         {
-          cr = move (*scr);
-          cr->state_synced = false;
+          // Calculate the build stats before moving from the stored check
+          // run.
+          //
+          scr->state = build_state::building; // Required for the calculation.
+          bstats = calculate_build_stats (sd.check_runs, sd.warning_success);
+
+          bcr = move (*scr);
         }
         else
         {
@@ -3016,8 +3035,8 @@ namespace brep
       warn << "check run " << bid << ": out of order building "
            << "notification; no check run state in service data";
 
-    if (!cr)
-      return nullptr;
+    if (bcr.build_id.empty ())
+      return nullptr; // Not in service data, state unsynced, or out of order.
 
     // Get a new installation access token if the current one has expired.
     //
@@ -3044,35 +3063,47 @@ namespace brep
     //
     if (iat != nullptr)
     {
+      // Update the build and conclusion check runs.
+      //
+      bcr.state = build_state::building;
+      bcr.state_synced = false;
+      bcr.description = {check_run_building_title, check_run_building_summary};
+
+      assert (ccr.state == build_state::building);
+      ccr.state_synced = false;
+      {
+        string r (make_build_stats_report (bstats, sd.warning_success));
+        ccr.description = {conclusion_building_title,
+                           r + ". " + force_rebuild_md_link (sd) + '.'};
+      }
+
       // Let unlikely invalid_argument propagate.
       //
-      if (gq_update_check_run (error,
-                               *cr,
-                               iat->token,
-                               sd.repository_node_id,
-                               *cr->node_id,
-                               build_state::building,
-                               check_run_building_title,
-                               check_run_building_summary))
+      if (gq_update_check_runs (error,
+                                check_runs,
+                                iat->token,
+                                sd.repository_node_id))
       {
         // Do nothing further if the state was already built on GitHub (note
         // that this is based on the above-mentioned special GitHub semantics
         // of preventing changes to the built status).
         //
-        if (cr->state == build_state::built)
+        if (bcr.state == build_state::built)
         {
           warn << "check run " << bid << ": already in built state on GitHub";
           return nullptr;
         }
 
-        assert (cr->state == build_state::building);
-        l3 ([&]{trace << "updated check_run { " << *cr << " }";});
+        assert (bcr.state == build_state::building);
+
+        l3 ([&]{trace << "updated check_run { " << bcr << " }";});
+        l3 ([&]{trace << "updated conclusion check_run { " << ccr << " }";});
       }
     }
 
     return [tenant_id,
             iat = move (new_iat),
-            cr = move (*cr),
+            cr = move (bcr),
             error = move (error),
             warn = move (warn)] (const string& ti,
                                  const tenant_service& ts) -> optional<string>

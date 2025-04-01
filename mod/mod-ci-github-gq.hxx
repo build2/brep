@@ -47,20 +47,26 @@ namespace brep
   //
 
   // Create a new check run on GitHub for each build with the build state,
-  // name, details_url, and output taken from each check_run object.
+  // name, details_url, and description taken from each check_run object.
   //
-  // Update `check_runs` with the new data (node id and state_synced).
+  // Update the check_runs argument with the new data (node id and
+  // state_synced).
   //
-  // Return the current GraphQL API rate limits status in `limits` if it is
-  // not NULL.
+  // Return the current GraphQL API rate limits status in the gq_rate_limits
+  // argument if it is not NULL.
   //
   // Return false and issue diagnostics if the request failed. Note that in
-  // this case some elements in check_runs may still have been updated (due to
-  // batching). And the rate limits may or may not be available (check the
-  // reset value for timestamp_unknown).
+  // this case some elements in the check_runs argument may still have been
+  // updated (due to batching). And the rate limits may or may not be
+  // available (check the reset value for timestamp_unknown).
+  //
+  //   @@ TMP Make the above comment changes below too?
   //
   // Throw invalid_argument if the passed data is invalid, missing, or
   // inconsistent.
+  //
+  // The description on each check run is required and its title and summary
+  // cannot be empty.
   //
   // Note that creating a check_run named `foo` will effectively replace any
   // existing check_runs with that name. They will still exist on the GitHub
@@ -131,6 +137,35 @@ namespace brep
                        const optional<string>& details_url,
                        gq_built_result,
                        gq_rate_limits* = nullptr);
+
+  // Update a check run on GitHub for each build with the node id, build state
+  // and description taken from each check_run object.
+  //
+  // Update the `check_runs` argument with the new data (state and
+  // state_synced).
+  //
+  // Return the current GraphQL API rate limits status in `limits` if it is
+  // not NULL.
+  //
+  // Return false and issue diagnostics if the request failed. In this case
+  // the rate limits may or may not be available (check the reset value for
+  // timestamp_unknown).
+  //
+  // Throw invalid_argument if the passed data is invalid, missing, or
+  // inconsistent.
+  //
+  // The description on each check run is required and its title and summary
+  // cannot be empty.
+  //
+  // Note that unlike gq_create_check_runs() this function does not support
+  // batching because it is only ever called on small numbers of check runs.
+  //
+  bool
+  gq_update_check_runs (const basic_mark& error,
+                        check_runs&,
+                        const string& installation_access_token,
+                        const string& repository_id,
+                        gq_rate_limits* = nullptr);
 
   // Update a check run on GitHub to the queued or building state. Note that
   // the state cannot be built because in that case a conclusion is required.
