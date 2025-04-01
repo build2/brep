@@ -3515,13 +3515,13 @@ namespace brep
     // Build states count breakdown and aggregated result status for the
     // builds.
     //
-    build_stats bss (calc_builds_status (sd.check_runs, sd.warning_success));
+    build_stats bss (calculate_build_stats (sd.check_runs, sd.warning_success));
 
     assert (bss.result.has_value ()); // We know the builds are all complete.
 
     // Conclusion check run summary. Append the force rebuild link.
     //
-    string summary (make_build_status_report (bss, sd.warning_success) +
+    string summary (make_build_stats_report (bss, sd.warning_success) +
                     ". " + force_rebuild_md_link (sd) + '.');
 
     // Get a new installation access token if the current one has expired
