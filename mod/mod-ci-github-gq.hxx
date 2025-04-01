@@ -69,13 +69,13 @@ namespace brep
   //
   bool
   gq_create_check_runs (const basic_mark& error,
-                        brep::check_runs& check_runs,
+                        check_runs&,
                         const string& installation_access_token,
                         uint64_t app_id,
                         const string& repository_id,
                         const string& head_sha,
                         size_t batch,
-                        gq_rate_limits* limits = nullptr);
+                        gq_rate_limits* = nullptr);
 
   // Create a new check run on GitHub for a build in the queued or building
   // state. Note that the state cannot be built because in that case a
@@ -100,7 +100,7 @@ namespace brep
   //
   optional<string>
   gq_create_check_run (const basic_mark& error,
-                       check_run& cr,
+                       check_run&,
                        const string& installation_access_token,
                        uint64_t app_id,
                        const string& repository_id,
@@ -109,7 +109,7 @@ namespace brep
                        build_state,
                        string title,
                        string summary,
-                       gq_rate_limits* limits = nullptr);
+                       gq_rate_limits* = nullptr);
 
   // As above but create a check run in the built state (which requires a
   // conclusion).
@@ -123,14 +123,14 @@ namespace brep
 
   optional<string>
   gq_create_check_run (const basic_mark& error,
-                       check_run& cr,
+                       check_run&,
                        const string& installation_access_token,
                        uint64_t app_id,
                        const string& repository_id,
                        const string& head_sha,
                        const optional<string>& details_url,
                        gq_built_result,
-                       gq_rate_limits* limits = nullptr);
+                       gq_rate_limits* = nullptr);
 
   // Update a check run on GitHub to the queued or building state. Note that
   // the state cannot be built because in that case a conclusion is required.
@@ -151,14 +151,14 @@ namespace brep
   //
   bool
   gq_update_check_run (const basic_mark& error,
-                       check_run& cr,
+                       check_run&,
                        const string& installation_access_token,
                        const string& repository_id,
                        const string& node_id,
                        build_state,
                        string title,
                        string summary,
-                       gq_rate_limits* limits = nullptr);
+                       gq_rate_limits* = nullptr);
 
   // As above but update a check run to the built state (which requires a
   // conclusion).
@@ -169,12 +169,12 @@ namespace brep
   //
   bool
   gq_update_check_run (const basic_mark& error,
-                       check_run& cr,
+                       check_run&,
                        const string& installation_access_token,
                        const string& repository_id,
                        const string& node_id,
                        gq_built_result,
-                       gq_rate_limits* limits = nullptr);
+                       gq_rate_limits* = nullptr);
 
   // Re-request a check suite. This will result in the delivery of a
   // check_suite webhook with the "rerequested" action, just as if the user
@@ -195,7 +195,7 @@ namespace brep
                             const string& installation_access_token,
                             const string& repository_id,
                             const string& node_id,
-                            gq_rate_limits* limits = nullptr);
+                            gq_rate_limits* = nullptr);
 
   // Fetch pre-check information for a pull request from GitHub. This
   // information is used to decide whether or not to CI the PR and is
@@ -246,7 +246,7 @@ namespace brep
     const basic_mark& error,
     const string& installation_access_token,
     const string& node_id,
-    gq_rate_limits* limits = nullptr);
+    gq_rate_limits* = nullptr);
 }
 
 #endif // MOD_MOD_CI_GITHUB_GQ_HXX

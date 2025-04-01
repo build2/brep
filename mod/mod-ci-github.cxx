@@ -3342,9 +3342,9 @@ namespace brep
     return nullptr;
   }
 
-  // The status of a number of builds.
+  // The cumulative statistics for a number of builds.
   //
-  struct builds_status
+  struct build_stats
   {
     size_t queued_count = 0;
     size_t building_count = 0;
@@ -3352,7 +3352,7 @@ namespace brep
     // Counts for completed builds.
     //
     // Note that the warning count will be included in the success or failure
-    // count (see calc_builds_status()).
+    // count (see calculate_build_stats()).
     //
     size_t success_count = 0;
     size_t warning_count = 0;
@@ -3363,26 +3363,39 @@ namespace brep
     optional<result_status> result;
   };
 
-  // Calculate the status of a number of builds.
+  // Calculate the cumulative statistics for a number of builds.
   //
   // Count the number of occurrences of each build state and calculate an
   // aggregated result status if all builds have completed.
   //
   // Note that the warning count will be included in the success or failure
-  // count (depending on the value of warning_success).
+  // count (depending on the value of warning_success). Thus the total number
+  // of builds is the sum of all the counts excluding warnings.
   //
-  static builds_status
-  calc_builds_status (const check_runs& crs, bool warning_success)
+  static build_stats
+  calculate_build_stats (const check_runs& crs, bool warning_success)
   {
-    builds_status r;
-    r.result = result_status::success;
+    build_stats r;
+
+    if (!crs.empty ())
+      r.result = result_status::success;
 
     for (const check_run& cr: crs)
     {
       switch (cr.state)
       {
-      case build_state::queued:   ++r.queued_count;   break;
-      case build_state::building: ++r.building_count; break;
+      case build_state::queued:
+        {
+          r.result = nullopt;
+          ++r.queued_count;
+          break;
+        }
+      case build_state::building:
+        {
+          r.result = nullopt;
+          ++r.building_count;
+          break;
+        }
       case build_state::built:
         {
           assert (cr.status);
@@ -3420,36 +3433,35 @@ namespace brep
 
           // Aggregate the result status.
           //
-          *r.result |= *cr.status;
+          if (r.result)
+            *r.result |= *cr.status;
 
           break;
         }
       }
     }
 
-    // Reset the result status if not all are built.
-    //
-    if (r.queued_count != 0 || r.building_count != 0)
-      r.result = nullopt;
-
     return r;
   }
 
-  // Construct the builds status report. For example:
+  // Construct the builds statistics report. For example:
   //
-  //   0 queued, 5 building, 3 failed, 10 succeeded (4 with warnings), 18 total
+  // 0 queued, 5 building, 3 failed, 10 succeeded (4 with warnings), 18 total
   //
   static string
-  make_builds_status_report (const builds_status& bss, bool warning_success)
+  make_build_stats_report (const build_stats& bss, bool warning_success)
   {
     ostringstream os;
 
+    // Note that we can omit both or queued, but if we show queued, we also
+    // show building (since that where queued will transition to).
+    //
     if (bss.queued_count != 0 || bss.building_count != 0)
     {
-      os << bss.queued_count << " queued, ";
+      if (bss.queued_count != 0)
+        os << bss.queued_count << " queued, ";
 
-      if (bss.building_count != 0)
-        os << bss.building_count << " building, ";
+      os << bss.building_count << " building, ";
     }
 
     os << bss.failure_count << " failed";
@@ -3461,11 +3473,11 @@ namespace brep
       os << " (" << bss.warning_count << " with warnings)";
 
     // Note that the warning count has already been included in the success or
-    // failure count (see calc_builds_status()).
+    // failure count (see calc_build_stats() for details).
     //
     size_t total (bss.queued_count + bss.building_count +
                   bss.success_count + bss.failure_count);
-    os << ", " << total << " total.";
+    os << ", " << total << " total";
 
     return os.str ();
   }
@@ -3503,14 +3515,14 @@ namespace brep
     // Build states count breakdown and aggregated result status for the
     // builds.
     //
-    builds_status bss (calc_builds_status (sd.check_runs, sd.warning_success));
+    build_stats bss (calc_builds_status (sd.check_runs, sd.warning_success));
 
     assert (bss.result.has_value ()); // We know the builds are all complete.
 
     // Conclusion check run summary. Append the force rebuild link.
     //
-    string summary (make_builds_status_report (bss, sd.warning_success) +
-                    ' ' + force_rebuild_md_link (sd) + '.');
+    string summary (make_build_status_report (bss, sd.warning_success) +
+                    ". " + force_rebuild_md_link (sd) + '.');
 
     // Get a new installation access token if the current one has expired
     // (unlikely since we just returned from build_built()). Note also that we
