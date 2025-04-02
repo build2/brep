@@ -2810,6 +2810,146 @@ namespace brep
     return nullptr;
   }
 
+  // The cumulative statistics for a number of builds.
+  //
+  struct build_stats
+  {
+    size_t queued_count = 0;
+    size_t building_count = 0;
+
+    // Counts for completed builds.
+    //
+    // Note that the warning count will be included in the success or failure
+    // count (see calculate_build_stats()).
+    //
+    size_t success_count = 0;
+    size_t warning_count = 0;
+    size_t failure_count = 0;
+
+    // Aggregated result status. Absent if not all builds have completed.
+    //
+    optional<result_status> result;
+  };
+
+  // Calculate the cumulative statistics for a number of builds.
+  //
+  // Count the number of occurrences of each build state and calculate an
+  // aggregated result status if all builds have completed.
+  //
+  // Note that the warning count will be included in the success or failure
+  // count (depending on the value of warning_success). Thus the total number
+  // of builds is the sum of all the counts excluding warnings.
+  //
+  static build_stats
+  calculate_build_stats (const check_runs& crs, bool warning_success)
+  {
+    build_stats r;
+
+    if (!crs.empty ())
+      r.result = result_status::success;
+
+    for (const check_run& cr: crs)
+    {
+      switch (cr.state)
+      {
+      case build_state::queued:
+        {
+          r.result = nullopt;
+          ++r.queued_count;
+          break;
+        }
+      case build_state::building:
+        {
+          r.result = nullopt;
+          ++r.building_count;
+          break;
+        }
+      case build_state::built:
+        {
+          assert (cr.status);
+
+          // Add the result status to the count.
+          //
+          switch (*cr.status)
+          {
+          case result_status::success:  ++r.success_count; break;
+
+          case result_status::error:
+          case result_status::abort:
+          case result_status::abnormal: ++r.failure_count; break;
+
+          case result_status::warning:
+            {
+              ++r.warning_count;
+
+              // Include the warning count in the success or failure count.
+              //
+              if (warning_success)
+                ++r.success_count;
+              else
+                ++r.failure_count;
+
+              break;
+            }
+
+          case result_status::skip:
+          case result_status::interrupt:
+            {
+              assert (false);
+            }
+          }
+
+          // Aggregate the result status.
+          //
+          if (r.result)
+            *r.result |= *cr.status;
+
+          break;
+        }
+      }
+    }
+
+    return r;
+  }
+
+  // Construct the builds statistics report. For example:
+  //
+  // 0 queued, 5 building, 3 failed, 10 succeeded (4 with warnings), 18 total
+  //
+  static string
+  make_build_stats_report (const build_stats& bss, bool warning_success)
+  {
+    ostringstream os;
+
+    // Note that we can omit both or queued, but if we show queued, we also
+    // show building (since that where queued will transition to).
+    //
+    if (bss.queued_count != 0 || bss.building_count != 0)
+    {
+      if (bss.queued_count != 0)
+        os << bss.queued_count << " queued, ";
+
+      os << bss.building_count << " building, ";
+    }
+
+    os << bss.failure_count << " failed";
+    if (!warning_success && bss.warning_count != 0)
+      os << " (" << bss.warning_count << " due to warnings)";
+
+    os << ", " << bss.success_count << " succeeded";
+    if (warning_success && bss.warning_count != 0)
+      os << " (" << bss.warning_count << " with warnings)";
+
+    // Note that the warning count has already been included in the success or
+    // failure count (see calc_build_stats() for details).
+    //
+    size_t total (bss.queued_count + bss.building_count +
+                  bss.success_count + bss.failure_count);
+    os << ", " << total << " total";
+
+    return os.str ();
+  }
+
   function<optional<string> (const string&, const tenant_service&)> ci_github::
   build_building (const string& tenant_id,
                   const tenant_service& ts,
@@ -3340,146 +3480,6 @@ namespace brep
     error << "check run " << bid << ": unhandled exception: " << e.what ();
 
     return nullptr;
-  }
-
-  // The cumulative statistics for a number of builds.
-  //
-  struct build_stats
-  {
-    size_t queued_count = 0;
-    size_t building_count = 0;
-
-    // Counts for completed builds.
-    //
-    // Note that the warning count will be included in the success or failure
-    // count (see calculate_build_stats()).
-    //
-    size_t success_count = 0;
-    size_t warning_count = 0;
-    size_t failure_count = 0;
-
-    // Aggregated result status. Absent if not all builds have completed.
-    //
-    optional<result_status> result;
-  };
-
-  // Calculate the cumulative statistics for a number of builds.
-  //
-  // Count the number of occurrences of each build state and calculate an
-  // aggregated result status if all builds have completed.
-  //
-  // Note that the warning count will be included in the success or failure
-  // count (depending on the value of warning_success). Thus the total number
-  // of builds is the sum of all the counts excluding warnings.
-  //
-  static build_stats
-  calculate_build_stats (const check_runs& crs, bool warning_success)
-  {
-    build_stats r;
-
-    if (!crs.empty ())
-      r.result = result_status::success;
-
-    for (const check_run& cr: crs)
-    {
-      switch (cr.state)
-      {
-      case build_state::queued:
-        {
-          r.result = nullopt;
-          ++r.queued_count;
-          break;
-        }
-      case build_state::building:
-        {
-          r.result = nullopt;
-          ++r.building_count;
-          break;
-        }
-      case build_state::built:
-        {
-          assert (cr.status);
-
-          // Add the result status to the count.
-          //
-          switch (*cr.status)
-          {
-          case result_status::success:  ++r.success_count; break;
-
-          case result_status::error:
-          case result_status::abort:
-          case result_status::abnormal: ++r.failure_count; break;
-
-          case result_status::warning:
-            {
-              ++r.warning_count;
-
-              // Include the warning count in the success or failure count.
-              //
-              if (warning_success)
-                ++r.success_count;
-              else
-                ++r.failure_count;
-
-              break;
-            }
-
-          case result_status::skip:
-          case result_status::interrupt:
-            {
-              assert (false);
-            }
-          }
-
-          // Aggregate the result status.
-          //
-          if (r.result)
-            *r.result |= *cr.status;
-
-          break;
-        }
-      }
-    }
-
-    return r;
-  }
-
-  // Construct the builds statistics report. For example:
-  //
-  // 0 queued, 5 building, 3 failed, 10 succeeded (4 with warnings), 18 total
-  //
-  static string
-  make_build_stats_report (const build_stats& bss, bool warning_success)
-  {
-    ostringstream os;
-
-    // Note that we can omit both or queued, but if we show queued, we also
-    // show building (since that where queued will transition to).
-    //
-    if (bss.queued_count != 0 || bss.building_count != 0)
-    {
-      if (bss.queued_count != 0)
-        os << bss.queued_count << " queued, ";
-
-      os << bss.building_count << " building, ";
-    }
-
-    os << bss.failure_count << " failed";
-    if (!warning_success && bss.warning_count != 0)
-      os << " (" << bss.warning_count << " due to warnings)";
-
-    os << ", " << bss.success_count << " succeeded";
-    if (warning_success && bss.warning_count != 0)
-      os << " (" << bss.warning_count << " with warnings)";
-
-    // Note that the warning count has already been included in the success or
-    // failure count (see calc_build_stats() for details).
-    //
-    size_t total (bss.queued_count + bss.building_count +
-                  bss.success_count + bss.failure_count);
-    os << ", " << total << " total";
-
-    return os.str ();
   }
 
   void ci_github::
