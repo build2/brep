@@ -146,6 +146,7 @@ namespace brep
                 string cs,
                 string rs)
       : kind (k), pre_check (pc), re_request (rr),
+        report_mode (report_mode::undetermined), report_budget (10) // @@ TMP
         warning_success (ws),
         installation_access (move (iat_tok), iat_ea),
         app_id (aid),
