@@ -890,6 +890,13 @@ namespace brep
          qualify the conclusion check run name for additional context where it
          is lacking in certain parts of the GitHub UI."
       }
+
+      size_t ci-github-builds-limit-aggregate-report
+      {
+        "<number>"
+        "The number of builds exceeding which triggers the aggregate reporting
+         mode."
+      }
     };
 
     class upload: build, build_db, build_upload, repository_email, handler
