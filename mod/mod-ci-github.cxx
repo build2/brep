@@ -672,7 +672,7 @@ namespace brep
   //
   static const string check_run_building_title ("\U0001F7E1 BUILDING");
   static const string check_run_building_summary (
-    "Waiting for the build to complete."); // @@ TODO Remove once unused.
+    "Waiting for the build to complete.");
 
   // Return the colored circle corresponding to a result_status.
   //
@@ -3065,7 +3065,7 @@ namespace brep
     {
       // Update the build and conclusion check runs.
       //
-      bcr.state = build_state::building;
+      assert (bcr.state == build_state::building); // Set above.
       bcr.state_synced = false;
       bcr.description = {check_run_building_title, check_run_building_summary};
 

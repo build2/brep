@@ -768,8 +768,8 @@ namespace brep
   // Throw invalid_argument if any of the observed check run members are not
   // valid GraphQL values (string, enum, etc).
   //
-  // @@ TMP If we also store the conclusion on the check_run we should be able
-  //    to ditch the single-CR version of this function.
+  // @@ Note: if we also store the conclusion on the check_run we should be
+  //    able to ditch the single-CR version of this function.
   //
   static string
   gq_mutation_create_check_runs (const string& ri, // Repository ID
@@ -906,8 +906,9 @@ namespace brep
     return os.str ();
   }
 
-  // @@ TMP If we also store the conclusion on the check_run we should be able
-  //    to ditch the single-CR version of this function.
+  // @@ Note: if we also store the conclusion on the check_run we should be
+  //    able to ditch the single-CR version of this function (and it will be
+  //    needed if we ever want to support multiple updates with built state).
   //
   static string
   gq_mutation_update_check_runs (const string& ri,           // Repository ID.
@@ -928,10 +929,9 @@ namespace brep
       assert (cr.node_id.has_value ());
       assert (cr.description.has_value ());
 
-      // Ensure we have conclusion if the status is completed. (@@ TODO
-      // Conclusion is not currently stored on the check_run.)
+      // Built state is not yet supported (see above and below).
       //
-      // assert (cr.state != build_state::built || cr.conclusion);
+      assert (cr.state != build_state::built );
 
       string al ("cr" + to_string (crs_i - crs_b)); // Field alias.
 
@@ -961,7 +961,7 @@ namespace brep
         }
       }
       os                                                            << '\n';
-      // @@ TODO Store conclusion (string) in check_run struct.
+      // @@ Store conclusion (string) in check_run struct (see above).
       //
       // if (co)
       //   os << "  conclusion: " << gq_enum (*co)                     << '\n';
@@ -1236,8 +1236,7 @@ namespace brep
                                  iat,
                                  move (rq),
                                  nullopt /* create_data */,
-                                 lim)
-      .has_value ();
+                                 lim).has_value ();
   }
 
   bool
