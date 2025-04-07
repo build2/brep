@@ -16,8 +16,8 @@ build-warning-email: builds@build2.org
 requires: c++14
 requires: postgresql >= 9.0
 requires: apache2 ; Including development files (httpd.h header, etc).
-depends: * build2 >= 0.16.0
-depends: * bpkg >= 0.16.0
+depends: * build2 >= 0.18.0-
+depends: * bpkg >= 0.18.0-
 # @@ DEP Should probably become conditional dependency.
 #requires: ? cli ; Only required if changing .cli files.
 depends: libapr1
