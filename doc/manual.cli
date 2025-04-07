@@ -834,6 +834,7 @@ be shared with a branch push or another PR. Nevertheless, this integration
 will attempt to cancel a stale build of a remote PR provided it's not
 (currently) shared.
 
+
 \h#github-ci-setup|Enabling CI Integration on GitHub Repository|
 
 To enable the CI integration on a GitHub repository, the corresponding GitHub
@@ -850,6 +851,15 @@ the repositories you wish to CI. Then click \"Save\".
 
 Once this is done, all future pushed commits and pull requests will be tested
 using \c{build2} CI.
+
+\N|For various reasons such as intermittent network issues, GitHub dropping
+requests for unknown reasons, etc., a CI might get \"stuck\" with one more
+builds in the queued or building state. Note that in this case, GitHub will
+not allow you to re-request the CI since it requires all the checks to be
+completed before that can be done. However, the \c{CONCLUSION} check contains
+a link that allows you to force rebuild even if some builds are still
+outstanding. Note that you should use this mechanism only when you are
+reasonably sure the CI is stuck in order not to waster CI resources.|
 
 While you can stop here, it is strongly recommended to also enable a branch
 protection rule that takes into account the configured CI. As discussed in
@@ -885,9 +895,9 @@ required check. Click \"Create\" (or \"Save\").
 A note on the \"Do not allow bypassing the above settings\" rule: if you
 enable it, then repository administrators won't be able to push any commits to
 the protected branch that haven't been successfully checked. In other words,
-with this enabled, the only way to push a commit would be to first push it to
-an unprotected branch, wait for the CI to complete, and then, if successful,
-push it to the protected branch.
+with this rule enabled, the only way to push a commit \- even for repository
+administrators \- would be to first push it to an unprotected branch, wait for
+the CI to complete, and then, if successful, push it to the protected branch.
 
 
 \h2#github-ci-setup-ruleset|Adding branch ruleset|
@@ -916,8 +926,9 @@ changes\").
 A note on the \"Bypass list\": if you don't add the \"Repository admin\" role
 to this list, then repository administrators won't be able to push any commits
 to the protected branch that haven't been successfully checked. In other
-words, without this bypass, the only way to push a commit would be to first
-push it to an unprotected branch, wait for the CI to complete, and then, if
-successful, push it to the protected branch.
+words, without this bypass, the only way to push a commit \- even for
+repository administrators \- would be to first push it to an unprotected
+branch, wait for the CI to complete, and then, if successful, push it to the
+protected branch.
 
 "
