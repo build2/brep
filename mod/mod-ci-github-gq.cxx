@@ -768,6 +768,9 @@ namespace brep
   // Throw invalid_argument if any of the observed check run members are not
   // valid GraphQL values (string, enum, etc).
   //
+  // @@ Note: if we also store the conclusion on the check_run we should be
+  //    able to ditch the single-CR version of this function.
+  //
   static string
   gq_mutation_create_check_runs (const string& ri, // Repository ID
                                  const string& hs, // Head SHA
@@ -789,9 +792,10 @@ namespace brep
       // Ensure details URL and output are non-empty if present.
       //
       assert (!cr.details_url || !cr.details_url->empty ());
-      assert (!cr.description ||
-              (!cr.description->title.empty () &&
-               !cr.description->summary.empty ()));
+
+      assert (cr.description.has_value ());
+      assert (!cr.description->title.empty () &&
+              !cr.description->summary.empty ());
 
       string al ("cr" + to_string (crs_i - crs_b)); // Field alias.
 
@@ -805,14 +809,11 @@ namespace brep
         os                                                          << '\n';
         os << "  detailsUrl: " << gq_str (*cr.details_url);
       }
-      if (cr.description)
-      {
-        os << "  output: {"                                         << '\n'
-           << "    title: "    << gq_str (cr.description->title)    << '\n'
-           << "    summary: "  << gq_str (cr.description->summary)  << '\n'
-           << "  }";
-      }
-      os << "})"                                                    << '\n'
+      os << "  output: {"                                           << '\n'
+         << "    title: "    << gq_str (cr.description->title)      << '\n'
+         << "    summary: "  << gq_str (cr.description->summary)    << '\n'
+         << "  }"
+         << "})"                                                    << '\n'
         // Specify the selection set (fields to be returned). Note that we
         // rename `id` to `node_id` (using a field alias) for consistency with
         // webhook events and REST API responses.
@@ -901,6 +902,88 @@ namespace brep
        << "}"                                                     << '\n';
 
     os << "}"                                                      << '\n';
+
+    return os.str ();
+  }
+
+  // @@ Note: if we also store the conclusion on the check_run we should be
+  //    able to ditch the single-CR version of this function (and it will be
+  //    needed if we ever want to support multiple updates with built state).
+  //
+  static string
+  gq_mutation_update_check_runs (const string& ri,           // Repository ID.
+                                 optional<timestamp> sa,     // Started at.
+                                 brep::check_runs::iterator crs_b,
+                                 brep::check_runs::iterator crs_e)
+  {
+    ostringstream os;
+
+    os << "mutation {"                                              << '\n';
+
+    // Serialize a `updateCheckRun` for each build.
+    //
+    for (brep::check_runs::iterator crs_i (crs_b); crs_i != crs_e; ++crs_i)
+    {
+      const check_run& cr (*crs_i);
+
+      assert (cr.node_id.has_value ());
+      assert (cr.description.has_value ());
+
+      // Built state is not yet supported (see above and below).
+      //
+      assert (cr.state != build_state::built );
+
+      string al ("cr" + to_string (crs_i - crs_b)); // Field alias.
+
+      os << gq_name (al) <<":updateCheckRun(input: {"               << '\n'
+         << "  checkRunId: "   << gq_str (*cr.node_id)              << '\n'
+         << "  repositoryId: " << gq_str (ri)                       << '\n'
+         << "  status: "       << gq_enum (gh_to_status (cr.state));
+
+      // Set startedAt if this check run is building.
+      //
+      if (cr.state == build_state::building)
+      {
+        assert (sa.has_value ());
+
+        try
+        {
+          os                                                        << '\n';
+          os << "  startedAt: " << gq_str (gh_to_iso8601 (*sa));
+        }
+        catch (const system_error& e)
+        {
+          // Translate for simplicity.
+          //
+          throw invalid_argument ("unable to convert started_at value " +
+                                  to_string (system_clock::to_time_t (*sa)) +
+                                  ": " + e.what ());
+        }
+      }
+      os                                                            << '\n';
+      // @@ Store conclusion (string) in check_run struct (see above).
+      //
+      // if (co)
+      //   os << "  conclusion: " << gq_enum (*co)                     << '\n';
+      os << "  output: {"                                           << '\n'
+         << "    title: "    << gq_str (cr.description->title)      << '\n'
+         << "    summary: "  << gq_str (cr.description->summary)    << '\n'
+         << "  }"
+         << "})"                                                    << '\n'
+        // Specify the selection set (fields to be returned). Note that we
+        // rename `id` to `node_id` (using a field alias) for consistency with
+        // webhook events and REST API responses.
+        //
+         << "{"                                                     << '\n'
+         << "  checkRun {"                                          << '\n'
+         << "    node_id: id"                                       << '\n'
+         << "    name"                                              << '\n'
+         << "    status"                                            << '\n'
+         << "  }"                                                   << '\n'
+         << "}"                                                     << '\n';
+    }
+
+    os << "}"                                                       << '\n';
 
     return os.str ();
   }
@@ -1123,6 +1206,37 @@ namespace brep
     cr = move (crs[0]);
 
     return r;
+  }
+
+  bool
+  gq_update_check_runs (const basic_mark& error,
+                        check_runs& crs,
+                        const string& iat,
+                        const string& rid,
+                        gq_rate_limits* lim)
+  {
+    // Set `startedAt` to current time if updating any of the check runs to
+    // building.
+    //
+    optional<timestamp> sa;
+    for (const check_run& cr: crs)
+    {
+      if (cr.state == build_state::building)
+      {
+        sa = system_clock::now ();
+        break;
+      }
+    }
+
+    string rq (gq_serialize_request (
+      gq_mutation_update_check_runs (rid, sa, crs.begin (), crs.end ())));
+
+    return gq_mutate_check_runs (error,
+                                 crs.begin (), crs.end (),
+                                 iat,
+                                 move (rq),
+                                 nullopt /* create_data */,
+                                 lim).has_value ();
   }
 
   bool

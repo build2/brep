@@ -2810,6 +2810,146 @@ namespace brep
     return nullptr;
   }
 
+  // The cumulative statistics for a number of builds.
+  //
+  struct build_stats
+  {
+    size_t queued_count = 0;
+    size_t building_count = 0;
+
+    // Counts for completed builds.
+    //
+    // Note that the warning count will be included in the success or failure
+    // count (see calculate_build_stats()).
+    //
+    size_t success_count = 0;
+    size_t warning_count = 0;
+    size_t failure_count = 0;
+
+    // Aggregated result status. Absent if not all builds have completed.
+    //
+    optional<result_status> result;
+  };
+
+  // Calculate the cumulative statistics for a number of builds.
+  //
+  // Count the number of occurrences of each build state and calculate an
+  // aggregated result status if all builds have completed.
+  //
+  // Note that the warning count will be included in the success or failure
+  // count (depending on the value of warning_success). Thus the total number
+  // of builds is the sum of all the counts excluding warnings.
+  //
+  static build_stats
+  calculate_build_stats (const check_runs& crs, bool warning_success)
+  {
+    build_stats r;
+
+    if (!crs.empty ())
+      r.result = result_status::success;
+
+    for (const check_run& cr: crs)
+    {
+      switch (cr.state)
+      {
+      case build_state::queued:
+        {
+          r.result = nullopt;
+          ++r.queued_count;
+          break;
+        }
+      case build_state::building:
+        {
+          r.result = nullopt;
+          ++r.building_count;
+          break;
+        }
+      case build_state::built:
+        {
+          assert (cr.status);
+
+          // Add the result status to the count.
+          //
+          switch (*cr.status)
+          {
+          case result_status::success:  ++r.success_count; break;
+
+          case result_status::error:
+          case result_status::abort:
+          case result_status::abnormal: ++r.failure_count; break;
+
+          case result_status::warning:
+            {
+              ++r.warning_count;
+
+              // Include the warning count in the success or failure count.
+              //
+              if (warning_success)
+                ++r.success_count;
+              else
+                ++r.failure_count;
+
+              break;
+            }
+
+          case result_status::skip:
+          case result_status::interrupt:
+            {
+              assert (false);
+            }
+          }
+
+          // Aggregate the result status.
+          //
+          if (r.result)
+            *r.result |= *cr.status;
+
+          break;
+        }
+      }
+    }
+
+    return r;
+  }
+
+  // Construct the builds statistics report. For example:
+  //
+  // 0 queued, 5 building, 3 failed, 10 succeeded (4 with warnings), 18 total
+  //
+  static string
+  make_build_stats_report (const build_stats& bss, bool warning_success)
+  {
+    ostringstream os;
+
+    // Note that we can omit both or queued, but if we show queued, we also
+    // show building (since that where queued will transition to).
+    //
+    if (bss.queued_count != 0 || bss.building_count != 0)
+    {
+      if (bss.queued_count != 0)
+        os << bss.queued_count << " queued, ";
+
+      os << bss.building_count << " building, ";
+    }
+
+    os << bss.failure_count << " failed";
+    if (!warning_success && bss.warning_count != 0)
+      os << " (" << bss.warning_count << " due to warnings)";
+
+    os << ", " << bss.success_count << " succeeded";
+    if (warning_success && bss.warning_count != 0)
+      os << " (" << bss.warning_count << " with warnings)";
+
+    // Note that the warning count has already been included in the success or
+    // failure count (see calc_build_stats() for details).
+    //
+    size_t total (bss.queued_count + bss.building_count +
+                  bss.success_count + bss.failure_count);
+    os << ", " << total << " total";
+
+    return os.str ();
+  }
+
   function<optional<string> (const string&, const tenant_service&)> ci_github::
   build_building (const string& tenant_id,
                   const tenant_service& ts,
@@ -2838,7 +2978,21 @@ namespace brep
     if (sd.completed)
       return nullptr;
 
-    optional<check_run> cr; // Updated check run.
+    // The build and conclusion check run updates are sent to GitHub in a
+    // single request so store them together from the outset.
+    //
+    brep::check_runs check_runs (2);
+    check_run& bcr (check_runs[0]); // Build check run.
+    check_run& ccr (check_runs[1]); // Conclusion check run.
+
+    // Reflect the current state of the conclusion check run.
+    //
+    ccr.name = conclusion_check_run_name (sd.app_id);
+    ccr.node_id = sd.conclusion_node_id;
+    ccr.state = build_state::building;
+
+    build_stats bstats; // Build stats for the conclusion check run.
+
     string bid (gh_check_run_name (b)); // Full build id.
 
     if (check_run* scr = sd.find_check_run (bid)) // Stored check run.
@@ -2850,8 +3004,13 @@ namespace brep
       {
         if (scr->node_id)
         {
-          cr = move (*scr);
-          cr->state_synced = false;
+          // Calculate the build stats before moving from the stored check
+          // run.
+          //
+          scr->state = build_state::building; // Required for the calculation.
+          bstats = calculate_build_stats (sd.check_runs, sd.warning_success);
+
+          bcr = move (*scr);
         }
         else
         {
@@ -2876,8 +3035,8 @@ namespace brep
       warn << "check run " << bid << ": out of order building "
            << "notification; no check run state in service data";
 
-    if (!cr)
-      return nullptr;
+    if (bcr.build_id.empty ())
+      return nullptr; // Not in service data, state unsynced, or out of order.
 
     // Get a new installation access token if the current one has expired.
     //
@@ -2904,35 +3063,47 @@ namespace brep
     //
     if (iat != nullptr)
     {
+      // Update the build and conclusion check runs.
+      //
+      assert (bcr.state == build_state::building); // Set above.
+      bcr.state_synced = false;
+      bcr.description = {check_run_building_title, check_run_building_summary};
+
+      assert (ccr.state == build_state::building);
+      ccr.state_synced = false;
+      {
+        string r (make_build_stats_report (bstats, sd.warning_success));
+        ccr.description = {conclusion_building_title,
+                           r + ". " + force_rebuild_md_link (sd) + '.'};
+      }
+
       // Let unlikely invalid_argument propagate.
       //
-      if (gq_update_check_run (error,
-                               *cr,
-                               iat->token,
-                               sd.repository_node_id,
-                               *cr->node_id,
-                               build_state::building,
-                               check_run_building_title,
-                               check_run_building_summary))
+      if (gq_update_check_runs (error,
+                                check_runs,
+                                iat->token,
+                                sd.repository_node_id))
       {
         // Do nothing further if the state was already built on GitHub (note
         // that this is based on the above-mentioned special GitHub semantics
         // of preventing changes to the built status).
         //
-        if (cr->state == build_state::built)
+        if (bcr.state == build_state::built)
         {
           warn << "check run " << bid << ": already in built state on GitHub";
           return nullptr;
         }
 
-        assert (cr->state == build_state::building);
-        l3 ([&]{trace << "updated check_run { " << *cr << " }";});
+        assert (bcr.state == build_state::building);
+
+        l3 ([&]{trace << "updated check_run { " << bcr << " }";});
+        l3 ([&]{trace << "updated conclusion check_run { " << ccr << " }";});
       }
     }
 
     return [tenant_id,
             iat = move (new_iat),
-            cr = move (*cr),
+            cr = move (bcr),
             error = move (error),
             warn = move (warn)] (const string& ti,
                                  const tenant_service& ts) -> optional<string>
@@ -3371,87 +3542,18 @@ namespace brep
     assert (!sd.check_runs.empty ());
 
     // Here we need to update the state of the synthetic conclusion check run.
+
+    // Build states count breakdown and aggregated result status for the
+    // builds.
     //
-    result_status result (result_status::success);
+    build_stats bss (calculate_build_stats (sd.check_runs, sd.warning_success));
 
-    // Conclusion check run summary. Will include the success/warning/failure
-    // count breakdown.
+    assert (bss.result.has_value ()); // We know the builds are all complete.
+
+    // Conclusion check run summary. Append the force rebuild link.
     //
-    string summary;
-    {
-      // The success/warning/failure counts.
-      //
-      // Note that the warning count will be included in the success or
-      // failure count (depending on the value of sd.warning_success).
-      //
-      size_t succ_count (0), warn_count (0), fail_count (0);
-
-      // Count a result_status under the appropriate category.
-      //
-      auto count = [&succ_count,
-                    &warn_count,
-                    &fail_count,
-                    ws = sd.warning_success] (result_status rs)
-      {
-        switch (rs)
-        {
-        case result_status::success:  ++succ_count; break;
-
-        case result_status::error:
-        case result_status::abort:
-        case result_status::abnormal: ++fail_count; break;
-
-        case result_status::warning:
-          {
-            ++warn_count;
-
-            if (ws)
-              ++succ_count;
-            else
-              ++fail_count;
-
-            break;
-          }
-
-        case result_status::skip:
-        case result_status::interrupt:
-          {
-            assert (false);
-          }
-        }
-      };
-
-      for (const check_run& cr: sd.check_runs)
-      {
-        assert (cr.state == build_state::built && cr.status);
-
-        result |= *cr.status;
-        count (*cr.status);
-      }
-
-      // Construct the conclusion check run summary.
-      //
-      ostringstream os;
-
-      // Note: the warning count has already been included in the success or
-      // failure count.
-      //
-      os << fail_count << " failed";
-      if (!sd.warning_success && warn_count != 0)
-        os << " (" << warn_count << " due to warnings)";
-
-      os << ", " << succ_count << " succeeded";
-      if (sd.warning_success && warn_count != 0)
-        os << " (" << warn_count << " with warnings)";
-
-      os << ", " << (succ_count + fail_count) << " total.";
-
-      // Append the force rebuild link.
-      //
-      os << ' ' << force_rebuild_md_link (sd) << '.';
-
-      summary = os.str ();
-    }
+    string summary (make_build_stats_report (bss, sd.warning_success) +
+                    ". " + force_rebuild_md_link (sd) + '.');
 
     // Get a new installation access token if the current one has expired
     // (unlikely since we just returned from build_built()). Note also that we
@@ -3484,7 +3586,7 @@ namespace brep
       assert (sd.conclusion_node_id);
 
       gq_built_result br (
-        make_built_result (result, sd.warning_success, move (summary)));
+        make_built_result (*bss.result, sd.warning_success, move (summary)));
 
       check_run cr;
 
