@@ -4,7 +4,7 @@
 .include data.testscript
 
 : args
-{
+{{
   : no-dir
   :
   $* 2>>~%EOE% != 0
@@ -32,95 +32,95 @@
   $* $~/root $~/dir 2>>~%EOE% != 0
     %\[.+\] \[brep:error\] \[ref dir\] \[brep-upload-bindist\]: '.+dir' does not exist or is not a directory%
     EOE
-}
+}}
 
 : success
 :
 {
-  mkdir --no-cleanup bindist-root/ &bindist-root/***;
+  mkdir --no-cleanup bindist-root/ &bindist-root/***
 
   # Test the first upload.
   #
-  $clone_data;
+  $clone_data
 
-  $* $~/bindist-root/ $~/$data_dir >>"EOO";
+  $* $~/bindist-root/ $~/$data_dir >>"EOO"
     : 1
     status: 200
     message: binary distribution packages are published
     reference: $request_id
     EOO
 
-  timestamp = '2023-05-08T09:18:20Z';
-  tenant    = '4d4c8b36-56c5-42e0-91d1-58bfd1228002';
-  dir = [dir_path] bindist-root/$tenant/archive/fedora35/hello/libhello/1.1.0+10/;
+  timestamp = '2023-05-08T09:18:20Z'
+  tenant    = '4d4c8b36-56c5-42e0-91d1-58bfd1228002'
+  dir = [dir_path] bindist-root/$tenant/archive/fedora35/hello/libhello/1.1.0+10/
 
-  test -f $dir/default/libhello-1.0.0+10.tar.xz;
-  test -f $dir/default-$timestamp/libhello-1.0.0+10.tar.xz;
+  test -f $dir/default/libhello-1.0.0+10.tar.xz
+  test -f $dir/default-$timestamp/libhello-1.0.0+10.tar.xz
 
   # Repeat the upload using the same timestamp to make sure that we properly
   # handle this situation (by adding the retry number as a suffix to the
   # package configuration directory name).
   #
-  $clone_data;
+  $clone_data
 
-  $* $~/bindist-root/ $~/$data_dir >>"EOO" &bindist-root/***;
+  $* $~/bindist-root/ $~/$data_dir >>"EOO" &bindist-root/***
     : 1
     status: 200
     message: binary distribution packages are published
     reference: $request_id
     EOO
 
-  test -f $dir/default/libhello-1.0.0+10.tar.xz;
-  test -f $dir/default-$timestamp-0/libhello-1.0.0+10.tar.xz;
-  test -d $dir/default-$timestamp/ != 0;
+  test -f $dir/default/libhello-1.0.0+10.tar.xz
+  test -f $dir/default-$timestamp-0/libhello-1.0.0+10.tar.xz
+  test -d $dir/default-$timestamp/ != 0
 
   # Test the second upload without --keep-previous option.
   #
-  data_dir2   = 22222222-2222-2222-2222-222222222222;
-  request_id2 = $data_dir2;
-  timestamp2  = '2023-05-09T09:18:20Z';
+  data_dir2   = 22222222-2222-2222-2222-222222222222
+  request_id2 = $data_dir2
+  timestamp2  = '2023-05-09T09:18:20Z'
 
-  cp --no-cleanup -r ../$data_dir ./$data_dir2;
+  cp --no-cleanup -r ../$data_dir ./$data_dir2
 
   sed -i -e "s%^\(id:\) .+\$%\\1 $request_id2%" \
-      $data_dir2/request.manifest;
+      $data_dir2/request.manifest
 
   sed -i -e "s%^\(timestamp:\) .+\$%\\1 $timestamp2%" \
-      $data_dir2/request.manifest;
+      $data_dir2/request.manifest
 
-  $* $~/bindist-root/ $~/$data_dir2 >>"EOO";
+  $* $~/bindist-root/ $~/$data_dir2 >>"EOO"
     : 1
     status: 200
     message: binary distribution packages are published
     reference: $request_id2
     EOO
 
-  test -f $dir/default/libhello-1.0.0+10.tar.xz;
-  test -f $dir/default-$timestamp2/libhello-1.0.0+10.tar.xz;
-  test -d $dir/default-$timestamp.0/ != 0;
+  test -f $dir/default/libhello-1.0.0+10.tar.xz
+  test -f $dir/default-$timestamp2/libhello-1.0.0+10.tar.xz
+  test -d $dir/default-$timestamp.0/ != 0
 
   # Test the third upload with --keep-previous option.
   #
-  data_dir3   = 33333333-3333-3333-3333-333333333333;
-  request_id3 = $data_dir3;
-  timestamp3  = '2023-05-10T09:18:20Z';
+  data_dir3   = 33333333-3333-3333-3333-333333333333
+  request_id3 = $data_dir3
+  timestamp3  = '2023-05-10T09:18:20Z'
 
-  cp --no-cleanup -r ../$data_dir ./$data_dir3;
+  cp --no-cleanup -r ../$data_dir ./$data_dir3
 
   sed -i -e "s%^\(id:\) .+\$%\\1 $request_id3%" \
-      $data_dir3/request.manifest;
+      $data_dir3/request.manifest
 
   sed -i -e "s%^\(timestamp:\) .+\$%\\1 $timestamp3%" \
-      $data_dir3/request.manifest;
+      $data_dir3/request.manifest
 
-  $* --keep-previous $~/bindist-root/ $~/$data_dir3 >>"EOO";
+  $* --keep-previous $~/bindist-root/ $~/$data_dir3 >>"EOO"
     : 1
     status: 200
     message: binary distribution packages are published
     reference: $request_id3
     EOO
 
-  test -f $dir/default/libhello-1.0.0+10.tar.xz;
-  test -f $dir/default-$timestamp3/libhello-1.0.0+10.tar.xz;
+  test -f $dir/default/libhello-1.0.0+10.tar.xz
+  test -f $dir/default-$timestamp3/libhello-1.0.0+10.tar.xz
   test -f $dir/default-$timestamp2/libhello-1.0.0+10.tar.xz
 }

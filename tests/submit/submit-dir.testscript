@@ -4,7 +4,7 @@
 .include data.testscript
 
 : args
-{
+{{
   : none
   :
   $* 2>>~%EOE% != 0
@@ -24,21 +24,21 @@
   $* $~/dir/ 2>>~%EOE% != 0
     %\[.+\] \[brep:error\] \[ref dir\] \[brep-submit-dir\]: '.+dir' does not exist or is not a directory%
     EOE
-}
+}}
 
 : success
 :
-{
+{{
   test.arguments += $data_dir
 
   : simulate
   :
   {
-    $clone_root_data;
+    $clone_root_data
 
-    echo 'simulate: success' >+$data_dir/request.manifest;
+    echo 'simulate: success' >+$data_dir/request.manifest
 
-    $* >>"EOO";
+    $* >>"EOO"
       : 1
       status: 200
       message: package submission is queued: libhello/0.1.0
@@ -51,7 +51,7 @@
   : for-real
   :
   {
-    $clone_root_data_clean;
+    $clone_root_data_clean
 
     $* >>"EOO"
       : 1
@@ -60,19 +60,19 @@
       reference: $checksum
       EOO
   }
-}
+}}
 
 : failure
 :
-{
+{{
   test.arguments += $data_dir
 
   : bad-archive
   :
   {
-    $clone_root_data_clean;
+    $clone_root_data_clean
 
-    echo 'junk' >=$data_dir/libhello-0.1.0.tar.gz;
+    echo 'junk' >=$data_dir/libhello-0.1.0.tar.gz
 
     $* >>"EOO"
       : 1
@@ -95,9 +95,9 @@
   : bad-simulate
   :
   {
-    $clone_root_data_clean;
+    $clone_root_data_clean
 
-    echo 'simulate: fly' >+$data_dir/request.manifest;
+    echo 'simulate: fly' >+$data_dir/request.manifest
 
     $* >>"EOO"
       : 1
@@ -106,4 +106,4 @@
       reference: $checksum
       EOO
   }
-}
+}}

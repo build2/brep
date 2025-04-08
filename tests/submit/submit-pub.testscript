@@ -9,7 +9,6 @@ user=$getenv("USER")
 #
 +if! sudo -u "$user" --non-interactive echo 'test' >'test'
   exit
-end
 
 root_rep=$~/pkg-1
 
@@ -20,7 +19,7 @@ root_rep=$~/pkg-1
 clone_root_rep = [cmdline] cp --no-cleanup -r $root_rep ./ &pkg-1/*** &?pkg.lock
 
 : args
-{
+{{
   : none
   :
   $* 2>>~%EOE% != 0
@@ -42,29 +41,29 @@ clone_root_rep = [cmdline] cp --no-cleanup -r $root_rep ./ &pkg-1/*** &?pkg.lock
   : dir-not-exist
   :
   {
-    $clone_root_rep;
-    ln -s pkg-1 pkg;
+    $clone_root_rep
+    ln -s pkg-1 pkg
     $* $~/pkg $~/dir 2>>~%EOE% != 0
       %\[.+\] \[brep:error\] \[ref dir\] \[brep-submit-pub\]: '.+dir' does not exist or is not a directory%
       EOE
   }
-}
+}}
 
 : success
 :
-{
+{{
   test.options += --user "$user"
 
   : simulate
   :
   {
-    $clone_root_data;
-    echo 'simulate: success' >+$data_dir/request.manifest;
+    $clone_root_data
+    echo 'simulate: success' >+$data_dir/request.manifest
 
-    $clone_root_rep;
-    ln -s pkg-1 pkg;
+    $clone_root_rep
+    ln -s pkg-1 pkg
 
-    $* $~/pkg $~/$data_dir >>"EOO";
+    $* $~/pkg $~/$data_dir >>"EOO"
       : 1
       status: 200
       message: package is published: libhello/0.1.0
@@ -80,61 +79,61 @@ clone_root_rep = [cmdline] cp --no-cleanup -r $root_rep ./ &pkg-1/*** &?pkg.lock
   : by the handler.
   :
   {
-    $clone_root_data;
-    $clone_root_rep;
-    ln -s pkg-1 pkg;
+    $clone_root_data
+    $clone_root_rep
+    ln -s pkg-1 pkg
 
     # Initial submission.
     #
-    $* $~/pkg $~/$data_dir &!pkg-1/*** &pkg-*/*** >>"EOO";
+    $* $~/pkg $~/$data_dir &!pkg-1/*** &pkg-*/*** >>"EOO"
       : 1
       status: 200
       message: package is published: libhello/0.1.0
       reference: $checksum
       EOO
 
-    test -f pkg/1/hello/libhello-0.1.0.tar.gz;
+    test -f pkg/1/hello/libhello-0.1.0.tar.gz
 
     # While at it, test the duplicate submission.
     #
-    $clone_root_data_clean;
+    $clone_root_data_clean
 
-    $* $~/pkg $~/$data_dir >>"EOO";
+    $* $~/pkg $~/$data_dir >>"EOO"
       : 1
       status: 422
       message: duplicate submission
       reference: $checksum
       EOO
 
-    test -f pkg/1/hello/libhello-0.1.0.tar.gz;
+    test -f pkg/1/hello/libhello-0.1.0.tar.gz
 
     # Revision submission.
     #
     # Here we test that the handler removes the previous revision.
     #
-    tar -xf $~/$data_dir/libhello-0.1.0.tar.gz;
-    sed -i -e 's/(version: 0.1.0)/\1+1/' libhello-0.1.0/manifest;
-    mv libhello-0.1.0 libhello-0.1.0+1;
-    tar cfz $~/$data_dir/libhello-0.1.0+1.tar.gz libhello-0.1.0+1;
-    rm -r libhello-0.1.0+1;
-    rm $~/$data_dir/libhello-0.1.0.tar.gz;
-    sed -i -e 's/(archive: libhello-0.1.0)(.tar.gz)/\1+1\2/' $data_dir/request.manifest;
+    tar -xf $~/$data_dir/libhello-0.1.0.tar.gz
+    sed -i -e 's/(version: 0.1.0)/\1+1/' libhello-0.1.0/manifest
+    mv libhello-0.1.0 libhello-0.1.0+1
+    tar cfz $~/$data_dir/libhello-0.1.0+1.tar.gz libhello-0.1.0+1
+    rm -r libhello-0.1.0+1
+    rm $~/$data_dir/libhello-0.1.0.tar.gz
+    sed -i -e 's/(archive: libhello-0.1.0)(.tar.gz)/\1+1\2/' $data_dir/request.manifest
 
-    $* $~/pkg $~/$data_dir >>"EOO";
+    $* $~/pkg $~/$data_dir >>"EOO"
       : 1
       status: 200
       message: package is published: libhello/0.1.0+1
       reference: $checksum
       EOO
 
-    test -f pkg/1/hello/libhello-0.1.0.tar.gz == 1;
-    test -f pkg/1/hello/libhello-0.1.0+1.tar.gz;
+    test -f pkg/1/hello/libhello-0.1.0.tar.gz == 1
+    test -f pkg/1/hello/libhello-0.1.0+1.tar.gz
 
     # While at it, test the older revision submission.
     #
-    $clone_root_data_clean;
+    $clone_root_data_clean
 
-    $* $~/pkg $~/$data_dir >>"EOO";
+    $* $~/pkg $~/$data_dir >>"EOO"
       : 1
       status: 422
       message: newer revision libhello/0.1.0+1 is present
@@ -147,11 +146,11 @@ clone_root_rep = [cmdline] cp --no-cleanup -r $root_rep ./ &pkg-1/*** &?pkg.lock
   : result-url
   :
   {
-    $clone_root_data;
-    $clone_root_rep;
-    ln -s pkg-1 pkg;
+    $clone_root_data
+    $clone_root_rep
+    ln -s pkg-1 pkg
 
-    test.options += --result-url 'https://example.com/';
+    test.options += --result-url 'https://example.com/'
 
     $* $~/pkg $~/$data_dir &!pkg-1/*** &pkg-*/*** >>"EOO"
       : 1
@@ -160,11 +159,11 @@ clone_root_rep = [cmdline] cp --no-cleanup -r $root_rep ./ &pkg-1/*** &?pkg.lock
       reference: $checksum
       EOO
   }
-}
+}}
 
 : failure
 :
-{
+{{
   test.options += --user "$user"
 
   : invalid-package
@@ -173,11 +172,11 @@ clone_root_rep = [cmdline] cp --no-cleanup -r $root_rep ./ &pkg-1/*** &?pkg.lock
   : failure ends up with a proper response.
   :
   {
-    $clone_root_data_clean;
-    $clone_root_rep;
-    ln -s pkg-1 pkg;
+    $clone_root_data_clean
+    $clone_root_rep
+    ln -s pkg-1 pkg
 
-    rm pkg/1/repositories.manifest;
+    rm pkg/1/repositories.manifest
 
     $* $~/brep-loader $~/pkg $~/$data_dir >>~"%EOO%"
       : 1
@@ -197,9 +196,9 @@ clone_root_rep = [cmdline] cp --no-cleanup -r $root_rep ./ &pkg-1/*** &?pkg.lock
   : brep database load failure ends up with a proper response.
   :
   {
-    $clone_root_data_clean;
-    $clone_root_rep;
-    ln -s pkg-1 pkg;
+    $clone_root_data_clean
+    $clone_root_rep
+    ln -s pkg-1 pkg
 
     $* $~/brep-loader $~/pkg $~/$data_dir >>~"%EOO%"
       : 1
@@ -212,4 +211,4 @@ clone_root_rep = [cmdline] cp --no-cleanup -r $root_rep ./ &pkg-1/*** &?pkg.lock
       reference: $checksum
       EOO
   }
-}
+}}
