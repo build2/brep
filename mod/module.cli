@@ -891,9 +891,9 @@ namespace brep
          is lacking in certain parts of the GitHub UI."
       }
 
-      size_t ci-github-builds-limit-aggregate-report
+      size_t ci-github-builds-limit-aggr-report
       {
-        "<number>"
+        "<number>",
         "The number of builds exceeding which triggers the aggregate reporting
          mode."
       }

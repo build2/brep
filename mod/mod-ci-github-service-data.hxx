@@ -99,7 +99,7 @@ namespace brep
     bool re_request; // Re-requested (rebuild).
 
     brep::report_mode report_mode;
-    uint64_t report_budget; // Notification budged for aggregate reporting.
+    uint64_t report_budget; // Notification budget for aggregate reporting.
 
     // Check suite settings.
     //
