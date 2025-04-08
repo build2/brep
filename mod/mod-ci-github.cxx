@@ -3082,6 +3082,12 @@ namespace brep
     if (sd.completed)
       return nullptr;
 
+    // In addition to updating the build check run we also update the
+    // conclusion check run with the build stats. If we're in the aggregate
+    // reporting mode on the other hand no check runs are updated on GitHub
+    // but the local build check run object is updated to simulate a GitHub
+    // update.
+
     // The build and conclusion check run updates are sent to GitHub in a
     // single request so store them together from the outset.
     //
@@ -3106,22 +3112,44 @@ namespace brep
       //
       if (scr->state == build_state::queued)
       {
-        if (scr->node_id)
+        switch (sd.report_mode)
         {
-          // Calculate the build stats before moving from the stored check
-          // run.
-          //
-          scr->state = build_state::building; // Required for the calculation.
-          bstats = calculate_build_stats (sd.check_runs, sd.warning_success);
+        case report_mode::undetermined: assert (false); break;
+        case report_mode::detailed:
+          {
+            if (scr->node_id)
+            {
+              // Calculate the build stats (for the conclusion check run)
+              // before moving from the stored check run.
+              //
+              scr->state = build_state::building; // For the calculation.
+              bstats = calculate_build_stats (sd.check_runs,
+                                              sd.warning_success);
 
-          bcr = move (*scr);
-        }
-        else
-        {
-          // Network error during queued notification (state unsynchronized),
-          // ignore.
-          //
-          l3 ([&]{trace << "unsynchronized check run " << bid;});
+              bcr = move (*scr);
+            }
+            else
+            {
+              // Network error during queued notification (state
+              // unsynchronized), ignore.
+              //
+              l3 ([&]{trace << "unsynchronized check run " << bid;});
+            }
+
+            break;
+          }
+        case report_mode::aggregate:
+          {
+            // Won't be updating GitHub but we will be saving the check run in
+            // the service data.
+            //
+            assert (!scr->node_id.has_value ());
+            scr->state = build_state::building; // Match detailed reporting case.
+
+            bcr = move (*scr);
+
+            break;
+          }
         }
       }
       else
@@ -3167,41 +3195,60 @@ namespace brep
     //
     if (iat != nullptr)
     {
-      // Update the build and conclusion check runs.
-      //
-      assert (bcr.state == build_state::building); // Set above.
-      bcr.state_synced = false;
-      bcr.description = {check_run_building_title, check_run_building_summary};
-
-      assert (ccr.state == build_state::building);
-      ccr.state_synced = false;
+      switch (sd.report_mode)
       {
-        string r (make_build_stats_report (bstats, sd.warning_success));
-        ccr.description = {conclusion_building_title,
-                           r + ". " + force_rebuild_md_link (sd) + '.'};
-      }
-
-      // Let unlikely invalid_argument propagate.
-      //
-      if (gq_update_check_runs (error,
-                                check_runs,
-                                iat->token,
-                                sd.repository_node_id))
-      {
-        // Do nothing further if the state was already built on GitHub (note
-        // that this is based on the above-mentioned special GitHub semantics
-        // of preventing changes to the built status).
-        //
-        if (bcr.state == build_state::built)
+      case report_mode::undetermined: assert (false); break;
+      case report_mode::detailed:
         {
-          warn << "check run " << bid << ": already in built state on GitHub";
-          return nullptr;
+          // Update the build and conclusion check runs.
+          //
+          assert (bcr.state == build_state::building); // Set above.
+          bcr.state_synced = false;
+          bcr.description = {check_run_building_title,
+                             check_run_building_summary};
+
+          assert (ccr.state == build_state::building);
+          ccr.state_synced = false;
+          {
+            string r (make_build_stats_report (bstats, sd.warning_success));
+            ccr.description = {conclusion_building_title,
+              r + ". " + force_rebuild_md_link (sd) + '.'};
+          }
+
+          // Let unlikely invalid_argument propagate.
+          //
+          if (gq_update_check_runs (error,
+                                    check_runs,
+                                    iat->token,
+                                    sd.repository_node_id))
+          {
+            // Do nothing further if the state was already built on GitHub
+            // (note that this is based on the above-mentioned special GitHub
+            // semantics of preventing changes to the built status).
+            //
+            if (bcr.state == build_state::built)
+            {
+              warn << "check run " << bid
+                   << ": already in built state on GitHub";
+              return nullptr;
+            }
+
+            assert (bcr.state == build_state::building);
+
+            l3 ([&]{trace << "updated check_run { " << bcr << " }";});
+            l3 ([&]{trace << "updated conclusion check_run { " << ccr << " }";});
+          }
+          break;
         }
+      case report_mode::aggregate:
+        {
+          // Only simulate the GitHub update of the build check run.
+          //
+          assert (bcr.state == build_state::building); // Set above.
+          bcr.state_synced = true;
 
-        assert (bcr.state == build_state::building);
-
-        l3 ([&]{trace << "updated check_run { " << bcr << " }";});
-        l3 ([&]{trace << "updated conclusion check_run { " << ccr << " }";});
+          break;
+        }
       }
     }
 
