@@ -4,7 +4,8 @@
 .include data.testscript
 
 : args
-{
+:
+{{
   : none
   :
   $* 2>>~%EOE% != 0
@@ -24,21 +25,21 @@
   $* $~/dir/ 2>>~%EOE% != 0
     %\[.+\] \[brep:error\] \[ref dir\] \[brep-ci-dir\]: '.+dir' does not exist or is not a directory%
     EOE
-}
+}}
 
 : success
 :
-{
+{{
   test.arguments += $data_dir
 
   : simulate
   :
   {
-    $clone_root_data;
+    $clone_root_data
 
-    echo 'simulate: success' >+$data_dir/request.manifest;
+    echo 'simulate: success' >+$data_dir/request.manifest
 
-    $* >>"EOO";
+    $* >>"EOO"
       : 1
       status: 200
       message: CI request is queued
@@ -51,7 +52,7 @@
   : for-real
   :
   {
-    $clone_root_data_clean;
+    $clone_root_data_clean
 
     $* >>"EOO"
       : 1
@@ -60,19 +61,19 @@
       reference: $request_id
       EOO
   }
-}
+}}
 
 : failure
 :
-{
+{{
   test.arguments += $data_dir
 
   : bad-simulate
   :
   {
-    $clone_root_data_clean;
+    $clone_root_data_clean
 
-    echo 'simulate: fly' >+$data_dir/request.manifest;
+    echo 'simulate: fly' >+$data_dir/request.manifest
 
     $* >>"EOO"
       : 1
@@ -85,10 +86,10 @@
   : unable-fetch-repo
   :
   {
-    $clone_root_data_clean;
+    $clone_root_data_clean
 
     sed -i -e "s%^\(repository:\) .+\$%\\1 https://git.build2.org/no-such-repo.git%" \
-        $data_dir/request.manifest;
+        $data_dir/request.manifest
 
     $* >>~"%EOO%"
       : 1
@@ -98,4 +99,4 @@
       reference: $request_id
       EOO
   }
-}
+}}

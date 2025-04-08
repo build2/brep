@@ -4,7 +4,7 @@
 .include data.testscript
 
 : args
-{
+{{
   : none
   :
   $* 2>>~%EOE% != 0
@@ -30,19 +30,19 @@
   $* brep-load $~/dir/ 2>>~%EOE% != 0
     %\[.+\] \[brep:error\] \[ref dir\] \[brep-ci-load\]: '.+dir' does not exist or is not a directory%
     EOE
-}
+}}
 
 : success
 :
-{
+{{
   : simulate
   :
   {
-    $clone_root_data;
+    $clone_root_data
 
-    echo 'simulate: success' >+$data_dir/request.manifest;
+    echo 'simulate: success' >+$data_dir/request.manifest
 
-    $* ./brep-load $data_dir >>"EOO";
+    $* ./brep-load $data_dir >>"EOO"
       : 1
       status: 200
       message: CI request is queued
@@ -54,7 +54,7 @@
 
   : for-real
   :
-  {
+  {{
     # Create the loader script that validates the arguments passed and prints
     # the loadtab, repositories manifest, and packages manifest files to
     # stderr.
@@ -84,7 +84,7 @@
     : whole-repo
     :
     {
-      $clone_root_data;
+      $clone_root_data
 
       $* $loader --db-host=localhost --db-port=8432 $data_dir >>"EOO" 2>>~"%EOE%"
         : 1
@@ -144,9 +144,9 @@
     : package
     :
     {
-      $clone_root_data;
+      $clone_root_data
 
-      cat <<EOI >+$data_dir/request.manifest;
+      cat <<EOI >+$data_dir/request.manifest
         package: hello
         EOI
 
@@ -186,9 +186,9 @@
     : package-version
     :
     {
-      $clone_root_data;
+      $clone_root_data
 
-      cat <<EOI >+$data_dir/request.manifest;
+      cat <<EOI >+$data_dir/request.manifest
         package: libhello/0.1.0
         EOI
 
@@ -229,7 +229,7 @@
     : result-url
     :
     {
-      $clone_root_data;
+      $clone_root_data
 
       $* --result-url "http://example.com/" \
          $loader --db-host=localhost --db-port=8432 \
@@ -247,20 +247,20 @@
         %.+
         EOE
     }
-  }
-}
+  }}
+}}
 
 : failure
 :
-{
+{{
   test.arguments += ./brep-load $data_dir
 
   : bad-simulate
   :
   {
-    $clone_root_data_clean;
+    $clone_root_data_clean
 
-    echo 'simulate: fly' >+$data_dir/request.manifest;
+    echo 'simulate: fly' >+$data_dir/request.manifest
 
     $* >>"EOO"
       : 1
@@ -273,10 +273,10 @@
   : unable-fetch-repo
   :
   {
-    $clone_root_data_clean;
+    $clone_root_data_clean
 
     sed -i -e "s%^\(repository:\) .+\$%\\1 https://git.build2.org/no-such-repo.git%" \
-        $data_dir/request.manifest;
+        $data_dir/request.manifest
 
     $* >>~"%EOO%"
       : 1
@@ -290,8 +290,8 @@
   : loader-not-exist
   :
   {
-    $clone_root_data_clean;
+    $clone_root_data_clean
 
     $* 2>~'%.*brep-load.*%' != 0
   }
-}
+}}

@@ -62,7 +62,8 @@ pkg_ctl="$prj_ctl/hello.git"
 +sed -i -e "s%^\(control:\) .+\$%\\1 $pkg_ctl%" $data_dir/request.manifest
 
 : args
-{
+:
+{{
   : none
   :
   $* 2>>~%EOE% != 0
@@ -95,11 +96,11 @@ pkg_ctl="$prj_ctl/hello.git"
   $* "$root_tgt_url" dir/ 2>>~%EOE% != 0
     %\[.+\] \[brep:error\] \[ref dir\] \[brep-submit-git\]: 'dir' does not exist or is not a directory%
     EOE
-}
+}}
 
 : success
 :
-{
+{{
   : ref-unknown-tgt-acquire-prj-pkg
   :
   : Test that on the first package submission the project and package names
@@ -110,13 +111,13 @@ pkg_ctl="$prj_ctl/hello.git"
   : properly.
   :
   {
-    $clone_root_data;
+    $clone_root_data
 
-    $clone_root_tgt;
-    tgt_url = "file:///$~/tgt.git";
+    $clone_root_tgt
+    tgt_url = "file:///$~/tgt.git"
 
     $* --committer-name 'Commiter' --committer-email 'commiter@example.com' \
-       "$tgt_url" $root_ref_dir $data_dir >>"EOO";
+       "$tgt_url" $root_ref_dir $data_dir >>"EOO"
       : 1
       status: 200
       message: package submission is queued: libhello/0.1.0
@@ -126,11 +127,11 @@ pkg_ctl="$prj_ctl/hello.git"
     # Check that the ownership information and the package are commited into
     # the target repository.
     #
-    $g clone "$tgt_url" &tgt/***;
+    $g clone "$tgt_url" &tgt/***
 
     # Note that some manifest values may well wrap over several lines.
     #
-    cat tgt/owners/hello/project-owner.manifest >>~%EOO%;
+    cat tgt/owners/hello/project-owner.manifest >>~%EOO%
       : 1
       name: hello
       author-name: User Name
@@ -139,7 +140,7 @@ pkg_ctl="$prj_ctl/hello.git"
       %.*
       EOO
 
-    cat tgt/owners/hello/libhello/package-owner.manifest >>~%EOO%;
+    cat tgt/owners/hello/libhello/package-owner.manifest >>~%EOO%
       : 1
       name: libhello
       author-name: User Name
@@ -148,9 +149,9 @@ pkg_ctl="$prj_ctl/hello.git"
       %.*
       EOO
 
-    test -f tgt/1/alpha/hello/libhello-0.1.0.tar.gz;
+    test -f tgt/1/alpha/hello/libhello-0.1.0.tar.gz
 
-    git -C tgt log -1 >>~%EOO%;
+    git -C tgt log -1 >>~%EOO%
       %commit .+%
       %Author: User Name <user@example.org>%
       %Date: .+%
@@ -183,12 +184,12 @@ pkg_ctl="$prj_ctl/hello.git"
   : reference repo.
   :
   {
-    $clone_root_data;
+    $clone_root_data
 
-    $clone_root_ref;
-    $g clone ref.git &ref/***;
+    $clone_root_ref
+    $g clone ref.git &ref/***
 
-    cat <<EOI >=ref/submit.config.bash;
+    cat <<EOI >=ref/submit.config.bash
       sections[alpha]=1/alpha
       sections[beta]=1/beta
       sections[stable]=1/testing
@@ -196,12 +197,12 @@ pkg_ctl="$prj_ctl/hello.git"
       # owners=owners
       EOI
 
-    $g -C ref config user.name 'Test Script';
-    $g -C ref config user.email 'testscript@example.com';
-    $g -C ref commit -am 'Disable ownership';
-    $g -C ref push;
+    $g -C ref config user.name 'Test Script'
+    $g -C ref config user.email 'testscript@example.com'
+    $g -C ref commit -am 'Disable ownership'
+    $g -C ref push
 
-    $clone_root_tgt;
+    $clone_root_tgt
 
     $* "file:///$~/tgt.git" ref $data_dir >>"EOO"
       : 1
@@ -219,8 +220,8 @@ pkg_ctl="$prj_ctl/hello.git"
   : Note that here we also pass the --result-url option.
   :
   {
-    $clone_root_data;
-    $clone_root_tgt;
+    $clone_root_data
+    $clone_root_tgt
 
     $* --result-url 'https://example.com/' "file:///$~/tgt.git" $data_dir >>"EOO"
       : 1
@@ -236,14 +237,14 @@ pkg_ctl="$prj_ctl/hello.git"
   : repository.
   :
   {
-    $clone_root_data;
+    $clone_root_data
 
-    $clone_root_tgt;
-    $g clone tgt.git &tgt/***;
+    $clone_root_tgt
+    $g clone tgt.git &tgt/***
 
-    mkdir -p tgt/owners/hello/libhello;
+    mkdir -p tgt/owners/hello/libhello
 
-    cat <<"EOI" >=tgt/owners/hello/project-owner.manifest;
+    cat <<"EOI" >=tgt/owners/hello/project-owner.manifest
       : 1
       name: hello
       author-name: User Name
@@ -251,7 +252,7 @@ pkg_ctl="$prj_ctl/hello.git"
       control: $prj_ctl/
       EOI
 
-    cat <<"EOI" >=tgt/owners/hello/libhello/package-owner.manifest;
+    cat <<"EOI" >=tgt/owners/hello/libhello/package-owner.manifest
       : 1
       name: libhello
       author-name: User Name
@@ -259,11 +260,11 @@ pkg_ctl="$prj_ctl/hello.git"
       control: $pkg_ctl
       EOI
 
-    $g -C tgt config user.name 'Test Script';
-    $g -C tgt config user.email 'testscript@example.com';
-    $g -C tgt add owners;
-    $g -C tgt commit -m 'Add ownership info';
-    $g -C tgt push;
+    $g -C tgt config user.name 'Test Script'
+    $g -C tgt config user.email 'testscript@example.com'
+    $g -C tgt add owners
+    $g -C tgt commit -m 'Add ownership info'
+    $g -C tgt push
 
     $* "file:///$~/tgt.git" $root_ref_dir $data_dir >>"EOO"
       : 1
@@ -282,15 +283,15 @@ pkg_ctl="$prj_ctl/hello.git"
   : Note that here we also test an author-less submission.
   :
   {
-    $clone_root_data;
-    sed -i -e 's%^author-.+$%%' $data_dir/request.manifest;
+    $clone_root_data
+    sed -i -e 's%^author-.+$%%' $data_dir/request.manifest
 
-    $clone_root_ref;
-    $g clone ref.git &ref/***;
+    $clone_root_ref
+    $g clone ref.git &ref/***
 
-    mkdir -p ref/owners/hello;
+    mkdir -p ref/owners/hello
 
-    cat <<"EOI" >=ref/owners/hello/project-owner.manifest;
+    cat <<"EOI" >=ref/owners/hello/project-owner.manifest
       : 1
       name: hello
       author-name: User Name
@@ -298,18 +299,18 @@ pkg_ctl="$prj_ctl/hello.git"
       control: $prj_ctl/
       EOI
 
-    $g -C ref config user.name 'Test Script';
-    $g -C ref config user.email 'testscript@example.com';
-    $g -C ref add owners;
-    $g -C ref commit -m 'Add ownership info';
-    $g -C ref push;
+    $g -C ref config user.name 'Test Script'
+    $g -C ref config user.email 'testscript@example.com'
+    $g -C ref add owners
+    $g -C ref commit -m 'Add ownership info'
+    $g -C ref push
 
-    $clone_root_tgt;
-    $g clone tgt.git &tgt/***;
+    $clone_root_tgt
+    $g clone tgt.git &tgt/***
 
-    mkdir -p tgt/owners/hello/libhello;
+    mkdir -p tgt/owners/hello/libhello
 
-    cat <<"EOI" >=tgt/owners/hello/libhello/package-owner.manifest;
+    cat <<"EOI" >=tgt/owners/hello/libhello/package-owner.manifest
       : 1
       name: libhello
       author-name: User Name
@@ -317,13 +318,13 @@ pkg_ctl="$prj_ctl/hello.git"
       control: $pkg_ctl
       EOI
 
-    $g -C tgt config user.name 'Test Script';
-    $g -C tgt config user.email 'testscript@example.com';
-    $g -C tgt add owners;
-    $g -C tgt commit -m 'Add ownership info';
-    $g -C tgt push;
+    $g -C tgt config user.name 'Test Script'
+    $g -C tgt config user.email 'testscript@example.com'
+    $g -C tgt add owners
+    $g -C tgt commit -m 'Add ownership info'
+    $g -C tgt push
 
-    $* "file:///$~/tgt.git" ref $data_dir >>"EOO";
+    $* "file:///$~/tgt.git" ref $data_dir >>"EOO"
       : 1
       status: 200
       message: package submission is queued: libhello/0.1.0
@@ -332,7 +333,7 @@ pkg_ctl="$prj_ctl/hello.git"
 
     # Check that the author/committer names/emails are properly assigned.
     #
-    $g -C tgt pull;
+    $g -C tgt pull
 
     git -C tgt log -1 '--pretty=format:%an %ae %cn %ce' >>:EOO
       Submission Handler noreply@example.com Submission Handler noreply@example.com
@@ -348,14 +349,14 @@ pkg_ctl="$prj_ctl/hello.git"
   : an immediate "parent" of the package control URL.
   :
   {
-    $clone_root_data;
+    $clone_root_data
 
-    $clone_root_ref;
-    $g clone ref.git &ref/***;
+    $clone_root_ref
+    $g clone ref.git &ref/***
 
-    mkdir -p ref/owners/hello/libhello;
+    mkdir -p ref/owners/hello/libhello
 
-    cat <<"EOI" >=ref/owners/hello/project-owner.manifest;
+    cat <<"EOI" >=ref/owners/hello/project-owner.manifest
       : 1
       name: hello
       author-name: User Name
@@ -363,7 +364,7 @@ pkg_ctl="$prj_ctl/hello.git"
       control: $regex.replace("$prj_ctl", '(.*/)[^/]*', '\1')
       EOI
 
-    cat <<"EOI" >=ref/owners/hello/libhello/package-owner.manifest;
+    cat <<"EOI" >=ref/owners/hello/libhello/package-owner.manifest
       : 1
       name: libhello
       author-name: User Name
@@ -371,13 +372,13 @@ pkg_ctl="$prj_ctl/hello.git"
       control: $pkg_ctl
       EOI
 
-    $g -C ref config user.name 'Test Script';
-    $g -C ref config user.email 'testscript@example.com';
-    $g -C ref add owners;
-    $g -C ref commit -m 'Add ownership info';
-    $g -C ref push;
+    $g -C ref config user.name 'Test Script'
+    $g -C ref config user.email 'testscript@example.com'
+    $g -C ref add owners
+    $g -C ref commit -m 'Add ownership info'
+    $g -C ref push
 
-    $clone_root_tgt;
+    $clone_root_tgt
 
     $* "file:///$~/tgt.git" ref $data_dir >>"EOO"
       : 1
@@ -393,14 +394,14 @@ pkg_ctl="$prj_ctl/hello.git"
   : repository and the package ownersip is aquired.
   :
   {
-    $clone_root_data;
+    $clone_root_data
 
-    $clone_root_ref;
-    $g clone ref.git &ref/***;
+    $clone_root_ref
+    $g clone ref.git &ref/***
 
-    mkdir -p ref/owners/hello/libhello;
+    mkdir -p ref/owners/hello/libhello
 
-    cat <<"EOI" >=ref/owners/hello/project-owner.manifest;
+    cat <<"EOI" >=ref/owners/hello/project-owner.manifest
       : 1
       name: hello
       author-name: User Name
@@ -408,13 +409,13 @@ pkg_ctl="$prj_ctl/hello.git"
       control: $prj_ctl/
       EOI
 
-    $g -C ref config user.name 'Test Script';
-    $g -C ref config user.email 'testscript@example.com';
-    $g -C ref add owners;
-    $g -C ref commit -m 'Add ownership info';
-    $g -C ref push;
+    $g -C ref config user.name 'Test Script'
+    $g -C ref config user.email 'testscript@example.com'
+    $g -C ref add owners
+    $g -C ref commit -m 'Add ownership info'
+    $g -C ref push
 
-    $clone_root_tgt;
+    $clone_root_tgt
 
     $* "file:///$~/tgt.git" ref $data_dir >>"EOO"
       : 1
@@ -430,12 +431,12 @@ pkg_ctl="$prj_ctl/hello.git"
   : the target ownership handling is disabled.
   :
   {
-    $clone_root_data;
+    $clone_root_data
 
-    $clone_root_tgt;
-    $g clone tgt.git &tgt/***;
+    $clone_root_tgt
+    $g clone tgt.git &tgt/***
 
-    cat <<EOI >=tgt/submit.config.bash;
+    cat <<EOI >=tgt/submit.config.bash
       sections[alpha]=1/alpha
       sections[beta]=1/beta
       sections[stable]=1/testing
@@ -443,10 +444,10 @@ pkg_ctl="$prj_ctl/hello.git"
       # owners=owners
       EOI
 
-    $g -C tgt config user.name 'Test Script';
-    $g -C tgt config user.email 'testscript@example.com';
-    $g -C tgt commit -am 'Disable ownership';
-    $g -C tgt push;
+    $g -C tgt config user.name 'Test Script'
+    $g -C tgt config user.email 'testscript@example.com'
+    $g -C tgt commit -am 'Disable ownership'
+    $g -C tgt push
 
     $* "file:///$~/tgt.git" $data_dir >>"EOO"
       : 1
@@ -461,64 +462,64 @@ pkg_ctl="$prj_ctl/hello.git"
   : Test that the package revision is removed.
   :
   {
-    $clone_root_data;
+    $clone_root_data
 
-    $clone_root_tgt;
-    $g clone tgt.git &tgt/***;
+    $clone_root_tgt
+    $g clone tgt.git &tgt/***
 
-    cat <<EOI >=tgt/submit.config.bash;
+    cat <<EOI >=tgt/submit.config.bash
       sections['*']=1/alpha
       EOI
 
-    $g -C tgt config user.name 'Test Script';
-    $g -C tgt config user.email 'testscript@example.com';
-    $g -C tgt commit -am 'Add config and archive';
-    $g -C tgt push;
+    $g -C tgt config user.name 'Test Script'
+    $g -C tgt config user.email 'testscript@example.com'
+    $g -C tgt commit -am 'Add config and archive'
+    $g -C tgt push
 
     # Initial submission.
     #
-    $* "file:///$~/tgt.git" $data_dir >>"EOO";
+    $* "file:///$~/tgt.git" $data_dir >>"EOO"
       : 1
       status: 200
       message: package submission is queued: libhello/0.1.0
       reference: $checksum
       EOO
 
-    $g -C tgt pull;
+    $g -C tgt pull
 
-    test -f tgt/1/alpha/hello/libhello-0.1.0.tar.gz;
+    test -f tgt/1/alpha/hello/libhello-0.1.0.tar.gz
 
     # Revision submission.
     #
     # Here we test that the handler removes the previous revision.
     #
-    $clone_root_data_clean;
+    $clone_root_data_clean
 
-    tar -xf $~/$data_dir/libhello-0.1.0.tar.gz;
-    sed -i -e 's/(version: 0.1.0)/\1+1/' libhello-0.1.0/manifest;
-    mv libhello-0.1.0 libhello-0.1.0+1;
-    tar cfz $~/$data_dir/libhello-0.1.0+1.tar.gz libhello-0.1.0+1;
-    rm -r libhello-0.1.0+1;
-    rm $~/$data_dir/libhello-0.1.0.tar.gz;
-    sed -i -e 's/(archive: libhello-0.1.0)(.tar.gz)/\1+1\2/' $data_dir/request.manifest;
+    tar -xf $~/$data_dir/libhello-0.1.0.tar.gz
+    sed -i -e 's/(version: 0.1.0)/\1+1/' libhello-0.1.0/manifest
+    mv libhello-0.1.0 libhello-0.1.0+1
+    tar cfz $~/$data_dir/libhello-0.1.0+1.tar.gz libhello-0.1.0+1
+    rm -r libhello-0.1.0+1
+    rm $~/$data_dir/libhello-0.1.0.tar.gz
+    sed -i -e 's/(archive: libhello-0.1.0)(.tar.gz)/\1+1\2/' $data_dir/request.manifest
 
-    $* "file:///$~/tgt.git" $data_dir >>"EOO" &tgt/1/alpha/hello/libhello-0.1.0+1.tar.gz;
+    $* "file:///$~/tgt.git" $data_dir >>"EOO" &tgt/1/alpha/hello/libhello-0.1.0+1.tar.gz
       : 1
       status: 200
       message: package submission is queued: libhello/0.1.0+1
       reference: $checksum
       EOO
 
-    $g -C tgt pull;
+    $g -C tgt pull
 
-    test -f tgt/1/alpha/hello/libhello-0.1.0.tar.gz == 1;
-    test -f tgt/1/alpha/hello/libhello-0.1.0+1.tar.gz;
+    test -f tgt/1/alpha/hello/libhello-0.1.0.tar.gz == 1
+    test -f tgt/1/alpha/hello/libhello-0.1.0+1.tar.gz
 
     # While at it, test the older revision submission.
     #
-    $clone_root_data_clean;
+    $clone_root_data_clean
 
-    $* "file:///$~/tgt.git" $data_dir >>"EOO";
+    $* "file:///$~/tgt.git" $data_dir >>"EOO"
       : 1
       status: 422
       message: newer revision libhello/0.1.0+1 is present
@@ -531,13 +532,13 @@ pkg_ctl="$prj_ctl/hello.git"
   : section-fallback
   :
   {
-    $clone_root_data;
-    sed -i -e 's%^(section:) .+$%\1 delta%' $data_dir/request.manifest;
+    $clone_root_data
+    sed -i -e 's%^(section:) .+$%\1 delta%' $data_dir/request.manifest
 
-    $clone_root_tgt;
-    $g clone tgt.git &tgt/***;
+    $clone_root_tgt
+    $g clone tgt.git &tgt/***
 
-    cat <<EOI >=tgt/submit.config.bash;
+    cat <<EOI >=tgt/submit.config.bash
       sections[alpha]=1/alpha
       sections[beta]=1/beta
       sections[stable]=1/testing
@@ -546,10 +547,10 @@ pkg_ctl="$prj_ctl/hello.git"
       owners=owners
       EOI
 
-    $g -C tgt config user.name 'Test Script';
-    $g -C tgt config user.email 'testscript@example.com';
-    $g -C tgt commit -am 'Add section name fallback';
-    $g -C tgt push;
+    $g -C tgt config user.name 'Test Script'
+    $g -C tgt config user.email 'testscript@example.com'
+    $g -C tgt commit -am 'Add section name fallback'
+    $g -C tgt push
 
     $* "file:///$~/tgt.git" $root_ref_dir $data_dir >>"EOO"
       : 1
@@ -563,15 +564,15 @@ pkg_ctl="$prj_ctl/hello.git"
   :
   : Test that the simulated submission still succeeds given no control URL.
   :
-  {
+  {{
     +$clone_root_data_clean
     +sed -i -e 's%^control: .+$%simulate: success%' $data_dir/request.manifest
 
     : no-result-url
     :
     {
-      $clone_data;
-      $clone_root_tgt;
+      $clone_data
+      $clone_root_tgt
 
       $* "file:///$~/tgt.git" $data_dir >>"EOO"
         : 1
@@ -584,8 +585,8 @@ pkg_ctl="$prj_ctl/hello.git"
     : result-url
     :
     {
-      $clone_data;
-      $clone_root_tgt;
+      $clone_data
+      $clone_root_tgt
 
       $* --result-url 'https://example.com' "file:///$~/tgt.git" $data_dir >>"EOO"
         : 1
@@ -594,20 +595,20 @@ pkg_ctl="$prj_ctl/hello.git"
         reference: $checksum
         EOO
     }
-  }
-}
+  }}
+}}
 
 : failure
 :
-{
+{{
   : no-author
   :
   {
-    $clone_root_data_clean;
-    sed -i -e 's%^author-.+$%%' $data_dir/request.manifest;
+    $clone_root_data_clean
+    sed -i -e 's%^author-.+$%%' $data_dir/request.manifest
 
-    $clone_root_tgt;
-    tgt_url = "file:///$~/tgt.git";
+    $clone_root_tgt
+    tgt_url = "file:///$~/tgt.git"
 
     $* "$tgt_url" $root_ref_dir $data_dir >>"EOO"
       : 1
@@ -620,11 +621,11 @@ pkg_ctl="$prj_ctl/hello.git"
   : no-author-email
   :
   {
-    $clone_root_data_clean;
-    sed -i -e 's%^author-email.+$%%' $data_dir/request.manifest;
+    $clone_root_data_clean
+    sed -i -e 's%^author-email.+$%%' $data_dir/request.manifest
 
-    $clone_root_tgt;
-    tgt_url = "file:///$~/tgt.git";
+    $clone_root_tgt
+    tgt_url = "file:///$~/tgt.git"
 
     $* "$tgt_url" $root_ref_dir $data_dir >>"EOO"
       : 1
@@ -637,11 +638,11 @@ pkg_ctl="$prj_ctl/hello.git"
   : no-author-name
   :
   {
-    $clone_root_data_clean;
-    sed -i -e 's%^author-name.+$%%' $data_dir/request.manifest;
+    $clone_root_data_clean
+    sed -i -e 's%^author-name.+$%%' $data_dir/request.manifest
 
-    $clone_root_tgt;
-    tgt_url = "file:///$~/tgt.git";
+    $clone_root_tgt
+    tgt_url = "file:///$~/tgt.git"
 
     $* "$tgt_url" $root_ref_dir $data_dir >>"EOO"
       : 1
@@ -657,19 +658,19 @@ pkg_ctl="$prj_ctl/hello.git"
   : reference repo.
   :
   {
-    $clone_root_data_clean;
+    $clone_root_data_clean
 
-    $clone_root_ref;
-    $g clone ref.git &ref/***;
+    $clone_root_ref
+    $g clone ref.git &ref/***
 
-    mkdir -p ref/1/alpha/hello;
-    cp $data_dir/libhello-0.1.0.tar.gz ref/1/alpha/hello/;
+    mkdir -p ref/1/alpha/hello
+    cp $data_dir/libhello-0.1.0.tar.gz ref/1/alpha/hello/
 
-    $g -C ref config user.name 'Test Script';
-    $g -C ref config user.email 'testscript@example.com';
-    $g -C ref add 1/;
-    $g -C ref commit -m 'Add libhello-0.1.0.tar.gz';
-    $g -C ref push;
+    $g -C ref config user.name 'Test Script'
+    $g -C ref config user.email 'testscript@example.com'
+    $g -C ref add 1/
+    $g -C ref commit -m 'Add libhello-0.1.0.tar.gz'
+    $g -C ref push
 
     $* "$root_tgt_url" $~/ref $data_dir >>"EOO"
       : 1
@@ -685,14 +686,14 @@ pkg_ctl="$prj_ctl/hello.git"
   : repo. The package name is already used in other project.
   :
   {
-    $clone_root_data_clean;
+    $clone_root_data_clean
 
-    $clone_root_ref;
-    $g clone ref.git &ref/***;
+    $clone_root_ref
+    $g clone ref.git &ref/***
 
-    mkdir -p ref/owners/hi/libhello;
+    mkdir -p ref/owners/hi/libhello
 
-    cat <<"EOI" >=ref/owners/hi/project-owner.manifest;
+    cat <<"EOI" >=ref/owners/hi/project-owner.manifest
       : 1
       name: hi
       author-name: User Name
@@ -700,7 +701,7 @@ pkg_ctl="$prj_ctl/hello.git"
       control: $prj_ctl/
       EOI
 
-    cat <<"EOI" >=ref/owners/hi/libhello/package-owner.manifest;
+    cat <<"EOI" >=ref/owners/hi/libhello/package-owner.manifest
       : 1
       name: libhello
       author-name: User Name
@@ -708,11 +709,11 @@ pkg_ctl="$prj_ctl/hello.git"
       control: $prj_ctl/foo
       EOI
 
-    $g -C ref config user.name 'Test Script';
-    $g -C ref config user.email 'testscript@example.com';
-    $g -C ref add owners;
-    $g -C ref commit -m 'Add ownership info';
-    $g -C ref push;
+    $g -C ref config user.name 'Test Script'
+    $g -C ref config user.email 'testscript@example.com'
+    $g -C ref add owners
+    $g -C ref commit -m 'Add ownership info'
+    $g -C ref push
 
     $* "$root_tgt_url" $~/ref $data_dir >>"EOO"
       : 1
@@ -728,13 +729,13 @@ pkg_ctl="$prj_ctl/hello.git"
   : repo.
   :
   {
-    $clone_root_data_clean;
+    $clone_root_data_clean
 
-    $clone_root_ref;
-    $g clone ref.git &ref/***;
+    $clone_root_ref
+    $g clone ref.git &ref/***
 
-    mkdir -p ref/owners/hello;
-    cat <<EOI >=ref/owners/hello/project-owner.manifest;
+    mkdir -p ref/owners/hello
+    cat <<EOI >=ref/owners/hello/project-owner.manifest
       : 1
       name: hello
       author-name: User Name
@@ -742,11 +743,11 @@ pkg_ctl="$prj_ctl/hello.git"
       control: https://example.com/foo
       EOI
 
-    $g -C ref config user.name 'Test Script';
-    $g -C ref config user.email 'testscript@example.com';
-    $g -C ref add owners/hello/project-owner.manifest;
-    $g -C ref commit -m 'Add project ownership info';
-    $g -C ref push;
+    $g -C ref config user.name 'Test Script'
+    $g -C ref config user.email 'testscript@example.com'
+    $g -C ref add owners/hello/project-owner.manifest
+    $g -C ref commit -m 'Add project ownership info'
+    $g -C ref push
 
     $* "$root_tgt_url" $~/ref $data_dir >>"EOO"
       : 1
@@ -762,14 +763,14 @@ pkg_ctl="$prj_ctl/hello.git"
   : repo.
   :
   {
-    $clone_root_data_clean;
+    $clone_root_data_clean
 
-    $clone_root_ref;
-    $g clone ref.git &ref/***;
+    $clone_root_ref
+    $g clone ref.git &ref/***
 
-    mkdir -p ref/owners/hello/libhello;
+    mkdir -p ref/owners/hello/libhello
 
-    cat <<"EOI" >=ref/owners/hello/project-owner.manifest;
+    cat <<"EOI" >=ref/owners/hello/project-owner.manifest
       : 1
       name: hello
       author-name: User Name
@@ -777,7 +778,7 @@ pkg_ctl="$prj_ctl/hello.git"
       control: $prj_ctl/
       EOI
 
-    cat <<"EOI" >=ref/owners/hello/libhello/package-owner.manifest;
+    cat <<"EOI" >=ref/owners/hello/libhello/package-owner.manifest
       : 1
       name: libhello
       author-name: User Name
@@ -785,11 +786,11 @@ pkg_ctl="$prj_ctl/hello.git"
       control: $prj_ctl/foo
       EOI
 
-    $g -C ref config user.name 'Test Script';
-    $g -C ref config user.email 'testscript@example.com';
-    $g -C ref add owners;
-    $g -C ref commit -m 'Add ownership info';
-    $g -C ref push;
+    $g -C ref config user.name 'Test Script'
+    $g -C ref config user.email 'testscript@example.com'
+    $g -C ref add owners
+    $g -C ref commit -m 'Add ownership info'
+    $g -C ref push
 
     $* "$root_tgt_url" $~/ref $data_dir >>"EOO"
       : 1
@@ -805,19 +806,19 @@ pkg_ctl="$prj_ctl/hello.git"
   : target repo.
   :
   {
-    $clone_root_data_clean;
+    $clone_root_data_clean
 
-    $clone_root_tgt;
-    $g clone tgt.git &tgt/***;
+    $clone_root_tgt
+    $g clone tgt.git &tgt/***
 
-    mkdir -p tgt/1/alpha/hello;
-    cp $data_dir/libhello-0.1.0.tar.gz tgt/1/alpha/hello/;
+    mkdir -p tgt/1/alpha/hello
+    cp $data_dir/libhello-0.1.0.tar.gz tgt/1/alpha/hello/
 
-    $g -C tgt config user.name 'Test Script';
-    $g -C tgt config user.email 'testscript@example.com';
-    $g -C tgt add 1/;
-    $g -C tgt commit -m 'Add libhello-0.1.0.tar.gz';
-    $g -C tgt push;
+    $g -C tgt config user.name 'Test Script'
+    $g -C tgt config user.email 'testscript@example.com'
+    $g -C tgt add 1/
+    $g -C tgt commit -m 'Add libhello-0.1.0.tar.gz'
+    $g -C tgt push
 
     $* "file:///$~/tgt.git" $data_dir >>"EOO"
       : 1
@@ -832,14 +833,14 @@ pkg_ctl="$prj_ctl/hello.git"
   : Test the package ownership authentication failure using the target repo.
   :
   {
-    $clone_root_data_clean;
+    $clone_root_data_clean
 
-    $clone_root_tgt;
-    $g clone tgt.git &tgt/***;
+    $clone_root_tgt
+    $g clone tgt.git &tgt/***
 
-    mkdir -p tgt/owners/hello/libhello;
+    mkdir -p tgt/owners/hello/libhello
 
-    cat <<"EOI" >=tgt/owners/hello/project-owner.manifest;
+    cat <<"EOI" >=tgt/owners/hello/project-owner.manifest
       : 1
       name: hello
       author-name: User Name
@@ -847,7 +848,7 @@ pkg_ctl="$prj_ctl/hello.git"
       control: $prj_ctl/
       EOI
 
-    cat <<"EOI" >=tgt/owners/hello/libhello/package-owner.manifest;
+    cat <<"EOI" >=tgt/owners/hello/libhello/package-owner.manifest
       : 1
       name: libhello
       author-name: User Name
@@ -855,11 +856,11 @@ pkg_ctl="$prj_ctl/hello.git"
       control: $prj_ctl/foo
       EOI
 
-    $g -C tgt config user.name 'Test Script';
-    $g -C tgt config user.email 'testscript@example.com';
-    $g -C tgt add owners;
-    $g -C tgt commit -m 'Add ownership info';
-    $g -C tgt push;
+    $g -C tgt config user.name 'Test Script'
+    $g -C tgt config user.email 'testscript@example.com'
+    $g -C tgt add owners
+    $g -C tgt commit -m 'Add ownership info'
+    $g -C tgt push
 
     $* "file:///$~/tgt.git" $data_dir >>"EOO"
       : 1
@@ -876,12 +877,12 @@ pkg_ctl="$prj_ctl/hello.git"
   : handling is disabled.
   :
   {
-    $clone_root_data_clean;
+    $clone_root_data_clean
 
-    $clone_root_tgt;
-    $g clone tgt.git &tgt/***;
+    $clone_root_tgt
+    $g clone tgt.git &tgt/***
 
-    cat <<EOI >=tgt/submit.config.bash;
+    cat <<EOI >=tgt/submit.config.bash
       sections[alpha]=1/alpha
       sections[beta]=1/beta
       sections[stable]=1/testing
@@ -889,10 +890,10 @@ pkg_ctl="$prj_ctl/hello.git"
       # owners=owners
       EOI
 
-    $g -C tgt config user.name 'Test Script';
-    $g -C tgt config user.email 'testscript@example.com';
-    $g -C tgt commit -am 'Disable ownership';
-    $g -C tgt push;
+    $g -C tgt config user.name 'Test Script'
+    $g -C tgt config user.email 'testscript@example.com'
+    $g -C tgt commit -am 'Disable ownership'
+    $g -C tgt push
 
     $* "file:///$~/tgt.git" $root_ref_dir $data_dir >>"EOO"
       : 1
@@ -909,14 +910,14 @@ pkg_ctl="$prj_ctl/hello.git"
   : handling is disabled.
   :
   {
-    $clone_root_data_clean;
+    $clone_root_data_clean
 
-    $clone_root_ref;
-    $g clone ref.git &ref/***;
+    $clone_root_ref
+    $g clone ref.git &ref/***
 
-    mkdir -p ref/owners/hello/libhello;
+    mkdir -p ref/owners/hello/libhello
 
-    cat <<"EOI" >=ref/owners/hello/project-owner.manifest;
+    cat <<"EOI" >=ref/owners/hello/project-owner.manifest
       : 1
       name: hello
       author-name: User Name
@@ -924,16 +925,16 @@ pkg_ctl="$prj_ctl/hello.git"
       control: $prj_ctl/
       EOI
 
-    $g -C ref config user.name 'Test Script';
-    $g -C ref config user.email 'testscript@example.com';
-    $g -C ref add owners;
-    $g -C ref commit -m 'Add project ownership info';
-    $g -C ref push;
+    $g -C ref config user.name 'Test Script'
+    $g -C ref config user.email 'testscript@example.com'
+    $g -C ref add owners
+    $g -C ref commit -m 'Add project ownership info'
+    $g -C ref push
 
-    $clone_root_tgt;
-    $g clone tgt.git &tgt/***;
+    $clone_root_tgt
+    $g clone tgt.git &tgt/***
 
-    cat <<EOI >=tgt/submit.config.bash;
+    cat <<EOI >=tgt/submit.config.bash
       sections[alpha]=1/alpha
       sections[beta]=1/beta
       sections[stable]=1/testing
@@ -941,10 +942,10 @@ pkg_ctl="$prj_ctl/hello.git"
       # owners=owners
       EOI
 
-    $g -C tgt config user.name 'Test Script';
-    $g -C tgt config user.email 'testscript@example.com';
-    $g -C tgt commit -am 'Disable ownership';
-    $g -C tgt push;
+    $g -C tgt config user.name 'Test Script'
+    $g -C tgt config user.email 'testscript@example.com'
+    $g -C tgt commit -am 'Disable ownership'
+    $g -C tgt push
 
     $* "file:///$~/tgt.git" ref $data_dir >>"EOO"
       : 1
@@ -960,14 +961,14 @@ pkg_ctl="$prj_ctl/hello.git"
   : The package name is already used in other project.
   :
   {
-    $clone_root_data_clean;
+    $clone_root_data_clean
 
-    $clone_root_tgt;
-    $g clone tgt.git &tgt/***;
+    $clone_root_tgt
+    $g clone tgt.git &tgt/***
 
-    mkdir -p tgt/owners/hi/libhello;
+    mkdir -p tgt/owners/hi/libhello
 
-    cat <<"EOI" >=tgt/owners/hi/project-owner.manifest;
+    cat <<"EOI" >=tgt/owners/hi/project-owner.manifest
       : 1
       name: hi
       author-name: User Name
@@ -975,7 +976,7 @@ pkg_ctl="$prj_ctl/hello.git"
       control: $prj_ctl/
       EOI
 
-    cat <<"EOI" >=tgt/owners/hi/libhello/package-owner.manifest;
+    cat <<"EOI" >=tgt/owners/hi/libhello/package-owner.manifest
       : 1
       name: libhello
       author-name: User Name
@@ -983,11 +984,11 @@ pkg_ctl="$prj_ctl/hello.git"
       control: $prj_ctl/foo
       EOI
 
-    $g -C tgt config user.name 'Test Script';
-    $g -C tgt config user.email 'testscript@example.com';
-    $g -C tgt add owners;
-    $g -C tgt commit -m 'Add ownership info';
-    $g -C tgt push;
+    $g -C tgt config user.name 'Test Script'
+    $g -C tgt config user.email 'testscript@example.com'
+    $g -C tgt add owners
+    $g -C tgt commit -m 'Add ownership info'
+    $g -C tgt push
 
     $* "file:///$~/tgt.git" $data_dir >>"EOO"
       : 1
@@ -1003,13 +1004,13 @@ pkg_ctl="$prj_ctl/hello.git"
   : abbreviated checksum mismatch.
   :
   {
-    $clone_root_data_clean;
+    $clone_root_data_clean
 
     sed -i -e 's%^(sha256sum:) .+$%\1 59941e842667%' \
-        $data_dir/request.manifest;
+        $data_dir/request.manifest
 
-    $clone_root_tgt;
-    $g clone tgt.git &tgt/***;
+    $clone_root_tgt
+    $g clone tgt.git &tgt/***
 
     $* "file:///$~/tgt.git" $data_dir >>"EOO"
       : 1
@@ -1022,10 +1023,10 @@ pkg_ctl="$prj_ctl/hello.git"
   : section-unknown
   :
   {
-    $clone_root_data_clean;
-    sed -i -e 's%^(section:) .+$%\1 delta%' $data_dir/request.manifest;
+    $clone_root_data_clean
+    sed -i -e 's%^(section:) .+$%\1 delta%' $data_dir/request.manifest
 
-    $clone_root_tgt;
+    $clone_root_tgt
 
     $* "file:///$~/tgt.git" $root_ref_dir $data_dir >>"EOO"
       : 1
@@ -1038,11 +1039,11 @@ pkg_ctl="$prj_ctl/hello.git"
   : control-unavailable
   :
   {
-    $clone_root_data_clean;
+    $clone_root_data_clean
     sed -i -e 's%^(control:) .+$%\1 http://non-existent-host/path/rep.git%' \
-        $data_dir/request.manifest;
+        $data_dir/request.manifest
 
-    $clone_root_tgt;
+    $clone_root_tgt
 
     $* "file:///$~/tgt.git" $data_dir >>"EOO"
       : 1
@@ -1055,11 +1056,11 @@ pkg_ctl="$prj_ctl/hello.git"
   : control-clone-failed
   :
   {
-    $clone_root_data_clean;
+    $clone_root_data_clean
     sed -i -e 's%^(control:) .+$%\1 https://git.build2.org/no-such-repo.git%' \
-        $data_dir/request.manifest;
+        $data_dir/request.manifest
 
-    $clone_root_tgt;
+    $clone_root_tgt
 
     $* "file:///$~/tgt.git" $data_dir >>"EOO"
       : 1
@@ -1077,7 +1078,7 @@ pkg_ctl="$prj_ctl/hello.git"
   : target-unavailable
   :
   {
-    $clone_root_data_clean;
+    $clone_root_data_clean
 
     $* 'http://non-existent-host/path/rep.git' $data_dir >>"EOO" 2>>~%EOE%
       : 1
@@ -1092,10 +1093,10 @@ pkg_ctl="$prj_ctl/hello.git"
   : target-clone-failed
   :
   {
-    $clone_root_data_clean;
+    $clone_root_data_clean
 
     $* 'https://git.build2.org/no-such-repo.git' $data_dir 2>>~%EOE% != 0
       %fatal: .+%
       EOE
   }
-}
+}}

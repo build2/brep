@@ -3,7 +3,7 @@
 
 : single-manifest
 :
-{
+{{
   test.options += -r
 
   : valid
@@ -33,7 +33,7 @@
 
   : redefinition
   :
-  {
+  {{
     : reviewed-by
     :
     {
@@ -53,11 +53,11 @@
       result-code: fail
       EOI
     }
-  }
+  }}
 
   : invalid
   :
-  {
+  {{
     : reviewed-by-empty
     :
     {
@@ -84,11 +84,11 @@
         details-url:
         EOI
     }
-  }
+  }}
 
   : mandatory
   :
-  {
+  {{
     : reviewed-by
     :
     {
@@ -125,12 +125,12 @@
         result-code: fail
         EOI
     }
-  }
-}
+  }}
+}}
 
 : multiple-manifests
 :
-{
+{{
   test.options += -rl
 
   : valid-manifest-list
@@ -156,16 +156,16 @@
     $* <:'' >:''
   }
 
-    : no-details-url
-    :
-    {
-      $* <<EOI 2>"stdin:7:1: error: no details url specified" != 0
-        : 1
-        reviewed-by: John Doe <john@doe.com>
-        result-build: pass
-        :
-        reviewed-by: John Doe <john@doe.com>
-        result-code: fail
-        EOI
-    }
-}
+  : no-details-url
+  :
+  {
+    $* <<EOI 2>"stdin:7:1: error: no details url specified" != 0
+      : 1
+      reviewed-by: John Doe <john@doe.com>
+      result-build: pass
+      :
+      reviewed-by: John Doe <john@doe.com>
+      result-code: fail
+      EOI
+  }
+}}
