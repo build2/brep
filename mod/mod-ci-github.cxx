@@ -3422,149 +3422,164 @@ namespace brep
     //
     if (iat != nullptr)
     {
-      // Prepare the check run's summary field (the build information in an
-      // XHTML table).
-      //
-      string sm; // Summary.
+      switch (sd.report_mode)
       {
-        using namespace web::xhtml;
-
-        // Note: let all serialization exceptions propagate. The XML
-        // serialization code can throw bad_alloc or xml::serialization in
-        // case of I/O failures, but we're serializing to a string stream so
-        // both exceptions are unlikely.
-        //
-        ostringstream os;
-        xml::serializer s (os, "check_run_summary");
-
-        // This hack is required to disable XML element name prefixes (which
-        // GitHub does not like). Note that this adds an xmlns declaration for
-        // the XHTML namespace which for now GitHub appears to ignore. If that
-        // ever becomes a problem, then we should redo this with raw XML
-        // serializer calls.
-        //
-        struct table: element
+      case report_mode::detailed:
         {
-          table (): element ("table") {}
-
-          void
-          start (xml::serializer& s) const override
-          {
-            s.start_element (xmlns, name);
-            s.namespace_decl (xmlns, "");
-          }
-        } TABLE;
-
-        // Serialize a result row (colored circle, result text, log URL) for
-        // an operation and result_status.
-        //
-        auto tr_result = [this, &b] (xml::serializer& s,
-                                     const string& op,
-                                     result_status rs)
-        {
-          // The log URL.
+          // Prepare the check run's summary field (the build information in
+          // an XHTML table).
           //
-          string lu (build_log_url (options_->host (),
-                                    options_->root (),
-                                    b,
-                                    op != "result" ? &op : nullptr));
+          string sm; // Summary.
+          {
+            using namespace web::xhtml;
 
-          s << TR
-            <<   TD << EM << op << ~EM << ~TD
-            <<   TD
-            <<     circle (rs) << ' '
-            <<     CODE << to_string (rs) << ~CODE
-            <<     " (" << A << HREF << lu << ~HREF << "log" << ~A << ')'
-            <<   ~TD
-            << ~TR;
-        };
+            // Note: let all serialization exceptions propagate. The XML
+            // serialization code can throw bad_alloc or xml::serialization in
+            // case of I/O failures, but we're serializing to a string stream
+            // so both exceptions are unlikely.
+            //
+            ostringstream os;
+            xml::serializer s (os, "check_run_summary");
 
-        // Serialize the summary to an XHTML table.
-        //
-        s << TABLE
-          <<   TBODY;
+            // This hack is required to disable XML element name prefixes
+            // (which GitHub does not like). Note that this adds an xmlns
+            // declaration for the XHTML namespace which for now GitHub
+            // appears to ignore. If that ever becomes a problem, then we
+            // should redo this with raw XML serializer calls.
+            //
+            struct table: element
+            {
+              table (): element ("table") {}
 
-        tr_result (s, "result", *b.status);
+              void
+              start (xml::serializer& s) const override
+              {
+                s.start_element (xmlns, name);
+                s.namespace_decl (xmlns, "");
+              }
+            } TABLE;
 
-        s <<     TR
-          <<       TD << EM   << "package"      << ~EM   << ~TD
-          <<       TD << CODE << b.package_name << ~CODE << ~TD
-          <<     ~TR
-          <<     TR
-          <<       TD << EM   << "version"         << ~EM   << ~TD
-          <<       TD << CODE << b.package_version << ~CODE << ~TD
-          <<     ~TR
-          <<     TR
-          <<       TD << EM << "toolchain" << ~EM << ~TD
-          <<       TD
-          <<         CODE
-          <<           b.toolchain_name << '-' << b.toolchain_version.string ()
-          <<         ~CODE
-          <<       ~TD
-          <<     ~TR
-          <<     TR
-          <<       TD << EM   << "target"           << ~EM   << ~TD
-          <<       TD << CODE << b.target.string () << ~CODE << ~TD
-          <<     ~TR
-          <<     TR
-          <<       TD << EM   << "target config"      << ~EM   << ~TD
-          <<       TD << CODE << b.target_config_name << ~CODE << ~TD
-          <<     ~TR
-          <<     TR
-          <<       TD << EM   << "package config"      << ~EM   << ~TD
-          <<       TD << CODE << b.package_config_name << ~CODE << ~TD
-          <<     ~TR;
+            // Serialize a result row (colored circle, result text, log URL)
+            // for an operation and result_status.
+            //
+            auto tr_result = [this, &b] (xml::serializer& s,
+                                         const string& op,
+                                         result_status rs)
+            {
+              // The log URL.
+              //
+              string lu (build_log_url (options_->host (),
+                                        options_->root (),
+                                        b,
+                                        op != "result" ? &op : nullptr));
 
-        for (const operation_result& r: b.results)
-          tr_result (s, r.operation, r.status);
+              s << TR
+                <<   TD << EM << op << ~EM << ~TD
+                <<   TD
+                <<     circle (rs) << ' '
+                <<     CODE << to_string (rs) << ~CODE
+                <<     " (" << A << HREF << lu << ~HREF << "log" << ~A << ')'
+                <<   ~TD
+                << ~TR;
+            };
 
-        s <<   ~TBODY
-          << ~TABLE;
+            // Serialize the summary to an XHTML table.
+            //
+            s << TABLE
+              <<   TBODY;
 
-        sm = os.str ();
-      }
+            tr_result (s, "result", *b.status);
 
-      gq_built_result br (
-        make_built_result (*b.status, sd.warning_success, move (sm)));
+            s <<     TR
+              <<       TD << EM   << "package"      << ~EM   << ~TD
+              <<       TD << CODE << b.package_name << ~CODE << ~TD
+              <<     ~TR
+              <<     TR
+              <<       TD << EM   << "version"         << ~EM   << ~TD
+              <<       TD << CODE << b.package_version << ~CODE << ~TD
+              <<     ~TR
+              <<     TR
+              <<       TD << EM << "toolchain" << ~EM << ~TD
+              <<       TD
+              <<         CODE
+              <<           b.toolchain_name << '-' << b.toolchain_version.string ()
+              <<         ~CODE
+              <<       ~TD
+              <<     ~TR
+              <<     TR
+              <<       TD << EM   << "target"           << ~EM   << ~TD
+              <<       TD << CODE << b.target.string () << ~CODE << ~TD
+              <<     ~TR
+              <<     TR
+              <<       TD << EM   << "target config"      << ~EM   << ~TD
+              <<       TD << CODE << b.target_config_name << ~CODE << ~TD
+              <<     ~TR
+              <<     TR
+              <<       TD << EM   << "package config"      << ~EM   << ~TD
+              <<       TD << CODE << b.package_config_name << ~CODE << ~TD
+              <<     ~TR;
 
-      if (cr.node_id)
-      {
-        // Update existing check run to built. Let unlikely invalid_argument
-        // propagate.
-        //
-        if (gq_update_check_run (error,
-                                 cr,
-                                 iat->token,
-                                 sd.repository_node_id,
-                                 *cr.node_id,
-                                 move (br)))
-        {
-          assert (cr.state == build_state::built);
-          l3 ([&]{trace << "updated check_run { " << cr << " }";});
+            for (const operation_result& r: b.results)
+              tr_result (s, r.operation, r.status);
+
+            s <<   ~TBODY
+              << ~TABLE;
+
+            sm = os.str ();
+          }
+
+          gq_built_result br (
+            make_built_result (*b.status, sd.warning_success, move (sm)));
+
+          if (cr.node_id)
+          {
+            // Update existing check run to built. Let unlikely
+            // invalid_argument propagate.
+            //
+            if (gq_update_check_run (error,
+                                     cr,
+                                     iat->token,
+                                     sd.repository_node_id,
+                                     *cr.node_id,
+                                     move (br)))
+            {
+              assert (cr.state == build_state::built);
+              l3 ([&]{trace << "updated check_run { " << cr << " }";});
+            }
+          }
+          else
+          {
+            // Create new check run. Let unlikely invalid_argument propagate.
+            //
+            // Note that we don't have build hints so will be creating this
+            // check run with the full build id as name. In the unlikely event
+            // that an out of order build_queued() were to run before we've
+            // saved this check run to the service data it will create another
+            // check run with the shortened name which will never get to the
+            // built state.
+            //
+            if (gq_create_check_run (error,
+                                     cr,
+                                     iat->token,
+                                     sd.app_id,
+                                     sd.repository_node_id,
+                                     sd.report_sha,
+                                     details_url (b),
+                                     move (br)))
+            {
+              assert (cr.state == build_state::built);
+              l3 ([&]{trace << "created check_run { " << cr << " }";});
+            }
+          }
+          break;
         }
-      }
-      else
-      {
-        // Create new check run. Let unlikely invalid_argument propagate.
-        //
-        // Note that we don't have build hints so will be creating this check
-        // run with the full build id as name. In the unlikely event that an
-        // out of order build_queued() were to run before we've saved this
-        // check run to the service data it will create another check run with
-        // the shortened name which will never get to the built state.
-        //
-        if (gq_create_check_run (error,
-                                 cr,
-                                 iat->token,
-                                 sd.app_id,
-                                 sd.repository_node_id,
-                                 sd.report_sha,
-                                 details_url (b),
-                                 move (br)))
+      case report_mode::aggregate:
         {
-          assert (cr.state == build_state::built);
-          l3 ([&]{trace << "created check_run { " << cr << " }";});
+          // Aggregate reporting mode.
+
+          break;
         }
+      case report_mode::undetermined: assert (false); break;
       }
 
       if (cr.state_synced)
