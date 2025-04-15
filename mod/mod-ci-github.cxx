@@ -2736,43 +2736,124 @@ namespace brep
     else
       iat = &sd.installation_access;
 
+    // Determine the reporting mode: detailed or aggregate.
+    //
+    // In the aggregate reporting mode we don't actually update the check runs
+    // on GitHub; we only simulate it by updating the local check run objects
+    // in the same way a GitHub update would have (because these check runs
+    // are used to calculate the build stats for the conclusion check run
+    // later in build_building() or build_built()).
+    //
+    // Note: don't go into the aggregate reporting mode if we were already in
+    // the detailed reporting mode (which could occur if the check suite was
+    // re-requested). Going from detailed to the aggregate reporting mode
+    // would cause the check runs to be left in an outdated state
+    // indefinitely.
+
+    // Reporting mode is only determined and saved in this function so it must
+    // be undetermined in the service data unless this is a re-request.
+    //
+    assert (sd.report_mode == report_mode::undetermined || sd.re_request);
+
+    report_mode rm (report_mode::undetermined);
+
+    if (sd.report_mode != report_mode::detailed) // Undetermined/aggregate mode
+    {
+      // Determine the reporting mode based on the number of builds or the
+      // reporting budget.
+      //
+      if (crs.size () > options_->ci_github_builds_limit_aggr_report ())
+        rm = report_mode::aggregate;
+      else
+      {
+        // @@ TMP Assuming the number of check runs needs to be factored into
+        //    the limits/budget-based decision (so this has to be done here in
+        //    build_queued()).
+        //
+        bool limited (false); // @@ TODO
+
+        rm = (limited ? report_mode::aggregate : report_mode::detailed);
+      }
+    }
+    else // Detailed reporting mode (in the service data).
+    {
+      // Never switch out of the detailed mode.
+
+      if (crs.size () > options_->ci_github_builds_limit_aggr_report ())
+      {
+        // If we were in the detailed mode previously then the value of
+        // ci-github-builds-limit-aggr-report must have been lowered in the
+        // meantime.
+        //
+        error << "refusing to switch from detailed to aggregate "
+              << "reporting mode based on the build count "
+              << "(has the configuration been modified?)";
+      }
+
+      rm = report_mode::detailed;
+    }
+
     // Note: we treat the failure to obtain the installation access token the
     // same as the failure to notify GitHub (state is updated by not marked
     // synced).
     //
     if (iat != nullptr)
     {
-      // Create a check_run for each build as a single request.
-      //
-      // Let unlikely invalid_argument propagate.
-      //
-      gq_rate_limits limits;
-      if (gq_create_check_runs (error,
-                                crs,
-                                iat->token,
-                                sd.app_id,
-                                sd.repository_node_id,
-                                sd.report_sha,
-                                options_->build_queued_batch (),
-                                &limits))
+      switch (rm)
       {
-        for (const check_run& cr: crs)
+      case report_mode::undetermined: assert (false); break;
+      case report_mode::detailed:
         {
-          // We can only create a check run in the queued state.
+          // Create a check_run for each build as a single request.
           //
-          assert (cr.state == build_state::queued);
-          l3 ([&]{trace << "created check_run { " << cr << " }";});
+          // Let unlikely invalid_argument propagate.
+          //
+          gq_rate_limits limits;
+          if (gq_create_check_runs (error,
+                                    crs,
+                                    iat->token,
+                                    sd.app_id,
+                                    sd.repository_node_id,
+                                    sd.report_sha,
+                                    options_->build_queued_batch (),
+                                    &limits))
+          {
+            for (const check_run& cr: crs)
+            {
+              // We can only create a check run in the queued state.
+              //
+              assert (cr.state == build_state::queued);
+              l3 ([&]{trace << "created check_run { " << cr << " }";});
+            }
+          }
+
+          info << "installation id " << sd.installation_id << " limits: "
+               << limits;
+
+          break;
+        }
+      case report_mode::aggregate:
+        {
+          // Don't actually update the check runs on GitHub; only simulate the
+          // updates and save the check runs (but note that the node ids will
+          // remain absent).
+          //
+          for (check_run& cr: crs)
+          {
+            assert (cr.state == build_state::queued); // Set above.
+            cr.state_synced = true;
+          }
+
+          break;
         }
       }
-
-      info << "installation id " << sd.installation_id << " limits: "
-           << limits;
     }
 
     return [tenant_id,
             bs = move (bs),
             iat = move (new_iat),
             crs = move (crs),
+            rm,
             error = move (error),
             warn = move (warn)] (const string& ti,
                                  const tenant_service& ts) -> optional<string>
@@ -2818,6 +2899,8 @@ namespace brep
         else
           sd.check_runs.push_back (cr);
       }
+
+      sd.report_mode = rm;
 
       return sd.json ();
     };
