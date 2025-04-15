@@ -130,6 +130,9 @@ namespace brep
         }
       }
 
+      if (!options_->ci_github_builds_limit_aggr_report_specified ())
+        fail << "ci-github-builds-limit-aggr-report not configured";
+
       ci_start::init (make_shared<options::ci_start> (*options_));
 
       database_module::init (*options_, options_->build_db_retry ());
