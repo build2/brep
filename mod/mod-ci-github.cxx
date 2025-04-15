@@ -3362,8 +3362,18 @@ namespace brep
     // in build_completed(). Note that determining whether we have no more
     // unbuilt would be racy here so instead we do it in the service data
     // update function that we return.
-
-    check_run cr; // Updated check run.
+    //
+    // In the aggregated reporting mode we update the conclusion check run on
+    // GitHub (with the latest build stats) and only simulate the GitHub
+    // update of the build check run (just as we do in build_queued() and
+    // build_building()).
+    //
+    // To summarize, in the detailed reporting mode we update only the build
+    // check run on GitHub and in the aggregate reporting mode we update only
+    // the conclusion check run on GitHub.
+    //
+    check_run cr;       // Updated check run.
+    build_stats bstats; // Build stats (for the aggregate reporting mode).
     {
       string bid (gh_check_run_name (b)); // Full build id.
 
@@ -3380,6 +3390,19 @@ namespace brep
         if (scr->state == build_state::built)
           return nullptr;
 
+        // Calculate build stats for the conclusion check run if in aggregate
+        // reporting mode.
+        //
+        // Note that we treat the undetermined reporting mode the same as the
+        // detailed mode (see below for details).
+        //
+        if (sd.report_mode == report_mode::aggregate)
+        {
+          scr->state = build_state::built; // Required for the calculation.
+          scr->status = b.status;          // Required for the calculation.
+          bstats = calculate_build_stats (sd.check_runs, sd.warning_success);
+        }
+
         cr = move (*scr);
       }
       else
@@ -3392,6 +3415,17 @@ namespace brep
         //
         cr.build_id = move (bid);
         cr.name = cr.build_id;
+
+        // Calculate build stats for the conclusion check run if in aggregate
+        // reporting mode.
+        //
+        if (sd.report_mode == report_mode::aggregate)
+        {
+          cr.state = build_state::built; // Required for the calculation.
+          cr.status = b.status;          // Required for the calculation.
+          sd.check_runs.push_back (cr);
+          bstats = calculate_build_stats (sd.check_runs, sd.warning_success);
+        }
       }
 
       cr.state_synced = false;
@@ -3424,6 +3458,16 @@ namespace brep
     {
       switch (sd.report_mode)
       {
+        // Reporting mode will be undetermined if this is an out-of-order
+        // built notification (queued notification not delivered yet) in which
+        // case emulate the detailed reporting mode (temporarily, just for
+        // this build) because it's unlikely that there will be more than a
+        // few of these so it should have little impact on the number of
+        // available rate limit points. (If, on the other hand, we went into
+        // aggregate mode when we should've been in detailed mode then this
+        // build won't have a check run.)
+        //
+      case report_mode::undetermined:
       case report_mode::detailed:
         {
           // Prepare the check run's summary field (the build information in
@@ -3571,16 +3615,66 @@ namespace brep
               l3 ([&]{trace << "created check_run { " << cr << " }";});
             }
           }
+
           break;
         }
       case report_mode::aggregate:
         {
-          // Aggregate reporting mode.
+          // Update the conclusion check run on GitHub with the current build
+          // stats if this build falls on a report interval (i.e., the current
+          // completed count is a multiple of the interval, the size of which
+          // is calculated to keep us within our report budget).
+
+          // Note that the current build has already been counted as built.
+          //
+          size_t built_count (bstats.success_count + bstats.failure_count);
+
+          // If the report budget is greater than or equal to the number of
+          // builds, report on every build (interval value 1).
+          //
+          size_t report_interval (sd.report_budget < sd.check_runs.size ()
+                                  ? sd.check_runs.size () / sd.report_budget
+                                  : 1);
+
+          if (built_count % report_interval == 0)
+          {
+            assert (sd.conclusion_node_id.has_value ());
+
+            check_run ccr;
+            ccr.name = conclusion_check_run_name (sd.app_id);
+            ccr.state_synced = false;
+
+            string r (make_build_stats_report (bstats, sd.warning_success));
+
+            if (gq_update_check_run (error,
+                                     ccr,
+                                     iat->token,
+                                     sd.repository_node_id,
+                                     *sd.conclusion_node_id,
+                                     build_state::building,
+                                     conclusion_building_title,
+                                     r + ". " + force_rebuild_md_link (sd) +
+                                       '.'))
+            {
+              assert (ccr.state == build_state::building);
+              l3 ([&]{trace << "updated conclusion check_run { " << ccr << " }";});
+            }
+          }
+
+          // Simulate the update of the build check run on GitHub.
+          //
+          assert (cr.state == build_state::built); // Set above.
+          assert (cr.status.has_value ());         // Set above.
+          cr.state_synced = true;
 
           break;
         }
-      case report_mode::undetermined: assert (false); break;
       }
+
+      // Ensure we only save a result_status if the build_state has been
+      // synced with GitHub.
+      //
+      assert (cr.state_synced || !cr.status.has_value ());
 
       if (cr.state_synced)
       {
