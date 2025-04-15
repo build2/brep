@@ -1240,9 +1240,15 @@ namespace brep
 
     if (cs.check_suite.check_runs_count != check_runs_count)
     {
-      error << sub << ": check runs count " << cs.check_suite.check_runs_count
-            << " does not match service data count " << check_runs_count;
-      return true;
+      // Don't log error in the aggregate reporting mode because there won't
+      // be any check runs on GitHub.
+      //
+      if (sd.report_mode != report_mode::aggregate)
+      {
+        error << sub << ": check runs count " << cs.check_suite.check_runs_count
+              << " does not match service data count " << check_runs_count;
+        return true;
+      }
     }
 
     // Verify that all the check runs are built and compute the summary
