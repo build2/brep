@@ -1009,12 +1009,13 @@ namespace brep
     // If the user requests a rebuild of the (entire) PR, then this manifests
     // as the check_suite rather than pull_request event. Specifically:
     //
-    // - For a local PR, this event is shared with the branch push and all we
-    //   need to do is restart the CI for the head commit.
+    // - For a local PR, this event is shared with the branch push and
+    //   therefore the check sha is also the report sha (check suite head
+    //   sha).
     //
     // - For a remote PR, this event will have no gh_check_suite::head_branch.
-    //   In this case we need to load the existing service data for this head
-    //   commit, extract the test merge commit, and restart the CI for that.
+    //   In this case the check sha represents the test merge commit and thus
+    //   differs from the report sha (check suite head sha).
     //
     //   Note that it's possible the base branch has moved in the meantime and
     //   ideally we would want to re-request the test merge commit, etc.
@@ -1022,45 +1023,60 @@ namespace brep
     //   recommendation of enabling the head-behind-base protection. And it
     //   seems all this extra complexity would not be warranted.
     //
-    string check_sha;
+
+    // Load the service data in order to copy the service data kind, the check
+    // sha (in order to cover both the local and remote PR cases described
+    // above), and the previous reporting mode (required in build_queued() to
+    // decide on the new mode) into the new tentant's service data.
+    //
     service_data::kind_type kind;
+    string check_sha;
+    report_mode rmode;
 
-    if (!cs.check_suite.head_branch)
+    if (optional<tenant_data> d = find (*build_db_, "ci-github", sid))
     {
-      // Rebuild of remote PR.
-      //
-      kind = service_data::remote;
+      tenant_service& ts (d->service);
 
-      if (optional<tenant_data> d = find (*build_db_, "ci-github", sid))
+      try
       {
-        tenant_service& ts (d->service);
+        service_data sd (*ts.data);
 
-        try
-        {
-          service_data sd (*ts.data);
-          check_sha = move (sd.check_sha); // Test merge commit.
-        }
-        catch (const invalid_argument& e)
-        {
-          fail << "failed to parse service data: " << e;
-        }
+        kind = sd.kind;
+        check_sha = move (sd.check_sha);
+        rmode = sd.report_mode;
       }
-      else
+      catch (const invalid_argument& e)
       {
-        error << "check suite " << cs.check_suite.node_id
-              << " for remote pull request:"
-              << " re-requested but tenant_service with id " << sid
-              << " did not exist";
-        return true;
+        fail << "failed to parse service data: " << e;
       }
     }
     else
     {
-      // Rebuild of branch push or local PR.
-      //
-      kind = service_data::local;
-      check_sha = cs.check_suite.head_sha;
+      error << "check suite " << cs.check_suite.node_id
+            << " re-requested but tenant_service with id " << sid
+            << " did not exist";
+      return true;
     }
+
+    // Sanity check the local/remote PR cases (see above for details).
+    //
+#ifndef NDEBUG
+    switch (kind)
+    {
+    case service_data::remote:
+      {
+        assert (!cs.check_suite.head_branch.has_value ());
+        assert (check_sha != cs.check_suite.head_sha);
+        break;
+      }
+    case service_data::local:
+      {
+        assert (cs.check_suite.head_branch.has_value ());
+        assert (check_sha == cs.check_suite.head_sha);
+        break;
+      }
+    }
+#endif
 
     service_data sd (warning_success,
                      iat->token,
@@ -1072,6 +1088,8 @@ namespace brep
                      kind, false /* pre_check */, true /* re_requested */,
                      move (check_sha),
                      move (cs.check_suite.head_sha) /* report_sha */);
+
+    sd.report_mode = rmode;
 
     // Replace the existing CI tenant if it exists.
     //
