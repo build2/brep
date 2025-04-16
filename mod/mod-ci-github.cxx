@@ -786,6 +786,7 @@ namespace brep
                      service_data::local,
                      false /* pre_check */,
                      false /* re_requested */,
+                     report_mode::undetermined,
                      ps.after /* check_sha */,
                      ps.after /* report_sha */);
 
@@ -1071,10 +1072,9 @@ namespace brep
                      move (cs.repository.node_id),
                      move (cs.repository.clone_url),
                      kind, false /* pre_check */, true /* re_requested */,
+                     rmode,
                      move (check_sha),
                      move (cs.check_suite.head_sha) /* report_sha */);
-
-    sd.report_mode = rmode; // @@ Let's pass in ctor.
 
     // Replace the existing CI tenant if it exists.
     //

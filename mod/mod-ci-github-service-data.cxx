@@ -155,10 +155,11 @@ namespace brep
                 kind_type k,
                 bool pc,
                 bool rr,
+                brep::report_mode rm,
                 string cs,
                 string rs)
       : kind (k), pre_check (pc), re_request (rr),
-        report_mode (report_mode::undetermined), report_budget (0),
+        report_mode (rm), report_budget (0),
         warning_success (ws),
         installation_access (move (iat_tok), iat_ea),
         app_id (aid),

@@ -183,6 +183,7 @@ namespace brep
                   kind_type kind,
                   bool pre_check,
                   bool re_request,
+                  brep::report_mode,
                   string check_sha,
                   string report_sha);
 
