@@ -1224,9 +1224,11 @@ namespace brep
     }
 
     // In the aggregate reporting mode there won't be any check runs on
-    // GitHub.
+    // GitHub. It's also theoretically possible for the reporting mode to be
+    // undetermined at this stage in which case all check runs would not have
+    // been created (see build_built()).
     //
-    if (sd.report_mode != report_mode::aggregate)
+    if (sd.report_mode == report_mode::detailed)
     {
       if (cs.check_suite.check_runs_count != check_runs_count)
       {
@@ -3160,6 +3162,9 @@ namespace brep
 
             break;
           }
+          // Note: reporting mode cannot be undetermined if check run is
+          // queued.
+          //
         case report_mode::undetermined: assert (false);
         }
       }
@@ -3180,6 +3185,10 @@ namespace brep
 
     if (bcr.build_id.empty ())
       return nullptr; // Not in service data, state unsynced, or out of order.
+
+    // If we're proceeding then the reporting mode cannot be undetermined.
+    //
+    assert (sd.report_mode != report_mode::undetermined);
 
     // Get a new installation access token if the current one has expired.
     //
@@ -3687,8 +3696,18 @@ namespace brep
           // Reporting mode could theoretically be undetermined if this is an
           // out-of-order notification so let's not assert.
 
-          // @@ Let's log an error and bail out. And in other functions.
+          string bid (gh_check_run_name (b)); // Full build id.
+
+          error << "check run " << bid << ": reporting mode is undetermined";
+
+          // Simulate the GitHub update of the build check run as in the
+          // aggregate reporting mode case but do not update the conclusion
+          // check run.
           //
+          cr.state = build_state::built;
+          cr.status = b.status;
+          cr.state_synced = true;
+
           break;
         }
       }
