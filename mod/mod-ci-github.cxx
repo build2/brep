@@ -1056,7 +1056,7 @@ namespace brep
       return true;
     }
 
-    // Sanity check the local cases (see above for details).
+    // Sanity check the local case (see above for details).
     //
     if (kind == service_data::local)
     {
@@ -3386,7 +3386,7 @@ namespace brep
     // check run on GitHub and in the aggregate reporting mode we update only
     // the conclusion check run on GitHub. The reason we do the latter here
     // and not in build_building() (as in the detailed mode) is to avoid
-    // races: it is a lot more likely to simultaneously received multiple
+    // races: it is a lot more likely to simultaneously receive multiple
     // building notifications than built. And this could lead to multiple
     // notifications seeing the same counts and trying to update the
     // conclusion check run.
@@ -3642,9 +3642,8 @@ namespace brep
           // If the report budget is greater than or equal to the number of
           // builds, report on every build (interval value 1).
           //
-          // @@ Let's uses stats for size().
-          //
-          size_t total_count (sd.check_runs.size ());
+          size_t total_count (bstats.queued_count + bstats.building_count +
+                              bstats.success_count + bstats.failure_count);
 
           size_t report_interval (sd.report_budget < total_count
                                   ? total_count / sd.report_budget
