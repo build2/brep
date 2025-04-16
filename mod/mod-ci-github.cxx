@@ -130,9 +130,6 @@ namespace brep
         }
       }
 
-      if (!options_->ci_github_builds_limit_aggr_report_specified ())
-        fail << "ci-github-builds-limit-aggr-report not configured";
-
       ci_start::init (make_shared<options::ci_start> (*options_));
 
       database_module::init (*options_, options_->build_db_retry ());
@@ -1058,25 +1055,13 @@ namespace brep
       return true;
     }
 
-    // Sanity check the local/remote PR cases (see above for details).
+    // Sanity check the local cases (see above for details).
     //
-#ifndef NDEBUG
-    switch (kind)
+    if (kind == service_data::local)
     {
-    case service_data::remote:
-      {
-        assert (!cs.check_suite.head_branch.has_value ());
-        assert (check_sha != cs.check_suite.head_sha);
-        break;
-      }
-    case service_data::local:
-      {
-        assert (cs.check_suite.head_branch.has_value ());
-        assert (check_sha == cs.check_suite.head_sha);
-        break;
-      }
+      assert (cs.check_suite.head_branch.has_value ());
+      assert (check_sha == cs.check_suite.head_sha);
     }
-#endif
 
     service_data sd (warning_success,
                      iat->token,
@@ -1089,7 +1074,7 @@ namespace brep
                      move (check_sha),
                      move (cs.check_suite.head_sha) /* report_sha */);
 
-    sd.report_mode = rmode;
+    sd.report_mode = rmode; // @@ Let's pass in ctor.
 
     // Replace the existing CI tenant if it exists.
     //
@@ -1238,12 +1223,12 @@ namespace brep
       return true;
     }
 
-    if (cs.check_suite.check_runs_count != check_runs_count)
+    // In the aggregate reporting mode there won't be any check runs on
+    // GitHub.
+    //
+    if (sd.report_mode != report_mode::aggregate)
     {
-      // Don't log error in the aggregate reporting mode because there won't
-      // be any check runs on GitHub.
-      //
-      if (sd.report_mode != report_mode::aggregate)
+      if (cs.check_suite.check_runs_count != check_runs_count)
       {
         error << sub << ": check runs count " << cs.check_suite.check_runs_count
               << " does not match service data count " << check_runs_count;
@@ -2746,15 +2731,13 @@ namespace brep
     //
     // In the aggregate reporting mode we don't actually update the check runs
     // on GitHub; we only simulate it by updating the local check run objects
-    // in the same way a GitHub update would have (because these check runs
-    // are used to calculate the build stats for the conclusion check run
-    // later in build_building() or build_built()).
+    // in the same way a GitHub update would have.
     //
     // Note: don't go into the aggregate reporting mode if we were already in
     // the detailed reporting mode (which could occur if the check suite was
     // re-requested). Going from detailed to the aggregate reporting mode
-    // would cause the check runs to be left in an outdated state
-    // indefinitely.
+    // would cause the existing build check runs to be left in an outdated
+    // state indefinitely.
 
     // Reporting mode is only determined and saved in this function so it must
     // be undetermined in the service data unless this is a re-request.
@@ -2762,41 +2745,58 @@ namespace brep
     assert (sd.report_mode == report_mode::undetermined || sd.re_request);
 
     report_mode rm (report_mode::undetermined);
+    uint64_t rb (0);
 
-    if (sd.report_mode != report_mode::detailed) // Undetermined/aggregate mode
+    uint64_t builds_limit (options_->ci_github_builds_aggregate_report ());
+
+    switch (sd.report_mode)
     {
-      // Determine the reporting mode based on the number of builds or the
-      // reporting budget.
-      //
-      if (crs.size () > options_->ci_github_builds_limit_aggr_report ())
-        rm = report_mode::aggregate;
-      else
+    case report_mode::undetermined:
+    case report_mode::aggregate:
       {
-        // @@ TMP Assuming the number of check runs needs to be factored into
-        //    the limits/budget-based decision (so this has to be done here in
-        //    build_queued()).
+        // Determine the reporting mode based on the number of builds and the
+        // reporting budget.
         //
-        bool limited (false); // @@ TODO
+        if (builds_limit != 0 && crs.size () > builds_limit)
+        {
+          rm = report_mode::aggregate;
+          rb = 10; // @@ TMP
+        }
+        else
+        {
+          // @@ TMP Assuming the number of check runs needs to be factored
+          //    into the limits/budget-based decision (so this has to be done
+          //    here in build_queued()).
+          //
+          bool limited (false); // @@ TODO
 
-        rm = (limited ? report_mode::aggregate : report_mode::detailed);
+          if (limited)
+          {
+            rm = report_mode::aggregate;
+            rb = 10; // @@ TMP
+          }
+          else
+            rm = report_mode::detailed;
+        }
+
+        break;
       }
-    }
-    else // Detailed reporting mode (in the service data).
-    {
-      // Never switch out of the detailed mode.
-
-      if (crs.size () > options_->ci_github_builds_limit_aggr_report ())
+    case report_mode::detailed:
       {
-        // If we were in the detailed mode previously then the value of
-        // ci-github-builds-limit-aggr-report must have been lowered in the
-        // meantime.
-        //
-        error << "refusing to switch from detailed to aggregate "
-              << "reporting mode based on the build count "
-              << "(has the configuration been modified?)";
-      }
+        // Never switch out of the detailed mode.
 
-      rm = report_mode::detailed;
+        if (builds_limit != 0 && crs.size () > builds_limit)
+        {
+          // If we were in the detailed mode previously then the limit must
+          // have been lowered in the meantime.
+          //
+          warn << "refusing to switch from detailed to aggregate "
+               << "reporting mode based on lower build count limit";
+        }
+
+        rm = report_mode::detailed;
+        break;
+      }
     }
 
     // Note: we treat the failure to obtain the installation access token the
@@ -2807,7 +2807,6 @@ namespace brep
     {
       switch (rm)
       {
-      case report_mode::undetermined: assert (false); break;
       case report_mode::detailed:
         {
           // Create a check_run for each build as a single request.
@@ -2850,8 +2849,13 @@ namespace brep
             cr.state_synced = true;
           }
 
+          // @@ TODO: update conclusion check run with stats (it may be a
+          //    while until we get the first build_built() notification).
+          //    Let's fudge +1 building, -1 queued.
+
           break;
         }
+      case report_mode::undetermined: assert (false);
       }
     }
 
@@ -2859,7 +2863,7 @@ namespace brep
             bs = move (bs),
             iat = move (new_iat),
             crs = move (crs),
-            rm,
+            rm, rb,
             error = move (error),
             warn = move (warn)] (const string& ti,
                                  const tenant_service& ts) -> optional<string>
@@ -2907,6 +2911,7 @@ namespace brep
       }
 
       sd.report_mode = rm;
+      sd.report_budget = rb;
 
       return sd.json ();
     };
@@ -3120,7 +3125,6 @@ namespace brep
       {
         switch (sd.report_mode)
         {
-        case report_mode::undetermined: assert (false); break;
         case report_mode::detailed:
           {
             if (scr->node_id)
@@ -3150,12 +3154,13 @@ namespace brep
             // the service data.
             //
             assert (!scr->node_id.has_value ());
-            scr->state = build_state::building; // Match detailed reporting case.
+            scr->state = build_state::building; // As detailed reporting case.
 
             bcr = move (*scr);
 
             break;
           }
+        case report_mode::undetermined: assert (false);
         }
       }
       else
@@ -3203,7 +3208,6 @@ namespace brep
     {
       switch (sd.report_mode)
       {
-      case report_mode::undetermined: assert (false); break;
       case report_mode::detailed:
         {
           // Update the build and conclusion check runs.
@@ -3250,11 +3254,15 @@ namespace brep
         {
           // Only simulate the GitHub update of the build check run.
           //
+          // Note that in this mode we (periodically) update the conclusion
+          // check runs with stats in build_built() (see there for rationale).
+          //
           assert (bcr.state == build_state::building); // Set above.
           bcr.state_synced = true;
 
           break;
         }
+      case report_mode::undetermined: assert (false);
       }
     }
 
@@ -3376,7 +3384,12 @@ namespace brep
     //
     // To summarize, in the detailed reporting mode we update only the build
     // check run on GitHub and in the aggregate reporting mode we update only
-    // the conclusion check run on GitHub.
+    // the conclusion check run on GitHub. The reason we do the latter here
+    // and not in build_building() (as in the detailed mode) is to avoid
+    // races: it is a lot more likely to simultaneously received multiple
+    // building notifications than built. And this could lead to multiple
+    // notifications seeing the same counts and trying to update the
+    // conclusion check run.
     //
     check_run cr;       // Updated check run.
     build_stats bstats; // Build stats (for the aggregate reporting mode).
@@ -3396,8 +3409,8 @@ namespace brep
         if (scr->state == build_state::built)
           return nullptr;
 
-        // Calculate build stats for the conclusion check run if in aggregate
-        // reporting mode.
+        // Calculate build stats for the conclusion check run if in the
+        // aggregate reporting mode.
         //
         // Note that we treat the undetermined reporting mode the same as the
         // detailed mode (see below for details).
@@ -3429,8 +3442,9 @@ namespace brep
         {
           cr.state = build_state::built; // Required for the calculation.
           cr.status = b.status;          // Required for the calculation.
-          sd.check_runs.push_back (cr);
+          sd.check_runs.push_back (move (cr));
           bstats = calculate_build_stats (sd.check_runs, sd.warning_success);
+          cr = move (sd.check_runs.back ());
         }
       }
 
@@ -3464,16 +3478,6 @@ namespace brep
     {
       switch (sd.report_mode)
       {
-        // Reporting mode will be undetermined if this is an out-of-order
-        // built notification (queued notification not delivered yet) in which
-        // case emulate the detailed reporting mode (temporarily, just for
-        // this build) because it's unlikely that there will be more than a
-        // few of these so it should have little impact on the number of
-        // available rate limit points. (If, on the other hand, we went into
-        // aggregate mode when we should've been in detailed mode then this
-        // build won't have a check run.)
-        //
-      case report_mode::undetermined:
       case report_mode::detailed:
         {
           // Prepare the check run's summary field (the build information in
@@ -3638,8 +3642,12 @@ namespace brep
           // If the report budget is greater than or equal to the number of
           // builds, report on every build (interval value 1).
           //
-          size_t report_interval (sd.report_budget < sd.check_runs.size ()
-                                  ? sd.check_runs.size () / sd.report_budget
+          // @@ Let's uses stats for size().
+          //
+          size_t total_count (sd.check_runs.size ());
+
+          size_t report_interval (sd.report_budget < total_count
+                                  ? total_count / sd.report_budget
                                   : 1);
 
           if (built_count % report_interval == 0)
@@ -3673,6 +3681,15 @@ namespace brep
           assert (cr.status.has_value ());         // Set above.
           cr.state_synced = true;
 
+          break;
+        }
+      case report_mode::undetermined:
+        {
+          // Reporting mode could theoretically be undetermined if this is an
+          // out-of-order notification so let's not assert.
+
+          // @@ Let's log an error and bail out. And in other functions.
+          //
           break;
         }
       }

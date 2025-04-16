@@ -78,7 +78,7 @@ namespace brep
   // handle this case perfectly and we do the best we can (see
   // build_unloaded_pre_check() for details).
   //
-  // We also have two reporting modes: detailed, where created and update a
+  // We also have two reporting modes: detailed, where we create and update a
   // check run for every build and aggregate, where we only show the synthetic
   // conclusion check run. The aggregate mode is used when the number of
   // builds is too great (see ci-github-builds-limit-aggregate-report) or when
