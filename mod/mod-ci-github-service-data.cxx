@@ -47,6 +47,18 @@ namespace brep
     pre_check = p.next_expect_member_boolean<bool> ("pre_check");
     re_request = p.next_expect_member_boolean<bool> ("re_request");
 
+    {
+      string v (p.next_expect_member_string ("report_mode"));
+
+      if (v == "undetermined")   report_mode = report_mode::undetermined;
+      else if (v == "detailed")  report_mode = report_mode::detailed;
+      else if (v == "aggregate") report_mode = report_mode::aggregate;
+      else
+        throw_json (p, "invalid report mode: '" + v + '\'');
+    }
+
+    report_budget = p.next_expect_member_number<uint64_t> ("report_budget");
+
     warning_success = p.next_expect_member_boolean<bool> ("warning_success");
 
     // Installation access token (IAT).
@@ -143,9 +155,11 @@ namespace brep
                 kind_type k,
                 bool pc,
                 bool rr,
+                brep::report_mode rm,
                 string cs,
                 string rs)
       : kind (k), pre_check (pc), re_request (rr),
+        report_mode (rm), report_budget (0),
         warning_success (ws),
         installation_access (move (iat_tok), iat_ea),
         app_id (aid),
@@ -171,11 +185,13 @@ namespace brep
                 kind_type k,
                 bool pc,
                 bool rr,
+                brep::report_mode rm,
                 string cs,
                 string rs,
                 string pid,
                 uint32_t prn)
       : kind (k), pre_check (pc), re_request (rr),
+        report_mode (rm), report_budget (0),
         warning_success (ws),
         installation_access (move (iat_tok), iat_ea),
         app_id (aid),
@@ -209,6 +225,16 @@ namespace brep
 
     s.member ("pre_check", pre_check);
     s.member ("re_request", re_request);
+
+    s.member_name ("report_mode");
+    switch (report_mode)
+    {
+    case report_mode::undetermined: s.value ("undetermined"); break;
+    case report_mode::detailed:     s.value ("detailed"); break;
+    case report_mode::aggregate:    s.value ("aggregate"); break;
+    }
+
+    s.member ("report_budget", report_budget);
 
     s.member ("warning_success", warning_success);
 

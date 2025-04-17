@@ -78,6 +78,14 @@ namespace brep
   // handle this case perfectly and we do the best we can (see
   // build_unloaded_pre_check() for details).
   //
+  // We also have two reporting modes: detailed, where we create and update a
+  // check run for every build and aggregate, where we only show the synthetic
+  // conclusion check run. The aggregate mode is used when the number of
+  // builds is too great (see ci-github-builds-limit-aggregate-report) or when
+  // the GitHub-imposed rate limit is too low (see ci-github-@@ TODO).
+  //
+  enum class report_mode {undetermined, detailed, aggregate};
+
   struct service_data
   {
     // The data schema version. Note: must be first member in the object.
@@ -89,6 +97,9 @@ namespace brep
     enum kind_type {local, remote /*, queue */} kind;
     bool pre_check;
     bool re_request; // Re-requested (rebuild).
+
+    brep::report_mode report_mode;
+    uint64_t report_budget; // Notification budget for aggregate reporting.
 
     // Check suite settings.
     //
@@ -172,6 +183,7 @@ namespace brep
                   kind_type kind,
                   bool pre_check,
                   bool re_request,
+                  brep::report_mode,
                   string check_sha,
                   string report_sha);
 
@@ -187,6 +199,7 @@ namespace brep
                   kind_type kind,
                   bool pre_check,
                   bool re_request,
+                  brep::report_mode,
                   string check_sha,
                   string report_sha,
                   string pr_node_id,

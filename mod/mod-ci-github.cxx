@@ -786,6 +786,7 @@ namespace brep
                      service_data::local,
                      false /* pre_check */,
                      false /* re_requested */,
+                     report_mode::undetermined,
                      ps.after /* check_sha */,
                      ps.after /* report_sha */);
 
@@ -934,6 +935,7 @@ namespace brep
                      move (pr.repository.node_id),
                      move (pr.repository.clone_url),
                      kind, true /* pre_check */, false /* re_request */,
+                     report_mode::undetermined,
                      move (check_sha),
                      move (pr.pull_request.head_sha) /* report_sha */,
                      pr.pull_request.node_id,
@@ -1006,12 +1008,13 @@ namespace brep
     // If the user requests a rebuild of the (entire) PR, then this manifests
     // as the check_suite rather than pull_request event. Specifically:
     //
-    // - For a local PR, this event is shared with the branch push and all we
-    //   need to do is restart the CI for the head commit.
+    // - For a local PR, this event is shared with the branch push and
+    //   therefore the check sha is also the report sha (check suite head
+    //   sha).
     //
     // - For a remote PR, this event will have no gh_check_suite::head_branch.
-    //   In this case we need to load the existing service data for this head
-    //   commit, extract the test merge commit, and restart the CI for that.
+    //   In this case the check sha represents the test merge commit and thus
+    //   differs from the report sha (check suite head sha).
     //
     //   Note that it's possible the base branch has moved in the meantime and
     //   ideally we would want to re-request the test merge commit, etc.
@@ -1019,44 +1022,47 @@ namespace brep
     //   recommendation of enabling the head-behind-base protection. And it
     //   seems all this extra complexity would not be warranted.
     //
-    string check_sha;
+
+    // Load the service data in order to copy the service data kind, the check
+    // sha (in order to cover both the local and remote PR cases described
+    // above), and the previous reporting mode (required in build_queued() to
+    // decide on the new mode) into the new tentant's service data.
+    //
     service_data::kind_type kind;
+    string check_sha;
+    report_mode rmode;
 
-    if (!cs.check_suite.head_branch)
+    if (optional<tenant_data> d = find (*build_db_, "ci-github", sid))
     {
-      // Rebuild of remote PR.
-      //
-      kind = service_data::remote;
+      tenant_service& ts (d->service);
 
-      if (optional<tenant_data> d = find (*build_db_, "ci-github", sid))
+      try
       {
-        tenant_service& ts (d->service);
+        service_data sd (*ts.data);
 
-        try
-        {
-          service_data sd (*ts.data);
-          check_sha = move (sd.check_sha); // Test merge commit.
-        }
-        catch (const invalid_argument& e)
-        {
-          fail << "failed to parse service data: " << e;
-        }
+        kind = sd.kind;
+        check_sha = move (sd.check_sha);
+        rmode = sd.report_mode;
       }
-      else
+      catch (const invalid_argument& e)
       {
-        error << "check suite " << cs.check_suite.node_id
-              << " for remote pull request:"
-              << " re-requested but tenant_service with id " << sid
-              << " did not exist";
-        return true;
+        fail << "failed to parse service data: " << e;
       }
     }
     else
     {
-      // Rebuild of branch push or local PR.
-      //
-      kind = service_data::local;
-      check_sha = cs.check_suite.head_sha;
+      error << "check suite " << cs.check_suite.node_id
+            << " re-requested but tenant_service with id " << sid
+            << " did not exist";
+      return true;
+    }
+
+    // Sanity check the local case (see above for details).
+    //
+    if (kind == service_data::local)
+    {
+      assert (cs.check_suite.head_branch.has_value ());
+      assert (check_sha == cs.check_suite.head_sha);
     }
 
     service_data sd (warning_success,
@@ -1067,6 +1073,7 @@ namespace brep
                      move (cs.repository.node_id),
                      move (cs.repository.clone_url),
                      kind, false /* pre_check */, true /* re_requested */,
+                     rmode,
                      move (check_sha),
                      move (cs.check_suite.head_sha) /* report_sha */);
 
@@ -1217,11 +1224,19 @@ namespace brep
       return true;
     }
 
-    if (cs.check_suite.check_runs_count != check_runs_count)
+    // In the aggregate reporting mode there won't be any check runs on
+    // GitHub. It's also theoretically possible for the reporting mode to be
+    // undetermined at this stage in which case all check runs would not have
+    // been created (see build_built()).
+    //
+    if (sd.report_mode == report_mode::detailed)
     {
-      error << sub << ": check runs count " << cs.check_suite.check_runs_count
-            << " does not match service data count " << check_runs_count;
-      return true;
+      if (cs.check_suite.check_runs_count != check_runs_count)
+      {
+        error << sub << ": check runs count " << cs.check_suite.check_runs_count
+              << " does not match service data count " << check_runs_count;
+        return true;
+      }
     }
 
     // Verify that all the check runs are built and compute the summary
@@ -2516,6 +2531,146 @@ namespace brep
     return nullptr;
   }
 
+  // The cumulative statistics for a number of builds.
+  //
+  struct build_stats
+  {
+    size_t queued_count = 0;
+    size_t building_count = 0;
+
+    // Counts for completed builds.
+    //
+    // Note that the warning count will be included in the success or failure
+    // count (see calculate_build_stats()).
+    //
+    size_t success_count = 0;
+    size_t warning_count = 0;
+    size_t failure_count = 0;
+
+    // Aggregated result status. Absent if not all builds have completed.
+    //
+    optional<result_status> result;
+  };
+
+  // Calculate the cumulative statistics for a number of builds.
+  //
+  // Count the number of occurrences of each build state and calculate an
+  // aggregated result status if all builds have completed.
+  //
+  // Note that the warning count will be included in the success or failure
+  // count (depending on the value of warning_success). Thus the total number
+  // of builds is the sum of all the counts excluding warnings.
+  //
+  static build_stats
+  calculate_build_stats (const check_runs& crs, bool warning_success)
+  {
+    build_stats r;
+
+    if (!crs.empty ())
+      r.result = result_status::success;
+
+    for (const check_run& cr: crs)
+    {
+      switch (cr.state)
+      {
+      case build_state::queued:
+        {
+          r.result = nullopt;
+          ++r.queued_count;
+          break;
+        }
+      case build_state::building:
+        {
+          r.result = nullopt;
+          ++r.building_count;
+          break;
+        }
+      case build_state::built:
+        {
+          assert (cr.status);
+
+          // Add the result status to the count.
+          //
+          switch (*cr.status)
+          {
+          case result_status::success:  ++r.success_count; break;
+
+          case result_status::error:
+          case result_status::abort:
+          case result_status::abnormal: ++r.failure_count; break;
+
+          case result_status::warning:
+            {
+              ++r.warning_count;
+
+              // Include the warning count in the success or failure count.
+              //
+              if (warning_success)
+                ++r.success_count;
+              else
+                ++r.failure_count;
+
+              break;
+            }
+
+          case result_status::skip:
+          case result_status::interrupt:
+            {
+              assert (false);
+            }
+          }
+
+          // Aggregate the result status.
+          //
+          if (r.result)
+            *r.result |= *cr.status;
+
+          break;
+        }
+      }
+    }
+
+    return r;
+  }
+
+  // Construct the builds statistics report. For example:
+  //
+  // 0 queued, 5 building, 3 failed, 10 succeeded (4 with warnings), 18 total
+  //
+  static string
+  make_build_stats_report (const build_stats& bss, bool warning_success)
+  {
+    ostringstream os;
+
+    // Note that we can omit both or queued, but if we show queued, we also
+    // show building (since that where queued will transition to).
+    //
+    if (bss.queued_count != 0 || bss.building_count != 0)
+    {
+      if (bss.queued_count != 0)
+        os << bss.queued_count << " queued, ";
+
+      os << bss.building_count << " building, ";
+    }
+
+    os << bss.failure_count << " failed";
+    if (!warning_success && bss.warning_count != 0)
+      os << " (" << bss.warning_count << " due to warnings)";
+
+    os << ", " << bss.success_count << " succeeded";
+    if (warning_success && bss.warning_count != 0)
+      os << " (" << bss.warning_count << " with warnings)";
+
+    // Note that the warning count has already been included in the success or
+    // failure count (see calc_build_stats() for details).
+    //
+    size_t total (bss.queued_count + bss.building_count +
+                  bss.success_count + bss.failure_count);
+    os << ", " << total << " total";
+
+    return os.str ();
+  }
+
   // Build state change notifications (see tenant-services.hxx for
   // background). Mapping our state transitions to GitHub pose multiple
   // problems:
@@ -2715,43 +2870,177 @@ namespace brep
     else
       iat = &sd.installation_access;
 
+    // Determine the reporting mode: detailed or aggregate.
+    //
+    // In the aggregate reporting mode we don't actually update the check runs
+    // on GitHub; we only simulate it by updating the local check run objects
+    // in the same way a GitHub update would have.
+    //
+    // Note: don't go into the aggregate reporting mode if we were already in
+    // the detailed reporting mode (which could occur if the check suite was
+    // re-requested). Going from detailed to the aggregate reporting mode
+    // would cause the existing build check runs to be left in an outdated
+    // state indefinitely.
+
+    // Reporting mode is only determined and saved in this function so it must
+    // be undetermined in the service data unless this is a re-request.
+    //
+    assert (sd.report_mode == report_mode::undetermined || sd.re_request);
+
+    report_mode rm (report_mode::undetermined);
+    uint64_t rb (0);
+
+    uint64_t builds_limit (options_->ci_github_builds_aggregate_report ());
+
+    switch (sd.report_mode)
+    {
+    case report_mode::undetermined:
+    case report_mode::aggregate:
+      {
+        // Determine the reporting mode based on the number of builds and the
+        // reporting budget.
+        //
+        if (builds_limit != 0 && crs.size () > builds_limit)
+        {
+          rm = report_mode::aggregate;
+          rb = 10; // @@ TMP
+        }
+        else
+        {
+          // @@ TMP Assuming the number of check runs needs to be factored
+          //    into the limits/budget-based decision (so this has to be done
+          //    here in build_queued()).
+          //
+          bool limited (false); // @@ TODO
+
+          if (limited)
+          {
+            rm = report_mode::aggregate;
+            rb = 10; // @@ TMP
+          }
+          else
+            rm = report_mode::detailed;
+        }
+
+        break;
+      }
+    case report_mode::detailed:
+      {
+        // Never switch out of the detailed mode.
+
+        if (builds_limit != 0 && crs.size () > builds_limit)
+        {
+          // If we were in the detailed mode previously then the limit must
+          // have been lowered in the meantime.
+          //
+          warn << "refusing to switch from detailed to aggregate "
+               << "reporting mode based on lower build count limit";
+        }
+
+        rm = report_mode::detailed;
+        break;
+      }
+    }
+
     // Note: we treat the failure to obtain the installation access token the
     // same as the failure to notify GitHub (state is updated by not marked
     // synced).
     //
     if (iat != nullptr)
     {
-      // Create a check_run for each build as a single request.
-      //
-      // Let unlikely invalid_argument propagate.
-      //
-      gq_rate_limits limits;
-      if (gq_create_check_runs (error,
-                                crs,
-                                iat->token,
-                                sd.app_id,
-                                sd.repository_node_id,
-                                sd.report_sha,
-                                options_->build_queued_batch (),
-                                &limits))
+      switch (rm)
       {
-        for (const check_run& cr: crs)
+      case report_mode::detailed:
         {
-          // We can only create a check run in the queued state.
+          // Create a check_run for each build as a single request.
           //
-          assert (cr.state == build_state::queued);
-          l3 ([&]{trace << "created check_run { " << cr << " }";});
-        }
-      }
+          // Let unlikely invalid_argument propagate.
+          //
+          gq_rate_limits limits;
+          if (gq_create_check_runs (error,
+                                    crs,
+                                    iat->token,
+                                    sd.app_id,
+                                    sd.repository_node_id,
+                                    sd.report_sha,
+                                    options_->build_queued_batch (),
+                                    &limits))
+          {
+            for (const check_run& cr: crs)
+            {
+              // We can only create a check run in the queued state.
+              //
+              assert (cr.state == build_state::queued);
+              l3 ([&]{trace << "created check_run { " << cr << " }";});
+            }
+          }
 
-      info << "installation id " << sd.installation_id << " limits: "
-           << limits;
+          info << "installation id " << sd.installation_id << " limits: "
+               << limits;
+
+          break;
+        }
+      case report_mode::aggregate:
+        {
+          // Don't actually update the check runs on GitHub; only simulate the
+          // updates and save the check runs (but note that the node ids will
+          // remain absent).
+          //
+          for (check_run& cr: crs)
+          {
+            assert (cr.state == build_state::queued); // Set above.
+            cr.state_synced = true;
+          }
+
+          // Update the conclusion check run with build stats (it may be a
+          // while until we get the first build_built() notification).
+          {
+            assert (sd.conclusion_node_id.has_value ());
+
+            check_run ccr;
+            ccr.name = conclusion_check_run_name (sd.app_id);
+            ccr.state_synced = false;
+
+            string r; // Build stats report.
+            {
+              build_stats s (calculate_build_stats (crs, sd.warning_success));
+
+              // The queued notification is delivered when the first build bot
+              // picks up a job so factor the imminent queued->building
+              // transition into the build stats.
+              //
+              --s.queued_count;
+              ++s.building_count;
+
+              r = make_build_stats_report (s, sd.warning_success);
+            }
+
+            if (gq_update_check_run (error,
+                                     ccr,
+                                     iat->token,
+                                     sd.repository_node_id,
+                                     *sd.conclusion_node_id,
+                                     build_state::building,
+                                     conclusion_building_title,
+                                     r + ". " + force_rebuild_md_link (sd) +
+                                     '.'))
+            {
+              assert (ccr.state == build_state::building);
+              l3 ([&]{trace << "updated conclusion check_run { " << ccr << " }";});
+            }
+          }
+
+          break;
+        }
+      case report_mode::undetermined: assert (false);
+      }
     }
 
     return [tenant_id,
             bs = move (bs),
             iat = move (new_iat),
             crs = move (crs),
+            rm, rb,
             error = move (error),
             warn = move (warn)] (const string& ti,
                                  const tenant_service& ts) -> optional<string>
@@ -2798,6 +3087,9 @@ namespace brep
           sd.check_runs.push_back (cr);
       }
 
+      sd.report_mode = rm;
+      sd.report_budget = rb;
+
       return sd.json ();
     };
   }
@@ -2808,146 +3100,6 @@ namespace brep
     error << "CI tenant " << ts.id << ": unhandled exception: " << e.what ();
 
     return nullptr;
-  }
-
-  // The cumulative statistics for a number of builds.
-  //
-  struct build_stats
-  {
-    size_t queued_count = 0;
-    size_t building_count = 0;
-
-    // Counts for completed builds.
-    //
-    // Note that the warning count will be included in the success or failure
-    // count (see calculate_build_stats()).
-    //
-    size_t success_count = 0;
-    size_t warning_count = 0;
-    size_t failure_count = 0;
-
-    // Aggregated result status. Absent if not all builds have completed.
-    //
-    optional<result_status> result;
-  };
-
-  // Calculate the cumulative statistics for a number of builds.
-  //
-  // Count the number of occurrences of each build state and calculate an
-  // aggregated result status if all builds have completed.
-  //
-  // Note that the warning count will be included in the success or failure
-  // count (depending on the value of warning_success). Thus the total number
-  // of builds is the sum of all the counts excluding warnings.
-  //
-  static build_stats
-  calculate_build_stats (const check_runs& crs, bool warning_success)
-  {
-    build_stats r;
-
-    if (!crs.empty ())
-      r.result = result_status::success;
-
-    for (const check_run& cr: crs)
-    {
-      switch (cr.state)
-      {
-      case build_state::queued:
-        {
-          r.result = nullopt;
-          ++r.queued_count;
-          break;
-        }
-      case build_state::building:
-        {
-          r.result = nullopt;
-          ++r.building_count;
-          break;
-        }
-      case build_state::built:
-        {
-          assert (cr.status);
-
-          // Add the result status to the count.
-          //
-          switch (*cr.status)
-          {
-          case result_status::success:  ++r.success_count; break;
-
-          case result_status::error:
-          case result_status::abort:
-          case result_status::abnormal: ++r.failure_count; break;
-
-          case result_status::warning:
-            {
-              ++r.warning_count;
-
-              // Include the warning count in the success or failure count.
-              //
-              if (warning_success)
-                ++r.success_count;
-              else
-                ++r.failure_count;
-
-              break;
-            }
-
-          case result_status::skip:
-          case result_status::interrupt:
-            {
-              assert (false);
-            }
-          }
-
-          // Aggregate the result status.
-          //
-          if (r.result)
-            *r.result |= *cr.status;
-
-          break;
-        }
-      }
-    }
-
-    return r;
-  }
-
-  // Construct the builds statistics report. For example:
-  //
-  // 0 queued, 5 building, 3 failed, 10 succeeded (4 with warnings), 18 total
-  //
-  static string
-  make_build_stats_report (const build_stats& bss, bool warning_success)
-  {
-    ostringstream os;
-
-    // Note that we can omit both or queued, but if we show queued, we also
-    // show building (since that where queued will transition to).
-    //
-    if (bss.queued_count != 0 || bss.building_count != 0)
-    {
-      if (bss.queued_count != 0)
-        os << bss.queued_count << " queued, ";
-
-      os << bss.building_count << " building, ";
-    }
-
-    os << bss.failure_count << " failed";
-    if (!warning_success && bss.warning_count != 0)
-      os << " (" << bss.warning_count << " due to warnings)";
-
-    os << ", " << bss.success_count << " succeeded";
-    if (warning_success && bss.warning_count != 0)
-      os << " (" << bss.warning_count << " with warnings)";
-
-    // Note that the warning count has already been included in the success or
-    // failure count (see calc_build_stats() for details).
-    //
-    size_t total (bss.queued_count + bss.building_count +
-                  bss.success_count + bss.failure_count);
-    os << ", " << total << " total";
-
-    return os.str ();
   }
 
   function<optional<string> (const string&, const tenant_service&)> ci_github::
@@ -2978,6 +3130,12 @@ namespace brep
     if (sd.completed)
       return nullptr;
 
+    // In addition to updating the build check run we also update the
+    // conclusion check run with the build stats. If we're in the aggregate
+    // reporting mode on the other hand no check runs are updated on GitHub
+    // but the local build check run object is updated to simulate a GitHub
+    // update.
+
     // The build and conclusion check run updates are sent to GitHub in a
     // single request so store them together from the outset.
     //
@@ -3002,22 +3160,47 @@ namespace brep
       //
       if (scr->state == build_state::queued)
       {
-        if (scr->node_id)
+        switch (sd.report_mode)
         {
-          // Calculate the build stats before moving from the stored check
-          // run.
-          //
-          scr->state = build_state::building; // Required for the calculation.
-          bstats = calculate_build_stats (sd.check_runs, sd.warning_success);
+        case report_mode::detailed:
+          {
+            if (scr->node_id)
+            {
+              // Calculate the build stats (for the conclusion check run)
+              // before moving from the stored check run.
+              //
+              scr->state = build_state::building; // For the calculation.
+              bstats = calculate_build_stats (sd.check_runs,
+                                              sd.warning_success);
 
-          bcr = move (*scr);
-        }
-        else
-        {
-          // Network error during queued notification (state unsynchronized),
-          // ignore.
+              bcr = move (*scr);
+            }
+            else
+            {
+              // Network error during queued notification (state
+              // unsynchronized), ignore.
+              //
+              l3 ([&]{trace << "unsynchronized check run " << bid;});
+            }
+
+            break;
+          }
+        case report_mode::aggregate:
+          {
+            // Won't be updating GitHub but we will be saving the check run in
+            // the service data.
+            //
+            assert (!scr->node_id.has_value ());
+            scr->state = build_state::building; // As detailed reporting case.
+
+            bcr = move (*scr);
+
+            break;
+          }
+          // Note: reporting mode cannot be undetermined if check run is
+          // queued.
           //
-          l3 ([&]{trace << "unsynchronized check run " << bid;});
+        case report_mode::undetermined: assert (false);
         }
       }
       else
@@ -3037,6 +3220,10 @@ namespace brep
 
     if (bcr.build_id.empty ())
       return nullptr; // Not in service data, state unsynced, or out of order.
+
+    // If we're proceeding then the reporting mode cannot be undetermined.
+    //
+    assert (sd.report_mode != report_mode::undetermined);
 
     // Get a new installation access token if the current one has expired.
     //
@@ -3063,41 +3250,66 @@ namespace brep
     //
     if (iat != nullptr)
     {
-      // Update the build and conclusion check runs.
-      //
-      assert (bcr.state == build_state::building); // Set above.
-      bcr.state_synced = false;
-      bcr.description = {check_run_building_title, check_run_building_summary};
-
-      assert (ccr.state == build_state::building);
-      ccr.state_synced = false;
+      switch (sd.report_mode)
       {
-        string r (make_build_stats_report (bstats, sd.warning_success));
-        ccr.description = {conclusion_building_title,
-                           r + ". " + force_rebuild_md_link (sd) + '.'};
-      }
-
-      // Let unlikely invalid_argument propagate.
-      //
-      if (gq_update_check_runs (error,
-                                check_runs,
-                                iat->token,
-                                sd.repository_node_id))
-      {
-        // Do nothing further if the state was already built on GitHub (note
-        // that this is based on the above-mentioned special GitHub semantics
-        // of preventing changes to the built status).
-        //
-        if (bcr.state == build_state::built)
+      case report_mode::detailed:
         {
-          warn << "check run " << bid << ": already in built state on GitHub";
-          return nullptr;
+          // Update the build and conclusion check runs.
+          //
+          assert (bcr.state == build_state::building); // Set above.
+          bcr.state_synced = false;
+          bcr.description = {check_run_building_title,
+                             check_run_building_summary};
+
+          assert (ccr.state == build_state::building);
+          ccr.state_synced = false;
+          {
+            string r (make_build_stats_report (bstats, sd.warning_success));
+            ccr.description = {conclusion_building_title,
+              r + ". " + force_rebuild_md_link (sd) + '.'};
+          }
+
+          // Let unlikely invalid_argument propagate.
+          //
+          if (gq_update_check_runs (error,
+                                    check_runs,
+                                    iat->token,
+                                    sd.repository_node_id))
+          {
+            // Do nothing further if the state was already built on GitHub
+            // (note that this is based on the above-mentioned special GitHub
+            // semantics of preventing changes to the built status).
+            //
+            if (bcr.state == build_state::built)
+            {
+              warn << "check run " << bid
+                   << ": already in built state on GitHub";
+              return nullptr;
+            }
+
+            assert (bcr.state == build_state::building);
+
+            l3 ([&]{trace << "updated check_run { " << bcr << " }";});
+            l3 ([&]{trace << "updated conclusion check_run { " << ccr << " }";});
+          }
+          break;
         }
+      case report_mode::aggregate:
+        {
+          // Only simulate the GitHub update of the build check run.
+          //
+          // Note that in this mode we (periodically) update the conclusion
+          // check runs with stats in build_built() (see there for rationale).
+          //
+          assert (bcr.state == build_state::building); // Set above.
+          bcr.state_synced = true;
 
-        assert (bcr.state == build_state::building);
-
-        l3 ([&]{trace << "updated check_run { " << bcr << " }";});
-        l3 ([&]{trace << "updated conclusion check_run { " << ccr << " }";});
+          break;
+        }
+        // Note that we only get here if the check run is in the queued state
+        // and that means the reporting mode should have been determined.
+        //
+      case report_mode::undetermined: assert (false);
       }
     }
 
@@ -3211,8 +3423,23 @@ namespace brep
     // in build_completed(). Note that determining whether we have no more
     // unbuilt would be racy here so instead we do it in the service data
     // update function that we return.
-
-    check_run cr; // Updated check run.
+    //
+    // In the aggregated reporting mode we update the conclusion check run on
+    // GitHub (with the latest build stats) and only simulate the GitHub
+    // update of the build check run (just as we do in build_queued() and
+    // build_building()).
+    //
+    // To summarize, in the detailed reporting mode we update only the build
+    // check run on GitHub and in the aggregate reporting mode we update only
+    // the conclusion check run on GitHub. The reason we do the latter here
+    // and not in build_building() (as in the detailed mode) is to avoid
+    // races: it is a lot more likely to simultaneously receive multiple
+    // building notifications than built. And this could lead to multiple
+    // notifications seeing the same counts and trying to update the
+    // conclusion check run.
+    //
+    check_run cr;       // Updated check run.
+    build_stats bstats; // Build stats (for the aggregate reporting mode).
     {
       string bid (gh_check_run_name (b)); // Full build id.
 
@@ -3229,6 +3456,19 @@ namespace brep
         if (scr->state == build_state::built)
           return nullptr;
 
+        // Calculate build stats for the conclusion check run if in the
+        // aggregate reporting mode.
+        //
+        // Note that we treat the undetermined reporting mode the same as the
+        // detailed mode (see below for details).
+        //
+        if (sd.report_mode == report_mode::aggregate)
+        {
+          scr->state = build_state::built; // Required for the calculation.
+          scr->status = b.status;          // Required for the calculation.
+          bstats = calculate_build_stats (sd.check_runs, sd.warning_success);
+        }
+
         cr = move (*scr);
       }
       else
@@ -3241,6 +3481,18 @@ namespace brep
         //
         cr.build_id = move (bid);
         cr.name = cr.build_id;
+
+        // Calculate build stats for the conclusion check run if in aggregate
+        // reporting mode.
+        //
+        if (sd.report_mode == report_mode::aggregate)
+        {
+          cr.state = build_state::built; // Required for the calculation.
+          cr.status = b.status;          // Required for the calculation.
+          sd.check_runs.push_back (move (cr));
+          bstats = calculate_build_stats (sd.check_runs, sd.warning_success);
+          cr = move (sd.check_runs.back ());
+        }
       }
 
       cr.state_synced = false;
@@ -3271,150 +3523,229 @@ namespace brep
     //
     if (iat != nullptr)
     {
-      // Prepare the check run's summary field (the build information in an
-      // XHTML table).
-      //
-      string sm; // Summary.
+      switch (sd.report_mode)
       {
-        using namespace web::xhtml;
-
-        // Note: let all serialization exceptions propagate. The XML
-        // serialization code can throw bad_alloc or xml::serialization in
-        // case of I/O failures, but we're serializing to a string stream so
-        // both exceptions are unlikely.
-        //
-        ostringstream os;
-        xml::serializer s (os, "check_run_summary");
-
-        // This hack is required to disable XML element name prefixes (which
-        // GitHub does not like). Note that this adds an xmlns declaration for
-        // the XHTML namespace which for now GitHub appears to ignore. If that
-        // ever becomes a problem, then we should redo this with raw XML
-        // serializer calls.
-        //
-        struct table: element
+      case report_mode::detailed:
         {
-          table (): element ("table") {}
-
-          void
-          start (xml::serializer& s) const override
-          {
-            s.start_element (xmlns, name);
-            s.namespace_decl (xmlns, "");
-          }
-        } TABLE;
-
-        // Serialize a result row (colored circle, result text, log URL) for
-        // an operation and result_status.
-        //
-        auto tr_result = [this, &b] (xml::serializer& s,
-                                     const string& op,
-                                     result_status rs)
-        {
-          // The log URL.
+          // Prepare the check run's summary field (the build information in
+          // an XHTML table).
           //
-          string lu (build_log_url (options_->host (),
-                                    options_->root (),
-                                    b,
-                                    op != "result" ? &op : nullptr));
+          string sm; // Summary.
+          {
+            using namespace web::xhtml;
 
-          s << TR
-            <<   TD << EM << op << ~EM << ~TD
-            <<   TD
-            <<     circle (rs) << ' '
-            <<     CODE << to_string (rs) << ~CODE
-            <<     " (" << A << HREF << lu << ~HREF << "log" << ~A << ')'
-            <<   ~TD
-            << ~TR;
-        };
+            // Note: let all serialization exceptions propagate. The XML
+            // serialization code can throw bad_alloc or xml::serialization in
+            // case of I/O failures, but we're serializing to a string stream
+            // so both exceptions are unlikely.
+            //
+            ostringstream os;
+            xml::serializer s (os, "check_run_summary");
 
-        // Serialize the summary to an XHTML table.
-        //
-        s << TABLE
-          <<   TBODY;
+            // This hack is required to disable XML element name prefixes
+            // (which GitHub does not like). Note that this adds an xmlns
+            // declaration for the XHTML namespace which for now GitHub
+            // appears to ignore. If that ever becomes a problem, then we
+            // should redo this with raw XML serializer calls.
+            //
+            struct table: element
+            {
+              table (): element ("table") {}
 
-        tr_result (s, "result", *b.status);
+              void
+              start (xml::serializer& s) const override
+              {
+                s.start_element (xmlns, name);
+                s.namespace_decl (xmlns, "");
+              }
+            } TABLE;
 
-        s <<     TR
-          <<       TD << EM   << "package"      << ~EM   << ~TD
-          <<       TD << CODE << b.package_name << ~CODE << ~TD
-          <<     ~TR
-          <<     TR
-          <<       TD << EM   << "version"         << ~EM   << ~TD
-          <<       TD << CODE << b.package_version << ~CODE << ~TD
-          <<     ~TR
-          <<     TR
-          <<       TD << EM << "toolchain" << ~EM << ~TD
-          <<       TD
-          <<         CODE
-          <<           b.toolchain_name << '-' << b.toolchain_version.string ()
-          <<         ~CODE
-          <<       ~TD
-          <<     ~TR
-          <<     TR
-          <<       TD << EM   << "target"           << ~EM   << ~TD
-          <<       TD << CODE << b.target.string () << ~CODE << ~TD
-          <<     ~TR
-          <<     TR
-          <<       TD << EM   << "target config"      << ~EM   << ~TD
-          <<       TD << CODE << b.target_config_name << ~CODE << ~TD
-          <<     ~TR
-          <<     TR
-          <<       TD << EM   << "package config"      << ~EM   << ~TD
-          <<       TD << CODE << b.package_config_name << ~CODE << ~TD
-          <<     ~TR;
+            // Serialize a result row (colored circle, result text, log URL)
+            // for an operation and result_status.
+            //
+            auto tr_result = [this, &b] (xml::serializer& s,
+                                         const string& op,
+                                         result_status rs)
+            {
+              // The log URL.
+              //
+              string lu (build_log_url (options_->host (),
+                                        options_->root (),
+                                        b,
+                                        op != "result" ? &op : nullptr));
 
-        for (const operation_result& r: b.results)
-          tr_result (s, r.operation, r.status);
+              s << TR
+                <<   TD << EM << op << ~EM << ~TD
+                <<   TD
+                <<     circle (rs) << ' '
+                <<     CODE << to_string (rs) << ~CODE
+                <<     " (" << A << HREF << lu << ~HREF << "log" << ~A << ')'
+                <<   ~TD
+                << ~TR;
+            };
 
-        s <<   ~TBODY
-          << ~TABLE;
+            // Serialize the summary to an XHTML table.
+            //
+            s << TABLE
+              <<   TBODY;
 
-        sm = os.str ();
-      }
+            tr_result (s, "result", *b.status);
 
-      gq_built_result br (
-        make_built_result (*b.status, sd.warning_success, move (sm)));
+            s <<     TR
+              <<       TD << EM   << "package"      << ~EM   << ~TD
+              <<       TD << CODE << b.package_name << ~CODE << ~TD
+              <<     ~TR
+              <<     TR
+              <<       TD << EM   << "version"         << ~EM   << ~TD
+              <<       TD << CODE << b.package_version << ~CODE << ~TD
+              <<     ~TR
+              <<     TR
+              <<       TD << EM << "toolchain" << ~EM << ~TD
+              <<       TD
+              <<         CODE
+              <<           b.toolchain_name << '-' << b.toolchain_version.string ()
+              <<         ~CODE
+              <<       ~TD
+              <<     ~TR
+              <<     TR
+              <<       TD << EM   << "target"           << ~EM   << ~TD
+              <<       TD << CODE << b.target.string () << ~CODE << ~TD
+              <<     ~TR
+              <<     TR
+              <<       TD << EM   << "target config"      << ~EM   << ~TD
+              <<       TD << CODE << b.target_config_name << ~CODE << ~TD
+              <<     ~TR
+              <<     TR
+              <<       TD << EM   << "package config"      << ~EM   << ~TD
+              <<       TD << CODE << b.package_config_name << ~CODE << ~TD
+              <<     ~TR;
 
-      if (cr.node_id)
-      {
-        // Update existing check run to built. Let unlikely invalid_argument
-        // propagate.
-        //
-        if (gq_update_check_run (error,
-                                 cr,
-                                 iat->token,
-                                 sd.repository_node_id,
-                                 *cr.node_id,
-                                 move (br)))
+            for (const operation_result& r: b.results)
+              tr_result (s, r.operation, r.status);
+
+            s <<   ~TBODY
+              << ~TABLE;
+
+            sm = os.str ();
+          }
+
+          gq_built_result br (
+            make_built_result (*b.status, sd.warning_success, move (sm)));
+
+          if (cr.node_id)
+          {
+            // Update existing check run to built. Let unlikely
+            // invalid_argument propagate.
+            //
+            if (gq_update_check_run (error,
+                                     cr,
+                                     iat->token,
+                                     sd.repository_node_id,
+                                     *cr.node_id,
+                                     move (br)))
+            {
+              assert (cr.state == build_state::built);
+              l3 ([&]{trace << "updated check_run { " << cr << " }";});
+            }
+          }
+          else
+          {
+            // Create new check run. Let unlikely invalid_argument propagate.
+            //
+            // Note that we don't have build hints so will be creating this
+            // check run with the full build id as name. In the unlikely event
+            // that an out of order build_queued() were to run before we've
+            // saved this check run to the service data it will create another
+            // check run with the shortened name which will never get to the
+            // built state.
+            //
+            if (gq_create_check_run (error,
+                                     cr,
+                                     iat->token,
+                                     sd.app_id,
+                                     sd.repository_node_id,
+                                     sd.report_sha,
+                                     details_url (b),
+                                     move (br)))
+            {
+              assert (cr.state == build_state::built);
+              l3 ([&]{trace << "created check_run { " << cr << " }";});
+            }
+          }
+
+          break;
+        }
+      case report_mode::aggregate:
         {
-          assert (cr.state == build_state::built);
-          l3 ([&]{trace << "updated check_run { " << cr << " }";});
+          // Update the conclusion check run on GitHub with the current build
+          // stats if this build falls on a report interval (i.e., the current
+          // completed count is a multiple of the interval, the size of which
+          // is calculated to keep us within our report budget).
+
+          // Note that the current build has already been counted as built.
+          //
+          size_t built_count (bstats.success_count + bstats.failure_count);
+
+          // If the report budget is greater than or equal to the number of
+          // builds, report on every build (interval value 1).
+          //
+          size_t total_count (bstats.queued_count + bstats.building_count +
+                              bstats.success_count + bstats.failure_count);
+
+          size_t report_interval (sd.report_budget < total_count
+                                  ? total_count / sd.report_budget
+                                  : 1);
+
+          if (built_count % report_interval == 0)
+          {
+            assert (sd.conclusion_node_id.has_value ());
+
+            check_run ccr;
+            ccr.name = conclusion_check_run_name (sd.app_id);
+            ccr.state_synced = false;
+
+            string r (make_build_stats_report (bstats, sd.warning_success));
+
+            if (gq_update_check_run (error,
+                                     ccr,
+                                     iat->token,
+                                     sd.repository_node_id,
+                                     *sd.conclusion_node_id,
+                                     build_state::building,
+                                     conclusion_building_title,
+                                     r + ". " + force_rebuild_md_link (sd) +
+                                       '.'))
+            {
+              assert (ccr.state == build_state::building);
+              l3 ([&]{trace << "updated conclusion check_run { " << ccr << " }";});
+            }
+          }
+
+          // Simulate the update of the build check run on GitHub.
+          //
+          assert (cr.state == build_state::built); // Set above.
+          assert (cr.status.has_value ());         // Set above.
+          cr.state_synced = true;
+
+          break;
+        }
+      case report_mode::undetermined:
+        {
+          // Reporting mode could theoretically be undetermined if this is an
+          // out-of-order notification so let's not assert.
+
+          string bid (gh_check_run_name (b)); // Full build id.
+
+          error << "check run " << bid << ": reporting mode is undetermined";
+
+          return nullptr;
         }
       }
-      else
-      {
-        // Create new check run. Let unlikely invalid_argument propagate.
-        //
-        // Note that we don't have build hints so will be creating this check
-        // run with the full build id as name. In the unlikely event that an
-        // out of order build_queued() were to run before we've saved this
-        // check run to the service data it will create another check run with
-        // the shortened name which will never get to the built state.
-        //
-        if (gq_create_check_run (error,
-                                 cr,
-                                 iat->token,
-                                 sd.app_id,
-                                 sd.repository_node_id,
-                                 sd.report_sha,
-                                 details_url (b),
-                                 move (br)))
-        {
-          assert (cr.state == build_state::built);
-          l3 ([&]{trace << "created check_run { " << cr << " }";});
-        }
-      }
+
+      // Ensure we only save a result_status if the build_state has been
+      // synced with GitHub.
+      //
+      assert (cr.state_synced || !cr.status.has_value ());
 
       if (cr.state_synced)
       {
