@@ -3305,6 +3305,9 @@ namespace brep
 
           break;
         }
+        // Note that we only get here if the check run is in the queued state
+        // and that means the reporting mode should have been determined.
+        //
       case report_mode::undetermined: assert (false);
       }
     }
@@ -3734,15 +3737,7 @@ namespace brep
 
           error << "check run " << bid << ": reporting mode is undetermined";
 
-          // Simulate the GitHub update of the build check run as in the
-          // aggregate reporting mode case but do not update the conclusion
-          // check run.
-          //
-          cr.state = build_state::built;
-          cr.status = b.status;
-          cr.state_synced = true;
-
-          break;
+          return nullptr;
         }
       }
 
