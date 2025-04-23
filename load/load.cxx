@@ -452,10 +452,12 @@ load_packages (const options& lo,
     //
     if (cl.type () != repository_type::pkg)
     {
-      // We put no restrictions on the manifest values presence since it's not
-      // critical for displaying and building if the packages omit some
-      // manifest values (see libbpkg/manifest.hxx for details). Note, though,
-      // that we expect dependency constraints to be complete.
+      // We put minimal restrictions on the manifest values presence since
+      // it's not critical for displaying and building if the packages omit
+      // some manifest values (see libbpkg/manifest.hxx for details). Note,
+      // though, that we expect package version not to contain iteration,
+      // presence of the summary and license, and dependency constraints to be
+      // complete.
       //
       for (manifest_name_value nv (mp.next ()); !nv.empty (); nv = mp.next ())
         pms.emplace_back (
@@ -463,7 +465,10 @@ load_packages (const options& lo,
           move (nv),
           ignore_unknown,
           false /* complete_values */,
-          package_manifest_flags::forbid_incomplete_values);
+          package_manifest_flags::forbid_version_iteration |
+          package_manifest_flags::forbid_incomplete_values |
+          package_manifest_flags::require_summary          |
+          package_manifest_flags::require_license);
     }
     else
       pms = pkg_package_manifests (mp, ignore_unknown);
@@ -807,13 +812,18 @@ load_packages (const options& lo,
           }
         }
 
+        // The package manifests are parsed with
+        // package_manifest_flags::require_summary flag.
+        //
+        assert (pm.summary.has_value ());
+
         p = make_shared<package> (
           move (pm.name),
           move (pm.version),
           move (pm.upstream_version),
           move (project),
           pm.priority ? move (*pm.priority) : priority (),
-          move (pm.summary),
+          move (*pm.summary),
           move (pm.license_alternatives),
           move (pm.topics),
           move (pm.keywords),
