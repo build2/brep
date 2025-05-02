@@ -24,7 +24,17 @@ compute_hmac (const options::openssl_options& o,
     //
     //   openssl mac -digest SHA256 -macopt "key:<secret>" HMAC
     //
-    // Note that here we assume both output and diagnostics will fit into pipe
+    // Note that for the above openssl openssl-dgst command the default output
+    // format may differ for different versions of openssl. For example:
+    //
+    // 1.1.0: (stdin)= 499169db545f275b3a2daa89eb94ef727bd731256a79e90d797d221e2afe4858
+    // 3.1.1: SHA2-256(stdin)= 499169db545f275b3a2daa89eb94ef727bd731256a79e90d797d221e2afe4858
+    //
+    // Thus, let's request the output in the coreutils format (-r option):
+    //
+    // 499169db545f275b3a2daa89eb94ef727bd731256a79e90d797d221e2afe4858 *stdin
+    //
+    // Also note that here we assume both output and diagnostics will fit into pipe
     // buffers and don't poll both with fdselect().
     //
     openssl os (path ("-"), // Read message from openssl::out.
@@ -33,7 +43,8 @@ compute_hmac (const options::openssl_options& o,
                 process_env (o.openssl (), o.openssl_envvar ()),
                 "dgst", o.openssl_option (),
                 "-sha256",
-                "-hmac", k);
+                "-hmac", k,
+                "-r");
 
     ifdstream err (move (errp.in));
 
@@ -55,7 +66,7 @@ compute_hmac (const options::openssl_options& o,
 
       // Read the HMAC value from openssl's output.
       //
-      h = in.read_text ();
+      getline (in, h);
       in.close ();
     }
     catch (const io_error& e)
@@ -80,6 +91,13 @@ compute_hmac (const options::openssl_options& o,
     }
 
     err.close ();
+
+    // Verify the openssl output string and strip the ' *stdin' suffix.
+    //
+    if (h.find (' ') != 64)
+      throw_generic_error (EINVAL, "unable to parse openssl stdout");
+
+    h.resize (64);
 
     return h;
   }

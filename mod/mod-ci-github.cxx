@@ -288,7 +288,7 @@ namespace brep
                               body.size (),
                               webhook_secret_.c_str ()));
 
-      if (!icasecmp (h, hmac))
+      if (icasecmp (h, hmac) != 0)
       {
         string m ("computed HMAC does not match received HMAC");
 

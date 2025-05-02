@@ -94,9 +94,10 @@ restrict its access to a test repository.
 
 In brep-module.conf:
 
-- Set the webhook secret from the GitHub app settings:
+- Save the webhook secret from the GitHub app settings into a file and set the
+  configuration option to its path:
 
-  ci-github-app-webhook-secret "deadbeef"
+  ci-github-app-webhook-secret path/to/secret.txt
 
 - Associate the GitHub app id with the path of the private key downloaded
   above:
