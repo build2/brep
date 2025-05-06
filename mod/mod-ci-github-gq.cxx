@@ -1646,8 +1646,8 @@ namespace brep
     {
       if (!alnum (c) && c != '_')
       {
-        throw invalid_argument ("invalid character in GraphQL name: '" + c +
-                                '\'');
+        throw invalid_argument (
+          string ("invalid character in GraphQL name: '") + c + '\'');
       }
     }
 

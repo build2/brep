@@ -37,10 +37,10 @@ namespace brep
     ci_github (const ci_github&, tenant_service_map&);
 
     virtual bool
-    handle (request&, response&);
+    handle (request&, response&) override;
 
     virtual const cli::options&
-    cli_options () const {return options::ci_github::description ();}
+    cli_options () const override {return options::ci_github::description ();}
 
     virtual function<optional<string> (const string&, const tenant_service&)>
     build_unloaded (const string& tenant_id,
@@ -91,7 +91,7 @@ namespace brep
 
   private:
     virtual void
-    init (cli::scanner&);
+    init (cli::scanner&) override;
 
     // Handle push events (branch push).
     //
