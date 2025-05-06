@@ -18,6 +18,7 @@
 namespace brep
 {
   struct service_data;
+  struct gq_rate_limits;
 
   class ci_github: public database_module,
                    private ci_start,
@@ -190,6 +191,16 @@ namespace brep
     obtain_installation_access_token (const string& install_id,
                                       string jwt,
                                       const basic_mark& error) const;
+
+    // Return the number of notification points currently available for a CI
+    // job. Return 0 if no points are left until the next rate limits reset
+    // time point or if something goes wrong (limits information looks
+    // outdated, etc). Also log an error describing the problem in the latter
+    // case.
+    //
+    uint64_t
+    report_budget (const gq_rate_limits&,
+                   const basic_mark& error) const;
 
   private:
     shared_ptr<options::ci_github> options_;

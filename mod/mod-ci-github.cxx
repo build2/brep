@@ -2234,7 +2234,7 @@ namespace brep
       os << "{ limit: "      << l.limit
          <<  ", remaining: " << l.remaining
          <<  ", used: "      << l.used
-         <<  ", reset: "     << l.reset << " UTC"
+         <<  ", reset: "     << l.reset
          << " }";
     }
     else
@@ -2381,6 +2381,7 @@ namespace brep
     // conclusion checkrun in the webhook handler. @@ Maybe/later.
     //
     string conclusion_node_id; // Conclusion check run node ID.
+    optional<uint64_t> rb;     // Report budget.
 
     if (!sd.conclusion_node_id)
     {
@@ -2391,12 +2392,19 @@ namespace brep
         l3 ([&]{trace << "created check_run { " << *cr << " }";});
 
         conclusion_node_id = move (*cr->node_id);
+
+        if (limits.reset != timestamp_unknown)
+          rb = report_budget (limits, error);
       }
 
-      // Log the limits returned by create_ccr().
+      // Log the limits returned by create_ccr() and budget, if present.
       //
-      info << "installation id " << sd.installation_id << " limits: "
-           << limits;
+      diag_record dr (info);
+      dr << "installation id " << sd.installation_id << " limits: "
+         << limits;
+
+      if (rb)
+        dr << ", budget: " << *rb;
     }
 
     const string& effective_conclusion_node_id (
@@ -2472,6 +2480,7 @@ namespace brep
 
     return [&error,
             tenant_id,
+            rb,
             iat = move (new_iat),
             csi = move (check_suite_node_id),
             cni = move (conclusion_node_id)]
@@ -2495,6 +2504,9 @@ namespace brep
         error << "failed to parse service data: " << e;
         return nullopt;
       }
+
+      if (rb)
+        sd.report_budget = *rb;
 
       if (iat)
         sd.installation_access = *iat;
@@ -2669,6 +2681,89 @@ namespace brep
     os << ", " << total << " total";
 
     return os.str ();
+  }
+
+  uint64_t ci_github::
+  report_budget (const gq_rate_limits& limits, const basic_mark& error) const
+  {
+    assert (limits.reset != timestamp_unknown);
+
+    // Let's reserve 10% of the total budget for the cases when the actual
+    // number of CI jobs exceeds the configured expected maximum for some time
+    // frame. This way, at least the aggregate reporting mode (without any
+    // statistics updates) will be available for the excessive jobs.
+    //
+    uint64_t reserve (limits.limit / 10);
+    uint64_t remaining (limits.remaining);
+
+    if (remaining <= reserve)
+      return 0;
+
+    remaining -= reserve;
+
+    // Return the whole remaining budget, if configured to do so.
+    //
+    uint64_t max_jobs (options_->ci_github_max_jobs_per_window ());
+
+    if (max_jobs == 0)
+      return remaining;
+
+    // Calculate the job budget, but bail out if something feels off.
+    //
+    uint64_t window_size (3600); // 1 hour.
+
+    uint64_t reset (
+      chrono::duration_cast<chrono::seconds> (
+        limits.reset.time_since_epoch ()).count ());
+
+    uint64_t now (
+      chrono::duration_cast<chrono::seconds> (
+        system_clock::now ().time_since_epoch ()).count ());
+
+    // If the current time is equal or insignificantly greater (say by 60
+    // seconds) than the reset time point, then assume that the new rate limit
+    // window just started and the total budget is available again. If it is
+    // greater significantly, then something is probably off, so just report
+    // and bail out.
+    //
+    if (now >= reset)
+    {
+      if (now - reset > 60)
+      {
+        error << "rate limit reset time point is " << now - reset
+              << " seconds ago";
+
+        return 0;
+      }
+      else
+      {
+        reset += window_size;
+        remaining = limits.limit - reserve;
+      }
+    }
+
+    // If the time left until the reset time point is greater then the window
+    // size, then we probably assume the wrong window size. Let's report and
+    // bail out in this case.
+    //
+    uint64_t left (reset - now); // Seconds left until the reset time point.
+
+    if (left > window_size)
+    {
+      error << "current rate limit window is greater than " << window_size
+            << " seconds: " << left << " seconds left until reset";
+
+      return 0;
+    }
+
+    // Approximate the number of jobs remaining until the reset time point (as
+    // jobs = max_jobs * left / window_size), rounding to the closest integer.
+    // Also assume there is at least 1 job ahead.
+    //
+    uint64_t jobs (max ((max_jobs * left + (window_size / 2)) / window_size,
+                        uint64_t (1)));
+
+    return remaining / jobs;
   }
 
   // Build state change notifications (see tenant-services.hxx for
@@ -2888,53 +2983,35 @@ namespace brep
     assert (sd.report_mode == report_mode::undetermined || sd.re_request);
 
     report_mode rm (report_mode::undetermined);
-    uint64_t rb (0);
 
     uint64_t builds_limit (options_->ci_github_builds_aggregate_report ());
+
+    // For each build in the detailed mode assume 1 point for reporting
+    // transition into the building state plus 1 point -- into the built
+    // state. For simplicity, we don't take into account some other
+    // notifications sent once per CI job (queued, etc), since this is all
+    // very approximate anyway.
+    //
+    bool aggregate ((builds_limit != 0 && crs.size () > builds_limit) ||
+                    crs.size () * 2 > sd.report_budget);
 
     switch (sd.report_mode)
     {
     case report_mode::undetermined:
     case report_mode::aggregate:
       {
-        // Determine the reporting mode based on the number of builds and the
-        // reporting budget.
-        //
-        if (builds_limit != 0 && crs.size () > builds_limit)
-        {
-          rm = report_mode::aggregate;
-          rb = 10; // @@ TMP
-        }
-        else
-        {
-          // @@ TMP Assuming the number of check runs needs to be factored
-          //    into the limits/budget-based decision (so this has to be done
-          //    here in build_queued()).
-          //
-          bool limited (false); // @@ TODO
-
-          if (limited)
-          {
-            rm = report_mode::aggregate;
-            rb = 10; // @@ TMP
-          }
-          else
-            rm = report_mode::detailed;
-        }
-
+        rm = aggregate ? report_mode::aggregate : report_mode::detailed;
         break;
       }
     case report_mode::detailed:
       {
         // Never switch out of the detailed mode.
 
-        if (builds_limit != 0 && crs.size () > builds_limit)
+        if (aggregate)
         {
-          // If we were in the detailed mode previously then the limit must
-          // have been lowered in the meantime.
-          //
-          warn << "refusing to switch from detailed to aggregate "
-               << "reporting mode based on lower build count limit";
+          warn << "not switching from detailed to aggregate reporting mode, "
+               << "budget: " << sd.report_budget << ", builds: "
+               << crs.size ();
         }
 
         rm = report_mode::detailed;
@@ -3040,7 +3117,7 @@ namespace brep
             bs = move (bs),
             iat = move (new_iat),
             crs = move (crs),
-            rm, rb,
+            rm,
             error = move (error),
             warn = move (warn)] (const string& ti,
                                  const tenant_service& ts) -> optional<string>
@@ -3088,7 +3165,6 @@ namespace brep
       }
 
       sd.report_mode = rm;
-      sd.report_budget = rb;
 
       return sd.json ();
     };

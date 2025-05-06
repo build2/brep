@@ -897,6 +897,17 @@ namespace brep
         "The number of builds exceeding which triggers the aggregate reporting
          mode. If 0 (default), then there is no limit."
       }
+
+      size_t ci-github-max-jobs-per-window = 0
+      {
+        "<number>",
+        "The expected maximum number of CI jobs per GitHub API calls rate
+         limit window imposed on an App installation. In particular, it is
+         used to determine the reporting mode and the number of updates for
+         cumulative statistics in the aggregate reporting mode. If 0 (default)
+         is specified, then a CI job is allowed to use all the API calls which
+         remain in the current rate limit window."
+      }
     };
 
     class upload: build, build_db, build_upload, repository_email, handler

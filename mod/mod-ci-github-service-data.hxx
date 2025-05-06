@@ -82,7 +82,8 @@ namespace brep
   // check run for every build and aggregate, where we only show the synthetic
   // conclusion check run. The aggregate mode is used when the number of
   // builds is too great (see ci-github-builds-limit-aggregate-report) or when
-  // the GitHub-imposed rate limit is too low (see ci-github-@@ TODO).
+  // the GitHub-imposed rate limit is too low (see
+  // ci-github-max-jobs-per-window).
   //
   enum class report_mode {undetermined, detailed, aggregate};
 
@@ -99,7 +100,7 @@ namespace brep
     bool re_request; // Re-requested (rebuild).
 
     brep::report_mode report_mode;
-    uint64_t report_budget; // Notification budget for aggregate reporting.
+    uint64_t report_budget; // Notification budget for CI job.
 
     // Check suite settings.
     //
