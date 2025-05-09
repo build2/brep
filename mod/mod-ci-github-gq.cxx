@@ -517,11 +517,12 @@ namespace brep
                         const string& iat,
                         string rq,
                         const optional<gq_create_data>& create_data,
+                        bool csi, // Get check suite node id.
                         gq_rate_limits* lim = nullptr)
   {
     size_t crs_n (crs_e - crs_b);
 
-    bool check_suite_node_id (create_data && crs_n == 1);
+    assert (!csi || (create_data && crs_n == 1));
 
     const char* what (nullptr);
     try
@@ -578,7 +579,7 @@ namespace brep
                                                 create_data->repository_id,
                                                 create_data->head_sha,
                                                 crs_n,
-                                                check_suite_node_id)));
+                                                csi)));
 
           // Type that parses the result of the above GraphQL query.
           //
@@ -684,7 +685,7 @@ namespace brep
             cr.state_synced = (rst == st);
           }
 
-          if (check_suite_node_id)
+          if (csi)
           {
             optional<string>& r (rcrs.front ().check_suite_node_id);
             assert (r);
@@ -1080,7 +1081,7 @@ namespace brep
     // There are two failure modes:
     //
     // 1. Between about 40 - 60 we may get 502 (bad gateway) but the check
-    //    runs are still created on GitHub. We handle this case be re-quering
+    //    runs are still created on GitHub. We handle this case by re-quering
     //    the check runs (see gq_mutate_check_runs() for details).
     //
     // 2. Above about 60 GitHub may not create all the check runs (while still
@@ -1114,6 +1115,7 @@ namespace brep
                                  iat,
                                  move (rq),
                                  gq_create_data {ai, rid, hs},
+                                 false /* Get check suite node id */,
                                  j != b ? nullptr : lim /*On last batch only*/))
         return false;
 
@@ -1159,6 +1161,7 @@ namespace brep
                             iat,
                             move (rq),
                             gq_create_data {ai, rid, hs},
+                            true /* Get check suite node id */,
                             lim));
 
     assert (!r || !r->empty ());
@@ -1199,6 +1202,7 @@ namespace brep
                             iat,
                             move (rq),
                             gq_create_data {ai, rid, hs},
+                            true /* Get check suite node id */,
                             lim));
 
     assert (!r || !r->empty ());
@@ -1236,6 +1240,7 @@ namespace brep
                                  iat,
                                  move (rq),
                                  nullopt /* create_data */,
+                                 false /* Get check suite node id */,
                                  lim).has_value ();
   }
 
@@ -1277,6 +1282,7 @@ namespace brep
                                   iat,
                                   move (rq),
                                   nullopt /* create_data */,
+                                  false /* Get check suite node id */,
                                   lim));
 
     cr = move (crs[0]);
@@ -1310,6 +1316,7 @@ namespace brep
                                   iat,
                                   move (rq),
                                   nullopt /* create_data */,
+                                  false /* Get check suite node id */,
                                   lim));
 
     cr = move (crs[0]);
