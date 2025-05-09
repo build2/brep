@@ -3768,9 +3768,10 @@ namespace brep
           size_t total_count (bstats.queued_count + bstats.building_count +
                               bstats.success_count + bstats.failure_count);
 
-          size_t report_interval (sd.report_budget < total_count
-                                  ? total_count / sd.report_budget
-                                  : 1);
+          size_t report_interval (
+            sd.report_budget == 0          ? total_count                    :
+            sd.report_budget < total_count ? total_count / sd.report_budget :
+            1);
 
           if (built_count % report_interval == 0)
           {
