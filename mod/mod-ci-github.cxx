@@ -2562,6 +2562,15 @@ namespace brep
     // Aggregated result status. Absent if not all builds have completed.
     //
     optional<result_status> result;
+
+    size_t
+    total_count () const
+    {
+      // Note that the warning count has already been included in the success
+      // or failure count (see calc_build_stats() for details).
+      //
+      return queued_count + building_count + success_count + failure_count;
+    }
   };
 
   // Calculate the cumulative statistics for a number of builds.
@@ -2673,13 +2682,7 @@ namespace brep
     if (warning_success && bss.warning_count != 0)
       os << " (" << bss.warning_count << " with warnings)";
 
-    // Note that the warning count has already been included in the success or
-    // failure count (see calc_build_stats() for details).
-    //
-    size_t total (bss.queued_count + bss.building_count +
-                  bss.success_count + bss.failure_count);
-    os << ", " << total << " total";
-
+    os << ", " << bss.total_count () << " total";
     return os.str ();
   }
 
@@ -3092,6 +3095,13 @@ namespace brep
               r = make_build_stats_report (s, sd.warning_success);
             }
 
+            r += ". " + force_rebuild_md_link (sd) + '.';
+
+            r += "\n\n" + aggregate_reporting_md_note (tenant_id,
+                                                       sd.app_id,
+                                                       crs.size (),
+                                                       error);
+
             if (gq_update_check_run (error,
                                      ccr,
                                      iat->token,
@@ -3099,8 +3109,7 @@ namespace brep
                                      *sd.conclusion_node_id,
                                      build_state::building,
                                      conclusion_building_title,
-                                     r + ". " + force_rebuild_md_link (sd) +
-                                     '.'))
+                                     move (r)))
             {
               assert (ccr.state == build_state::building);
               l3 ([&]{trace << "updated conclusion check_run { " << ccr << " }";});
@@ -3765,8 +3774,7 @@ namespace brep
           // If the report budget is greater than or equal to the number of
           // builds, report on every build (interval value 1).
           //
-          size_t total_count (bstats.queued_count + bstats.building_count +
-                              bstats.success_count + bstats.failure_count);
+          size_t total_count (bstats.total_count ());
 
           size_t report_interval (
             sd.report_budget == 0          ? total_count                    :
@@ -3783,6 +3791,13 @@ namespace brep
 
             string r (make_build_stats_report (bstats, sd.warning_success));
 
+            r += ". " + force_rebuild_md_link (sd) + '.';
+
+            r += "\n\n" + aggregate_reporting_md_note (tenant_id,
+                                                       sd.app_id,
+                                                       total_count,
+                                                       error);
+
             if (gq_update_check_run (error,
                                      ccr,
                                      iat->token,
@@ -3790,8 +3805,7 @@ namespace brep
                                      *sd.conclusion_node_id,
                                      build_state::building,
                                      conclusion_building_title,
-                                     r + ". " + force_rebuild_md_link (sd) +
-                                       '.'))
+                                     move (r)))
             {
               assert (ccr.state == build_state::building);
               l3 ([&]{trace << "updated conclusion check_run { " << ccr << " }";});
@@ -3922,7 +3936,7 @@ namespace brep
   }
 
   void ci_github::
-  build_completed (const string& /* tenant_id */,
+  build_completed (const string& tenant_id,
                    const tenant_service& ts,
                    const diag_epilogue& log_writer) const noexcept
   try
@@ -3951,18 +3965,6 @@ namespace brep
 
     // Here we need to update the state of the synthetic conclusion check run.
 
-    // Build states count breakdown and aggregated result status for the
-    // builds.
-    //
-    build_stats bss (calculate_build_stats (sd.check_runs, sd.warning_success));
-
-    assert (bss.result.has_value ()); // We know the builds are all complete.
-
-    // Conclusion check run summary. Append the force rebuild link.
-    //
-    string summary (make_build_stats_report (bss, sd.warning_success) +
-                    ". " + force_rebuild_md_link (sd) + '.');
-
     // Get a new installation access token if the current one has expired
     // (unlikely since we just returned from build_built()). Note also that we
     // are not saving the new token in the service data.
@@ -3989,6 +3991,24 @@ namespace brep
     //
     if (iat != nullptr)
     {
+      // Build states count breakdown and aggregated result status for the
+      // builds.
+      //
+      build_stats bss (calculate_build_stats (sd.check_runs, sd.warning_success));
+
+      assert (bss.result.has_value ()); // We know the builds are all complete.
+
+      // Conclusion check run summary. Append the force rebuild link.
+      //
+      string summary (make_build_stats_report (bss, sd.warning_success) +
+                      ". " + force_rebuild_md_link (sd) + '.');
+
+      if (sd.report_mode == report_mode::aggregate)
+        summary += "\n\n" + aggregate_reporting_md_note (tenant_id,
+                                                         sd.app_id,
+                                                         bss.total_count (),
+                                                         error);
+
       // Update the conclusion check run if all check runs are now built.
       //
       assert (sd.conclusion_node_id);
@@ -4001,6 +4021,7 @@ namespace brep
       // Set some fields for display purposes.
       //
       cr.node_id = *sd.conclusion_node_id;
+
       // Let invalid_argument propagate.
       //
       cr.name = conclusion_check_run_name (sd.app_id);
@@ -4178,6 +4199,49 @@ namespace brep
       "&repo-id=" + sd.repository_node_id +
       "&head-sha=" + sd.report_sha +
       "&reason=)";
+  }
+
+  string ci_github::
+  aggregate_reporting_md_note (const string& tid,
+                               uint64_t app_id,
+                               size_t builds_count,
+                               const basic_mark& error) const
+  {
+    string r ("Note: using aggregate reporting due to ");
+
+    // There are no reasons for choosing the aggregate reporting mode other
+    // than due to a large number of builds or the rate limit. Thus, we just
+    // assume that if this is not the former, then this is the latter.
+    //
+    uint64_t builds_limit (options_->ci_github_builds_aggregate_report ());
+
+    r += builds_limit != 0 && builds_count > builds_limit
+      ? "large number of builds"
+      : "rate limit";
+
+    r += ". See native [";
+
+    // It's very unlikely that we cannot find the application name. However,
+    // lets consider that it may happen (probably due to some
+    // mis-configuration), in which case don't fail but rather log an error
+    // and still return the note.
+    //
+    const map<uint64_t, string>& an (options_->ci_github_app_id_name ());
+
+    auto i (an.find (app_id));
+    if (i != an.end ())
+    {
+      r += i->second;
+    }
+    else
+    {
+      r += "CI";
+
+      error << "no app name configured for app id " << app_id;
+    }
+
+    r += "](" + details_url (tid) + ") interface for the list of builds.";
+    return r;
   }
 
   static optional<build_id>

@@ -169,7 +169,7 @@ namespace brep
     // Build a check run details_url for a tenant.
     //
     string
-    details_url (const string& tenant) const;
+    details_url (const string& tenant_id) const;
 
     // Generate a force rebuild link in Markdown. For example:
     //
@@ -177,6 +177,19 @@ namespace brep
     //
     string
     force_rebuild_md_link (const service_data&) const;
+
+    // Generate an aggregate reporting reason note in Markdown. For example:
+    //
+    // Note: using aggregate reporting due to rate limit.
+    // See native [build2 CI]
+    // (https://ci.cppget.org/@be545490-b794-421e-a419-00a98c84d43a?builds)
+    // interface for the list of builds.
+    //
+    string
+    aggregate_reporting_md_note (const string& tenant_id,
+                                 uint64_t app_id,
+                                 size_t builds_count,
+                                 const basic_mark& error) const;
 
     optional<string>
     generate_jwt (uint64_t app_id,
