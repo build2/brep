@@ -628,7 +628,7 @@ namespace brep
     // empty body. These are triggered when a user installs a GitHub App in a
     // repository or organization.
     //
-    else if (event == "installation")
+    else if (event == "installation" || event == "installation_repositories")
     {
       return true;
     }
@@ -660,7 +660,7 @@ namespace brep
   //
   static const string conclusion_building_title ("\U0001F7E1 IN PROGRESS");
   static const string conclusion_building_summary (
-    "Waiting for all the builds to complete.");
+    "Waiting for the builds to start.");
 
   // "Medium white" circle.
   //
