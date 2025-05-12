@@ -853,7 +853,7 @@ Once this is done, all future pushed commits and pull requests will be tested
 using \c{build2} CI.
 
 \N|For various reasons such as intermittent network issues, GitHub dropping
-requests for unknown reasons, etc., a CI might get \"stuck\" with one more
+requests for unknown reasons, etc., a CI might get \"stuck\" with one or more
 builds in the queued or building state. Note that in this case, GitHub will
 not allow you to re-request the CI since it requires all the checks to be
 completed before that can be done. However, the \c{CONCLUSION} check contains
@@ -867,9 +867,10 @@ the previous section, GitHub CI model has a number of limitations and without
 the branch protection you may, for example, make a decision to merge a PR
 based on the stale CI results.
 
-The are two ways to enable the necessary branch protection: using the classic
-branch protection rule or with the new rulesets. Both of these methods should
-produce the same result and are discussed in the following two sections.
+There are two ways to enable the necessary branch protection: using the
+classic branch protection rule or with the new rulesets. Both of these methods
+should produce the same result and are discussed in the following two
+sections.
 
 Note, however, that before you can proceed to enabling branch protection, you
 need to trigger at least one CI job (for example, by pushing a commit).
