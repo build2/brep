@@ -859,7 +859,7 @@ not allow you to re-request the CI since it requires all the checks to be
 completed before that can be done. However, the \c{CONCLUSION} check contains
 a link that allows you to force rebuild even if some builds are still
 outstanding. Note that you should use this mechanism only when you are
-reasonably sure the CI is stuck in order not to waster CI resources.|
+reasonably sure the CI is stuck in order not to waste CI resources.|
 
 While you can stop here, it is strongly recommended to also enable a branch
 protection rule that takes into account the configured CI. As discussed in
