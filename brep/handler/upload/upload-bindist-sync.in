@@ -1,0 +1,161 @@
+#!/usr/bin/env bash
+
+# file      : brep/handler/upload/upload-bindist-sync.in
+# license   : MIT; see accompanying LICENSE file
+
+# Copy build2-toolchain binary packages from the upload directory to the
+# distribution directory.
+#
+# Specifically, perform the following steps:
+#
+# - Retreive the build2 toolchain package version and the distribution version
+#   from the toolchain.sha256 file located in the distribution root directory.
+#   For example:
+#
+#   # 0.18.0-a.0.20250612092116.c0f1adfb8390
+#   2cb00e... *0.18.0-a.0/build2-toolchain-0.18.0.tar.xz
+#
+#   -> 0.18.0-a.0.20250612092116.c0f1adfb8390, 0.18.0-a.0
+#
+# - Recursively scan the upload root directory for the packages.sha256 files
+#   for the previously obtained build2 toolchain package version.
+#
+# - Extract from the found file paths the distribution types, OS
+#   names/versions, and architectures to craft the destination directories for
+#   the packages and to omit some distribution-specific file types. For
+#   example:
+#
+#   .../stage/debian/ubuntu22.04/build2/build2-toolchain/0.18.0/x86_64-.../packages.sha256 ->
+#     -> debian, ubuntu, ubuntu22.04, x86_64
+#
+# - Read the binary package file names from the packages.sha256 files and copy
+#   these packages into the previously obtained distribution version
+#   subdirectory, excluding those which are already present at the destination
+#   location. Craft the destination directory paths for the package files as
+#   follows:
+#
+#   <distribution-root>/<distribution-version>/<os-name>/<os-name-version>/<architecture>/
+#
+#   For example:
+#
+#   .../0/0.18.0-a.0/ubuntu/ubuntu22.04/x86_64/
+#
+# - Generate the packages.sha256 files in the destination directories where at
+#   least one binary package has been copied to.
+#
+usage="usage: $0 <upload-root> <distribution-root>"
+
+# Diagnostics.
+#
+verbose= #true
+
+owd=`pwd`
+trap "{ cd $owd; exit 1; }" ERR
+set -o errtrace     # Trap in functions and subshells.
+set -o pipefail     # Fail if any pipeline command fails.
+shopt -s lastpipe   # Execute last pipeline command in the current shell.
+shopt -s nullglob   # Expand no-match globs to nothing rather than themselves.
+
+@import brep/handler/utility@
+
+if [[ "$#" -ne 2 ]]; then
+  error "$usage"
+fi
+
+# Package upload root directory.
+#
+upload_dir="${1%/}"
+shift
+
+if [[ -z "$upload_dir" ]]; then
+  error "$usage"
+fi
+
+if [[ ! -d "$upload_dir" ]]; then
+  error "'$upload_dir' does not exist or is not a directory"
+fi
+
+# Distribution root directory.
+#
+dist_dir="${1%/}"
+shift
+
+if [[ -z "$dist_dir" ]]; then
+  error "$usage"
+fi
+
+if [[ ! -d "$dist_dir" ]]; then
+  error "'$dist_dir' does not exist or is not a directory"
+fi
+
+# Retreive the build2 toolchain version from the first (comment) line of the
+# toolchain.sha256 file:
+#
+toolchain_version="$(sed -n -re 's/^# (.+)$/\1/p' <"$dist_dir/toolchain.sha256")"
+
+if [[ -z "$toolchain_version" ]]; then
+  error "unable to retrieve toolchain version from $dist_dir/toolchain.sha256"
+fi
+
+# Retrieve the distribution version from the build2 toolchain line of the
+# toolchain.sha256 file:
+#
+dist_version="$(sed -n -re 's%^[^ ]+ \*([^/]+)/build2-toolchain-.+$%\1%p' <"$dist_dir/toolchain.sha256")"
+
+declare -A dest_dirs # Package directories to generate packages.sha256 in.
+
+# Copy the newly uploaded build2 toolchain binary packages to the distribution
+# directory.
+#
+pp="$upload_dir/*/*/build2/build2-toolchain/$toolchain_version/*-????-??-??T??:??:??Z*/packages.sha256"
+
+run find "$upload_dir" -type f -path "$pp" | while read psf; do
+
+  # Strip the upload root directory prefix and the file name suffix from the
+  # full packages.sha256 file path.
+  #
+  s="${psf#$upload_dir/}"
+  s="${s%/packages.sha256}"
+
+  # Extract the distribution type, OS name/version, and architecture.
+  #
+  dist="$(sed -n -re 's%^(.+)/.+/.+/.+/.+/.+$%\1%p' <<<"$s")"
+  osv="$(sed -n -re 's%^.+/(.+)/.+/.+/.+/.+$%\1%p' <<<"$s")"
+  os="$(sed -n -re 's%^([a-zA-Z]+).*$%\1%p' <<<"$osv")"
+  arch="$(sed -n -re 's%^.+/.+/.+/.+/.+/([^-]+)-.+$%\1%p' <<<"$s")"
+
+  src_dir="$(dirname "$psf")"
+  dest_dir="$dist_dir/$dist_version/$os/$osv/$arch"
+
+  sed -n -re 's/^[^ ]+ \*(.+)$/\1/p' <"$psf" | while read pf; do
+
+    # Get the extension and omit certain distribution-specific file types.
+    #
+    e="$(sed -rn -e 's/^.+\.([^.]+)$/\1/p' <<<"$pf")"
+
+    case "$dist" in
+      "debian")
+        if [[ "$e" == "buildinfo" || "$e" == "changes" ]]; then
+          continue
+        fi
+	      ;;
+    esac
+
+    if [[ ! -f "$dest_dir/$pf" ]]; then
+      run mkdir -p "$dest_dir"
+      run cp "$src_dir/$pf" "$dest_dir"
+
+      dest_dirs["$dest_dir"]=true
+    fi
+  done
+done
+
+# Generate the packages.sha256 files.
+#
+for d in "${!dest_dirs[@]}"; do
+  cd "$d"
+  rm -f packages.sha256
+  l="$(find -L . -maxdepth 1 -type f -printf '%P\n' | sort)" # Array-like.
+  sha256sum -b $l >packages.sha256
+  cd "$owd"
+done

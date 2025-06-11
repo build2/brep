@@ -15,15 +15,13 @@ fi
 bpkg_util_bpkg=bpkg
 @import bpkg-util/package-archive@
 
+@import brep/handler/utility@
+
 # Diagnostics.
 #
-# We expect the user to set the verbose variable either to true or empty
-# (false).
+# Override the info(), error(), trace(), and trace_cmd() functions, adding
+# severity, timestamp, and handler/data references to the output.
 #
-if [ ! -v verbose ]; then
-  echo "error: variable 'verbose' is not set" >&2
-  exit 1
-fi
 
 # Normally the brep module's log record looks like this:
 #
@@ -79,37 +77,6 @@ function trace_cmd () # <cmd> <arg>...
     done
 
     info "info" "$s"
-  fi
-}
-
-# Trace the current function name and arguments.
-#
-function trace_func () # <args>...
-{
-  trace_cmd "${FUNCNAME[1]}" "$@"
-}
-
-# Trace and run a command.
-#
-function run () # <cmd> <arg>...
-{
-  trace_cmd "$@"
-  "$@"
-}
-
-# Same as above but also redirect the command stderr to /dev/null, unless
-# running in the verbose mode.
-#
-# Note that we don't redirect stdout, so it can still be captured.
-#
-function run_silent () # <cmd> <arg>...
-{
-  trace_cmd "$@"
-
-  if [ "$verbose" ]; then
-    "$@"
-  else
-    "$@" 2>/dev/null
   fi
 }
 
