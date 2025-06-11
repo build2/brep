@@ -1,0 +1,338 @@
+#!/usr/bin/env bash
+
+# file      : brep/handler/upload/upload-bindist-sync-build2-toolchain.in
+# license   : MIT; see accompanying LICENSE file
+
+# Copy build2-toolchain binary packages from the upload directory to the
+# distribution directory. Note that both directories are expected to be on
+# the same host.
+#
+# Specifically, perform the following steps:
+#
+# - Retreive the build2 toolchain package version and the distribution version
+#   from the toolchain.sha256 file located in the distribution root directory
+#   (<distribution-root>). For example:
+#
+#   # 0.18.0-a.0.20250612092116.c0f1adfb8390
+#   2cb00e... *0.18.0-a.0/build2-toolchain-0.18.0.tar.xz
+#
+#   -> 0.18.0-a.0.20250612092116.c0f1adfb8390, 0.18.0-a.0
+#
+# - Sanitize the <distribution-root>/<distribution-version>/bindist/
+#   directory, removing those subdirectories which contain no packages.sha256
+#   file nor subdirectories. Note that a valid subdirectory must either
+#   contain package files and packages.sha256 or subdirectories and no regular
+#   files. We also assume that a leaf subdirectory may only contain files
+#   which relate to a single binary package upload.
+#
+# - Recursively scan the upload root directory (<upload-root>) for the
+#   packages.sha256 files corresponding to the retreived build2 toolchain
+#   package version.
+#
+# - Extract from the found file paths the distribution types, OS
+#   names/versions, architectures, and potential variants to craft the
+#   destination directories for the packages. For example:
+#
+#   .../stage/debian/ubuntu22.04/build2/build2-toolchain/0.18.0/x86_64-<timestamp>/packages.sha256 ->
+#     -> debian, ubuntu, ubuntu22.04, x86_64
+#
+#   .../stage/archive/windows10/build2/build2-toolchain/0.18.0/x86_64-mingw-<timestamp>/packages.sha256 ->
+#     -> archive, windows, windows10, x86_64, mingw
+#
+# - Read names of the binary package files from each packages.sha256 and copy
+#   them into the distribution directory, unless they already exist there,
+#   omitting some distribution-specific file types. Generate packages.sha256
+#   in the destination directory if the package files have been copied. Craft
+#   the destination directory paths for the package files as follows:
+#
+#   <distribution-root>/<distribution-version>/bindist/<os-name>/<os-name-version>/<architecture>/[<variant>/]
+#
+#   For example:
+#
+#   .../0/0.18.0-a.0/ubuntu/ubuntu22.04/x86_64/
+#   .../0/0.18.0-a.0/windows/windows10/x86_64/mingw/
+#
+#   Note that if the destination directory already contains a subset of files
+#   listed in the source directory's packages.sha256, then the script fails
+#   (the result would contain files from different uploads and that could be
+#   inconsistent). Specifically:
+#
+#   - If all the listed files are present in the destination directory, then
+#     we don't copy any of them.
+#
+#   - Otherwise, if none of the listed files nor packages.sha256 is present in
+#     the destination directory, then we copy all of them and generate
+#     packages.sha256.
+#
+#   - Otherwise, we fail.
+#
+#   Also note that if we fail to copy package files for any reason, then the
+#   destination directory will be considered incomplete due to absence of
+#   packages.sha256 and, thus, will be wiped out on the next script run at the
+#   sanitization stage (see above).
+#
+# Note that when we see packages.sha256 in the upload directory we are
+# guaranteed that the upload is completed. We also use snapshots of uploads to
+# make sure that things don't get updated while we are copying stuff. We,
+# however, need to handle a potential situation when packages.sha256 or some
+# files it refers to are removed by the upload-bindist handler (as a previous
+# snapshot) or upload-bindist-clean script (as an expired snapshot) by the
+# time we try to read/copy them. If we are unable to read packages.sha256,
+# then we just skip the snapshot directory. If we are unable to copy a package
+# file since it doesn't exist anymore, then we re-execute the script assuming
+# that the incomplete destination directory will be wiped out and then
+# potentially recreated using some newer snapshot (which we will then copy).
+#
+usage="usage: $0 <upload-root> <distribution-root>"
+
+# Diagnostics.
+#
+verbose= #true
+
+owd=`pwd`
+trap "{ cd $owd; exit 1; }" ERR
+set -o errtrace     # Trap in functions and subshells.
+set -o pipefail     # Fail if any pipeline command fails.
+shopt -s lastpipe   # Execute last pipeline command in the current shell.
+shopt -s nullglob   # Expand no-match globs to nothing rather than themselves.
+
+@import brep/handler/utility@
+
+if [[ "$#" -ne 2 ]]; then
+  error "$usage"
+fi
+
+# Package upload root directory.
+#
+upload_dir="${1%/}"
+shift
+
+if [[ -z "$upload_dir" ]]; then
+  error "$usage"
+fi
+
+if [[ ! -d "$upload_dir" ]]; then
+  error "'$upload_dir' does not exist or is not a directory"
+fi
+
+# Distribution root directory.
+#
+dist_dir="${1%/}"
+shift
+
+if [[ -z "$dist_dir" ]]; then
+  error "$usage"
+fi
+
+if [[ ! -d "$dist_dir" ]]; then
+  error "'$dist_dir' does not exist or is not a directory"
+fi
+
+# Retreive the build2 toolchain version from the first (comment) line of
+# toolchain.sha256:
+#
+toolchain_version="$(sed -n -re 's/^# (.+)$/\1/p' <"$dist_dir/toolchain.sha256")"
+
+if [[ -z "$toolchain_version" ]]; then
+  error "unable to retrieve toolchain version from $dist_dir/toolchain.sha256"
+fi
+
+# Retrieve the distribution version from the build2 toolchain line of
+# toolchain.sha256:
+#
+dist_version="$(sed -n -re 's%^[^ ]+ \*([^/]+)/build2-toolchain-.+$%\1%p' <"$dist_dir/toolchain.sha256")"
+
+# Sanitize the <distribution-root>/<distribution-version>/bindist/ directory.
+#
+if [[ -d "$dist_dir/$dist_version/bindist" ]]; then
+  declare -A remove_dirs
+
+  # Collect subdirectories with some files but without packages.sha256.
+  #
+  run find "$dist_dir/$dist_version/bindist" -type f | while read f; do
+    d="$(dirname "$f")"
+
+    if [[ "$f" == "$d/packages.sha256" ]]; then
+      remove_dirs["$d"]=
+    elif [[ ! -v remove_dirs["$d"] ]]; then
+      remove_dirs["$d"]=true
+    fi
+  done
+
+  # Collect empty subdirectories.
+  #
+  run find "$dist_dir/$dist_version/bindist" -type d -empty | while read d; do
+    remove_dirs["$d"]=true
+  done
+
+  # Remove the collected subdirectories.
+  #
+  for d in "${!remove_dirs[@]}"; do
+    if [[ "${remove_dirs[$d]}" ]]; then
+      run rm -r "$d"
+
+      # Remove the empty parent directories.
+      #
+      # Note that we iterate until the rmdir command fails, presumably because
+      # a directory is not empty.
+      #
+      d="$(dirname "$d")"
+      while [[ "$d" != "$dist_dir/$dist_version" ]]; do
+        if run_silent rmdir "$d"; then
+          d="$(dirname "$d")"
+        else
+          break
+        fi
+      done
+    fi
+  done
+fi
+
+# Copy the newly uploaded build2 toolchain binary packages to the distribution
+# directory. Note: using pattern that will only match snapshot directories.
+#
+pp="$upload_dir/*/*/build2/build2-toolchain/$toolchain_version/*-????-??-??T??:??:??Z*/packages.sha256"
+
+run find "$upload_dir" -type f -path "$pp" | while read psf; do
+  # Strip the upload root directory prefix and the file name suffix from the
+  # full packages.sha256 file path.
+  #
+  s="${psf#$upload_dir/}"
+  s="${s%/packages.sha256}"
+
+  # Extract the distribution type, OS name/version, architecture, and, if
+  # present, variant.
+  #
+  dist="$(sed -n -re 's%^(.+)/.+/.+/.+/.+/.+$%\1%p' <<<"$s")"
+  osv="$(sed -n -re 's%^.+/(.+)/.+/.+/.+/.+$%\1%p' <<<"$s")"
+  os="$(sed -n -re 's%^([a-zA-Z]+).*$%\1%p' <<<"$osv")"
+
+  s="$(sed -n -re 's%^.+/.+/.+/.+/.+/(.+)-....-..-..T..:..:..Z.*$%\1%p' <<<"$s")"
+  arch="$(sed -n -re 's%^([^-]+).*$%\1%p' <<<"$s")"
+  variant="$(sed -n -re 's%^[^-]+(-(.+))?$%\2%p' <<<"$s")"
+
+  src_dir="$(dirname "$psf")"
+  dest_dir="$dist_dir/$dist_version/bindist/$os/$osv/$arch"
+
+  if [[ -n "$variant" ]]; then
+    dest_dir="$dest_dir/$variant"
+  fi
+
+  # If packages.sha256 is removed by the time we read it, then just silently
+  # skip the snapshot directory.
+  #
+  if ! ps="$(run_silent cat "$psf")"; then
+    trace "$psf no longer exists, skipping snapshot..."
+    continue
+  fi
+
+  # Read the package file names that we may copy from packages.sha256 and,
+  # while at it, count the number of files that already exist in the
+  # destination directory.
+  #
+  # While at it, also check that all the listed files are still present in the
+  # snapshot directory. Note that if that's not the case, we don't really know
+  # if this is a short-term condition (concurrent removal by upload-bindist,
+  # etc) or a long-term one (upload-bindist malfunction, etc). Thus, not to
+  # end up re-executing ourselves indefinitely, we just silently skip the
+  # snapshot. This way, for the short-term case, we behave as if the removal
+  # occurred between the script runs. For the long-term case, we assume that
+  # reporting/fixing such an inconsistency in the upload directory will be
+  # performed by some other means (broken snapshot is removed naturally by
+  # upload-bindist, etc).
+  #
+  pfs=()
+  pfn=0
+
+  sed -n -re 's/^[^ ]+ \*(.+)$/\1/p' <<<"$ps" | while read pf; do
+
+    # Get the extension and omit certain distribution-specific file types.
+    #
+    e="$(sed -rn -e 's/^.+\.([^.]+)$/\1/p' <<<"$pf")"
+
+    case "$dist" in
+      "debian")
+        if [[ "$e" == "buildinfo" || "$e" == "changes" ]]; then
+          continue
+        fi
+	      ;;
+    esac
+
+    # If the listed file doesn't exist, indicate that by clearing the files
+    # list and bail out from the reading loop.
+    #
+    if [[ ! -f "$src_dir/$pf" ]]; then
+      trace "$src_dir/$pf doesn't exist, skipping snapshot..."
+      pfs=()
+      break
+    fi
+
+    pfs+=("$pf")
+
+    if [[ -f "$dest_dir/$pf" ]]; then
+      pfn=$(($pfn + 1))
+    fi
+  done
+
+  # If all the package files are present in the destination directory or any
+  # of them is absent in the snapshot directory, then skip the snapshot.
+  # Otherwise, if some package files or packages.sha256 are present in the
+  # destination directory, then fail.
+  #
+  if [[ "${#pfs[@]}" -eq 0 || "${#pfs[@]}" -eq "$pfn" ]]; then
+    continue
+  elif [[ "$pfn" -ne 0 ]]; then
+    error "unable to copy package files from $src_dir/ to $dest_dir/: some files already exist in destination directory"
+  elif [[ -f "$dest_dir/packages.sha256" ]]; then
+    error "unable to copy package files from $src_dir/ to $dest_dir/: packages.sha256 already exists in destination directory"
+  fi
+
+  # Copy the collected package files.
+  #
+  run mkdir -p "$dest_dir"
+
+  for pf in "${pfs[@]}"; do
+    # If `cp` fails, check if the source file doesn't exist anymore. If that's
+    # the case, then the most probable cause is the upload-bindist handler,
+    # removing the previous snapshot. Thus, in this case sleep a bit to give
+    # the removal some time to finish and re-execute the script to make sure
+    # that this incomplete destination directory is removed, recreated, and
+    # filled with the content of the newly uploaded snapshot. Fail if `cp`
+    # fails for some other reason.
+    #
+    trace_cmd cp "$src_dir/$pf" "$dest_dir"
+    if ! e="$(cp "$src_dir/$pf" "$dest_dir" 2>&1)"; then
+      if [[ ! -f "$src_dir/$pf" ]]; then
+        trace "$src_dir/$pf doesn't exist anymore, re-executing the script..."
+        run sleep 3
+        run exec "$0" "$upload_dir" "$dist_dir"
+      fi
+
+      error "$e"
+    fi
+  done
+
+  # Finally, generate packages.sha256 in the destination directory, atomically.
+  #
+  run cd "$dest_dir"
+  l="$(find . -type f -printf '%P\n')" # Array-like.
+  run sha256sum -b $l >.packages.sha256
+  run mv .packages.sha256 packages.sha256
+  run cd "$owd"
+done
+
+# Generate toolchain-bindist.sha256 in the distribution root directory,
+# atomically.
+#
+run cd "$dist_dir"
+
+echo "# $toolchain_version" >.toolchain-bindist.sha256
+
+run find "$dist_version/bindist" -type f -name packages.sha256 | while read f; do
+  d="$(dirname "$f")"
+  l="$(find $d -type f ! -name packages.sha256)" # Array-like.
+  run sha256sum -b $l >>.toolchain-bindist.sha256
+done
+
+run mv .toolchain-bindist.sha256 toolchain-bindist.sha256
+run cd "$owd"

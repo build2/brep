@@ -1,13 +1,17 @@
 # file      : brep/handler/upload/buildfile
 # license   : MIT; see accompanying LICENSE file
 
-./: exe{brep-upload-bindist} exe{brep-upload-bindist-clean}
+./: exe{brep-upload-bindist                        \
+        brep-upload-bindist-clean                  \
+        brep-upload-bindist-sync-build2-toolchain}
 
 include ../
 
 exe{brep-upload-bindist}: in{upload-bindist} bash{upload} ../bash{handler}
 
-[rule_hint=bash] \
-exe{brep-upload-bindist-clean}: in{upload-bindist-clean}
-
 bash{upload}: in{upload} ../bash{handler}
+
+exe{brep-upload-bindist-clean}: in{upload-bindist-clean} ../bash{utility}
+
+exe{brep-upload-bindist-sync-build2-toolchain}:             \
+  in{upload-bindist-sync-build2-toolchain} ../bash{utility}

@@ -48,38 +48,7 @@ set -o pipefail     # Fail if any pipeline command fails.
 shopt -s lastpipe   # Execute last pipeline command in the current shell.
 shopt -s nullglob   # Expand no-match globs to nothing rather than themselves.
 
-function info () { echo "$*" 1>&2; }
-function error () { info "$*"; exit 1; }
-function trace () { if [ "$verbose" ]; then info "$*"; fi }
-
-# Trace a command line, quoting empty arguments as well as those that contain
-# spaces.
-#
-function trace_cmd () # <cmd> <arg>...
-{
-  if [[ "$verbose" ]]; then
-    local s="+"
-    while [ $# -gt 0 ]; do
-      if [ -z "$1" -o -z "${1##* *}" ]; then
-        s="$s '$1'"
-      else
-        s="$s $1"
-      fi
-
-      shift
-    done
-
-    info "$s"
-  fi
-}
-
-# Trace and run a command.
-#
-function run () # <cmd> <arg>...
-{
-  trace_cmd "$@"
-  "$@"
-}
+@import brep/handler/utility@
 
 if [[ "$#" -ne 2 ]]; then
   error "$usage"

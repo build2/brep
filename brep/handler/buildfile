@@ -5,6 +5,7 @@ import mods  = libbutl.bash%bash{manifest-parser}
 import mods += libbutl.bash%bash{manifest-serializer}
 import mods += bpkg-util%bash{package-archive}
 
-./: bash{handler} submit/ ci/ upload/
+./: bash{utility handler} submit/ ci/ upload/
 
-bash{handler}: in{handler} $mods
+bash{utility}: in{utility}
+bash{handler}: in{handler} bash{utility} $mods
