@@ -994,11 +994,23 @@ handle (request& rq, response& rs)
       if (imode == interactive_mode::both)
         pq += pkg_query::build_tenant::interactive + "NULLS LAST,";
 
-      pq += pkg_query::build_package::id.tenant + ","                  +
-        pkg_query::build_package::id.name                              +
-        order_by_version (pkg_query::build_package::id.version, false) +
-        "OFFSET" + pkg_query::_ref (offset)                            +
-        "LIMIT" + pkg_query::_ref (limit);
+      const auto& p (pkg_query::build_package::id);
+
+      // If the package order is not randomized, make sure that the special
+      // build2-toolchain package is picked before other packages (this makes
+      // sure the binary packages for the toolchain distribution are build as
+      // fast as possible).
+      //
+      if (!random)
+        pq += "CASE WHEN (" + p.name + "='build2-toolchain') THEN 0 ELSE 1 END,";
+
+      // Make sure the greater versions of the same package are picked earlier.
+      //
+      pq += p.tenant + ","                                       +
+            p.name                                               +
+            order_by_version_desc (p.version, false /* first */) +
+            "OFFSET" + pkg_query::_ref (offset)                  +
+            "LIMIT" + pkg_query::_ref (limit);
 
       if (conn == nullptr)
         conn = build_db_->connection ();
