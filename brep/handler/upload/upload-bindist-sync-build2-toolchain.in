@@ -142,14 +142,16 @@ fi
 #
 dist_version="$(sed -n -re 's%^[^ ]+ \*([^/]+)/build2-toolchain-.+$%\1%p' <"$dist_dir/toolchain.sha256")"
 
+bindist_dir="$dist_dir/$dist_version/bindist"
+
 # Sanitize the <distribution-root>/<distribution-version>/bindist/ directory.
 #
-if [[ -d "$dist_dir/$dist_version/bindist" ]]; then
+if [[ -d "$bindist_dir" ]]; then
   declare -A remove_dirs
 
   # Collect subdirectories with some files but without packages.sha256.
   #
-  run find "$dist_dir/$dist_version/bindist" -type f | while read f; do
+  run find "$bindist_dir" -type f | while read f; do
     d="$(dirname "$f")"
 
     if [[ "$f" == "$d/packages.sha256" ]]; then
@@ -161,7 +163,7 @@ if [[ -d "$dist_dir/$dist_version/bindist" ]]; then
 
   # Collect empty subdirectories.
   #
-  run find "$dist_dir/$dist_version/bindist" -type d -empty | while read d; do
+  run find "$bindist_dir" -type d -empty | while read d; do
     remove_dirs["$d"]=true
   done
 
@@ -212,7 +214,7 @@ run find "$upload_dir" -type f -path "$pp" | while read psf; do
   variant="$(sed -n -re 's%^[^-]+(-(.+))?$%\2%p' <<<"$s")"
 
   src_dir="$(dirname "$psf")"
-  dest_dir="$dist_dir/$dist_version/bindist/$os/$osv/$arch"
+  dest_dir="$bindist_dir/$os/$osv/$arch"
 
   if [[ -n "$variant" ]]; then
     dest_dir="$dest_dir/$variant"
@@ -328,11 +330,13 @@ run cd "$dist_dir"
 
 echo "# $toolchain_version" >.toolchain-bindist.sha256
 
-run find "$dist_version/bindist" -type f -name packages.sha256 | while read f; do
-  d="$(dirname "$f")"
-  l="$(find $d -type f ! -name packages.sha256)" # Array-like.
-  run sha256sum -b $l >>.toolchain-bindist.sha256
-done
+if [[ -d "$bindist_dir" ]]; then
+  run find "$dist_version/bindist" -type f -name packages.sha256 | while read f; do
+    d="$(dirname "$f")"
+    l="$(find $d -type f ! -name packages.sha256)" # Array-like.
+    run sha256sum -b $l >>.toolchain-bindist.sha256
+  done
+fi
 
 run mv .toolchain-bindist.sha256 toolchain-bindist.sha256
 run cd "$owd"
