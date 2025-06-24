@@ -257,7 +257,7 @@ run find "$upload_dir" -type f -path "$pp" | while read psf; do
         if [[ "$e" == "buildinfo" || "$e" == "changes" ]]; then
           continue
         fi
-	      ;;
+        ;;
     esac
 
     # If the listed file doesn't exist, indicate that by clearing the files
@@ -302,8 +302,12 @@ run find "$upload_dir" -type f -path "$pp" | while read psf; do
     # filled with the content of the newly uploaded snapshot. Fail if `cp`
     # fails for some other reason.
     #
-    trace_cmd cp "$src_dir/$pf" "$dest_dir"
-    if ! e="$(cp "$src_dir/$pf" "$dest_dir" 2>&1)"; then
+    # Don't preserve permissions for the copied files, which may potentially
+    # be too restrictive for, for example, later removal of these files by
+    # a different user in the same group.
+    #
+    trace_cmd cp --no-preserve=mode "$src_dir/$pf" "$dest_dir"
+    if ! e="$(cp --no-preserve=mode "$src_dir/$pf" "$dest_dir" 2>&1)"; then
       if [[ ! -f "$src_dir/$pf" ]]; then
         trace "$src_dir/$pf doesn't exist anymore, re-executing the script..."
         run sleep 3
