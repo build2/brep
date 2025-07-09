@@ -5,7 +5,6 @@
 #define LIBBREP_PACKAGE_HXX
 
 #include <map>
-#include <chrono>
 
 #include <odb/core.hxx>
 #include <odb/section.hxx>

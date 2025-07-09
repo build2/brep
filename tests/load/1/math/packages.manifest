@@ -19,7 +19,8 @@ builds: default legacy
 build-include: windows**d/x86_64**
 build-include: windows-vc_13**
 build-exclude: **; Only supported on Windows.
-bootstrap-build:\
+bootstrap-build:
+\
 project = libexp
 
 \
@@ -30,7 +31,8 @@ name: libfoo
 version: +0-X.Y
 summary: The Foo Library
 license: MIT
-bootstrap-build:\
+bootstrap-build:
+\
 project = libfoo
 
 \
@@ -45,7 +47,8 @@ build-email: foo-builds@example.com
 builds: default legacy; Stable configurations only.
 builds: -32; 64-bit targets only
 builds: &msvc_13_up; Not too old MSVC.
-bootstrap-build:\
+bootstrap-build:
+\
 project = libfoo
 
 \
@@ -60,7 +63,8 @@ license: LGPLv2, MIT; If using with GNU TLS.
 license: BSD; If using with OpenSSL.
 topics: math library, math API, libbaz fork
 keywords: c++ foo math best
-description:\
+description:
+\
 A modern C++ library with easy to use linear algebra and lot of optimization
 tools.
 
@@ -71,7 +75,8 @@ Useful for conversion of research code into production environments.
 [^mathlab]: MATLAB Capabilities: TODO
 \
 description-type: text/markdown
-package-description:\
+package-description:
+\
 This project builds and defines the build2 package for the libfoo library.
 
 A modern C++ library with easy to use linear algebra and lot of optimization
@@ -84,7 +89,8 @@ Useful for conversion of research code into production environments.
 [^mathlab]: MATLAB Capabilities: TODO
 \
 package-description-type: text/markdown
-changes:\
+changes:
+\
 **1.2.4+1**
  * applied patch for critical bug-219
  * regenerated documentation
@@ -123,17 +129,20 @@ cache-builds: default
 cache-builds: -linux
 cache-build-include: windows-vc_14d/x86_64-microsoft-win32-msvc14.0
 cache-build-exclude: **
-cache-build-config:\
+cache-build-config:
+\
 config.libfoo.cache=true
 config.libfoo.buffer=4096
 ;
 Enable caching.
 \
-bootstrap-build:\
+bootstrap-build:
+\
 project = libfoo
 
 \
-root-build:\
+root-build:
+\
 config [bool] config.libfoo.network ?= false
 
 config [bool] config.libfoo.cache ?= false
@@ -148,7 +157,8 @@ version: 1.2.4
 summary: The Foo Math Library benchmarks
 license: MIT
 builds: 64; Fails building for 32 bits.
-bootstrap-build:\
+bootstrap-build:
+\
 project = libfoo-benchmarks
 
 \
@@ -160,7 +170,8 @@ version: 1.2.4
 summary: The Foo Math Library examples
 license: MIT
 builds: 64; Fails building for 32 bits.
-bootstrap-build:\
+bootstrap-build:
+\
 project = libfoo-examples
 
 \
@@ -172,11 +183,13 @@ version: 1.2.4
 summary: The Foo Math Library tests
 license: MIT
 builds: 64; Fails building for 32 bits.
-bootstrap-build:\
+bootstrap-build:
+\
 project = libfoo-tests
 
 \
-root-build:\
+root-build:
+\
 config [strings] config.libfoo_tests.test
 
 \
@@ -188,7 +201,8 @@ version: 0
 summary: PostgreSQL C API client library
 license: PostgreSQL License; Permissive free software license.
 keywords: postgresql database client library c
-description:\
+description:
+\
 PostgreSQL is an object-relational SQL database management system with libpq
 being its C client library. Applications can use this library to pass queries
 to the PostgreSQL backend server and to receive the results of those queries
@@ -216,7 +230,8 @@ package-url: https://git.build2.org/cgit/packaging/postgresql/
 email: pgsql-general@postgresql.org; Mailing list.
 package-email: packaging@build2.org; Mailing list.
 requires: build2 >= 0.4.0
-bootstrap-build:\
+bootstrap-build:
+\
 project = libpq
 
 \
@@ -236,7 +251,8 @@ build-warning-email: studxml-warnings@example.com
 build-error-email: studxml-errors@example.com
 depends: libexpat >= 2.0.0
 depends: libgenx
-bootstrap-build:\
+bootstrap-build:
+\
 project = libstudxml
 
 \

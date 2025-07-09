@@ -16,6 +16,7 @@ openssl req -x509 -new -key key.pem -days 3650 -config openssl.cnf > cert.pem
 # bpkg rep-create 1/math
 # bpkg rep-create 1/stable --key key.pem
 # bpkg rep-create pkg/1/dev.cppget.org/signed --key key.pem
+# bpkg rep-create pkg/1/dev.cppget.org/unsigned
 #
 # Update certificate fingerprint in loadtab for dev.cppget.org/signed
 # repository. To print the fingerprint run:

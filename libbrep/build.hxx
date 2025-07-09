@@ -4,8 +4,6 @@
 #ifndef LIBBREP_BUILD_HXX
 #define LIBBREP_BUILD_HXX
 
-#include <chrono>
-
 #include <odb/core.hxx>
 #include <odb/section.hxx>
 
