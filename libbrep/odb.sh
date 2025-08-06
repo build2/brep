@@ -34,6 +34,7 @@ sed -r -ne 's#^(@[^ ]+ )?([^ ]+)/ .*default.*$#\2#p')"
   inc+=("-I..")
 
 else
+  inc+=("-I$HOME/work/odb/builds/gcc-pgsql/libodb")
 
   inc+=("-I$HOME/work/odb/odb/libodb-pgsql")
   inc+=("-I$HOME/work/odb/odb/libodb")

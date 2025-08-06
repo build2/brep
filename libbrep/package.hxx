@@ -681,7 +681,15 @@ namespace brep
 
     priority_type priority;
     string summary;
+
+    // Make sure these aliases are defined before the virtual licenses member,
+    // which will be placed after license_alternatives.
+    //
+    using _license_key = odb::nested_key<licenses>;
+    using _licenses_type = std::map<_license_key, string>;
+
     license_alternatives_type license_alternatives;
+
     small_vector<string, 5> topics;
     small_vector<string, 5> keywords;
 
@@ -701,6 +709,22 @@ namespace brep
     optional<email_type> build_email;         // Note: foreign-mapped in build.
     optional<email_type> build_warning_email; // Note: foreign-mapped in build.
     optional<email_type> build_error_email;   // Note: foreign-mapped in build.
+
+    // Make sure these aliases are defined before the virtual
+    // dependency_alternatives and dependency_alternative_dependencies
+    // members, which will be placed after dependencies.
+    //
+    using _dependency_alternative_key =
+      odb::nested_key<dependency_alternatives>;
+
+    using _dependency_alternatives_type =
+      std::map<_dependency_alternative_key, dependency_alternative>;
+
+    using _dependency_key = odb::nested2_key<dependency_alternatives>;
+
+    using _dependency_alternative_dependencies_type =
+      std::map<_dependency_key, dependency>;
+
     dependencies_type dependencies;
     requirements_type requirements;           // Note: foreign-mapped in build.
     small_vector<test_dependency, 1> tests;   // Note: foreign-mapped in build.
@@ -778,9 +802,6 @@ namespace brep
 
     // license
     //
-    using _license_key = odb::nested_key<licenses>;
-    using _licenses_type = std::map<_license_key, string>;
-
     #pragma db value(_license_key)
     #pragma db member(_license_key::outer) column("alternative_index")
     #pragma db member(_license_key::inner) column("index")
@@ -812,12 +833,6 @@ namespace brep
 
     // Container of the dependency_alternative values.
     //
-    using _dependency_alternative_key =
-      odb::nested_key<dependency_alternatives>;
-
-    using _dependency_alternatives_type =
-      std::map<_dependency_alternative_key, dependency_alternative>;
-
     #pragma db value(_dependency_alternative_key)
     #pragma db member(_dependency_alternative_key::outer) column("dependency_index")
     #pragma db member(_dependency_alternative_key::inner) column("index")
@@ -831,10 +846,6 @@ namespace brep
 
     // Container of the dependency values.
     //
-    using _dependency_key = odb::nested2_key<dependency_alternatives>;
-    using _dependency_alternative_dependencies_type =
-      std::map<_dependency_key, dependency>;
-
     #pragma db value(_dependency_key)
     #pragma db member(_dependency_key::outer)  column("dependency_index")
     #pragma db member(_dependency_key::middle) column("alternative_index")
