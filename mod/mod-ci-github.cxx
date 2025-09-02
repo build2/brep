@@ -585,7 +585,7 @@ namespace brep
     else if (event == "push")
     {
       // Push events are triggered by branch pushes, branch creation, and
-      // branch deletion.
+      // branch deletion. As well as tag creation/deletion.
       //
       gh_push_event ps;
       try
@@ -603,6 +603,11 @@ namespace brep
 
         throw invalid_request (400, move (m));
       }
+
+      // We are only interested in branches so ignore everything else.
+      //
+      if (ps.ref.compare (0, 11, "refs/heads/") != 0)
+        return true;
 
       // Store the app-id webhook query parameter in the gh_push_event
       // object (see gh_push_event for an explanation).
@@ -706,6 +711,13 @@ namespace brep
     HANDLER_DIAG;
 
     l3 ([&]{trace << "push event { " << ps << " }";});
+
+    // Ignore pushes to the special build2-control branch.
+    //
+    // @@ The user may want to ignore other branches.
+    //
+    if (ps.ref == "refs/heads/build2-control")
+      return true;
 
     // Cancel the CI tenant associated with the overwritten/deleted previous
     // head commit if this is a forced push or a branch deletion.
