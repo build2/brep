@@ -38,6 +38,10 @@ fi
 
 reference="$(basename "$data_dir")"
 
+# Make sure the potential underlying bpkg calls don't use the fetch cache.
+#
+export BPKG_FETCH_CACHE=0
+
 # Parse the submission request manifest and obtain the archive path as well
 # as the simulate value.
 #

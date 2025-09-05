@@ -168,6 +168,10 @@ fi
 
 reference="$(basename "$data_dir")" # Upload request reference.
 
+# Make sure the potential underlying bpkg calls don't use the fetch cache.
+#
+export BPKG_FETCH_CACHE=0
+
 # Parse the upload request manifest.
 #
 manifest_parser_start "$data_dir/request.manifest"

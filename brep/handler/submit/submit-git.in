@@ -299,6 +299,10 @@ fi
 git_http_timeout=("-c" "http.lowSpeedLimit=1" \
                   "-c" "http.lowSpeedTime=$git_timeout")
 
+# Make sure the potential underlying bpkg calls don't use the fetch cache.
+#
+export BPKG_FETCH_CACHE=0
+
 # Parse the submission request manifest and obtain the required values.
 #
 manifest_parser_start "$data_dir/request.manifest"

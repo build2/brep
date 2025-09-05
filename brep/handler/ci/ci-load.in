@@ -93,6 +93,10 @@ fi
 
 reference="$(basename "$data_dir")"
 
+# Make sure the potential underlying bpkg calls don't use the fetch cache.
+#
+export BPKG_FETCH_CACHE=0
+
 # Parse the CI request manifest and obtain the repository URL, package names
 # with optional versions, as well as the simulate value.
 #
