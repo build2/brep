@@ -82,8 +82,7 @@ namespace brep
     //
     // The passed initial_state indicates the logical initial state and is
     // either absent, `building` (interrupted), or `built` (rebuild). Note
-    // that all the passed build objects are for the same package version and
-    // have the same initial state.
+    // that all the passed build objects have the same initial state.
     //
     // The implementation of this and the below functions should normally not
     // need to make any decisions based on the passed build::state. Rather,
@@ -93,9 +92,9 @@ namespace brep
     // The build_queued_hints can be used to omit certain components from the
     // build id. If single_package_version is true, then this tenant contains
     // a single (non-test) package version and this package name and package
-    // version can be omitted. If single_package_config is true, then the
-    // package version being built only has the default package configuration
-    // and thus it can be omitted.
+    // version can be omitted. If single_package_config is true, then all the
+    // package versions being built only have the default package
+    // configuration and thus it can be omitted.
     //
     struct build_queued_hints
     {

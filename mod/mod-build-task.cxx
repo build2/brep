@@ -1139,21 +1139,21 @@ handle (request& rq, response& rs)
       // Also, if the tenant_service_build_queued callback is registered, then
       // create, persist, and stash the queued build objects for all the
       // unbuilt by the current toolchain and not yet queued configurations of
-      // the package the build task is created for and calculate the hints.
-      // Note that for the task build, we need to make sure that the
-      // third-party service receives the `queued` notification prior to the
-      // `building` notification (see mod/tenant-service.hxx for valid
-      // transitions). The `queued` notification is assumed to be already sent
-      // for the build if the respective object exists and any of the
-      // following is true for it:
+      // the tenant, which contains the package the build task is created for,
+      // and calculate the hints. Note that for the task build, we need to
+      // make sure that the third-party service receives the `queued`
+      // notification prior to the `building` notification (see
+      // mod/tenant-service.hxx for valid transitions). The `queued`
+      // notification is assumed to be already sent for the build if the
+      // respective object exists and any of the following is true for it:
       //
       // - It is in the queued state (initial_state is build_state::queued).
       //
       // - It is a user-forced rebuild of an incomplete build
       //   (rebuild_forced_build is true).
       //
-      // - It is a rebuild of an interrupted rebuild (rebuild_forced_build is
-      //   true).
+      // - It is a rebuild of an interrupted rebuild
+      //   (rebuild_interrupted_rebuild is true).
       //
       const tenant_service_build_building* tsb (nullptr);
       const tenant_service_build_queued* tsq (nullptr);
@@ -1166,79 +1166,88 @@ handle (request& rq, response& rs)
 
       // Create, persist, and return the queued build objects for all the
       // unbuilt by the current toolchain and not yet queued configurations of
-      // the specified package.
+      // the specified build's tenant. Also, as a second part of the result,
+      // return the hints for the subsequent `queued` notification call.
       //
-      // Note that the build object argument is only used for the toolchain
-      // information retrieval. Also note that the package constraints section
-      // is expected to be loaded.
-      //
-      auto queue_builds = [this] (const build_package& p, const build& b)
+      auto queue_builds = [this] (const build& b)
       {
-        assert (p.constraints_section.loaded ());
-
         // Query the existing build ids and stash them into the set.
         //
         set<build_id> existing_builds;
+        {
+          using query = query<package_build_id>;
 
-        using query = query<package_build_id>;
+          query q (query::build::id.package.tenant == b.tenant          &&
+                   query::build::id.toolchain_name == b.toolchain_name  &&
+                   compare_version_eq (query::build::id.toolchain_version,
+                                       b.id.toolchain_version,
+                                       true /* revision */));
 
-        query q (query::build::id.package == p.id                     &&
-                 query::build::id.toolchain_name == b.toolchain_name  &&
-                 compare_version_eq (query::build::id.toolchain_version,
-                                     b.id.toolchain_version,
-                                     true /* revision */));
+          for (build_id& id: build_db_->query<package_build_id> (q))
+            existing_builds.emplace (move (id));
+        }
 
-        for (build_id& id: build_db_->query<package_build_id> (q))
-          existing_builds.emplace (move (id));
-
-        // Go through all the potential package builds and queue those which
-        // are not in the existing builds set.
+        // Go through all the potential tenant builds and queue those which
+        // are not in the existing builds set. While at it, deduce the
+        // `queued` notification hints.
         //
         vector<build> r;
 
-        for (const build_package_config& pc: p.configs)
+        tenant_service_build_queued::build_queued_hints qhs {
+          true /* single_package_version */, true /* single_package_config */};
+
+        pkg_query q (pkg_query::build_package::id.tenant == b.tenant);
+
+        bool first (true);
+        for (auto& tp: build_db_->query<buildable_package> (q))
         {
-          for (const build_target_config& tc: *target_conf_)
+          build_package& p (*tp.package);
+          build_db_->load (p, p.constraints_section);
+
+          if (first)
+            first = false;
+          else
+            qhs.single_package_version = false;
+
+          // Note that the 'default' build configuration is always present.
+          //
+          if (p.configs.size () != 1)
+            qhs.single_package_config = false;
+
+          for (const build_package_config& pc: p.configs)
           {
-            if (!exclude (pc, p.builds, p.constraints, tc))
+            for (const build_target_config& tc: *target_conf_)
             {
-              build_id id (p.id,
-                           tc.target, tc.name,
-                           pc.name,
-                           b.toolchain_name, b.toolchain_version);
-
-              if (existing_builds.find (id) == existing_builds.end ())
+              if (!exclude (pc, p.builds, p.constraints, tc))
               {
-                r.emplace_back (move (id.package.tenant),
-                                move (id.package.name),
-                                p.version,
-                                move (id.target),
-                                move (id.target_config_name),
-                                move (id.package_config_name),
-                                move (id.toolchain_name),
-                                b.toolchain_version);
+                build_id id (p.id,
+                             tc.target, tc.name,
+                             pc.name,
+                             b.toolchain_name, b.toolchain_version);
 
-                // @@ TODO Persist the whole vector of builds with a single
-                //         operation if/when bulk operations support is added
-                //         for objects with containers.
-                //
-                build_db_->persist (r.back ());
+                if (existing_builds.find (id) == existing_builds.end ())
+                {
+                  r.emplace_back (move (id.package.tenant),
+                                  move (id.package.name),
+                                  p.version,
+                                  move (id.target),
+                                  move (id.target_config_name),
+                                  move (id.package_config_name),
+                                  move (id.toolchain_name),
+                                  b.toolchain_version);
+
+                  // @@ TODO Persist the whole vector of builds with a single
+                  //         operation if/when bulk operations support is
+                  //         added for objects with containers.
+                  //
+                  build_db_->persist (r.back ());
+                }
               }
             }
           }
         }
 
-        return r;
-      };
-
-      auto queue_hints = [this] (const build_package& p)
-      {
-        buildable_package_count tpc (
-          build_db_->query_value<buildable_package_count> (
-            query<buildable_package_count>::build_tenant::id == p.id.tenant));
-
-        return tenant_service_build_queued::build_queued_hints {
-          tpc == 1, p.configs.size () == 1};
+        return make_pair (move (r), move (qhs));
       };
 
       // Calculate the tenant's queued timestamp based on the number of queued
@@ -2050,7 +2059,9 @@ handle (request& rq, response& rs)
 
                     if (tsq != nullptr)
                     {
-                      qbs = queue_builds (*p, *b);
+                      auto r (queue_builds (*b));
+                      qbs = move (r.first);
+                      qhs = move (r.second);
 
                       // If we ought to call the
                       // tenant_service_build_queued::build_queued() callback
@@ -2069,18 +2080,10 @@ handle (request& rq, response& rs)
                       // future and so our {`queued`, `building`} notification
                       // sequence may not be interfered.
                       //
-                      if (!qbs.empty ()  ||
-                          !initial_state ||
-                          (*initial_state != build_state::queued &&
-                           !rebuild_forced_build))
+                      if (!qbs.empty ())
                       {
-                        qhs = queue_hints (*p);
-
-                        if (!qbs.empty ())
-                        {
-                          queued_timestamp =
-                            update_queued_timestamp (t, qbs.size ());
-                        }
+                        queued_timestamp =
+                          update_queued_timestamp (t, qbs.size ());
                       }
                     }
 
@@ -2319,7 +2322,9 @@ handle (request& rq, response& rs)
 
                       if (tsq != nullptr)
                       {
-                        qbs = queue_builds (*p, *b);
+                        auto r (queue_builds (*b));
+                        qbs = move (r.first);
+                        qhs = move (r.second);
 
                         // If we ought to call the
                         // tenant_service_build_queued::build_queued()
@@ -2328,15 +2333,10 @@ handle (request& rq, response& rs)
                         // notifications race (see above building from scratch
                         // for details).
                         //
-                        if (!qbs.empty () || !rebuild_interrupted_rebuild)
+                        if (!qbs.empty ())
                         {
-                          qhs = queue_hints (*p);
-
-                          if (!qbs.empty ())
-                          {
-                            queued_timestamp =
-                              update_queued_timestamp (t, qbs.size ());
-                          }
+                          queued_timestamp =
+                            update_queued_timestamp (t, qbs.size ());
                         }
                       }
 
