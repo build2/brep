@@ -315,13 +315,13 @@ namespace brep
          is 15 seconds. See also \cb{build-queued-batch}."
       }
 
-      size_t build-queued-batch = 60
+      size_t build-queued-batch = 34
       {
         "<num>",
         "The maximum number of build configurations in the \cb{queued}
          notification batch for package CI requests submitted via third-party
          services (see \cb{build-queued-timeout} for details). The default
-         is 60."
+         is 34."
       }
     };
 

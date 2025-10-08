@@ -179,8 +179,13 @@ namespace brep
     {
       if (dat)
       {
-        throw runtime_error ("field error received from GraphQL endpoint: "
-                             "incomplete data");
+        string d ("field error received from GraphQL endpoint: incomplete data");
+
+#if 0
+        d += ": " + *err;
+#endif
+
+        throw runtime_error (d);
       }
       else
         throw runtime_error ("request error received from GraphQL endpoint: " +
