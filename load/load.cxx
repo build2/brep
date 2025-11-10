@@ -340,7 +340,7 @@ changed (const string& tenant,
 static process
 repository_info (const options& lo, const string& rl, const cstrings& options)
 {
-  cstrings args {lo.bpkg ().string ().c_str (), "rep-info"};
+  cstrings args {lo.bpkg ().string ().c_str (), "rep-info", "--no-progress"};
 
   args.insert (args.end (), options.begin (), options.end ());
 
