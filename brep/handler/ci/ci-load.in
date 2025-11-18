@@ -93,6 +93,11 @@ fi
 
 reference="$(basename "$data_dir")"
 
+# Make sure the potential bpkg-executed git commands fail instead of prompting
+# for authentication.
+#
+export GIT_TERMINAL_PROMPT=0
+
 # Make sure the potential underlying bpkg calls don't use the fetch cache.
 #
 export BPKG_FETCH_CACHE=0

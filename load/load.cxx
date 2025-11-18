@@ -350,9 +350,14 @@ repository_info (const options& lo, const string& rl, const cstrings& options)
   args.push_back (rl.c_str ());
   args.push_back (nullptr);
 
+  // Make sure that bpkg-executed git commands fail instead of prompting for
+  // authentication.
+  //
+  const char* evars[] = {"GIT_TERMINAL_PROMPT=0", nullptr};
+
   try
   {
-    return process (args.data (), 0, -1, 2);
+    return process (args.data (), 0, -1, 2, nullptr /* cwd */, evars);
   }
   catch (const process_error& e)
   {

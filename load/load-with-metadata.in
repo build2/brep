@@ -88,6 +88,10 @@ if [[ -z "$brep_load" ]]; then
   fi
 fi
 
+# Make sure git commands fail instead of prompting for authentication.
+#
+export GIT_TERMINAL_PROMPT=0
+
 # Make sure the commit file is present.
 #
 load_commit="$repo_dir.load"
