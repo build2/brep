@@ -182,8 +182,8 @@ handle (request& rq, response&)
   shared_ptr<build_package> pkg;
   build_package_config* cfg (nullptr);
 
-  // Don't send email to the build-email address for the success-to-success
-  // status change, unless the build was forced.
+  // Don't send email to the build-*email addresses if the status didn't
+  // change since the previous build, unless the build was forced.
   //
   bool build_notify (false);
   bool unforced (true);
@@ -456,10 +456,14 @@ handle (request& rq, response&)
 
         unforced = (b->force == force_state::unforced);
 
-        build_notify = !(rs == result_status::success &&
-                         b->status                    &&
-                         *b->status == rs             &&
-                         unforced);
+        // Note that if the result status is 'skip', then we leave the
+        // previous status for the build. Thus, we never send notification
+        // emails for the skip status. Also note that the forced rebuild is
+        // always a hard rebuild (see build task handler for details) and so
+        // the result status of a forced rebuild can never be 'skip'.
+        //
+        build_notify = !(rs == result_status::skip ||
+                         (b->status && *b->status == rs && unforced));
 
         b->state  = build_state::built;
         b->force  = force_state::unforced;
@@ -627,14 +631,11 @@ handle (request& rq, response&)
     }
   }
 
-  if (bld != nullptr)
+  // Don't send the notification email if the status didn't change since the
+  // previous build.
+  //
+  if (bld != nullptr && build_notify)
   {
-    // Don't sent the notification email for success-to-success status change,
-    // etc.
-    //
-    if (!build_notify)
-      (cfg->email ? cfg->email : pkg->build_email) = email ();
-
     if (conn == nullptr)
       conn = build_db_->connection ();
 
