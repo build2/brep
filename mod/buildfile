@@ -46,7 +46,7 @@ libue{mod}: ../web/xhtml/libue{xhtml}
 
 # Generated options parser.
 #
-if $cli.configured
+if $cli.build.configured
 {
   cli.cxx{module-options}: cli{module}
 

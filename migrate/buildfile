@@ -17,7 +17,7 @@ obj{migrate}: cxx.poptions += -DBREP_COPYRIGHT=\"$copyright\"
 
 # Generated options parser.
 #
-if $cli.configured
+if $cli.build.configured
 {
   cli.cxx{migrate-options}: cli{migrate}
 

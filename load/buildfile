@@ -23,7 +23,7 @@ obj{load}: cxx.poptions += -DBREP_COPYRIGHT=\"$copyright\"
 
 # Generated options parser.
 #
-if $cli.configured
+if $cli.build.configured
 {
   cli.cxx{load-options}: cli{load}
 
