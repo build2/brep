@@ -40,6 +40,7 @@ depends: bpkg-util [0.18.0-a.0.1 0.18.0-a.1)
 builds: none ; Requires unpackaged software.
 
 debian-builds: sys
+debian-builds: -static                   ; Don't link Apache module with static libpq.
 debian-build-exclude: linux_debian_12-** ; libapreq2 not available
 debian-build-include: linux_debian*-**
 debian-build-include: linux_ubuntu*-**
@@ -47,6 +48,7 @@ debian-build-exclude: **
 debian-build-config: sys:apache2-dev ?sys:libapr1 ?sys:libapreq2 ?sys:libpq sys:rsync
 
 fedora-builds: sys
+fedora-builds: -static                   ; Don't link Apache module with static libpq.
 fedora-build-include: linux_fedora*-**
 fedora-build-exclude: **
 fedora-build-config: sys:httpd-devel ?sys:libapr1 ?sys:libapreq2 ?sys:libpq sys:rsync
