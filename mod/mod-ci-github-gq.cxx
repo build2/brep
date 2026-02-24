@@ -25,9 +25,12 @@ namespace brep
   static string        gq_name (string&&);
   static string        gq_str (const string&);
   static string        gq_int (uint64_t);
-  static string        gq_bool (bool);
   static const string& gq_enum (const string&);
   static string        gq_enum (string&&);
+
+#if 0
+  static string        gq_bool (bool);
+#endif
 
   [[noreturn]] static void
   throw_json (json::parser& p, const string& m)
@@ -1712,11 +1715,13 @@ namespace brep
 
   // Serialize a boolean to GraphQL.
   //
+#if 0
   static inline string
   gq_bool (bool v)
   {
     return v ? "true" : "false";
   }
+#endif
 
   // Check that a string is a valid GraphQL enum value.
   //
