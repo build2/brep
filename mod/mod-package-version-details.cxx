@@ -610,7 +610,7 @@ handle (request& rq, response& rs)
       dir_path directory;    // .../x86_64-2023-05-11T10:13:43Z
 
       bool
-      operator< (const bindist_config& v)
+      operator< (const bindist_config& v) const
       {
         if (int r = distribution.compare (v.distribution))
           return   distribution.string () == "archive" ? false :
