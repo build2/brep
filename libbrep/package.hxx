@@ -267,11 +267,11 @@ namespace brep
     // of the last attempt to load the tenant (see the build_unloaded() tenant
     // services notification for details).
     //
-    optional<timestamp> unloaded_timestamp;      // Note: foreign-mapped in build.
+    optional_timestamp unloaded_timestamp;       // Note: foreign-mapped in build.
 
     // The time interval between attempts to load the tenant, if unloaded.
     //
-    optional<duration> unloaded_notify_interval; // Note: foreign-mapped in build.
+    optional_duration unloaded_notify_interval;  // Note: foreign-mapped in build.
 
     // Note that due to the implementation complexity and performance
     // considerations, the service notifications are not synchronized. This
@@ -299,7 +299,7 @@ namespace brep
     // natural reasons (non-zero build task execution time, etc) and thus we
     // just ignore them.
     //
-    optional<timestamp> queued_timestamp;        // Note: foreign-mapped in build.
+    optional_timestamp queued_timestamp;         // Note: foreign-mapped in build.
 
     // Note that after the package tenant is created but before the first
     // build object is created, there is no easy way to produce a list of

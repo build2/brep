@@ -53,9 +53,9 @@ namespace brep
     timestamp creation_timestamp;
     bool archived = false;
     optional<tenant_service> service;
-    optional<timestamp> unloaded_timestamp;
-    optional<duration> unloaded_notify_interval;
-    optional<timestamp> queued_timestamp;
+    optional_timestamp unloaded_timestamp;
+    optional_duration unloaded_notify_interval;
+    optional_timestamp queued_timestamp;
     optional<build_toolchain> toolchain;
 
     // Database mapping.
