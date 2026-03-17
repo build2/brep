@@ -1,3 +1,12 @@
+Version 0.18.0
+
+  * GitHub CI integration.
+
+    See the "GitHub CI Integration" section in the manual for details.
+
+  * Build result notification emails are now suppressed if build status hasn't
+    change.
+
 Version 0.17.0
 
   * Support for auxiliary machines/configurations.
