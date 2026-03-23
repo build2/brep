@@ -18,6 +18,18 @@
 #
 #   -> 0.18.0-a.0.20250612092116.c0f1adfb8390, 0.18.0-a.0
 #
+# - If unable to retrieve the build2 toolchain package version from the
+#   toolchain.sha256 file, then, before failing, check if this file only
+#   contains the "disabled" word. If that's the case, then instead of failing
+#   remove the toolchain binary distribution, if present
+#   (toolchain-bindist.sha256 exists), and silently bail out. Use
+#   toolchain-bindist.sha256 to deduce the binary distribution directory. For
+#   example:
+#
+#   bb760c... *0.18.0-a.0/bindist/...
+#
+#   -> 0.18.0-a.0/bindist
+#
 # - Sanitize the <distribution-root>/<distribution-version>/bindist/
 #   directory, removing those subdirectories which contain no packages.sha256
 #   file nor subdirectories. Note that a valid subdirectory must either
@@ -128,19 +140,51 @@ if [[ ! -d "$dist_dir" ]]; then
   error "'$dist_dir' does not exist or is not a directory"
 fi
 
-# Retreive the build2 toolchain version from the first (comment) line of
-# toolchain.sha256:
+toolchain_sha256_file="$dist_dir/toolchain.sha256"
+
+# Retrieve the build2 toolchain version from the first (comment) line of
+# toolchain.sha256 or bail out if this file only contains the "disabled" word.
 #
-toolchain_version="$(sed -n -re 's/^# (.+)$/\1/p' <"$dist_dir/toolchain.sha256")"
+toolchain_version="$(sed -n -re 's/^# (.+)$/\1/p' <"$toolchain_sha256_file")"
 
 if [[ -z "$toolchain_version" ]]; then
-  error "unable to retrieve toolchain version from $dist_dir/toolchain.sha256"
+  if [[ "$(cat "$toolchain_sha256_file")" != "disabled" ]]; then
+    error "unable to retrieve toolchain version from $dist_dir/toolchain.sha256"
+  fi
+
+  # Remove the toolchain binary distribution, if present.
+  #
+  bindist_sha256_file="$dist_dir/toolchain-bindist.sha256"
+
+  if [[ -f "$bindist_sha256_file" ]]; then
+    trace "$bindist_sha256_file exists, removing toolchain binary distribution..."
+
+    # Note that there can be multiple matching lines. Thus, we only consider
+    # the first match.
+    #
+    bindist_dir="$(sed -n -re 's%^[^ ]+ \*([^/]+/bindist)/.+$%\1%p' "$bindist_sha256_file" | sed -n -e '1p')"
+
+    if [[ -n "$bindist_dir" ]]; then
+      bindist_dir="$dist_dir/$bindist_dir"
+      run rm -r "$bindist_dir"
+
+      # Also remove the toolchain version distribution directory, if empty.
+      #
+      run rmdir "$(dirname "$bindist_dir")" 2>/dev/null || true
+    fi
+
+    run rm "$bindist_sha256_file"
+  fi
+
+  # Bail out.
+  #
+  exit 0
 fi
 
 # Retrieve the distribution version from the build2 toolchain line of
 # toolchain.sha256:
 #
-dist_version="$(sed -n -re 's%^[^ ]+ \*([^/]+)/build2-toolchain-.+$%\1%p' <"$dist_dir/toolchain.sha256")"
+dist_version="$(sed -n -re 's%^[^ ]+ \*([^/]+)/build2-toolchain-.+$%\1%p' <"$toolchain_sha256_file")"
 
 bindist_dir="$dist_dir/$dist_version/bindist"
 
