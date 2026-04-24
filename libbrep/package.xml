@@ -1,19 +1,5 @@
 <changelog xmlns="http://www.codesynthesis.com/xmlns/odb/changelog" database="pgsql" schema-name="package" version="1">
-  <changeset version="36">
-    <alter-table name="tenant">
-      <add-column name="service_ref_count" type="BIGINT" null="true"/>
-    </alter-table>
-  </changeset>
-
-  <changeset version="35">
-    <alter-table name="package">
-      <add-column name="reviews_pass" type="BIGINT" null="true"/>
-      <add-column name="reviews_fail" type="BIGINT" null="true"/>
-      <add-column name="reviews_manifest_file" type="TEXT" null="true"/>
-    </alter-table>
-  </changeset>
-
-  <model version="34">
+  <model version="36">
     <table name="tenant" kind="object">
       <column name="id" type="TEXT" null="false"/>
       <column name="private" type="BOOLEAN" null="false"/>
@@ -22,6 +8,7 @@
       <column name="archived" type="BOOLEAN" null="false"/>
       <column name="service_id" type="TEXT" null="true"/>
       <column name="service_type" type="TEXT" null="true"/>
+      <column name="service_ref_count" type="BIGINT" null="true"/>
       <column name="service_data" type="TEXT" null="true"/>
       <column name="unloaded_timestamp" type="BIGINT" null="true"/>
       <column name="unloaded_notify_interval" type="BIGINT" null="true"/>
@@ -218,6 +205,9 @@
       <column name="build_warning_email_comment" type="TEXT" null="true"/>
       <column name="build_error_email" type="TEXT" null="true"/>
       <column name="build_error_email_comment" type="TEXT" null="true"/>
+      <column name="reviews_pass" type="BIGINT" null="true"/>
+      <column name="reviews_fail" type="BIGINT" null="true"/>
+      <column name="reviews_manifest_file" type="TEXT" null="true"/>
       <column name="internal_repository_tenant" type="TEXT" null="true"/>
       <column name="internal_repository_canonical_name" type="TEXT" null="true"/>
       <column name="location" type="TEXT" null="true"/>
