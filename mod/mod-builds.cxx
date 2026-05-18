@@ -64,13 +64,31 @@ init (scanner& s)
   }
 }
 
-template <typename T, typename C>
+// Return a query condition which matches the specified query member with a
+// path pattern. Negate the matching if the pattern is prefixed with the '!'
+// character.
+//
+template <typename T, typename M>
 static inline query<T>
-match (const C qc, const string& pattern)
+match (const M m, const string& p)
 {
-  return qc           +
-         "SIMILAR TO" +
-         query<T>::_val (brep::wildcard_to_similar_to_pattern (pattern));
+  using brep::wildcard_to_similar_to_pattern;
+
+  return m +
+         (p[0] != '!'
+          ? ("SIMILAR TO" +
+             query<T>::_val (wildcard_to_similar_to_pattern (p)))
+          : ("NOT SIMILAR TO" +
+             query<T>::_val (wildcard_to_similar_to_pattern (p.substr (1)))));
+}
+
+// Match the specified string with a path pattern. Negate the matching if the
+// pattern is prefixed with the '!' character.
+//
+static inline bool
+match (const string& s, const string& p)
+{
+  return p[0] != '!' ? path_match (s, p) : !path_match (s, p.substr (1));
 }
 
 // If tenant is absent, then query builds from all the public tenants.
@@ -463,9 +481,11 @@ handle (request& rq, response& rs)
   const string& pkg_cfg (params.package_config ());
 
   // We will not display hidden configurations, unless the configuration is
-  // specified explicitly.
+  // specified explicitly and is not negated.
   //
-  bool exclude_hidden (tgt_cfg.empty () || path_pattern (tgt_cfg));
+  bool exclude_hidden (tgt_cfg.empty ()       ||
+                       path_pattern (tgt_cfg) ||
+                       tgt_cfg[0] == '!');
 
   vector<build_target_config_id> conf_ids;
   conf_ids.reserve (target_conf_map_->size ());
@@ -753,11 +773,11 @@ handle (request& rq, response& rs)
       {
             // Filter by name.
             //
-        if ((tgt_cfg.empty () || path_match (c.name, tgt_cfg)) &&
+        if ((tgt_cfg.empty () || match (c.name, tgt_cfg))     &&
 
             // Filter by target.
             //
-            (tgt.empty () || path_match (c.target.string (), tgt)) &&
+            (tgt.empty () || match (c.target.string (), tgt)) &&
 
             (!exclude_hidden || !belongs (c, "hidden"))) // Filter hidden.
         {
@@ -863,7 +883,7 @@ handle (request& rq, response& rs)
           {
             // Filter by package config name.
             //
-            if (pkg_cfg.empty () || path_match (c.name, pkg_cfg))
+            if (pkg_cfg.empty () || match (c.name, pkg_cfg))
             {
               for (const auto& tc: target_configs)
               {
@@ -988,7 +1008,7 @@ handle (request& rq, response& rs)
         {
           // Filter by package config name.
           //
-          if (pkg_cfg.empty () || path_match (pc.name, pkg_cfg))
+          if (pkg_cfg.empty () || match (pc.name, pkg_cfg))
           {
             for (const target_config_toolchain& ct: config_toolchains)
             {
@@ -1004,10 +1024,10 @@ handle (request& rq, response& rs)
               if (!exclude (pc, p->builds, p->constraints, *i->second))
                 unbuilt_configs.insert (
                   config_toolchain {ct.target,
-                      ct.target_config,
-                      pc.name,
-                      ct.toolchain_name,
-                      ct.toolchain_version});
+                                    ct.target_config,
+                                    pc.name,
+                                    ct.toolchain_name,
+                                    ct.toolchain_version});
             }
           }
         }
