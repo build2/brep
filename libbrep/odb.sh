@@ -34,10 +34,8 @@ sed -r -ne 's#^(@[^ ]+ )?([^ ]+)/ .*default.*$#\2#p')"
   inc+=("-I..")
 
 else
-  inc+=("-I$HOME/work/odb/builds/gcc-pgsql/libodb")
-
-  inc+=("-I$HOME/work/odb/odb/libodb-pgsql")
-  inc+=("-I$HOME/work/odb/odb/libodb")
+  inc+=("-I$HOME/work/odb/odb-new/libodb-pgsql")
+  inc+=("-I$HOME/work/odb/odb-new/libodb")
 
   inc+=(-I.. -I../../libbbot -I../../libbpkg -I../../libbutl)
 
