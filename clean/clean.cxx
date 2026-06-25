@@ -475,10 +475,6 @@ namespace brep
       return 1;
     }
 
-    uint64_t ns (
-      chrono::duration_cast<chrono::nanoseconds> (
-        to->time_since_epoch ()).count ());
-
     // Query tenants in chunks in order not to hold locks for too long.
     //
     connection_ptr conn (db.connection ());
@@ -490,7 +486,7 @@ namespace brep
       using query = query<tenant>;
       using pquery = prepared_query<tenant>;
 
-      query q ((query::creation_timestamp < ns && !query::archived) +
+      query q ((query::creation_timestamp < *to && !query::archived) +
                "LIMIT 100");
 
       pquery pq (conn->prepare_query<tenant> ("tenant-query", q));
@@ -526,7 +522,7 @@ namespace brep
     using query = query<tenant_id>;
     using pquery = prepared_query<tenant_id>;
 
-    query q ((query::creation_timestamp < ns) + "LIMIT 100");
+    query q ((query::creation_timestamp < *to) + "LIMIT 100");
     pquery pq (conn->prepare_query<tenant_id> ("tenant-id-query", q));
 
     for (bool ne (true); ne; )

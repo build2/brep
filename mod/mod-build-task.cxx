@@ -258,11 +258,11 @@ package_query (bool custom_bot,
   case interactive_mode::both: break;
   }
 
+  optional_timestamp ts (system_clock::now ());
+
   return q &&
          (query::build_tenant::queued_timestamp.is_null () ||
-          query::build_tenant::queued_timestamp <
-            chrono::duration_cast<chrono::nanoseconds> (
-              system_clock::now ().time_since_epoch ()).count ());
+          query::build_tenant::queued_timestamp < ts);
 }
 
 bool brep::build_task::
@@ -647,17 +647,11 @@ handle (request& rq, response& rs)
       return now - chrono::seconds (timeout);
     };
 
-    auto expiration_ns = [&expiration] (size_t timeout) -> uint64_t
-    {
-      return chrono::duration_cast<chrono::nanoseconds> (
-        expiration (timeout).time_since_epoch ()).count ();
-    };
+    timestamp normal_result_expiration (
+      expiration (options_->build_result_timeout ()));
 
-    uint64_t normal_result_expiration_ns (
-      expiration_ns (options_->build_result_timeout ()));
-
-    uint64_t forced_result_expiration_ns (
-      expiration_ns (options_->build_forced_rebuild_timeout ()));
+    timestamp forced_result_expiration (
+      expiration (options_->build_forced_rebuild_timeout ()));
 
     timestamp forced_rebuild_expiration (
       expiration (options_->build_forced_rebuild_timeout ()));
@@ -1052,12 +1046,12 @@ handle (request& rq, response& rs)
                             canonical_version (toolchain_version),
                             true /* revision */)                          &&
 
-        (bld_query::state == "built" ||
-         (bld_query::state == "building" &&
-          ((bld_query::force == "forcing" &&
-            bld_query::timestamp > forced_result_expiration_ns) ||
-           (bld_query::force != "forcing" && // Unforced or forced.
-            bld_query::timestamp > normal_result_expiration_ns)))));
+        (bld_query::state == build_state::built ||
+         (bld_query::state == build_state::building &&
+          ((bld_query::force == force_state::forcing &&
+            bld_query::timestamp > forced_result_expiration) ||
+           (bld_query::force != force_state::forcing && // Unforced or forced.
+            bld_query::timestamp > normal_result_expiration)))));
 
       prep_bld_query bld_prep_query (
         conn->prepare_query<build> ("mod-build-task-build-query", bq));

@@ -741,10 +741,10 @@ namespace brep
       bquery lbq ((equal<build> (bquery::id,
                                  id,
                                  false /* toolchain_version */) &&
-                   bquery::state != "queued")       +
-                  "ORDER BY"                        +
-                  bquery::soft_timestamp + "DESC, " +
-                  bquery::timestamp + "DESC"        +
+                   bquery::state != build_state::queued) +
+                  "ORDER BY"                             +
+                  bquery::soft_timestamp + "DESC, "      +
+                  bquery::timestamp + "DESC"             +
                   "LIMIT 1");
 
       prep_bquery plbq (
@@ -752,7 +752,9 @@ namespace brep
 
       // This query will only be used to retrieve a specific build by id.
       //
-      bquery bq (equal<build> (bquery::id, id) && bquery::state != "queued");
+      bquery bq (
+        equal<build> (bquery::id, id) && bquery::state != build_state::queued);
+
       prep_bquery pbq (conn->prepare_query<build> ("package-build-query", bq));
 
       timestamp now (system_clock::now ());
