@@ -190,21 +190,23 @@ build_query (const brep::vector<brep::build_target_config_id>* config_ids,
     {
       if (rs == "pending")
       {
-        q = q && ((qb::state == "built" && qb::force =="forced") ||
-                  (qb::state == "building" && qb::force =="forcing"));
+        q = q && ((qb::state == build_state::built &&
+                   qb::force == force_state::forced) ||
+                  (qb::state == build_state::building &&
+                   qb::force == force_state::forcing));
       }
       else if (rs == "building")
       {
-        q = q && qb::state == "building";
+        q = q && qb::state == build_state::building;
         add_state = false;
       }
       else
       {
-        query sq (qb::status == rs);
-
         // May throw invalid_argument.
         //
         result_status st (bbot::to_result_status (rs));
+
+        query sq (qb::status == st);
 
         if (st != result_status::success)
         {
@@ -218,19 +220,19 @@ build_query (const brep::vector<brep::build_target_config_id>* config_ids,
           };
 
           while (next ())
-            sq = sq || qb::status == to_string (st);
+            sq = sq || qb::status == st;
         }
 
         // Note that the result status may present for the building state as
         // well (rebuild).
         //
-        q = q && qb::state == "built" && sq;
+        q = q && qb::state == build_state::built && sq;
         add_state = false;
       }
     }
 
     if (add_state)
-      q = q && qb::state != "queued";
+      q = q && qb::state != build_state::queued;
   }
   catch (const invalid_argument&)
   {

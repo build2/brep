@@ -4,6 +4,7 @@
 #include <mod/database.hxx>
 
 #include <map>
+#include <memory> // unique_ptr
 
 #include <odb/pgsql/database.hxx>
 #include <odb/pgsql/connection-factory.hxx>
@@ -45,10 +46,11 @@ namespace brep
     {
     }
 
-    virtual pooled_connection_ptr
+    virtual std::unique_ptr<pgsql::connection>
     create () override
     {
-      pooled_connection_ptr conn (pgsql::connection_pool_factory::create ());
+      std::unique_ptr<pgsql::connection> conn (
+        pgsql::connection_pool_factory::create ());
 
       // Set the serializable isolation level for the subsequent connection
       // transactions. Note that the SET TRANSACTION command affects only the
