@@ -258,7 +258,7 @@ package_query (bool custom_bot,
   case interactive_mode::both: break;
   }
 
-  optional_timestamp ts (system_clock::now ());
+  timestamp ts (system_clock::now ());
 
   return q &&
          (query::build_tenant::queued_timestamp.is_null () ||
