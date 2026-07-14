@@ -51,7 +51,6 @@ $odb "${inc[@]}" -d pgsql --std c++14 --generate-query       \
     --hxx-prologue '#include <libbutl/small-vector-odb.hxx>' \
     --hxx-prologue '#include <libbrep/wrapper-traits.hxx>'   \
     --hxx-prologue '#include <libbrep/common-traits.hxx>'    \
-    -DLIBODB_BUILD2 -DLIBODB_PGSQL_BUILD2                    \
     --include-with-brackets --include-prefix libbrep         \
     --guard-prefix LIBBREP                                   \
     common.hxx
@@ -61,8 +60,7 @@ $odb "${inc[@]}" -d pgsql --std c++14 --generate-query --generate-schema \
     --odb-epilogue '#include <libbutl/small-vector-odb.hxx>'             \
     --odb-epilogue '#include <libbrep/wrapper-traits.hxx>'               \
     --hxx-prologue '#include <libbrep/package-traits.hxx>'               \
-    --generate-prepared -DLIBODB_BUILD2 -DLIBODB_PGSQL_BUILD2            \
-    --include-with-brackets --include-prefix libbrep                     \
+    --generate-prepared --include-with-brackets --include-prefix libbrep \
     --guard-prefix LIBBREP                                               \
     package.hxx
 
@@ -72,17 +70,15 @@ $odb "${inc[@]}" -d pgsql --std c++14 --generate-query --generate-schema \
     --schema-format sql --schema-format embedded --schema-name build     \
     --odb-epilogue '#include <libbutl/small-vector-odb.hxx>'             \
     --odb-epilogue '#include <libbrep/wrapper-traits.hxx>'               \
-    --generate-prepared -DLIBODB_BUILD2 -DLIBODB_PGSQL_BUILD2            \
-    --include-with-brackets --include-prefix libbrep                     \
+    --generate-prepared --include-with-brackets --include-prefix libbrep \
     --guard-prefix LIBBREP                                               \
     build.hxx
 
-$odb "${inc[@]}" -d pgsql --std c++14 --generate-query        \
-    --odb-epilogue '#include <libbutl/small-vector-odb.hxx>'  \
-    --odb-epilogue '#include <libbrep/wrapper-traits.hxx>'    \
-    --generate-prepared -DLIBODB_BUILD2 -DLIBODB_PGSQL_BUILD2 \
-    --include-with-brackets --include-prefix libbrep          \
-    --guard-prefix LIBBREP                                    \
+$odb "${inc[@]}" -d pgsql --std c++14 --generate-query                   \
+    --odb-epilogue '#include <libbutl/small-vector-odb.hxx>'             \
+    --odb-epilogue '#include <libbrep/wrapper-traits.hxx>'               \
+    --generate-prepared --include-with-brackets --include-prefix libbrep \
+    --guard-prefix LIBBREP                                               \
     build-package.hxx
 
 xxd -i <build-extra.sql >build-extra.hxx
