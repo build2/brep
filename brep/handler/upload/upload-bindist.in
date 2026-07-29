@@ -21,12 +21,23 @@
 # Note that the leaf component of the package configuration symlink path is
 # sanitized, having the "bindist", <instance>, <os-release-name-id>, and
 # <os-release-name-id><os-release-version-id> dash-separated sub-components
-# removed. If the component becomes empty as a result of the sanitization,
-# then the target CPU is assumed, if the package is not architecture-
-# independent, and "noarch" otherwise. If the sanitized component is not
-# empty, the package is not architecture-independent, and the resulting
-# component doesn't containt the target CPU, then prepend it with the <cpu>-
-# prefix. For example, the following symlink paths:
+# removed. If the package language runtimes are specified in the bindist
+# result manifest, then prepend the sanitized component with them, skipping
+# those which are already present in the component. Also remove those language
+# runtimes from the component, whose more specific version is present in the
+# bindist result manifest. For example:
+#
+# msvc17 (bindist result), msvc (config component) -> msvc17
+# msvc17 (bindist result), msvc17 (config component) -> msvc17
+# msvc17 (bindist result), msvc-debug (config component) -> msvc17-debug
+# msvc17 (bindist result), msvc17-debug (config component) -> msvc17-debug
+#
+# If the component becomes empty as a result of the sanitization, then the
+# target CPU is assumed, if the package is not architecture-independent, and
+# "noarch" otherwise. If the sanitized component is not empty, the package is
+# not architecture-independent, and the resulting component doesn't containt
+# the target CPU, then prepend it with the <cpu>- prefix. For example, the
+# following symlink paths:
 #
 # .../archive/windows10/foo/libfoo/1.0.0/bindist-archive-windows10-release
 # .../archive/windows10/foo/libfoo/1.0.0/bindist-archive-windows10
@@ -293,7 +304,7 @@ fi
 
 manifest_parser_start "$f"
 
-# Parse the distribution manifest.
+# Parse the package header manifest.
 #
 # Note that we need to skip the first manifest version value and parse until
 # the next one is encountered, which introduces the first package file
@@ -301,6 +312,7 @@ manifest_parser_start "$f"
 #
 os_release_name_id=
 os_release_version_id=
+package_language_runtimes=
 
 first=true
 more=
@@ -314,8 +326,9 @@ while IFS=: read -ru "$manifest_parser_ofd" -d '' n v; do
         fi
         ;;
 
-    os-release-name-id)    os_release_name_id="$v"    ;;
-    os-release-version-id) os_release_version_id="$v" ;;
+    os-release-name-id)        os_release_name_id="$v"        ;;
+    os-release-version-id)     os_release_version_id="$v"     ;;
+    package-language-runtimes) package_language_runtimes="$v" ;;
   esac
 done
 
@@ -392,18 +405,54 @@ manifest_parser_finish
 # Sanitize the package configuration name.
 #
 config=
+sep=
 for c in $(sed 's/-/ /g' <<<"$package_config"); do
   if [[ "$c" != "bindist"             &&
         "$c" != "$instance"           &&
         "$c" != "$os_release_name_id" &&
         "$c" != "$os_release_name_id$os_release_version_id" ]]; then
-    if [[ -z "$config" ]]; then
-      config="$c"
-    else
-      config="$config-$c"
-    fi
+    config="$config$sep$c"
+    sep="-"
   fi
 done
+
+# Prepend the sanitized configuration name with the language runtimes, if
+# present, removing the redundant ones.
+#
+if [[ -n "$package_language_runtimes" ]]; then
+
+  # Compose the prefix, skipping runtimes which are already present in the
+  # config.
+  #
+  runtimes=
+  sep=
+  for r in $(sed 's/-/ /g' <<<"$package_language_runtimes"); do
+    if [[ "$config" != *"$r"* ]]; then
+      runtimes="$runtimes$sep$r"
+      sep="-"
+    fi
+  done
+
+  # Remove runtimes, which are already present in the prefix, from the config.
+  #
+  conf=
+  sep=
+  for c in $(sed 's/-/ /g' <<<"$config"); do
+    if [[ "$runtimes" != *"$c"* ]]; then
+      conf="$conf$sep$c"
+      sep="-"
+    fi
+  done
+
+  # Prepend the config with the prefix.
+  #
+  sep=
+  if [[ -n "$runtimes" && -n "$conf" ]]; then
+    sep="-"
+  fi
+
+  config="$runtimes$sep$conf"
+fi
 
 # Reflect the architecture in the sanitized configuration name.
 #
