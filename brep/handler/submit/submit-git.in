@@ -303,6 +303,25 @@ git_http_timeout=("-c" "http.lowSpeedLimit=1" \
 #
 export GIT_TERMINAL_PROMPT=0
 
+# Prevent git commands (pull, commit, etc) from running maintenance tasks in
+# the background and starting daemons.
+#
+# Note that in contrast to the testscripts (see
+# tests/submit/submit-git.testscript for details), we don't disable
+# maintenance tasks completely, to avoid the reference repository bloat.
+#
+val="\
+'maintenance.autoDetach=false' \
+'gc.autoDetach=false' \
+'core.fsmonitor=false' \
+'credential.helper='"
+
+if [ -n "$GIT_CONFIG_PARAMETERS" ]; then
+  val="$val $GIT_CONFIG_PARAMETERS"
+fi
+
+export GIT_CONFIG_PARAMETERS="$val"
+
 # Make sure the potential underlying bpkg calls don't use the fetch cache.
 #
 export BPKG_FETCH_CACHE=0
