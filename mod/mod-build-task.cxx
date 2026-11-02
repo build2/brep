@@ -663,7 +663,7 @@ handle (request& rq, response& rs)
     //
     // If normal_timeout is zero, then return timestamp_unknown to indicate
     // 'never expire'. Note that this value is less than any build timestamp
-    // value, including timestamp_nonexistent.
+    // value.
     //
     // NOTE: there is a similar code in monitor/monitor.cxx.
     //
@@ -675,7 +675,7 @@ handle (request& rq, response& rs)
       if (normal_timeout == 0)
         return timestamp_unknown;
 
-      timestamp r;
+      timestamp r (timestamp_nonexistent);
       chrono::seconds nt (normal_timeout);
 
       if (alt_interval)

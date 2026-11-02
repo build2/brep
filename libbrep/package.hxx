@@ -406,13 +406,8 @@ namespace brep
     //
     optional<certificate_type> certificate;
 
-    // Initialized with timestamp_nonexistent by default.
-    //
-    timestamp packages_timestamp;
-
-    // Initialized with timestamp_nonexistent by default.
-    //
-    timestamp repositories_timestamp;
+    timestamp packages_timestamp = timestamp_nonexistent;
+    timestamp repositories_timestamp = timestamp_nonexistent;
 
     bool internal;
 

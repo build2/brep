@@ -229,7 +229,7 @@ namespace brep
     // Parse timestamps.
     //
     map<string, timestamp> timeouts; // Toolchain timeouts.
-    timestamp default_timeout;       // timestamp_nonexistent
+    timestamp default_timeout (timestamp_nonexistent);
 
     while (scan.more ())
     {

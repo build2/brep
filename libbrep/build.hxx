@@ -542,14 +542,13 @@ namespace brep
     string& toolchain_name;             // Tracks id.toolchain_name.
     upstream_version toolchain_version; // Original of id.toolchain_version.
 
-    // Times of the latest soft and hard rebuild delay reports. Initialized
-    // with timestamp_nonexistent by default.
+    // Times of the latest soft and hard rebuild delay reports.
     //
     // Note that both reports notify about initial build delays (at their
     // respective time intervals).
     //
-    timestamp report_soft_timestamp;
-    timestamp report_hard_timestamp;
+    timestamp report_soft_timestamp = timestamp_nonexistent;
+    timestamp report_hard_timestamp = timestamp_nonexistent;
 
     // Time when the package is initially considered as buildable for this
     // configuration and toolchain. It is used to track the build delay if the

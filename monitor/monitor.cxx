@@ -768,8 +768,7 @@ namespace brep
       // If the --*-rebuild-timeout monitor option is zero or is not specified
       // and the respective build-*-rebuild-timeout brep's configuration
       // option is zero, then return timestamp_unknown to indicate 'never
-      // expire'. Note that this value is less than any build timestamp value,
-      // including timestamp_nonexistent.
+      // expire'. Note that this value is less than any build timestamp value.
       //
       // NOTE: there is a similar code in mod/mod-build-task.cxx.
       //

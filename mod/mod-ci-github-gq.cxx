@@ -496,6 +496,11 @@ namespace brep
           r.reset = system_clock::from_time_t (static_cast<time_t> (v));
         else
         {
+          // @@ Strangely, the reset member is never compared to
+          //    timestamp_nonexistent. Should we actually assign
+          //    timestamp_unknown here, as in the default constructed
+          //    gq_rate_limits object?
+          //
           r.reset = timestamp_nonexistent;
         }
       }
