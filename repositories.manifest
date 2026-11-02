@@ -3,7 +3,7 @@ summary: build2 package repository web interface repository
 
 :
 role: prerequisite
-location: ../libbutl.git#HEAD
+location: ../libbutl.git#add-libstud-regex
 
 :
 role: prerequisite
@@ -11,7 +11,7 @@ location: ../libbpkg.git#HEAD
 
 :
 role: prerequisite
-location: ../libbbot.git#HEAD
+location: ../libbbot.git#ci
 
 :
 role: prerequisite
