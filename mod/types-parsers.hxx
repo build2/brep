@@ -7,7 +7,7 @@
 #ifndef MOD_TYPES_PARSERS_HXX
 #define MOD_TYPES_PARSERS_HXX
 
-#include <regex>
+#include <libbutl/regex/regex.hxx>
 
 #include <libbpkg/manifest.hxx> // repository_location
 #include <libbbot/manifest.hxx> // interactive_mode
@@ -87,10 +87,10 @@ namespace brep
     };
 
     template <>
-    struct parser<pair<std::regex, string>>
+    struct parser<pair<butl::regex::regex, string>>
     {
       static void
-      parse (pair<std::regex, string>&, bool&, scanner&);
+      parse (pair<butl::regex::regex, string>&, bool&, scanner&);
     };
 
     template <>

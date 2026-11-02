@@ -3,10 +3,10 @@
 
 #include <mod/types-parsers.hxx>
 
-#include <sstream>
-
-#include <libbutl/regex.hxx>
 #include <libbutl/timestamp.hxx> // from_string()
+
+#include <libbutl/regex/regex.hxx>
+#include <libbutl/regex/regex-ex.hxx>
 
 #include <mod/module-options.hxx>
 
@@ -212,8 +212,8 @@ namespace brep
 
     // Parse the '/regex/replacement/' string into the regex/replacement pair.
     //
-    void parser<pair<std::regex, string>>::
-    parse (pair<std::regex, string>& x, bool& xs, scanner& s)
+    void parser<pair<regex::regex, string>>::
+    parse (pair<regex::regex, string>& x, bool& xs, scanner& s)
     {
       xs = true;
       const char* o (s.next ());
@@ -222,6 +222,8 @@ namespace brep
         throw missing_value (o);
 
       const char* v (s.next ());
+
+      using namespace regex;
 
       try
       {
@@ -233,12 +235,7 @@ namespace brep
       }
       catch (const regex_error& e)
       {
-        // Sanitize the description.
-        //
-        ostringstream os;
-        os << e;
-
-        throw invalid_value (o, v, os.str ());
+        throw invalid_value (o, v, e.what ());
       }
     }
 

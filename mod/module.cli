@@ -2,7 +2,8 @@
 // license   : MIT; see accompanying LICENSE file
 
 include <map>;
-include <regex>;
+
+include <libbutl/regex/regex.hxx>;
 
 include <libbpkg/manifest.hxx>; // repository_location
 include <libbbot/manifest.hxx>; // interactive_mode
@@ -630,7 +631,7 @@ namespace brep
          specified in seconds. The default is 3 hours."
       }
 
-      vector<pair<std::regex, string>> build-interactive-login
+      vector<pair<butl::regex::regex, string>> build-interactive-login
       {
         "</regex/replacement/>",
         "Regular expressions for transforming the interactive build login

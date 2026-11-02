@@ -4,7 +4,6 @@
 #include <mod/mod-build-task.hxx>
 
 #include <map>
-#include <regex>
 #include <chrono>
 #include <random>
 
@@ -14,7 +13,6 @@
 
 #include <libbutl/ft/lang.hxx> // thread_local
 
-#include <libbutl/regex.hxx>
 #include <libbutl/sha256.hxx>
 #include <libbutl/openssl.hxx>
 #include <libbutl/fdstream.hxx>            // nullfd
@@ -22,6 +20,8 @@
 #include <libbutl/path-pattern.hxx>
 #include <libbutl/manifest-parser.hxx>
 #include <libbutl/manifest-serializer.hxx>
+
+#include <libbutl/regex/regex-ex.hxx>
 
 #include <libbbot/manifest.hxx>
 
@@ -786,7 +786,8 @@ handle (request& rq, response& rs)
 
       // Use the first matching regex for the transformation.
       //
-      for (const pair<regex, string>& rf: options_->build_interactive_login ())
+      for (const pair<regex::regex, string>& rf:
+             options_->build_interactive_login ())
       {
         pair<string, bool> r (regex_replace_match (l, rf.first, rf.second));
 
