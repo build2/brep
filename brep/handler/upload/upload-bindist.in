@@ -19,7 +19,8 @@
 # bindist-result.manifest contained in the uploaded archive.
 #
 # Note that the leaf component of the package configuration symlink path is
-# sanitized, having the "bindist", <instance>, <os-release-name-id>, and
+# sanitized, having the potential variant name suffix stripped and the
+# "bindist", <instance>, <os-release-name-id>, and
 # <os-release-name-id><os-release-version-id> dash-separated sub-components
 # removed. If the package language runtimes are specified in the bindist
 # result manifest, then prepend the sanitized component with them, skipping
@@ -249,6 +250,16 @@ fi
 if [[ -z "$target" ]]; then
   error "target manifest value expected"
 fi
+
+# Strip the potential variant name from the package-config manifest value.
+#
+config="$(sed -n -re 's/^([^+]+)(\+.+)?$/\1/p' <<<"$package_config")"
+
+if [[ -z "$config" ]]; then
+  error "base package config and/or variant name is missing in package-config manifest value '$package_config'"
+fi
+
+package_config="$config"
 
 # Let's disallow the leading dot in the package-config manifest value since
 # the latter serves as the package configuration symlink name and brep skips

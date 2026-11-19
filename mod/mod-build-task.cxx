@@ -537,7 +537,7 @@ handle (request& rq, response& rs)
     //
     auto task = [this] (const build& b,
                         const build_package& p,
-                        const build_package_config& pc,
+                        string build_package_config_args,
                         small_vector<bpkg::test_dependency, 1>&& tests,
                         vector<auxiliary_machine>&& ams,
                         optional<string>&& interactive,
@@ -590,7 +590,7 @@ handle (request& rq, response& rs)
                           cm.config->environment,
                           nullopt /* auxiliary_environment */,
                           cm.config->args,
-                          pc.arguments,
+                          move (build_package_config_args),
                           belongs (*cm.config, module_pkg ? "build2" : "host"),
                           cm.config->warning_regexes,
                           move (interactive),
@@ -1188,8 +1188,12 @@ handle (request& rq, response& rs)
         //
         vector<build> r;
 
+        // Note that the base package configuration is always present in the
+        // package configuration variants map (empty key).
+        //
         tenant_service_build_queued::build_queued_hints qhs {
-          true /* single_package_version */, true /* single_package_config */};
+          true /* single_package_version */,
+          package_config_variant_map_.size () == 1 /* single_package_config */};
 
         pkg_query q (pkg_query::build_package::id.tenant == b.tenant);
 
@@ -1209,33 +1213,43 @@ handle (request& rq, response& rs)
           if (p.configs.size () != 1)
             qhs.single_package_config = false;
 
+          // Note that we assume that the tenant created by third-party
+          // service may not be interactive. Thus, we don't skip the package
+          // configuration variants.
+          //
+          assert (!tp.interactive);
+
           for (const build_package_config& pc: p.configs)
           {
             for (const build_target_config& tc: *target_conf_)
             {
               if (!exclude (pc, p.builds, p.constraints, tc))
               {
-                build_id id (p.id,
-                             tc.target, tc.name,
-                             pc.name,
-                             b.toolchain_name, b.toolchain_version);
-
-                if (existing_builds.find (id) == existing_builds.end ())
+                for (const auto& pcv: package_config_variant_map_)
                 {
-                  r.emplace_back (move (id.package.tenant),
-                                  move (id.package.name),
-                                  p.version,
-                                  move (id.target),
-                                  move (id.target_config_name),
-                                  move (id.package_config_name),
-                                  move (id.toolchain_name),
-                                  b.toolchain_version);
+                  build_id id (
+                    p.id,
+                    tc.target, tc.name,
+                    package_build_config_name (pc.name, pcv.first),
+                    b.toolchain_name, b.toolchain_version);
 
-                  // @@ TODO Persist the whole vector of builds with a single
-                  //         operation if/when bulk operations support is
-                  //         added for objects with containers.
-                  //
-                  build_db_->persist (r.back ());
+                  if (existing_builds.find (id) == existing_builds.end ())
+                  {
+                    r.emplace_back (move (id.package.tenant),
+                                    move (id.package.name),
+                                    p.version,
+                                    move (id.target),
+                                    move (id.target_config_name),
+                                    move (id.package_config_name),
+                                    move (id.toolchain_name),
+                                    b.toolchain_version);
+
+                    // @@ TODO Persist the whole vector of builds with a single
+                    //         operation if/when bulk operations support is
+                    //         added for objects with containers.
+                    //
+                    build_db_->persist (r.back ());
+                  }
                 }
               }
             }
@@ -1734,6 +1748,9 @@ handle (request& rq, response& rs)
 
               build_db_->load (*p, p->constraints_section);
 
+              // Note that we don't generate the package configuration
+              // variants for the interactive build.
+              //
               for (build_package_config& pc: p->configs)
               {
                 for (const auto& tc: *target_conf_)
@@ -1850,44 +1867,59 @@ handle (request& rq, response& rs)
               }
             }
 
-            pkg_config = pc.name;
-
-            // Iterate through the built configurations and erase them from
-            // the build configuration map. All those configurations that
-            // remained can be built. We will take the first one, if present.
-            //
-            // Also save the built configurations for which it's time to be
-            // rebuilt.
-            //
-            config_machines configs (conf_machines); // Make copy for this pkg.
-            auto pkg_builds (bld_prep_query.execute ());
-
-            if (!package_built && !pkg_builds.empty ())
-              package_built = true;
-
-            for (auto i (pkg_builds.begin ()); i != pkg_builds.end (); ++i)
+            for (const auto& pcv: package_config_variant_map_)
             {
-              auto j (
-                configs.find (build_target_config_id {
-                    i->id.target, i->id.target_config_name}));
-
-              // Outdated configurations are already excluded with the
-              // database query.
+              // For the interactive build, only consider the base package
+              // configuration.
               //
-              assert (j != configs.end ());
-              configs.erase (j);
+              if (bp.interactive && !pcv.first.empty ())
+                continue;
 
-              if (i->state == build_state::built)
+              pkg_config = package_build_config_name (pc.name, pcv.first);
+
+              // Iterate through the built configurations and erase them from
+              // the build configuration map. All those configurations that
+              // remained can be built. We will take the first one, if
+              // present.
+              //
+              // Also save the built configurations for which it's time to be
+              // rebuilt.
+              //
+              // Make copy for this package config variant.
+              //
+              config_machines configs (conf_machines);
+              auto pkg_builds (bld_prep_query.execute ());
+
+              if (!package_built && !pkg_builds.empty ())
+                package_built = true;
+
+              for (auto i (pkg_builds.begin ()); i != pkg_builds.end (); ++i)
               {
-                assert (i->force != force_state::forcing);
+                auto j (
+                  configs.find (build_target_config_id {
+                      i->id.target, i->id.target_config_name}));
 
-                if (needs_rebuild (*i))
-                  rebuilds.emplace_back (i.load ());
+                // Outdated configurations are already excluded with the
+                // database query.
+                //
+                assert (j != configs.end ());
+                configs.erase (j);
+
+                if (i->state == build_state::built)
+                {
+                  assert (i->force != force_state::forcing);
+
+                  if (needs_rebuild (*i))
+                    rebuilds.emplace_back (i.load ());
+                }
               }
-            }
 
-            if (!configs.empty ())
-            {
+              // If all the target configurations are built for this package
+              // configuration variant, then proceed to the next variant.
+              //
+              if (configs.empty ())
+                continue;
+
               // Find the first build configuration that is not excluded by
               // the package configuration and for which all the requested
               // auxiliary machines can be provided.
@@ -2087,13 +2119,15 @@ handle (request& rq, response& rs)
                   }
                 }
 
-                task_response = task (*b,
-                                      *p,
-                                      pc,
-                                      move (aux->tests),
-                                      move (aux->task_auxiliary_machines),
-                                      move (bp.interactive),
-                                      *cm);
+                task_response =
+                  task (*b,
+                        *p,
+                        package_build_config_arguments (pc.arguments,
+                                                        pcv.second),
+                        move (aux->tests),
+                        move (aux->task_auxiliary_machines),
+                        move (bp.interactive),
+                        *cm);
 
                 task_build = move (b);
                 task_package = move (p);
@@ -2101,9 +2135,14 @@ handle (request& rq, response& rs)
 
                 package_built = true;
 
-                break; // Bail out from the package configurations loop.
+                // Bail out from the package configuration variants loop.
+                //
+                break;
               }
             }
+
+            if (task_response.task)
+              break; // Bail out from the package configurations loop.
           }
 
           // If the task manifest is prepared, then bail out from the package
@@ -2220,9 +2259,11 @@ handle (request& rq, response& rs)
                 ? build_db_->load<build_tenant> (p->id.tenant)
                 : nullptr);
 
+              pair<string, string> pcn (
+                split_package_build_config_name (b->package_config_name));
+
               build_package_config* pc (p != nullptr
-                                        ? find (b->package_config_name,
-                                                p->configs)
+                                        ? find (pcn.first, p->configs)
                                         : nullptr);
 
               if (pc != nullptr &&
@@ -2340,13 +2381,24 @@ handle (request& rq, response& rs)
                     }
                   }
 
-                  task_response = task (*b,
-                                        *p,
-                                        *pc,
-                                        move (aux->tests),
-                                        move (aux->task_auxiliary_machines),
-                                        move (t->interactive),
-                                        cm);
+                  auto pcv (package_config_variant_map_.find (pcn.second));
+
+                  // Note that the package config variant name must be present
+                  // in brep configuration, since this build object was
+                  // queried for this specific variant (see the above
+                  // pkg_config variable for details).
+                  //
+                  assert (pcv != package_config_variant_map_.end ());
+
+                  task_response =
+                    task (*b,
+                          *p,
+                          package_build_config_arguments (pc->arguments,
+                                                          pcv->second),
+                          move (aux->tests),
+                          move (aux->task_auxiliary_machines),
+                          move (t->interactive),
+                          cm);
 
                   task_build = move (b);
                   task_package = move (p);

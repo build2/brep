@@ -282,7 +282,9 @@ handle (request& rq, response& rs)
                 build_db_->load<build_package> (b->id.package));
 
               qhs = tenant_service_build_queued::build_queued_hints {
-                tpc == 1, p->configs.size () == 1};
+                tpc == 1,
+                p->configs.size () == 1 &&
+                  package_config_variant_map_.size () == 1};
 
               // Set the package tenant's queued timestamp, unless it is
               // already set to the same or greater value.

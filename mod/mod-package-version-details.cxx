@@ -781,6 +781,13 @@ handle (request& rq, response& rs)
     using query = query<build>;
 
     query sq (false);
+
+    // Note that the config_toolchain::package_config member is actually of
+    // the reference type. Thus, we also need an associative container to
+    // store the actual names of the unbuilt package configuration variants,
+    // where the unbuilt_configs entries can refer to.
+    //
+    set<string> package_config_names;
     set<config_toolchain> unbuilt_configs;
 
     for (const package_build_config& pc: pkg->build_configs)
@@ -793,19 +800,32 @@ handle (request& rq, response& rs)
         {
           const build_target_config_id& id (bc.first);
 
-          sq = sq || (query::id.target == id.target             &&
-                      query::id.target_config_name == id.config &&
-                      query::id.package_config_name == pc.name);
+          for (const auto& pcv: package_config_variant_map_)
+          {
+            // For the interactive build, only consider the base package
+            // configuration.
+            //
+            if (tn->interactive && !pcv.first.empty ())
+              continue;
 
-          // Note: we will erase built configurations from the unbuilt
-          // configurations set later (see below).
-          //
-          for (const auto& t: toolchains)
-            unbuilt_configs.insert (config_toolchain {tc.target,
-                                                      tc.name,
-                                                      pc.name,
-                                                      t.first,
-                                                      t.second});
+            const string& pcn (
+              *package_config_names.emplace (
+                package_build_config_name (pc.name, pcv.first)).first);
+
+            sq = sq || (query::id.target == id.target             &&
+                        query::id.target_config_name == id.config &&
+                        query::id.package_config_name == pcn);
+
+            // Note: we will erase built configurations from the unbuilt
+            // configurations set later (see below).
+            //
+            for (const auto& t: toolchains)
+              unbuilt_configs.insert (config_toolchain {tc.target,
+                                                        tc.name,
+                                                        pcn,
+                                                        t.first,
+                                                        t.second});
+          }
         }
       }
     }
@@ -813,7 +833,12 @@ handle (request& rq, response& rs)
     // Let's not print the package configuration row if the default
     // configuration is the only one.
     //
-    bool ppc (pkg->build_configs.size () != 1); // Note: can't be empty.
+    // Note that the 'default' build package configuration and the base
+    // configuration variant (empty key) are always present in their
+    // respective containers.
+    //
+    bool ppc (pkg->build_configs.size () != 1 ||
+              (!tn->interactive && package_config_variant_map_.size () != 1));
 
     // Print the package built configurations in the time-descending order.
     //
@@ -911,20 +936,25 @@ handle (request& rq, response& rs)
           string reason;
           if (belongs (tc, "default") && exclude (pc, tc, &reason))
           {
-            s << TABLE(CLASS="proplist build")
-              <<   TBODY
-              <<     TR_VALUE ("target", tc.target.string ())
-              <<     TR_VALUE ("tgt config", tc.name);
+            for (const auto& pcv: package_config_variant_map_)
+            {
+              s << TABLE(CLASS="proplist build")
+                <<   TBODY
+                <<     TR_VALUE ("target", tc.target.string ())
+                <<     TR_VALUE ("tgt config", tc.name);
 
-            if (ppc)
-              s <<   TR_VALUE ("pkg config", pc.name);
+              if (ppc)
+                s <<   TR_VALUE ("pkg config",
+                                 package_build_config_name (pc.name,
+                                                            pcv.first));
 
-            s <<     TR_VALUE ("result",
-                               !reason.empty ()
-                               ? "excluded (" + reason + ')'
-                               : "excluded")
-              <<   ~TBODY
-              << ~TABLE;
+              s <<     TR_VALUE ("result",
+                                 !reason.empty ()
+                                 ? "excluded (" + reason + ')'
+                                 : "excluded")
+                <<   ~TBODY
+                << ~TABLE;
+            }
           }
         }
       }

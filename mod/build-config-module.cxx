@@ -119,6 +119,8 @@ namespace brep
   void build_config_module::
   init (const options::build& bo)
   {
+    // target_conf_
+    //
     try
     {
       target_conf_ = shared_build_config (bo.build_config ());
@@ -132,10 +134,14 @@ namespace brep
       throw_generic_error (EIO, os.str ().c_str ());
     }
 
+    // bot_agent_key_map_
+    //
     if (bo.build_bot_agent_keys_specified ())
       bot_agent_key_map_ =
         shared_bot_agent_keys (bo, bo.build_bot_agent_keys ());
 
+    // target_conf_map_
+    //
     using conf_map_type = map<build_target_config_id,
                               const build_target_config*>;
 
@@ -145,6 +151,11 @@ namespace brep
       conf_map[build_target_config_id {c.target, c.name}] = &c;
 
     target_conf_map_ = make_shared<conf_map_type> (move (conf_map));
+
+    // package_config_variant_map_
+    //
+    package_config_variant_map_ =
+      package_build_config_variants (bo.build_package_config_variant ());
   }
 
   bool build_config_module::

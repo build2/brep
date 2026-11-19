@@ -10,7 +10,7 @@ name: libhello
 version: 1.1.0+10
 project: hello
 target-config: linux_fedora_37-gcc_12.2-bindist
-package-config: default
+package-config: default+out-src
 target: x86_64-linux-gnu
 tenant: 4d4c8b36-56c5-42e0-91d1-58bfd1228002
 toolchain-name: queue

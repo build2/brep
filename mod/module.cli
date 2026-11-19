@@ -216,6 +216,19 @@ namespace brep
          restarted after adding new key files for the changes to take effect."
       }
 
+      std::multimap<string, string> build-package-config-variant
+      {
+        "[<name>]=<args>",
+        "Additional package build configuration variant. If the variant name
+         is specified, then for each package build configuration an additional
+         configuration variant is created by appending the specified name
+         (separated with '\cb{+}') and arguments (separated with a newline) to
+         the base configuration name and arguments, respectively. If the
+         variant name is omitted, then each package configuration is modified
+         by appending the specified arguments. Repeat this option to specify
+         multiple variants as well as multiple arguments for the same variant."
+      }
+
       size_t build-forced-rebuild-timeout = 600
       {
         "<seconds>",

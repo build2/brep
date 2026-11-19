@@ -577,8 +577,10 @@ handle (request& rq, response& rs)
       shared_ptr<build_package> p (
         build_db_->load<build_package> (b->id.package));
 
-      const build_package_config* pc (find (b->package_config_name,
-                                            p->configs));
+      pair<string, string> pcn (
+        split_package_build_config_name (b->package_config_name));
+
+      const build_package_config* pc (find (pcn.first, p->configs));
 
       // The package configuration should be present since the configurations
       // set cannot change if the package version doesn't change. If that's
@@ -588,8 +590,8 @@ handle (request& rq, response& rs)
       //
       if (pc == nullptr)
       {
-        warn << "cannot find configuration '" << b->package_config_name
-             << "' for package " << p->id.name << '/' << p->version;
+        warn << "cannot find configuration '" << pcn.first << "' for package "
+             << p->id.name << '/' << p->version;
 
         continue;
       }
@@ -862,7 +864,7 @@ handle (request& rq, response& rs)
           build_db_->prepare_query<package_build_count> (
             "mod-builds-build-count-query", bq));
 
-        // Number of possible builds per package configuration.
+        // Number of possible builds per package configuration variant.
         //
         size_t nt (th == "*" ? toolchains.size () : 1);
 
@@ -881,26 +883,42 @@ handle (request& rq, response& rs)
 
           // Note: load the constrains section lazily.
           //
-          for (const build_package_config& c: p->configs)
+          for (const build_package_config& pc: p->configs)
           {
-            // Filter by package config name.
-            //
-            if (pkg_cfg.empty () || match (c.name, pkg_cfg))
+            for (const auto& pcv: package_config_variant_map_)
             {
-              for (const auto& tc: target_configs)
-              {
-                if (!p->constraints_section.loaded ())
-                  build_db_->load (*p, p->constraints_section);
+              // For the interactive build, only consider the base package
+              // configuration.
+              //
+              if (bp.interactive && !pcv.first.empty ())
+                continue;
 
-                if (exclude (c, p->builds, p->constraints, *tc))
+              package_config_name =
+                package_build_config_name (pc.name, pcv.first);
+
+              // Filter by package config name.
+              //
+              if (pkg_cfg.empty () || match (package_config_name, pkg_cfg))
+              {
+                for (const auto& tc: target_configs)
                 {
-                  target = tc->target;
-                  target_config_name = tc->name;
-                  package_config_name = c.name;
-                  ncur -= bld_prep_query.execute_value ();
+                  if (!p->constraints_section.loaded ())
+                    build_db_->load (*p, p->constraints_section);
+
+                  // We could probably optimize this by caching the exclusion
+                  // check result for target configurations, not to repeat the
+                  // same call across all the variants of a package
+                  // configuration. Let's, however, keep it simple for now.
+                  //
+                  if (exclude (pc, p->builds, p->constraints, *tc))
+                  {
+                    target = tc->target;
+                    target_config_name = tc->name;
+                    ncur -= bld_prep_query.execute_value ();
+                  }
+                  else
+                    npos += nt;
                 }
-                else
-                  npos += nt;
               }
             }
           }
@@ -1002,34 +1020,56 @@ handle (request& rq, response& rs)
         // Copy configuration/toolchain combinations for this package,
         // skipping excluded configurations.
         //
+        // Note that the config_toolchain::package_config member is actually
+        // of the reference type. Thus, we also need an associative container
+        // to store the actual names of the unbuilt package configuration
+        // variants, where the unbuilt_configs entries can refer to.
+        //
+        set<string> package_config_names;
         set<config_toolchain> unbuilt_configs;
 
         // Load the constrains section lazily.
         //
         for (const build_package_config& pc: p->configs)
         {
-          // Filter by package config name.
-          //
-          if (pkg_cfg.empty () || match (pc.name, pkg_cfg))
+          for (const auto& pcv: package_config_variant_map_)
           {
-            for (const target_config_toolchain& ct: config_toolchains)
+            // For the interactive build, only consider the base package
+            // configuration.
+            //
+            if (bp.interactive && !pcv.first.empty ())
+              continue;
+
+            const string& pcn (
+              *package_config_names.emplace (
+                package_build_config_name (pc.name, pcv.first)).first);
+
+            // Filter by package config name.
+            //
+            if (pkg_cfg.empty () || match (pcn, pkg_cfg))
             {
-              auto i (
-                target_conf_map_->find (
-                  build_target_config_id {ct.target, ct.target_config}));
+              for (const target_config_toolchain& ct: config_toolchains)
+              {
+                auto i (
+                  target_conf_map_->find (
+                    build_target_config_id {ct.target, ct.target_config}));
 
-              assert (i != target_conf_map_->end ());
+                assert (i != target_conf_map_->end ());
 
-              if (!p->constraints_section.loaded ())
-                build_db_->load (*p, p->constraints_section);
+                if (!p->constraints_section.loaded ())
+                  build_db_->load (*p, p->constraints_section);
 
-              if (!exclude (pc, p->builds, p->constraints, *i->second))
-                unbuilt_configs.insert (
-                  config_toolchain {ct.target,
-                                    ct.target_config,
-                                    pc.name,
-                                    ct.toolchain_name,
-                                    ct.toolchain_version});
+                // We could probably optimize this by caching the exclusion
+                // check result (see above for details).
+                //
+                if (!exclude (pc, p->builds, p->constraints, *i->second))
+                  unbuilt_configs.insert (
+                    config_toolchain {ct.target,
+                                      ct.target_config,
+                                      pcn,
+                                      ct.toolchain_name,
+                                      ct.toolchain_version});
+              }
             }
           }
         }

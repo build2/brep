@@ -379,7 +379,8 @@ handle (request& rq, response&)
             build_db_->load<build_package> (b->id.package));
 
           qhs = tenant_service_build_queued::build_queued_hints {
-            tpc == 1, p->configs.size () == 1};
+            tpc == 1,
+            p->configs.size () == 1 && package_config_variant_map_.size () == 1};
 
           // Set the package tenant's queued timestamp, unless it is already
           // set to the same or greater value.
@@ -504,7 +505,11 @@ handle (request& rq, response&)
         build_db_->update (b);
 
         pkg = build_db_->load<build_package> (b->id.package);
-        cfg = find (b->package_config_name, pkg->configs);
+
+        pair<string, string> pcn (
+          split_package_build_config_name (b->package_config_name));
+
+        cfg = find (pcn.first, pkg->configs);
 
         // The package configuration should be present (see mod-builds.cxx for
         // details) but if it is not, let's log the warning.
@@ -524,7 +529,7 @@ handle (request& rq, response&)
           }
         }
         else
-          warn << "cannot find configuration '" << b->package_config_name
+          warn << "cannot find configuration '" << pcn.first
                << "' for package " << pkg->id.name << '/' << pkg->version;
       }
 

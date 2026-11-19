@@ -15,6 +15,7 @@
 
 #include <mod/module-options.hxx>
 #include <mod/build-target-config.hxx>
+#include <mod/build-package-config.hxx>
 
 // Base class for modules that utilize the build controller configuration.
 //
@@ -106,7 +107,7 @@ namespace brep
     };
 
   protected:
-    // Build configurations.
+    // Build target configurations.
     //
     shared_ptr<const build_target_configs> target_conf_;
 
@@ -117,6 +118,13 @@ namespace brep
     // Map of build bot agent public keys fingerprints to the key file paths.
     //
     shared_ptr<const std::map<string, path>> bot_agent_key_map_;
+
+    // Package build configuration variants.
+    //
+    // Note: always contains an entry for the base package configuration
+    //       (empty key), potentially with an empty arguments list.
+    //
+    std::map<string, string> package_config_variant_map_;
   };
 }
 
