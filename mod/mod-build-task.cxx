@@ -1298,7 +1298,7 @@ handle (request& rq, response& rs)
       optional<timestamp> queued_timestamp;
 
       // Collect the auxiliary machines required for testing of the specified
-      // package configuration and the external test packages, if present for
+      // package configuration and the external test packages, if present, for
       // the specified target configuration (task_auxiliary_machines),
       // together with the auxiliary machines information that needs to be
       // persisted in the database as a part of the build object

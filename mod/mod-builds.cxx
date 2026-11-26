@@ -206,28 +206,38 @@ build_query (const brep::vector<brep::build_target_config_id>* config_ids,
         //
         result_status st (bbot::to_result_status (rs));
 
-        query sq (qb::status == st);
-
-        if (st != result_status::success)
-        {
-          auto next = [&st] () -> bool
-          {
-            if (st == result_status::abnormal)
-              return false;
-
-            st = static_cast<result_status> (static_cast<uint8_t> (st) + 1);
-            return true;
-          };
-
-          while (next ())
-            sq = sq || qb::status == st;
-        }
-
-        // Note that the result status may present for the building state as
-        // well (rebuild).
+        // Make sure that the status is in the [success, abnormal] range.
         //
-        q = q && qb::state == build_state::built && sq;
-        add_state = false;
+        // Note that the internet bots may send valid but unexpected statuses
+        // like interrupt, etc.
+        //
+        if (st >= result_status::success && st <= result_status::abnormal)
+        {
+          query sq (qb::status == st);
+
+          if (st != result_status::success)
+          {
+            auto next = [&st] () -> bool
+            {
+              if (st == result_status::abnormal)
+                return false;
+
+              st = static_cast<result_status> (static_cast<uint8_t> (st) + 1);
+              return true;
+            };
+
+            while (next ())
+              sq = sq || qb::status == st;
+          }
+
+          // Note that the result status may be present for the building state
+          // as well (rebuild).
+          //
+          q = q && qb::state == build_state::built && sq;
+          add_state = false;
+        }
+        else
+          throw invalid_argument ("");
       }
     }
 
