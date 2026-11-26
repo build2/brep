@@ -370,24 +370,33 @@ information is asynchronously gathered by the service. In this case the
 \h#ci-overrides-manifest|CI Overrides Manifest|
 
 The CI overrides manifest is a package manifest fragment that should be
-applied to all the packages being tested. The contained values override the
-whole value groups they belong to, resetting all the group values prior to
-being applied. Currently, only the following value groups can be overridden:
+applied to all the packages being tested. The contained values other than
+\c{[\b{*-}]\b{build-auxiliary}[\b{-*}]} override the whole value groups they
+belong to, resetting all the group values prior to being applied. The
+\c{[\b{*-}]\b{build-auxiliary}[\b{-*}]} values only override the matching
+values, which are expected to already be present in the package
+manifest. Currently, only the following value groups can be overridden:
 
 \
 build-email build-{warning,error}-email
 builds build-{include,exclude}
+build-bot
 *-builds *-build-{include,exclude}
+*-build-bot
 *-build-config
+*-build-email *-build-{warning,error}-email
+
+[*-]build-auxiliary[-*]
 \
 
-For the package configuration-specific build constraint overrides the
-corresponding configuration must exist in the package manifest. In contrast,
-the package configuration override (\cb{*-build-config}) adds a new
-configuration if it doesn't exist and updates the arguments of the existing
-configuration otherwise. In the former case, all the potential build
-constraint overrides for such a newly added configuration must follow the
-corresponding \cb{*-build-config} override.
+For the package configuration-specific build constraint, email, auxiliary, and
+custom bot public key overrides, the corresponding configuration must exist in
+the package manifest. In contrast, the package configuration override
+(\cb{*-build-config}) adds a new configuration if it doesn't exist and updates
+the arguments of the existing configuration otherwise. In the former case, all
+the potential build constraint, email, auxiliary, and custom bot public key
+overrides for such a newly added configuration must follow the corresponding
+\cb{*-build-config} override.
 
 Note that the build constraints group values (both common and build package
 configuration-specific) are overridden hierarchically so that the
@@ -400,6 +409,21 @@ constraints are overridden, then all the configuration-specific constraints
 are removed. Otherwise, if any configuration-specific constraints are
 overridden, then for the remaining configurations the build constraints are
 reset to \cb{builds:\ none}.
+
+Similar to the build constraints groups, the common and build package
+configuration-specific custom bot public key value overrides are mutually
+exclusive. If the common build custom bot public keys are overridden, then all
+the configuration-specific custom bot public keys are removed.  Otherwise, if
+any configuration-specific custom bot public keys are overridden, then for the
+remaining configurations the custom bot public keys are left unchanged.
+
+Similar to the above, the common and build package configuration-specific
+build emails group value overrides are mutually exclusive. If the common build
+emails are overridden, then all the configuration-specific emails are
+removed. Otherwise, if any configuration-specific emails are overridden, then
+for the remaining configurations the build emails are reset to the empty
+values and the build warning and error emails are removed (which effectively
+disables email notifications for such configurations).
 
 See \l{bpkg#manifest-package Package Manifest} for details on these values.
 
